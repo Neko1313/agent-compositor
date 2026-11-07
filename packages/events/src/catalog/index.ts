@@ -4,6 +4,7 @@ import * as session from "./session.js";
 import * as prompts from "./prompts.js";
 import * as turnsAgents from "./turns-agents.js";
 import * as ui from "./ui.js";
+import * as services from "./services.js";
 
 /** The catalog: ordered, versioned, frozen. The single source of truth. */
 export const catalog: readonly EventDef[] = [
@@ -31,6 +32,13 @@ export const catalog: readonly EventDef[] = [
   ui.uiPress,
   ui.uiFocus,
   ui.uiInvalidate,
+  // $ API surface: each method is itself an event
+  services.serviceFsRead,
+  services.serviceFsWrite,
+  services.serviceModelComplete,
+  services.serviceAuthLogin,
+  services.serviceUiNotify,
+  services.serviceTelemetryLog,
 ];
 
 export { namespaceOf } from "../define.js";

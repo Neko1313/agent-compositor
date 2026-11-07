@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "events": {
     "session.start": {
       "since": "0.1.0",
@@ -443,6 +443,162 @@
         "note": "opaque"
       },
       "responses": {}
+    },
+    "service.fs.read": {
+      "since": "0.2.0",
+      "version": 1,
+      "summary": "$.fs.read(path): read a workspace-confined file (max 1 MB).",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.fs.write": {
+      "since": "0.2.0",
+      "version": 1,
+      "summary": "$.fs.write(path, content): write a workspace-confined file (max 10 MB).",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.model.complete": {
+      "since": "0.2.0",
+      "version": 1,
+      "summary": "$.model.complete(request): call the configured model provider.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.auth.login": {
+      "since": "0.2.0",
+      "version": 1,
+      "summary": "$.auth.login(provider?): run the auth flow of the configured auth capability.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.ui.notify": {
+      "since": "0.2.0",
+      "version": 1,
+      "summary": "$.ui.notify(message, level?): post a transient status message.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.telemetry.log": {
+      "since": "0.2.0",
+      "version": 1,
+      "summary": "$.telemetry.log(event, data?): structured log line.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
     }
   }
 }

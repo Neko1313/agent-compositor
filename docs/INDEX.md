@@ -29,6 +29,7 @@ This is the router file: reading starts here. It links to topics and records sig
 | 2026-11-08 | Wire protocol handshake = LSP-style capabilities + semver | accepted | Major mismatch fails; minor negotiates to lower; no shared surface fails |
 | 2026-11-08 | Runtime dispatcher as the first code above the wire | accepted | Onion chains, tier order, budgets (own/thread/yield), fail-operational, chain trace; Xwayland hook API sits on top of this |
 | 2026-11-08 | Response forms matched by discriminating key + safeParse | accepted | z.object with z.unknown() accepts missing keys — safeParse alone cannot discriminate forms |
+| 2026-11-08 | $ API methods are service.* events; core resolvers at chain end | accepted | Mods insight "each $ method is itself an event": interception via {deny}/{value} needs the call to flow through the dispatcher like any other event |
 
 ## Documentation rules
 

@@ -46,6 +46,8 @@ export class Runtime {
   private plugins = new Map<string, PluginRecord>();
   private hooks: RegisteredHook[] = [];
   private trace: ChainTrace["write"];
+  /** core behavior at the end of a chain: service.* events resolve to real operations */
+  private resolvers = new Map<string, (input: any) => unknown>();
 
   constructor(opts: { trace?: ChainTrace["write"] } = {}) {
     this.trace = opts.trace ?? (() => {});
@@ -86,6 +88,17 @@ export class Runtime {
   }
 
   /**
+   * Install a core resolver for an event: when the hook chain falls through
+   * (every hook called next), the resolver performs the real operation and
+   * its return value becomes the chain result.
+   */
+  setResolver(eventName: string, fn: (input: any) => unknown): void {
+    const def = resolve(eventName);
+    if (!def) throw new Error(`unknown event "${eventName}"`);
+    this.resolvers.set(def.name, fn);
+  }
+
+  /**
    * Emit an event: run its onion chain.
    * Yields intermediate values from async-generator hooks, streaming, in chain order.
    * Returns the terminal response, or the (possibly rewritten) event that fell off the end.
@@ -100,7 +113,7 @@ export class Runtime {
 
     const hooks = this.hooksFor(def.name);
     this.trace({ ts: Date.now(), event: def.name, phase: "enter", detail: `chain depth ${hooks.length}` });
-    const final = hooks.length ? yield* this.walk(0, hooks, parsed, meta, 0) : parsed;
+    const final = yield* this.walk(0, hooks, parsed, meta, 0);
     this.trace({ ts: Date.now(), event: def.name, phase: "result", detail: summarize(final) });
     return { value: final, faults };
   }
@@ -116,7 +129,10 @@ export class Runtime {
     meta: WalkMeta,
     depth: number,
   ): AsyncGenerator<unknown, unknown, void> {
-    if (i >= hooks.length) return input;
+    if (i >= hooks.length) {
+      const resolver = this.resolvers.get(meta.def.name);
+      return resolver ? await resolver(input) : input;
+    }
     const h = hooks[i];
     const t0 = now();
     const ctrl = new AbortController();

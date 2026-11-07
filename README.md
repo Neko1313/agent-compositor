@@ -23,6 +23,7 @@ A model provider integrates via plugins, not by forking: override the login with
 | [`@agent-compositor/protocol`](packages/protocol) | Wire protocol between core and renderers: JSONL framing, LSP-style capability handshake, Neovim-style grid/diff rendering with flush. |
 
 | [`@agent-compositor/runtime`](packages/runtime) | Event dispatcher: onion hook chains with tier ordering (prepend→user→append→builtin→core), own/thread/yield budgets, fail-operational faults, chain trace (`--plugin-trace`). |
+| [`@agent-compositor/hooks`](packages/hooks) | The `$` API (Xwayland surface): every `$` method is itself a `service.*` event — plugins intercept each other's calls with `{deny}`/`{value}`; per-plugin state, workspace-confined fs, model/auth provider contracts. |
 
 Try the end-to-end headless demo (stdout = protocol JSONL, stderr = chain trace):
 

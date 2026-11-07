@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.1.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.2.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -24,6 +24,12 @@
 | `ui.press` | 0.1.0 | 1 | A Button the plugin drew was pressed. | `next` | — |
 | `ui.focus` | 0.1.0 | 1 | Focus is about to move to another pane/control. | `next` | — |
 | `ui.invalidate` | 0.1.0 | 1 | Damage tracking: the plugin marks changed regions of its pane. | — | — |
+| `service.fs.read` | 0.2.0 | 1 | $.fs.read(path): read a workspace-confined file (max 1 MB). | `deny`, `value` | — |
+| `service.fs.write` | 0.2.0 | 1 | $.fs.write(path, content): write a workspace-confined file (max 10 MB). | `deny`, `value` | — |
+| `service.model.complete` | 0.2.0 | 1 | $.model.complete(request): call the configured model provider. | `deny`, `value` | — |
+| `service.auth.login` | 0.2.0 | 1 | $.auth.login(provider?): run the auth flow of the configured auth capability. | `deny`, `value` | — |
+| `service.ui.notify` | 0.2.0 | 1 | $.ui.notify(message, level?): post a transient status message. | `deny`, `value` | — |
+| `service.telemetry.log` | 0.2.0 | 1 | $.telemetry.log(event, data?): structured log line. | `deny`, `value` | — |
 
 ## Domains
 
@@ -34,3 +40,4 @@
 - **turn**: `turn.start`, `turn.step`, `turn.complete`
 - **agent**: `agent.offer`, `agent.spawn`
 - **ui**: `ui.render`, `ui.press`, `ui.focus`, `ui.invalidate`
+- **service**: `service.fs.read`, `service.fs.write`, `service.model.complete`, `service.auth.login`, `service.ui.notify`, `service.telemetry.log`

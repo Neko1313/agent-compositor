@@ -4,6 +4,7 @@
     { "path": "packages/events" },
     { "path": "packages/protocol" },
     { "path": "packages/runtime" },
+    { "path": "packages/hooks" },
     { "path": "examples" }
   ]
 }

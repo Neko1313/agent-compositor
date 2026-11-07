@@ -1,6 +1,6 @@
 {
   "name": "@agent-compositor/events",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Versioned event catalog: the contract between core, plugins, and renderers.",
   "type": "module",
   "main": "./src/index.ts",

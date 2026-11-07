@@ -37,7 +37,23 @@ The class is declared in the manifest and enforced by the runtime.
 
 ## 4. Plugin manifest
 
-`plugin.json`: name, version, declared events, trust class, capabilities (`model` | `auth` | `workflow` | `tool` | `render`), status-bar contribution.
+`plugin.json`: name, version, declared events, trust class, capabilities (`model` | `auth` | `workflow` | `tool` | `render`), status-bar contribution. Loader-only fields: `main` (entry file, default `index.ts` → `index.js` → `index.mjs`) and `tier` (chain tier, default `user`).
+
+```json
+{
+  "name": "safety",
+  "version": "0.1.0",
+  "trust": "trusted",
+  "tier": "append",
+  "main": "./index.ts"
+}
+```
+
+The hooks module exports a named `hooks` object: event name → `(event, $) => response | undefined`.
+
+Search dirs, in precedence order (first hit wins name collisions): `./plugins`, `./.agent-compositor/plugins`, `$XDG_CONFIG_HOME/agent-compositor/plugins`. One corrupt manifest never blocks the rest; `sandboxed` plugins are refused until the QuickJS host is linked.
+
+Reload = reverse teardown (hooks + per-plugin state) + cache-busted re-import. State does not survive a reload — `session.reload` with the new composition is the documented recovery point.
 
 Installing/enabling a plugin → a `session.start` event with its composition (udev analogy: the module saw the device). Disabling → `session.reload` without it; the plugin's in-memory state is recreated.
 

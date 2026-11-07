@@ -1,0 +1,288 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Runtime } from "@agent-compositor/runtime";
+import { attach } from "@agent-compositor/hooks";
+import type { HooksHost } from "@agent-compositor/hooks";
+import { PluginLoader } from "../src/index.js";
+
+let dir: string;
+let runtime: Runtime;
+let host: HooksHost;
+
+const pluginDir = (root: string, name: string) => {
+  const p = join(root, name);
+  mkdirSync(p, { recursive: true });
+  return p;
+};
+
+const writePlugin = (
+  root: string,
+  name: string,
+  manifest: Record<string, unknown>,
+  hooksTs: string,
+  entry = "index.ts",
+) => {
+  const p = pluginDir(root, name);
+  writeFileSync(join(p, "plugin.json"), JSON.stringify({ name, version: "0.1.0", ...manifest }));
+  writeFileSync(join(p, entry), hooksTs);
+  return p;
+};
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "ac-loader-"));
+  runtime = new Runtime();
+  host = attach(runtime, { session: { id: "s1", cwd: dir } });
+});
+
+afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+describe("PluginLoader / disk discovery", () => {
+  it("discovers plugins in immediate subdirectories with plugin.json", async () => {
+    mkdirSync(join(dir, "empty-plugin")); // no plugin.json → ignored
+    writePlugin(dir, "alpha", { trust: "trusted" }, `export const hooks = {};`);
+    writePlugin(dir, "beta", { trust: "render-only" }, `export const hooks = {};`);
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    const { found, issues } = await loader.discover();
+    expect(issues).toEqual([]);
+    expect(found.map((f) => f.manifest.name).sort()).toEqual(["alpha", "beta"]);
+  });
+
+  it("reports a corrupt manifest as an issue without hiding other plugins", async () => {
+    const bad = pluginDir(dir, "broken");
+    writeFileSync(join(bad, "plugin.json"), "{ not json");
+    writePlugin(dir, "good", { trust: "trusted" }, `export const hooks = {};`);
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    const { found, issues } = await loader.discover();
+    expect(found).toHaveLength(1);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].path).toContain("broken");
+  });
+
+  it("name collisions resolve by search order: first dir wins, later skipped", async () => {
+    const other = mkdtempSync(join(tmpdir(), "ac-loader-other-"));
+    try {
+      writePlugin(dir, "dup", { trust: "trusted" }, `export const hooks = {};`);
+      writePlugin(other, "dup", { trust: "trusted" }, `export const hooks = {};`);
+      const loader = new PluginLoader(host, { dirs: [dir, other] });
+      const report = await loader.loadAll();
+      expect(report.loaded).toHaveLength(1);
+      expect(report.loaded[0].root).toBe(join(dir, "dup"));
+      expect(report.skipped).toHaveLength(1);
+      expect(report.skipped[0].reason).toMatch(/duplicate/);
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("PluginLoader / loading", () => {
+  it("loads hooks that actually run in the chain (tool.check deny)", async () => {
+    writePlugin(
+      dir,
+      "safety",
+      { trust: "trusted", tier: "append" },
+      `export const hooks = {
+        "tool.check": (e) =>
+          e.tool === "Bash" && e.input?.command?.includes("rm -rf /")
+            ? { decision: "deny", reason: "nope" }
+            : undefined,
+      };`,
+    );
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    const report = await loader.loadAll();
+    expect(report.failed).toEqual([]);
+    expect(report.loaded[0]).toMatchObject({ name: "safety", tier: "append", hookCount: 1 });
+
+    const denied = await host.emit("tool.check", { tool: "Bash", input: { command: "rm -rf /" }, callId: "c1" });
+    expect(denied.value).toMatchObject({ decision: "deny", reason: "nope" });
+    const allowed = await host.emit("tool.check", { tool: "Bash", input: { command: "ls" }, callId: "c2" });
+    expect(allowed.value).toMatchObject({ tool: "Bash" }); // fell through the chain
+  });
+
+  it("loaded plugins get the $ API (notify sink sees $.ui.notify)", async () => {
+    const seen: unknown[] = [];
+    const hostWithSink = attach(runtime, {
+      session: { id: "s1", cwd: dir },
+      notify: (message, level, plugin) => seen.push({ message, level, plugin }),
+    });
+    writePlugin(
+      dir,
+      "greeter",
+      { trust: "trusted" },
+      `export const hooks = {
+        "session.start": async (_e, $) => {
+          await $.ui.notify("hello from disk", "info");
+          return undefined;
+        },
+      };`,
+    );
+    const loader = new PluginLoader(hostWithSink, { dirs: [dir] });
+    await loader.loadAll();
+    await hostWithSink.emit("session.start", { sessionId: "s", cwd: dir, plugins: [] });
+    expect(seen).toEqual([{ message: "hello from disk", level: "info", plugin: "greeter" }]);
+  });
+
+  it("a throwing hooks module fails that plugin only (fail-operational)", async () => {
+    writePlugin(dir, "boom", { trust: "trusted" }, `throw new Error("import-time explosion");`);
+    writePlugin(dir, "fine", { trust: "trusted" }, `export const hooks = {};`);
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    const report = await loader.loadAll();
+    expect(report.loaded.map((p) => p.name)).toEqual(["fine"]);
+    expect(report.failed).toHaveLength(1);
+    expect(report.failed[0]).toMatchObject({ name: "boom" });
+    expect(report.failed[0].reason).toMatch(/explosion/);
+  });
+
+  it("unknown hook names and render-only violations are registration failures", async () => {
+    writePlugin(dir, "ghost", { trust: "trusted" }, `export const hooks = { "not.an.event": () => {} };`);
+    writePlugin(dir, "sneaky", { trust: "render-only" }, `export const hooks = { "tool.call": () => ({}) };`);
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    const report = await loader.loadAll();
+    expect(report.loaded).toEqual([]);
+    expect(report.failed.map((f) => f.name).sort()).toEqual(["ghost", "sneaky"]);
+    expect(report.failed.find((f) => f.name === "sneaky")?.reason).toMatch(/render-only/);
+  });
+
+  it("sandboxed plugins are refused with a loud, actionable error (QuickJS host not linked yet)", async () => {
+    writePlugin(dir, "gen", { trust: "sandboxed" }, `export const hooks = {};`);
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    const report = await loader.loadAll();
+    expect(report.loaded).toEqual([]);
+    expect(report.failed[0].reason).toMatch(/QuickJS/);
+  });
+
+  it("loadAll is idempotent: already-loaded names are skipped", async () => {
+    writePlugin(dir, "once", { trust: "trusted" }, `export const hooks = {};`);
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    const first = await loader.loadAll();
+    expect(first.loaded).toHaveLength(1);
+    const second = await loader.loadAll();
+    expect(second.loaded).toEqual([]);
+    expect(second.skipped[0].reason).toMatch(/already loaded/);
+  });
+
+  it("composition() feeds session.start / session.reload", async () => {
+    writePlugin(dir, "a", { trust: "trusted" }, `export const hooks = {};`);
+    writePlugin(dir, "b", { trust: "trusted", tier: "append" }, `export const hooks = {};`);
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    await loader.loadAll();
+    expect(loader.composition()).toEqual([
+      { name: "a", version: "0.1.0", tier: "user" },
+      { name: "b", version: "0.1.0", tier: "append" },
+    ]);
+  });
+});
+
+describe("PluginLoader / reload", () => {
+  it("reload sees new code (cache-busted import)", async () => {
+    const p = writePlugin(
+      dir,
+      "mut",
+      { trust: "trusted" },
+      `export const hooks = { "session.start": () => undefined };`,
+    );
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    await loader.loadAll();
+
+    writeFileSync(
+      join(p, "index.ts"),
+      `export const hooks = {
+        "session.start": (_e, $) => {
+          $.state.set("fresh", true);
+          return undefined;
+        },
+        "session.end": (_e, $) => ({ next: $.state.get("fresh") }),
+      };`,
+    );
+    // NOTE: "session.end" is not in the first version — this also proves the
+    // old hooks table is fully replaced, not merged. { next } is the only
+    // response form of session.end.
+    await loader.reload("mut");
+    await host.emit("session.start", { sessionId: "s", cwd: dir, plugins: [] });
+    const res = await host.emit("session.end", { reason: "other" });
+    expect(res.value).toEqual({ next: true });
+  });
+
+  it("reload wipes per-plugin state (reverse teardown; session.reload is the recovery point)", async () => {
+    const p = writePlugin(
+      dir,
+      "stateful",
+      { trust: "trusted" },
+      `export const hooks = {
+        "session.start": (_e, $) => {
+          $.state.set("n", ($.state.get("n") ?? 0) + 1);
+          return undefined;
+        },
+        "session.end": (_e, $) => ({ next: $.state.get("n") ?? "unset" }),
+      };`,
+    );
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    await loader.loadAll();
+    await host.emit("session.start", { sessionId: "s", cwd: dir, plugins: [] });
+    await host.emit("session.start", { sessionId: "s", cwd: dir, plugins: [] });
+    let res = await host.emit("session.end", { reason: "other" });
+    expect(res.value).toEqual({ next: 2 });
+
+    // touch the file so the re-import URL is guaranteed fresh, then reload
+    writeFileSync(
+      join(p, "index.ts"),
+      `export const hooks = {
+        "session.start": (_e, $) => {
+          $.state.set("n", ($.state.get("n") ?? 0) + 1);
+          return undefined;
+        },
+        "session.end": (_e, $) => ({ next: $.state.get("n") ?? "unset" }),
+      };`,
+    );
+    await loader.reload("stateful");
+    res = await host.emit("session.end", { reason: "other" });
+    expect(res.value).toEqual({ next: "unset" }); // state recreated empty
+  });
+
+  it("reload picks up manifest changes (version bump)", async () => {
+    const p = writePlugin(dir, "ver", { trust: "trusted", version: "1.0.0" }, `export const hooks = {};`);
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    await loader.loadAll();
+    writeFileSync(
+      join(p, "plugin.json"),
+      JSON.stringify({ name: "ver", version: "1.1.0", trust: "trusted" }),
+    );
+    const reloaded = await loader.reload("ver");
+    expect(reloaded.version).toBe("1.1.0");
+  });
+
+  it("reload of an unknown plugin throws", async () => {
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    await expect(loader.reload("nope")).rejects.toThrow(/not loaded/);
+  });
+
+  it("unload removes hooks and state", async () => {
+    const seen: string[] = [];
+    const hostWithSink = attach(runtime, {
+      session: { id: "s1", cwd: dir },
+      notify: (message) => seen.push(message),
+    });
+    writePlugin(
+      dir,
+      "temp",
+      { trust: "trusted" },
+      `export const hooks = {
+        "session.start": async (_e, $) => {
+          await $.ui.notify("ran");
+          return undefined;
+        },
+      };`,
+    );
+    const loader = new PluginLoader(hostWithSink, { dirs: [dir] });
+    await loader.loadAll();
+    await hostWithSink.emit("session.start", { sessionId: "s", cwd: dir, plugins: [] });
+    expect(seen).toEqual(["ran"]);
+
+    expect(await loader.unload("temp")).toBe(true);
+    expect(loader.loaded()).toHaveLength(0);
+    await hostWithSink.emit("session.start", { sessionId: "s", cwd: dir, plugins: [] });
+    expect(seen).toEqual(["ran"]); // hook is gone, sink not called again
+  });
+});

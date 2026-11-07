@@ -1,0 +1,6 @@
+{
+  "name": "status-line",
+  "version": "0.1.0",
+  "trust": "render-only",
+  "description": "A one-row status bar, drawn purely via ui.render."
+}

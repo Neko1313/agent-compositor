@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc -b --emitDeclarationOnly false --noEmit",
     "gen": "npm run gen --workspaces --if-present",
-    "example:headless": "tsx examples/headless-core.ts"
+    "example:headless": "tsx examples/headless-core.ts",
+    "example:loader": "tsx examples/loader-demo.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

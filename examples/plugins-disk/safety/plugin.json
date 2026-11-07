@@ -1,0 +1,7 @@
+{
+  "name": "safety",
+  "version": "0.1.0",
+  "trust": "trusted",
+  "tier": "append",
+  "description": "Refuses catastrophic shell commands at the tool.check gate."
+}

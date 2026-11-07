@@ -1,0 +1,17 @@
+{
+  "name": "@agent-compositor/runtime",
+  "version": "0.1.0",
+  "description": "Event dispatcher: onion hook chains, tier ordering, budgets, fail-operational faults, chain trace.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-compositor/events": "^0.1.0",
+    "zod": "^3.24.0"
+  }
+}

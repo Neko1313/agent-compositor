@@ -10,7 +10,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -b --emitDeclarationOnly false --noEmit",
-    "gen": "npm run gen --workspaces --if-present"
+    "gen": "npm run gen --workspaces --if-present",
+    "example:headless": "tsx examples/headless-core.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent-compositor event catalog",
+  "version": "0.1.0",
+  "events": {
+    "session.start": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "Once per loaded plugin before the first prompt, and again after that plugin reloads. Carries the session composition (the udev moment: the module sees the device).",
+      "namespace": "session",
+      "generator": false,
+      "aliases": [
+        "classic.SessionStart"
+      ],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "session.reload": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "Plugin set changed. In-memory plugin state is recreated; reload is a state-recovery point.",
+      "namespace": "session",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "session.end": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "Session ends, or /clear, /resume, /branch runs.",
+      "namespace": "session",
+      "generator": false,
+      "aliases": [
+        "classic.SessionEnd"
+      ],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "session.compact": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "The conversation is about to be compacted.",
+      "namespace": "session",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "skip": {
+          "summary": "skip compaction",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "prompt.submit": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A prompt is submitted. Rewrite text/context via next(), or drop it.",
+      "namespace": "prompt",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "pass on, possibly rewritten",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "drop": {
+          "summary": "drop the prompt",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "prompt.compose": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "The system prompt is being assembled. Respond with ordered sections.",
+      "namespace": "prompt",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "sections": {
+          "summary": "sections in send order",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "skill.prompt": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A skill's text is expanded for the model.",
+      "namespace": "skill",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "keep the text",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "text": {
+          "summary": "replace the text",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "tool.call": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A tool is about to run. Return { result } to answer it, { deny } to refuse, or pass the (rewritten) event to next().",
+      "namespace": "tool",
+      "generator": false,
+      "aliases": [
+        "classic.PreToolUse"
+      ],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "pass on, possibly rewritten",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "result": {
+          "summary": "answer without running",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "tool.check": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "Pre-execution decision, after tool.call and rules. Resolves to the allow/ask/deny decision.",
+      "namespace": "tool",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "accept the decision reached so far",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "decision": {
+          "summary": "override the decision",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "tool.describe": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "Once per tool, when its description is first sent to the model.",
+      "namespace": "tool",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "keep the description",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "description": {
+          "summary": "replace it; isDeferred puts the tool behind tool search",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "turn.start": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A turn begins.",
+      "namespace": "turn",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "turn.step": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "One request is about to go to the model. Async-generator hook: may yield intermediate values.",
+      "namespace": "turn",
+      "generator": true,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "pass on; may change model/effort",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "turn.complete": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A turn ended. May show a line under the answer.",
+      "namespace": "turn",
+      "generator": false,
+      "aliases": [
+        "classic.Stop"
+      ],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "text": {
+          "summary": "append a status line",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "agent.offer": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A subagent type is offered to the model.",
+      "namespace": "agent",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "offer it",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "withhold": {
+          "summary": "do not offer",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "agent.spawn": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A subagent or teammate is about to start (or resume). May pick its model or deny.",
+      "namespace": "agent",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "pass on, possibly with a different model",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "deny": {
+          "summary": "refuse to start",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "ui.render": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A render site is about to be drawn. Return an element tree. Writing plugin state during render is forbidden.",
+      "namespace": "ui",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "tree": {
+          "summary": "the element tree to draw",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "ui.press": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "A Button the plugin drew was pressed.",
+      "namespace": "ui",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "ui.focus": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "Focus is about to move to another pane/control.",
+      "namespace": "ui",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "ui.invalidate": {
+      "since": "0.1.0",
+      "version": 1,
+      "summary": "Damage tracking: the plugin marks changed regions of its pane.",
+      "namespace": "ui",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    }
+  }
+}

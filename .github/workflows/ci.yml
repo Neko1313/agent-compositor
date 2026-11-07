@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # Neovim api-metadata pattern: generated artifacts are committed,
+      # CI fails if docs/events.md or schema/events.json drift from source.
+      - run: npm run gen
+      - name: check generated docs are in sync
+        run: |
+          git diff --exit-code docs/events.md schema/events.json \
+            || { echo "run 'npm run gen' and commit the result"; exit 1; }

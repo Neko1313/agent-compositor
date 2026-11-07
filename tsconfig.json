@@ -1,0 +1,7 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/events" },
+    { "path": "packages/protocol" }
+  ]
+}

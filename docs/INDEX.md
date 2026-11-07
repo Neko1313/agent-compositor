@@ -24,6 +24,9 @@ This is the router file: reading starts here. It links to topics and records sig
 | 2026-11-08 | English-only documentation | accepted | Audience is the world, not one team |
 | 2026-11-08 | Mirror Claude Mods event/API taxonomy 1:1 | accepted | Xwayland strategy, confirmed against the v2.1.290 official reference |
 | 2026-11-08 | Prior-art synthesis (see 05) | accepted | Five reference systems studied at code level; adoption table is the v1 blueprint |
+| 2026-11-08 | Code starts with contracts: events + protocol packages | accepted | Runtime core ports from the kimi-code fork; everything else derives from the catalog |
+| 2026-11-08 | Catalog as zod-defined source of truth, docs generated | accepted | Neovim api-metadata pattern; closes review gap #2; CI enforces drift |
+| 2026-11-08 | Wire protocol handshake = LSP-style capabilities + semver | accepted | Major mismatch fails; minor negotiates to lower; no shared surface fails |
 
 ## Documentation rules
 

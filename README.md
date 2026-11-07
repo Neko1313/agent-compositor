@@ -15,6 +15,13 @@ A model provider integrates via plugins, not by forking: override the login with
 | Core ↔ renderer protocol | JSON Lines, semver-versioned |
 | License | MIT |
 
+## Packages
+
+| Package | What it is |
+|---|---|
+| [`@agent-compositor/events`](packages/events) | Versioned event catalog: the contract between core, plugins, and renderers. Source of truth in code; `npm run gen` emits [docs/events.md](docs/events.md) + `schema/events.json`, CI fails on drift. |
+| [`@agent-compositor/protocol`](packages/protocol) | Wire protocol between core and renderers: JSONL framing, LSP-style capability handshake, Neovim-style grid/diff rendering with flush. |
+
 ## Documentation
 
 Start with [docs/INDEX.md](docs/INDEX.md) — a map of all topics and the decision log:

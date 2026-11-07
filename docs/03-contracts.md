@@ -1,80 +1,80 @@
-# 03. Контракты для плагинов CLI
+# 03. Contracts for CLI plugins
 
-## Философия
+## Philosophy
 
-Контракт — это syscall ABI: версионируется (semver), меняется только через явную процедуру, документируется как каталог. Плагин, написанный против контракта версии N, продолжает работать на N+1.
+A contract is a syscall ABI: versioned (semver), changed only through an explicit procedure, documented as a catalog. A plugin written against contract version N keeps working on N+1.
 
-## 1. Каталог событий
+## 1. Event catalog
 
-Машиночитаемая схема + человекочитаемый документ (`docs/events.md`). Каждое событие: имя в формате `plugin.foo:bar` (namespaces вместо плоских строк), версия, схема payload, формы ответов, бюджет по умолчанию. Legacy-имена — только алиасы в схеме, не размножение обработчиков.
+A machine-readable schema plus a human-readable document (`docs/events.md`). Every event: a name in the `plugin.foo:bar` format (namespaces instead of flat strings), a version, a payload schema, response forms, a default budget. Legacy names exist only as aliases in the schema — no multiplying handlers.
 
-Базовые домены:
+Base domains:
 
-| Событие | Когда | Формы ответа |
+| Event | When | Response forms |
 |---|---|---|
-| `session.start` / `session.reload` / `session.shutdown` | Жизненный цикл сессии; reload — точка восстановления состояния | — |
-| `tool.call` | Выполнение инструмента | `result`, `deny` |
-| `tool.check` | Пре-проверка перед вызовом | `allow`, `ask`, `deny` |
-| `agent.spawn` | Запуск дочернего агента | `agentId`, `deny` |
-| `prompt.compose` | Сборка системного промпта | `sections[{id, text, scope}]` |
-| `ui.render` | Отрисовка pane | — (запись состояния плагина во время рендера запрещена) |
+| `session.start` / `session.reload` / `session.shutdown` | Session lifecycle; reload is a state-recovery point | — |
+| `tool.call` | Tool execution | `result`, `deny` |
+| `tool.check` | Pre-execution check | `allow`, `ask`, `deny` |
+| `agent.spawn` | Launching a child agent | `agentId`, `deny` |
+| `prompt.compose` | System prompt assembly | `sections[{id, text, scope}]` |
+| `ui.render` | Pane rendering | — (writing plugin state during render is forbidden) |
 
-## 2. Hook-контракт
+## 2. Hook contract
 
-- **Onion-цепочка:** обработчик получает событие и `next()`; может вызвать `next(переписанное событие)`. Кто не вызвал `next()` — тот терминал.
-- **Порядок:** явный priority, а не порядок регистрации (инаже детерминизм ломается при изменении набора плагинов).
-- **Бюджеты:** own-time лимит у каждого обработчика; часы идут, только пока он сам работает, и останавливаются на `await next()`. Превышение → fail-operational: `.catch`-окно → replay. Ошибка обработчика не роняет сессию.
+- **Onion chain:** a handler receives the event and `next()`; it may call `next(rewrittenEvent)`. Whoever doesn't call `next()` is the terminal.
+- **Order:** explicit priority, not registration order (otherwise determinism breaks when the plugin set changes).
+- **Budgets:** an own-time limit per handler; the clock runs only while the handler itself is working and stops on `await next()`. On exceed → fail-operational: a `.catch` window → replay. A handler error never kills the session.
 
-## 3. Модель доверия — три класса
+## 3. Trust model — three classes
 
-| Класс | Исполнение | Для чего |
+| Class | Execution | Purpose |
 |---|---|---|
-| `trusted` | Node.js, полный доступ | плагины провайдера, first-party |
-| `sandboxed` | QuickJS, strict budgets, без сети | генерируемый код, workflow-скрипты |
-| `render-only` | без мутаций состояния | темы, раскладки, визуализации |
+| `trusted` | Node.js, full access | provider plugins, first-party |
+| `sandboxed` | QuickJS, strict budgets, no network | generated code, workflow scripts |
+| `render-only` | no state mutations | themes, layouts, visualizations |
 
-Класс заявляется в манифесте и проверяется рантаймом.
+The class is declared in the manifest and enforced by the runtime.
 
-## 4. Манифест плагина
+## 4. Plugin manifest
 
-`plugin.json`: имя, версия, заявленные события, класс доверия, capabilities (`model` | `auth` | `workflow` | `tool` | `render`), вклад в статус-бар.
+`plugin.json`: name, version, declared events, trust class, capabilities (`model` | `auth` | `workflow` | `tool` | `render`), status-bar contribution.
 
-Установка/включение плагина → событие `session.start` с его составом (аналог udev: модуль увидел устройство). Выключение → `session.reload` без него; in-memory состояние плагина пересоздаётся.
+Installing/enabling a plugin → a `session.start` event with its composition (udev analogy: the module saw the device). Disabling → `session.reload` without it; the plugin's in-memory state is recreated.
 
-## 5. Контракт провайдера модели
+## 5. Model provider contract
 
-Минимальный плагин модели: **имя**, endpoint/интерфейс вызова, лимиты контекста, формат сообщений. Переопределение — именем: провайдер регистрирует `my-model`, и ядро может вызывать его из workflow по этому имени. Оптимизации промптов под свою модель — опциональный слой того же плагина.
+A minimal model plugin: **name**, endpoint/interface, context limits, message format. Override is by name: a provider registers `my-model`, and the core can call it from workflows by that name. Prompt optimizations for their own model are an optional layer of the same plugin.
 
-## 6. Контракт авторизации
+## 6. Authorization contract
 
-Capability `auth`: метод `login()`. Базовый дистрибутив несёт форм-логин; корпоративный провайдер приносит плагин со своим SSO/OAuth — ядро не меняется.
+Capability `auth`: a `login()` method. The base distribution ships form login; a corporate provider brings a plugin with their own SSO/OAuth — the core doesn't change.
 
-## 7. Workflow-контракт
+## 7. Workflow contract
 
-Workflow = данные + скрипт в песочнице (класс `sandboxed`):
+A workflow = data + a script in the sandbox (class `sandboxed`):
 
-- **nouns** — сущности предметной области (расширение языка через таблицу имён, с ownership);
-- **`$`-API** — `spawn`, `emit`, `state`, `ui`: каждый вызов идёт через событийную шину;
-- **журнал** — append-only лог шагов: resume после сбоя без потери прогресса;
-- **лимиты** — общий tokenBudget, concurrency (1–64), stagger-задержки против thundering herd.
+- **nouns** — domain entities (extending the language via a name table, with ownership);
+- **`$`-API** — `spawn`, `emit`, `state`, `ui`: every call goes through the event bus;
+- **journal** — an append-only log of steps: resume after a crash without losing progress;
+- **limits** — a shared tokenBudget, concurrency (1–64), stagger delays against thundering herd.
 
-## 8. Протокол «ядро ↔ рендерер»
+## 8. Core ↔ renderer protocol
 
-JSONL, semver. Сообщения:
+JSONL, semver. Messages:
 
-| Направление | Сообщение | Назначение |
+| Direction | Message | Purpose |
 |---|---|---|
-| ядро → рендерер | `declare` | Декларация поверхностей (pane, site, статус-бар) |
-| ядро → рендерер | `render` | Полный или инкрементальный diff pane |
-| рендерер → ядро | `input` | Ввод → pane с фокусом |
-| обе стороны | `focus`, `invalidate` | Передача фокуса, пометка повреждённых областей |
+| core → renderer | `declare` | Surface declarations (pane, site, status bar) |
+| core → renderer | `render` | Full or incremental diff of a pane |
+| renderer → core | `input` | Input → the focused pane |
+| both | `focus`, `invalidate` | Focus transfer, damaged-region marking |
 
-Рендерер никогда не вызывает ядро в обход протокола.
+The renderer never calls the core outside the protocol.
 
-## Статус реализации
+## Implementation status
 
-Базовый рантайм реализован в форке kimi-code и прошёл внешнее ревью (совместимость с Claude Mods API зафиксирована фикстурой). Открытые пункты:
+The base runtime is implemented in the kimi-code fork and has passed an external review (Claude Mods API compatibility is pinned by a fixture). Open items:
 
-1. Версионированный каталог событий (`docs/events.md` + проверка в CI);
-2. Chain trace (`--plugin-trace`) — трассировка пути события по цепочке обработчиков;
-3. Явный priority вместо порядка регистрации.
+1. A versioned event catalog (`docs/events.md` + CI checks);
+2. Chain trace (`--plugin-trace`) — tracing an event's path through the handler chain;
+3. Explicit priority instead of registration order.

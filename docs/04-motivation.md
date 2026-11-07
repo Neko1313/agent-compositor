@@ -1,34 +1,34 @@
-# 04. Мотивация
+# 04. Motivation
 
-## Проблема
+## The problem
 
-Каждый новый — и каждый текущий — провайдер LLM заново изобретает один и тот же CLI-агент: авторизация, TUI, выполнение инструментов, сессии, компакшн контекста, workflows, плагинная система. Результат предсказуем: N полуфабрикатов вместо одной хорошей базы, и провайдер тратит кварталы на инфраструктуру вместо своей модели.
+Every new — and every existing — LLM provider reinvents the same CLI agent: authentication, TUI, tool execution, sessions, context compaction, workflows, a plugin system. The predictable result: N half-finished products instead of one good base, and a provider spends quarters on infrastructure instead of their model.
 
-## Вторая сторона проблемы
+## The other side of the problem
 
-Технологии, которые хорошо работают у одних, оказываются заперты у них. Hooks, plugins, workflows, subagents — эти механики доказали себя в Claude Code, но мир не может использовать их нативно со своими моделями.
+Technologies that work well for some end up locked away by them. Hooks, plugins, workflows, subagents — these mechanics proved themselves in Claude Code, but the world cannot use them natively with its own models.
 
-## Предложение
+## The proposal
 
-Базовый дистрибутив, в котором провайдеру нужно три шага:
+A base distribution in which a provider needs three steps:
 
-1. **Перегрузить login на свой SSO** — плагин авторизации, ядро не трогаем.
-2. **Добавить плагин своей модели** — имя, endpoint и (по желанию) оптимизации промптов под свою модель.
-3. **Опционально: workflow-пресеты** — какие модели и как вызывать: фактически добавление имён и переопределение готовых.
+1. **Override login with their own SSO** — an auth plugin; the core is untouched.
+2. **Add a plugin for their model** — a name, an endpoint and (optionally) prompt optimizations tuned to their model.
+3. **Optionally: workflow presets** — which models to call and how: in effect, adding names and overriding ready-made ones.
 
-Всё остальное — TUI, tool execution, сессии, плагин-рантайм, каталог плагинов — уже есть и развивается сообществом.
+Everything else — TUI, tool execution, sessions, plugin runtime, the plugin catalog — already exists and evolves with the community.
 
-## Принцип
+## The principle
 
-Не запирать технологии, которые хорошо работают у одних, а дать всему миру использовать их нативно — со своими моделями и переиспользованием. Как Linux не спрашивает, чей у пользователя дисплей, этот рантайм не спрашивает, чья у пользователя модель.
+Don't lock away technologies that work well for some — let the whole world use them natively, with their own models and reuse. Just as Linux doesn't ask who made the user's display, this runtime doesn't ask who made the user's model.
 
-## Для кого
+## Who this is for
 
-- **Новые провайдеры** — свой полноценный CLI-агент за дни вместо кварталов.
-- **Текущие провайдеры** — общий открытый стандарт вместо закрытых несовместимых форков.
-- **Корпорации** — SSO, приватные модели, внутренние плагины.
-- **Сообщество** — один написанный плагин работает во всех CLI на этом рантайме.
+- **New providers** — their own full-featured CLI agent in days instead of quarters.
+- **Existing providers** — a common open standard instead of closed, incompatible forks.
+- **Corporations** — SSO, private models, internal plugins.
+- **The community** — one written plugin works in every CLI on this runtime.
 
-## Лицензия
+## License
 
-MIT: переиспользование без трения — не побочное условие, а часть замысла.
+MIT: frictionless reuse is not a side condition — it is part of the design.

@@ -1,33 +1,33 @@
 # agent-compositor
 
-Открытый рантайм для CLI-агентов LLM: **ядро + сменные рендереры + плагин-контракты**.
+An open runtime for LLM CLI agents: **core + swappable renderers + plugin contracts**.
 
-Провайдер моделей подключается плагинами, а не форком: перегружает вход на свой SSO, добавляет плагин модели и workflow-пресеты — и получает полноценный CLI-агент. По аналогии с композитором Wayland: протокол стабилен, реализации сменяются.
+A model provider integrates via plugins, not by forking: override the login with their own SSO, add a model plugin and workflow presets — and get a full-featured CLI agent. Analogous to a Wayland compositor: the protocol is stable, implementations are replaceable.
 
-## Технический стек
+## Tech stack
 
-| Слой | Технология |
+| Layer | Technology |
 |---|---|
-| Ядро (agent harness: модели, инструменты, сессии, компакшн) | TypeScript / Node.js |
-| Плагин-рантайм | In-process, onion-цепочка событий; совместимость с Claude Mods API |
-| Песочница для генерируемого кода | QuickJS (workflow-скрипты с лимитами) |
-| Референс-TUI | Ink (React + Yoga flexbox), скролл-вью из коробки |
-| Протокол «ядро ↔ рендерер» | JSON Lines, semver-версионированный |
-| Лицензия | MIT |
+| Core (agent harness: models, tools, sessions, context compaction) | TypeScript / Node.js |
+| Plugin runtime | In-process, onion event chain; Claude Mods API compatible |
+| Sandbox for generated code | QuickJS (workflow scripts with budgets) |
+| Reference TUI | Ink (React + Yoga flexbox), scroll views built in |
+| Core ↔ renderer protocol | JSON Lines, semver-versioned |
+| License | MIT |
 
-## Документация
+## Documentation
 
-Начни с [docs/INDEX.md](docs/INDEX.md) — карта всех тем и журнал решений:
+Start with [docs/INDEX.md](docs/INDEX.md) — a map of all topics and the decision log:
 
-1. [Концепция](docs/01-concept.md) — что строим и зачем
-2. [UI](docs/02-ui.md) — модель панелей, Ink, сменные рендереры
-3. [Контракты](docs/03-contracts.md) — что нужно для написания плагинов к CLI
-4. [Мотивация](docs/04-motivation.md) — почему это нужно миру
+1. [Concept](docs/01-concept.md) — what we are building and why
+2. [UI](docs/02-ui.md) — the pane model, Ink, swappable renderers
+3. [Contracts](docs/03-contracts.md) — what is needed to write plugins for the CLI
+4. [Motivation](docs/04-motivation.md) — why the world needs this
 
-## Статус
+## Status
 
-Стадия проектирования. Ядро выращивается из форка [kimi-code](https://github.com/Neko1313/kimi-code) (ветка `feat/plugin-in-process-runtime-poc`): in-process плагин-рантайм уже production-shaped и прошёл внешнее архитектурное ревью.
+Design stage. The core is growing out of the [kimi-code](https://github.com/Neko1313/kimi-code) fork (branch `feat/plugin-in-process-runtime-poc`): the in-process plugin runtime is already production-shaped and has passed an external architecture review.
 
-## Лицензия
+## License
 
-MIT — см. [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

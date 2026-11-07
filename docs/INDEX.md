@@ -1,29 +1,29 @@
-# INDEX — карта документации и журнал решений
+# INDEX — documentation map and decision log
 
-Это файл-роутер: с него начинается чтение. Он ведёт на темы и фиксирует значимые решения.
+This is the router file: reading starts here. It links to topics and records significant decisions.
 
-## Темы
+## Topics
 
-| # | Файл | Тема | Статус |
-|---|------|------|--------|
-| 1 | [01-concept.md](01-concept.md) | Концепция: что строим и зачем | принято |
-| 2 | [02-ui.md](02-ui.md) | UI: модель панелей, Ink, сменные рендереры | принято |
-| 3 | [03-contracts.md](03-contracts.md) | Контракты для плагинов CLI | проект |
-| 4 | [04-motivation.md](04-motivation.md) | Мотивация: почему это нужно миру | принято |
+| # | File | Topic | Status |
+|---|------|-------|--------|
+| 1 | [01-concept.md](01-concept.md) | Concept: what we are building and why | accepted |
+| 2 | [02-ui.md](02-ui.md) | UI: the pane model, Ink, swappable renderers | accepted |
+| 3 | [03-contracts.md](03-contracts.md) | Contracts for writing CLI plugins | draft |
+| 4 | [04-motivation.md](04-motivation.md) | Motivation: why the world needs this | accepted |
 
-## Журнал решений
+## Decision log
 
-| Дата | Решение | Статус | Контекст |
-|------|---------|--------|----------|
-| 2026-11-07 | Писать композитор, а не переписывать ядро | принято | Ядро = стек драйверов; перепись — месяцы работы без архитектурного выигрыша |
-| 2026-11-07 | Ink как модель компонентов TUI | принято | Комьюнити и плотность примеров критичны для агентной разработки; рендер-движок — расходник |
-| 2026-11-07 | Совместимость с Claude Mods API как точка входа | принято | Xwayland-стратегия: совместимость с существующим протоколом даёт пользователей с первого дня |
-| 2026-11-07 | «Всё внутри ядра — событие» | принято | Каждый вызов `$`-API проходит через шину; расширяемость без форка |
-| 2026-11-08 | Публичный репозиторий, лицензия MIT | принято | Переиспользование без трения — часть мотивации проекта |
+| Date | Decision | Status | Context |
+|------|----------|--------|---------|
+| 2026-11-07 | Build the compositor, don't rewrite the core | accepted | The core is a driver stack; a rewrite is months of work with no architectural gain |
+| 2026-11-07 | Ink as the TUI component model | accepted | Community and example-code density are critical for agent-driven development; the render engine is a consumable |
+| 2026-11-07 | Claude Mods API compatibility as the entry point | accepted | Xwayland strategy: compatibility with an existing protocol brings users from day one |
+| 2026-11-07 | "Everything inside the core is an event" | accepted | Every `$`-API call goes through the event bus; extensibility without forking |
+| 2026-11-08 | Public repository, MIT license | accepted | Frictionless reuse is part of the project's motivation |
 
-## Правила ведения документации
+## Documentation rules
 
-- Каждый значимый выбор фиксируется в журнале: дата, решение, статус, контекст.
-- Статусы: `черновик` → `проект` → `принято` → (иногда) `отклонено` — с указанием причины.
-- Файл-роутер обновляется при добавлении темы; темы нумеруются в порядке чтения.
-- Документы пишутся от «зачем» к «как»: сначала мотивация и концепция, затем контракты и реализация.
+- Every significant choice is recorded in the decision log: date, decision, status, context.
+- Statuses: `draft` → `proposal` → `accepted` → (sometimes) `rejected` — with the reason noted.
+- This router file is updated when a topic is added; topics are numbered in reading order.
+- Documents are written from "why" to "how": motivation and concept first, contracts and implementation after.

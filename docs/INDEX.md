@@ -10,6 +10,7 @@ This is the router file: reading starts here. It links to topics and records sig
 | 2 | [02-ui.md](02-ui.md) | UI: the pane model, Ink, swappable renderers | accepted |
 | 3 | [03-contracts.md](03-contracts.md) | Contracts for writing CLI plugins | draft |
 | 4 | [04-motivation.md](04-motivation.md) | Motivation: why the world needs this | accepted |
+| 5 | [05-prior-art.md](05-prior-art.md) | Prior art: architecture of Claude Code, VS Code, Neovim, Sway, Linux; what we adopt | accepted |
 
 ## Decision log
 
@@ -20,6 +21,9 @@ This is the router file: reading starts here. It links to topics and records sig
 | 2026-11-07 | Claude Mods API compatibility as the entry point | accepted | Xwayland strategy: compatibility with an existing protocol brings users from day one |
 | 2026-11-07 | "Everything inside the core is an event" | accepted | Every `$`-API call goes through the event bus; extensibility without forking |
 | 2026-11-08 | Public repository, MIT license | accepted | Frictionless reuse is part of the project's motivation |
+| 2026-11-08 | English-only documentation | accepted | Audience is the world, not one team |
+| 2026-11-08 | Mirror Claude Mods event/API taxonomy 1:1 | accepted | Xwayland strategy, confirmed against the v2.1.290 official reference |
+| 2026-11-08 | Prior-art synthesis (see 05) | accepted | Five reference systems studied at code level; adoption table is the v1 blueprint |
 
 ## Documentation rules
 

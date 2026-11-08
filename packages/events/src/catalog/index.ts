@@ -7,6 +7,7 @@ import * as ui from "./ui.js";
 import * as services from "./services.js";
 import * as coreServices from "./core-services.js";
 import * as coreTurns from "./core-turns.js";
+import * as coreContext from "./core-context.js";
 
 /** The catalog: ordered, versioned, frozen. The single source of truth. */
 export const catalog: readonly EventDef[] = [
@@ -36,6 +37,7 @@ export const catalog: readonly EventDef[] = [
   coreTurns.toolResult,
   coreTurns.turnFailed,
   coreTurns.turnInterrupted,
+  coreContext.contextCompacted,
   // interface
   ui.uiRender,
   ui.uiPress,

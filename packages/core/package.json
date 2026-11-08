@@ -1,7 +1,7 @@
 {
   "name": "@agent-compositor/core",
   "version": "0.1.0",
-  "description": "The agent core: streaming turn loop (submit/steer/interrupt/queue), permission-gated tool execution, session persistence — every seam a catalog event.",
+  "description": "The agent core: streaming turn loop (submit/steer/interrupt/queue), permission-gated tool execution, session persistence \u2014 every seam a catalog event.",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
@@ -16,6 +16,7 @@
     "@agent-compositor/permissions": "^0.1.0",
     "@agent-compositor/runtime": "^0.1.0",
     "@agent-compositor/session": "^0.1.0",
-    "@agent-compositor/tools": "^0.1.0"
+    "@agent-compositor/tools": "^0.1.0",
+    "@agent-compositor/context": "^0.1.0"
   }
 }

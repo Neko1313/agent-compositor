@@ -9,6 +9,7 @@ import {
   type ToolCallDescriptor,
 } from "@agent-compositor/permissions";
 import { SessionStore } from "@agent-compositor/session";
+import { compactTranscript, TokenBudget, type Summarizer } from "@agent-compositor/context";
 import {
   builtinTools,
   builtinToolRules,
@@ -17,6 +18,7 @@ import {
   type ToolContext,
   type ToolSpec,
 } from "@agent-compositor/tools";
+import { replayTranscript } from "./resume.js";
 import type { ChatMessage, ChatToolCall, ModelProvider, ToolDecl } from "./provider.js";
 
 export interface CorePlugin {
@@ -40,6 +42,13 @@ export interface AgentCoreOptions {
   maxStepsPerTurn?: number;
   tools?: ToolSpec<unknown, unknown>[];
   notify?: (message: string, level: "info" | "warn" | "error", plugin: string) => void;
+  /** wire context pressure management into the loop: trip the budget → compact */
+  compaction?: {
+    budget: TokenBudget;
+    summarize: Summarizer;
+    /** minimum messages between compactions (default 8) */
+    cooldownMessages?: number;
+  };
 }
 
 /** Renderer-facing event stream: catalog emissions plus the raw text fast path. */
@@ -178,6 +187,14 @@ export class AgentCore {
   }
 
   private currentTurnId: string | undefined;
+  private messagesSinceCompaction = 0;
+
+  /** Resume factory: adopt a replayed transcript instead of starting fresh. */
+  static resume(opts: AgentCoreOptions, events: import("@agent-compositor/session").SessionEvent[]): AgentCore {
+    const core = new AgentCore(opts);
+    core.messages = replayTranscript(events, opts.systemPrompt);
+    return core;
+  }
 
   // ---- the turn engine -----------------------------------------------------
 
@@ -209,6 +226,10 @@ export class AgentCore {
         const steerText = this.steerQueue.shift()!;
         this.messages.push({ role: "user", content: steerText });
       }
+
+      // steering landed at the natural step boundary; now check context
+      // pressure before paying for another model request
+      await this.maybeCompact();
 
       await this.emit("turn.step", { turnId });
       const batch: ChatToolCall[] = [];
@@ -270,6 +291,27 @@ export class AgentCore {
       this.state = "idle";
     }
     this.currentTurnId = undefined;
+  }
+
+  private async maybeCompact(): Promise<void> {
+    const compaction = this.options.compaction;
+    if (!compaction) return;
+    const cooldown = compaction.cooldownMessages ?? 8;
+    if (this.messages.length - this.messagesSinceCompaction < cooldown) return;
+    compaction.budget.setMessages(this.messages);
+    if (!compaction.budget.shouldCompact()) return;
+    const result = await compactTranscript(this.messages, compaction.summarize, {
+      signal: this.abort.signal,
+    });
+    if (result.foldedCount === 0) return;
+    this.messages = [...(result.messages as ChatMessage[])];
+    this.messagesSinceCompaction = this.messages.length;
+    await this.emit("context.compacted", {
+      foldedCount: result.foldedCount,
+      tokensBefore: result.tokensBefore,
+      tokensAfter: result.tokensAfter,
+      summary: result.summary.slice(0, 2000),
+    });
   }
 
   private async drainQueue(): Promise<void> {

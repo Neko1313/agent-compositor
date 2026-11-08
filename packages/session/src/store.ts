@@ -156,7 +156,8 @@ export class SessionStore {
   }
 
   private async requireMeta(id: string, cwd?: string): Promise<SessionMeta> {
-    const roots = cwd ? [this.root(cwd)] : [];
+    // explicit roots first: the cwd-scoped root, or the override root
+    const roots = [...(cwd ? [this.root(cwd)] : []), ...(this.options.sessionsRoot ? [this.options.sessionsRoot] : [])];
     for (const root of roots) {
       try {
         return JSON.parse(await fs.readFile(this.metaPath(root, id), "utf8")) as SessionMeta;
@@ -164,7 +165,6 @@ export class SessionStore {
         // fall through
       }
     }
-    // last resort: scan nothing, just fail with a clear error
     throw new Error(`session not found: ${id}${cwd ? ` (under ${this.root(cwd)})` : ""}`);
   }
 

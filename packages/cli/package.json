@@ -1,0 +1,16 @@
+{
+  "name": "@agent-compositor/cli",
+  "version": "0.1.0",
+  "description": "Terminal renderer + input decoder for the agent loop: streaming text, compact tool lines, approval dialog, Enter/Tab/Ctrl-C semantics.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-compositor/core": "^0.1.0"
+  }
+}

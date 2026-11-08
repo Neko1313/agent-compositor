@@ -45,6 +45,9 @@
     },
     {
       "path": "packages/provider"
+    },
+    {
+      "path": "packages/cli"
     }
   ]
 }

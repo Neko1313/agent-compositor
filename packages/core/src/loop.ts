@@ -451,9 +451,16 @@ export class AgentCore {
     }
   }
 
+  private sessionEnsured: Promise<unknown> | undefined;
+
   private async persist(event: string, input: Record<string, unknown>): Promise<void> {
     if (!this.sessions) return;
+    // the store requires a created session before append; ensure exactly once
+    // (create is idempotent-ish: a second create for the same id is a no-op
+    // error we swallow — the roll/meta may already exist from a prior run)
+    this.sessionEnsured ??= this.sessions.create(this.options.cwd, { id: this.sessionId }).catch(() => undefined);
     try {
+      await this.sessionEnsured;
       await this.sessions.append(this.sessionId, [{ type: event, ...input }], this.options.cwd);
     } catch {
       // storage is best-effort; the turn must not die on a full disk

@@ -49,8 +49,13 @@ export class SessionStore {
   async create(cwd: string, opts: { id?: string; name?: string; parentId?: string } = {}): Promise<SessionMeta> {
     const root = this.root(cwd);
     await fs.mkdir(root, { recursive: true });
+    const id = opts.id ?? randomUUID();
+    // re-creating an existing session must never truncate its roll — resume
+    // and crash-recovery paths re-ensure the same id after a restart
+    const existing = await this.readMeta(root, id).catch(() => undefined);
+    if (existing) return existing;
     const meta: SessionMeta = {
-      id: opts.id ?? randomUUID(),
+      id,
       name: opts.name,
       cwd: path.resolve(cwd),
       createdAt: this.now(),
@@ -59,7 +64,12 @@ export class SessionStore {
       eventCount: 0,
       parentId: opts.parentId,
     };
-    await fs.writeFile(this.rollPath(root, meta.id), "");
+    const roll = this.rollPath(root, id);
+    try {
+      await fs.access(roll);
+    } catch {
+      await fs.writeFile(roll, "");
+    }
     await this.writeMeta(root, meta);
     return meta;
   }
@@ -155,15 +165,20 @@ export class SessionStore {
     await fs.rename(tmp, this.metaPath(root, meta.id)); // atomic sidecar swap
   }
 
+  private async readMeta(root: string, id: string): Promise<SessionMeta | undefined> {
+    try {
+      return JSON.parse(await fs.readFile(this.metaPath(root, id), "utf8")) as SessionMeta;
+    } catch {
+      return undefined;
+    }
+  }
+
   private async requireMeta(id: string, cwd?: string): Promise<SessionMeta> {
     // explicit roots first: the cwd-scoped root, or the override root
     const roots = [...(cwd ? [this.root(cwd)] : []), ...(this.options.sessionsRoot ? [this.options.sessionsRoot] : [])];
     for (const root of roots) {
-      try {
-        return JSON.parse(await fs.readFile(this.metaPath(root, id), "utf8")) as SessionMeta;
-      } catch {
-        // fall through
-      }
+      const meta = await this.readMeta(root, id);
+      if (meta) return meta;
     }
     throw new Error(`session not found: ${id}${cwd ? ` (under ${this.root(cwd)})` : ""}`);
   }

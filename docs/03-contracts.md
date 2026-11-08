@@ -107,4 +107,4 @@ Open items:
 
 1. Explicit priority instead of registration order;
 2. Structured core→renderer delta channel (today streaming renders as grid diffs; a web/desktop renderer may want a protocol minor with typed deltas);
-3. Porting the kimi-code agent core behind the same event seam (decision pending: adapter repo boundary vs. deep port).
+3. ~~Porting the kimi-code agent core~~ — **superseded** by [06-core-blueprint.md](06-core-blueprint.md): the core is written greenfield as a best-of harvest over 8 local reference codebases; the fork is one reference among them.

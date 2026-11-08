@@ -11,6 +11,7 @@ This is the router file: reading starts here. It links to topics and records sig
 | 3 | [03-contracts.md](03-contracts.md) | Contracts for writing CLI plugins | draft |
 | 4 | [04-motivation.md](04-motivation.md) | Motivation: why the world needs this | accepted |
 | 5 | [05-prior-art.md](05-prior-art.md) | Prior art: architecture of Claude Code, VS Code, Neovim, Sway, Linux; what we adopt | accepted |
+| 6 | [06-core-blueprint.md](06-core-blueprint.md) | Core blueprint: best-of harvest from 8 local reference codebases; subsystem → reference → what we take | proposal |
 
 ## Decision log
 
@@ -30,6 +31,7 @@ This is the router file: reading starts here. It links to topics and records sig
 | 2026-11-08 | Runtime dispatcher as the first code above the wire | accepted | Onion chains, tier order, budgets (own/thread/yield), fail-operational, chain trace; Xwayland hook API sits on top of this |
 | 2026-11-08 | Response forms matched by discriminating key + safeParse | accepted | z.object with z.unknown() accepts missing keys — safeParse alone cannot discriminate forms |
 | 2026-11-08 | $ API methods are service.* events; core resolvers at chain end | accepted | Mods insight "each $ method is itself an event": interception via {deny}/{value} needs the call to flow through the dispatcher like any other event |
+| 2026-11-08 | Core written greenfield as best-of harvest over 8 reference codebases (codex, gemini-cli, qwen-code, opencode, aider, crush, goose, kimi fork) — cloned under projects/reference/ | accepted | Nikita (10:21): the 14-CLI research must drive the design, not a single codebase; core is plugin-first from day one. Supersedes open item #3 ("port the fork loop") |
 
 ## Documentation rules
 

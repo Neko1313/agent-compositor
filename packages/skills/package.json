@@ -1,0 +1,16 @@
+{
+  "name": "@agent-compositor/skills",
+  "version": "0.1.0",
+  "description": "Skill registry with progressive disclosure: discover compact descriptors everywhere, load full bodies on demand.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-compositor/events": "^0.3.0"
+  }
+}

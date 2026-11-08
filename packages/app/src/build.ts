@@ -30,7 +30,10 @@ export interface BuiltApp {
   pluginErrors: { dir: string; error: string }[];
   store: SessionStore;
   resumedEvents: SessionEvent[];
-  createCore: (onApproval: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onApproval"]>) => AgentCore;
+  createCore: (
+    onApproval: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onApproval"]>,
+    onAsk?: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onAsk"]>,
+  ) => AgentCore;
 }
 
 /**
@@ -68,6 +71,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
 
   const createCore = (
     onApproval: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onApproval"]>,
+    onAsk?: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onAsk"]>,
   ): AgentCore => {
     const coreOptions: ConstructorParameters<typeof AgentCore>[0] = {
       cwd: options.cwd,
@@ -80,9 +84,15 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           timeoutMs: settings.timeoutMs,
         }),
       onApproval,
+      onAsk,
       sessions: store,
       systemPrompt: options.systemPrompt,
       plugins: plugins.map((p) => ({ manifest: p.manifest, hooks: p.hooks as never, tier: p.tier })),
+      // PluginTool is a structural mirror of core's ToolSpec (validated by
+      // the loader); cast to avoid a hard tools-dep in app.
+      extraTools: plugins.flatMap((p) => p.tools ?? []) as unknown as NonNullable<
+        ConstructorParameters<typeof AgentCore>[0]["extraTools"]
+      >,
     };
     if (resumedEvents.length > 0) return AgentCore.resume(coreOptions, resumedEvents);
     return new AgentCore(coreOptions);

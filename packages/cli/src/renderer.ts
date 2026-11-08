@@ -20,8 +20,8 @@ export interface ApprovalPrompt {
 export class TerminalRenderer {
   constructor(
     private readonly out: Writable,
-    /** single-key approval source: y/n/a — injected for tests */
-    private readonly promptKey: (question: string) => Promise<"y" | "n" | "a"> = defaultPromptKey,
+    /** line-based user input — raw-mode stdin or a test stub; returns the typed line */
+    private readonly promptKey: (question: string) => Promise<string> = defaultPromptKey,
   ) {}
 
   handleEvent(event: LoopEvent): void {
@@ -75,8 +75,26 @@ export class TerminalRenderer {
   async askApproval(req: ApprovalPrompt): Promise<boolean> {
     this.write(`\n[permission] ${req.tool} ${truncate(JSON.stringify(req.args ?? {}), 80)}\n`);
     if (req.reason) this.write(`  reason: ${req.reason}\n`);
-    const answer = await this.promptKey("Allow? [y=once / a=session / n=deny] ");
-    return answer !== "n";
+    const answer = (await this.promptKey("Allow? [y=once / a=session / n=deny] ")).trim().toLowerCase();
+    return answer.startsWith("y") || answer.startsWith("a");
+  }
+
+  /** The AskUserQuestion dialog: numbered options or free text. */
+  async askUser(req: { question: string; options?: string[]; multi?: boolean }): Promise<string | string[]> {
+    this.write(`\n[question] ${req.question}\n`);
+    const options = (req.options ?? []).filter((o): o is string => typeof o === "string");
+    if (options.length === 0) {
+      return (await this.promptKey("answer: ")).trim();
+    }
+    options.forEach((o, i) => this.write(`  ${i + 1}) ${o}\n`));
+    const hint = req.multi ? "answer: numbers, comma-separated (e.g. 1,3) " : "answer: number ";
+    const line = (await this.promptKey(hint)).trim();
+    const picks = line
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= options.length);
+    const answers = picks.map((n) => options[n - 1]);
+    return req.multi === true ? answers : answers[0] ?? "";
   }
 
   private write(s: string): void {
@@ -92,14 +110,13 @@ function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n - 1) + "…";
 }
 
-async function defaultPromptKey(question: string): Promise<"y" | "n" | "a"> {
+async function defaultPromptKey(question: string): Promise<string> {
   process.stdout.write(question);
   const { createInterface } = await import("node:readline");
   const rl = createInterface({ input: process.stdin });
   for await (const line of rl) {
     rl.close();
-    const c = line.trim().toLowerCase()[0];
-    return c === "y" ? "y" : c === "a" ? "a" : "n";
+    return line;
   }
-  return "n";
+  return "";
 }

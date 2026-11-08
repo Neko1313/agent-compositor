@@ -4,12 +4,15 @@ import { decodeKeys, type DecoderState } from "./keys.js";
 import { TerminalRenderer } from "./renderer.js";
 
 export interface ReplDeps {
-  /** factory so the approval bridge can be injected into core options */
-  createCore: (onApproval: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onApproval"]>) => AgentCore;
+  /** factory so the approval/ask bridges can be injected into core options */
+  createCore: (
+    onApproval: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onApproval"]>,
+    onAsk?: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onAsk"]>,
+  ) => AgentCore;
   stdin: Readable & { isTTY?: boolean; setRawMode?: (mode: boolean) => void };
   stdout: Writable;
-  /** single-key source for the approval dialog (raw-mode stdin or test stub) */
-  promptKey?: (question: string) => Promise<"y" | "n" | "a">;
+  /** line-based input source for approvals/questions (raw-mode stdin or test stub) */
+  promptKey?: (question: string) => Promise<string>;
 }
 
 /**
@@ -17,8 +20,14 @@ export interface ReplDeps {
  * by design — the renderer owns output, this owns input, the core owns state.
  */
 export async function runRepl(deps: ReplDeps): Promise<void> {
+  const useRaw = deps.stdin.isTTY === true && typeof deps.stdin.setRawMode === "function";
   const renderer = new TerminalRenderer(deps.stdout, deps.promptKey);
-  const core = deps.createCore((req) => renderer.askApproval({ tool: req.tool, args: req.descriptor, reason: req.reason }));
+  // the ask channel only exists when a human is actually at the keyboard;
+  // piped/headless sessions stay fail-closed (ask_user → deny)
+  const core = deps.createCore(
+    (req) => renderer.askApproval({ tool: req.tool, args: req.descriptor, reason: req.reason }),
+    useRaw ? (req) => renderer.askUser(req) : undefined,
+  );
   renderer.attach(core);
 
   const state: DecoderState = { line: "", running: false };
@@ -34,7 +43,6 @@ export async function runRepl(deps: ReplDeps): Promise<void> {
 
   deps.stdout.write("agent-compositor — Enter submit · Tab steer · Ctrl+C interrupt/exit\n");
 
-  const useRaw = deps.stdin.isTTY === true && typeof deps.stdin.setRawMode === "function";
   if (useRaw) deps.stdin.setRawMode?.(true);
 
   await new Promise<void>((resolve) => {

@@ -18,7 +18,7 @@ export interface ReplDeps {
  */
 export async function runRepl(deps: ReplDeps): Promise<void> {
   const renderer = new TerminalRenderer(deps.stdout, deps.promptKey);
-  const core = deps.createCore((req) => renderer.askApproval(req));
+  const core = deps.createCore((req) => renderer.askApproval({ tool: req.tool, args: req.descriptor, reason: req.reason }));
   renderer.attach(core);
 
   const state: DecoderState = { line: "", running: false };
@@ -35,12 +35,12 @@ export async function runRepl(deps: ReplDeps): Promise<void> {
   deps.stdout.write("agent-compositor — Enter submit · Tab steer · Ctrl+C interrupt/exit\n");
 
   const useRaw = deps.stdin.isTTY === true && typeof deps.stdin.setRawMode === "function";
-  if (useRaw) deps.stdin.setRawMode(true);
+  if (useRaw) deps.stdin.setRawMode?.(true);
 
   await new Promise<void>((resolve) => {
     const finish = async (): Promise<void> => {
     await inflight; // never truncate a mid-flight turn on stdin close
-    if (useRaw) deps.stdin.setRawMode!(false);
+    if (useRaw) deps.stdin.setRawMode?.(false);
     resolve();
   };
 

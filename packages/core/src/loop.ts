@@ -124,6 +124,10 @@ export class AgentCore {
           return text;
         },
       },
+      agent: {
+        compact: (reason) => this.compactNow(),
+        clear: () => this.clear(),
+      },
     });
 
     // core resolvers at the chain end; everything above them can deny/value
@@ -204,6 +208,7 @@ export class AgentCore {
     this.state = "running";
     this.interruptedByUser = false;
     this.abort = new AbortController();
+    const usage = { inputTokens: 0, outputTokens: 0 };
 
     const submitted = await this.emit("prompt.submit", { text });
     if (submitted && typeof submitted === "object" && "drop" in submitted) {
@@ -248,6 +253,9 @@ export class AgentCore {
             this.broadcast({ kind: "text", turnId, delta });
           } else if (ev.type === "tool_call") {
             batch.push({ id: ev.id, name: ev.name, args: ev.args });
+          } else if (ev.type === "usage") {
+            usage.inputTokens += ev.inputTokens;
+            usage.outputTokens += ev.outputTokens;
           } else if (ev.type === "finish") {
             finish = ev;
           }
@@ -278,6 +286,10 @@ export class AgentCore {
       break; // stop
     }
 
+    if (usage.inputTokens > 0 || usage.outputTokens > 0) {
+      await this.emit("turn.usage", { turnId, ...usage });
+    }
+
     if (this.interruptedByUser) {
       this.state = "interrupted";
       await this.emit("turn.interrupted", { turnId });
@@ -300,6 +312,13 @@ export class AgentCore {
     if (this.messages.length - this.messagesSinceCompaction < cooldown) return;
     compaction.budget.setMessages(this.messages);
     if (!compaction.budget.shouldCompact()) return;
+    await this.compactNow();
+  }
+
+  /** Force a compaction pass regardless of cooldown/budget gates (Claude's /compact). */
+  async compactNow(): Promise<void> {
+    const compaction = this.options.compaction;
+    if (!compaction) return;
     const result = await compactTranscript(this.messages, compaction.summarize, {
       signal: this.abort.signal,
     });
@@ -312,6 +331,12 @@ export class AgentCore {
       tokensAfter: result.tokensAfter,
       summary: result.summary.slice(0, 2000),
     });
+  }
+
+  /** Drop the conversation, keep the system head (Claude's /clear). */
+  clear(): void {
+    this.messages = this.messages.filter((m) => m.role === "system");
+    this.messagesSinceCompaction = this.messages.length;
   }
 
   private async drainQueue(): Promise<void> {

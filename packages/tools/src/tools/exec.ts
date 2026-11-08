@@ -5,6 +5,8 @@ export interface ExecArgs {
   cwd?: string;
   timeoutMs?: number;
   env?: Record<string, string>;
+  /** Claude-Code-style run_in_background: return a shell id immediately, keep the process alive */
+  background?: boolean;
 }
 
 export interface ExecOutcome {
@@ -28,6 +30,7 @@ export const execTool: ToolSpec<ExecArgs, ExecOutcome> = {
       command: { type: "string", description: "shell command line" },
       cwd: { type: "string" },
       timeoutMs: { type: "number", default: 120_000 },
+      background: { type: "boolean", description: "start detached; returns {shellId} — poll output via the execOutput tool, stop via execKill" },
     },
     required: ["command"],
   },
@@ -39,6 +42,7 @@ export const execTool: ToolSpec<ExecArgs, ExecOutcome> = {
         cwd: args.cwd ?? ctx.cwd,
         timeoutMs: args.timeoutMs ?? 120_000,
         env: args.env,
+        background: args.background,
       });
       return { ok: true, data: outcome };
     } catch (err) {
@@ -52,3 +56,56 @@ function splitCommand(command: string): string[] {
   const parts = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
   return parts.map((p) => p.replace(/^["']|["']$/g, ""));
 }
+
+export interface ShellJobArgs {
+  id: string;
+}
+
+export interface ShellJobOutcome {
+  id: string;
+  stdout: string;
+  stderr: string;
+  done: boolean;
+  exitCode: number | null;
+  durationMs: number;
+}
+
+/** Read a backgrounded shell's buffered output (BashOutput analog). */
+export const execOutputTool: ToolSpec<ShellJobArgs, ShellJobOutcome> = {
+  name: "exec_output",
+  description: "Read the buffered stdout/stderr of a background shell started with exec(background=true). Returns done/exitCode when the process exited.",
+  parameters: {
+    type: "object",
+    properties: { id: { type: "string", description: "shell id from exec background:true" } },
+    required: ["id"],
+  },
+  describe: () => ({ tool: "exec_output" }),
+  async execute(ctx, args): Promise<ToolResult<ShellJobOutcome>> {
+    try {
+      const outcome = await ctx.request<ShellJobOutcome>("service.shell.execOutput", { id: args.id });
+      return { ok: true, data: outcome };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+};
+
+/** Terminate a backgrounded shell (KillShell analog). */
+export const execKillTool: ToolSpec<ShellJobArgs, { id: string; killed: boolean }> = {
+  name: "exec_kill",
+  description: "Terminate a background shell by id.",
+  parameters: {
+    type: "object",
+    properties: { id: { type: "string" } },
+    required: ["id"],
+  },
+  describe: () => ({ tool: "exec_kill" }),
+  async execute(ctx, args): Promise<ToolResult<{ id: string; killed: boolean }>> {
+    try {
+      const outcome = await ctx.request<{ id: string; killed: boolean }>("service.shell.execKill", { id: args.id });
+      return { ok: true, data: outcome };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+};

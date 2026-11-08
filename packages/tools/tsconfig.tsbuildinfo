@@ -1,0 +1,1 @@
+{"root":["./src/index.ts","./src/resolvers.ts","./src/types.ts","./src/tools/edit.ts","./src/tools/exec.ts","./src/tools/fs.ts","./src/tools/todo.ts","./test/tools.test.ts"],"version":"5.9.3"}

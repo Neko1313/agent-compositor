@@ -48,6 +48,11 @@ export interface HooksApi {
   ui: {
     notify(message: string, level?: "info" | "warn" | "error"): Promise<void>;
   };
+  /** session-level agent controls — /compact and /clear for plugins */
+  agent: {
+    compact(reason?: string): Promise<void>;
+    clear(): Promise<void>;
+  };
   telemetry: {
     log(event: string, data?: Record<string, unknown>): Promise<void>;
     measure<T>(name: string, fn: () => Promise<T>): Promise<T>;
@@ -183,6 +188,14 @@ export class HooksHost {
       ui: {
         notify: (message, level) =>
           callService("service.ui.notify", { message, level }) as Promise<void>,
+      },
+      agent: {
+        compact: async (reason) => {
+          await this.config.agent?.compact(reason);
+        },
+        clear: async () => {
+          await this.config.agent?.clear();
+        },
       },
       telemetry: {
         log: (event, data) => callService("service.telemetry.log", { event, data }) as Promise<void>,

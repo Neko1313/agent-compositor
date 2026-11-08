@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import type { TodoItem } from "./tools/todo.js";
 
 /**
  * Default resolvers for the service.* events our tools emit. Registered at
@@ -13,6 +14,9 @@ export interface ResolverBus {
 
 export function registerDefaultResolvers(bus: ResolverBus): void {
   bus.on("service.shell.exec", runExec);
+  bus.on("service.shell.execOutput", backgroundOutput);
+  bus.on("service.shell.execKill", backgroundKill);
+  bus.on("service.todo.update", todoUpdate);
   bus.on("service.file.read", readFileRange);
   bus.on("service.file.readText", readText);
   bus.on("service.file.write", writeFile);
@@ -27,10 +31,33 @@ interface ExecPayload {
   cwd: string;
   timeoutMs: number;
   env?: Record<string, string>;
+  background?: boolean;
+}
+
+interface BackgroundJob {
+  stdout: string;
+  stderr: string;
+  done: boolean;
+  exitCode: number | null;
+  startedAt: number;
+  child: ReturnType<typeof spawn>;
+}
+
+const backgroundJobs = new Map<string, BackgroundJob>();
+let backgroundSeq = 0;
+
+// process-scoped task list for the `todo` tool (one CLI session per process)
+let todoList: TodoItem[] = [];
+
+function todoUpdate(payload: unknown): Promise<unknown> {
+  const p = payload as { todos?: TodoItem[] };
+  if (p.todos) todoList = p.todos.map((t) => ({ content: String(t.content), status: t.status }));
+  return Promise.resolve({ todos: todoList.map((t) => ({ ...t })) });
 }
 
 function runExec(payload: unknown): Promise<unknown> {
   const p = payload as ExecPayload;
+  if (p.background) return startBackground(p);
   return new Promise((resolve, reject) => {
     const started = Date.now();
     const child = spawn(p.command, {
@@ -62,6 +89,63 @@ function runExec(payload: unknown): Promise<unknown> {
       resolve({ stdout, stderr, exitCode: code ?? -1, durationMs: Date.now() - started });
     });
   });
+}
+
+function startBackground(p: ExecPayload): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(p.command, {
+      shell: "/bin/sh",
+      cwd: p.cwd,
+      env: { ...process.env, ...p.env },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    child.on("error", reject);
+    const id = `shell-${++backgroundSeq}`;
+    const job: BackgroundJob = {
+      stdout: "",
+      stderr: "",
+      done: false,
+      exitCode: null,
+      startedAt: Date.now(),
+      child,
+    };
+    child.stdout.on("data", (d: Buffer) => {
+      job.stdout += d.toString();
+      if (job.stdout.length > MAX_OUTPUT) job.stdout = job.stdout.slice(0, MAX_OUTPUT) + "\n…[truncated]";
+    });
+    child.stderr.on("data", (d: Buffer) => {
+      job.stderr += d.toString();
+      if (job.stderr.length > MAX_OUTPUT) job.stderr = job.stderr.slice(0, MAX_OUTPUT) + "\n…[truncated]";
+    });
+    child.on("close", (code) => {
+      job.done = true;
+      job.exitCode = code ?? -1;
+    });
+    backgroundJobs.set(id, job);
+    resolve({ shellId: id, started: true });
+  });
+}
+
+function backgroundOutput(payload: unknown): Promise<unknown> {
+  const { id } = payload as { id: string };
+  const job = backgroundJobs.get(id);
+  if (!job) throw new Error(`no such background shell: ${id}`);
+  return Promise.resolve({
+    id,
+    stdout: job.stdout,
+    stderr: job.stderr,
+    done: job.done,
+    exitCode: job.exitCode,
+    durationMs: Date.now() - job.startedAt,
+  });
+}
+
+function backgroundKill(payload: unknown): Promise<unknown> {
+  const { id } = payload as { id: string };
+  const job = backgroundJobs.get(id);
+  if (!job) throw new Error(`no such background shell: ${id}`);
+  job.child.kill("SIGKILL");
+  return Promise.resolve({ id, killed: true });
 }
 
 interface ReadPayload {

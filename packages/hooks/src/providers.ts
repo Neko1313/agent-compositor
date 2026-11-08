@@ -32,6 +32,11 @@ export interface HooksHostConfig {
   auth?: AuthProvider;
   notify?: NotifySink;
   telemetry?: TelemetrySink;
+  /** session agent controls exposed to plugins as $.agent.compact/clear */
+  agent?: {
+    compact(reason?: string): Promise<void> | void;
+    clear(): Promise<void> | void;
+  };
   limits?: {
     fsReadMaxBytes?: number;
     fsWriteMaxBytes?: number;

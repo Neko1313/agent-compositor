@@ -57,8 +57,6 @@ export class SkillRegistry {
 
   /** Load the full body; throws if the skill does not exist anywhere. */
   async load(name: string): Promise<SkillDetail> {
-    const hit = this.cache.get(name);
-    if (hit) return hit.detail;
     for (const source of this.config.sources) {
       const parsed = await this.scanSource(source);
       const match = parsed.find((p) => p.summary.name === name);

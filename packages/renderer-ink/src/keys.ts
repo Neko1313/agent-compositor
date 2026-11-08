@@ -24,7 +24,7 @@ export function mapKey(input: string, key: Key): InputData | undefined {
   const modifiers: string[] = [];
   if (key.ctrl) modifiers.push("ctrl");
   if (key.meta) modifiers.push("meta");
-  if (key.shift) modifiers.push("shift");
+  if (key.shift || (key.meta && /^[A-Z]$/.test(input))) modifiers.push("shift");
 
   if (key.return) return { kind: "key", key: "enter", modifiers };
   if (key.escape) return { kind: "key", key: "escape", modifiers };
@@ -34,8 +34,12 @@ export function mapKey(input: string, key: Key): InputData | undefined {
   for (const [flag, name] of SPECIAL) {
     if (key[flag]) return { kind: "key", key: name, modifiers };
   }
+  if (key.meta && "!@#$%^&*(".includes(input) && input.length === 1) {
+    if (!modifiers.includes("shift")) modifiers.push("shift");
+    return { kind: "key", key: String("!@#$%^&*(".indexOf(input) + 1), modifiers };
+  }
   if (!input) return undefined;
   if (key.ctrl) return { kind: "key", key: input, modifiers };
-  if (modifiers.length === 0) return { kind: "text", text: input };
+  if (!key.meta && !key.ctrl) return { kind: "text", text: input };
   return { kind: "key", key: input, modifiers };
 }

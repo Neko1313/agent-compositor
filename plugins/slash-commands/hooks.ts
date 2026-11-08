@@ -36,7 +36,7 @@ export default {
         );
         break;
       default:
-        $.ui.notify(`unknown command: ${text} — try /help`, "warn");
+        return undefined; // Other plugins own their own commands.
     }
     $.state.set("prompts", prompts + 1);
     return { drop: `slash-command: ${text}` };

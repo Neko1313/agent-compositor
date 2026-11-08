@@ -32,7 +32,14 @@ export const builtinTools: ToolSpec<unknown, unknown>[] = [
 
 /** Permission rules expressing conservative defaults for the builtins —
  *  the loop feeds these (source "config" rank) under any user rules. */
+export { projectFiles, confinedPath, glob, queryProject } from "./project.js";
+
 export const builtinToolRules: Parameters<typeof compileRules>[0] = [
+  { decision: "allow", tool: "glob" },
+  { decision: "allow", tool: "grep" },
+  { decision: "allow", tool: "code_query", reason: "read-only project graph navigation" },
+  { decision: "allow", tool: "run_python", reason: "bounded execution in the selected sandbox without host capabilities" },
+  { decision: "allow", tool: "checkpoint_read", reason: "inspect local turn snapshots" },
   { decision: "allow", tool: "read", reason: "reads are safe; the resolver still confines paths to the project" },
   { decision: "ask", tool: "edit", reason: "file mutations need approval unless the session allows" },
   { decision: "ask", tool: "write", reason: "file mutations need approval unless the session allows" },
@@ -41,3 +48,5 @@ export const builtinToolRules: Parameters<typeof compileRules>[0] = [
   { decision: "allow", tool: "exec_output", reason: "reading a shell buffer is a read" },
   { decision: "ask", tool: "exec_kill", reason: "terminating processes needs approval unless rules allow" },
 ];
+
+export { spawnCommand, stopProcess } from "./execution.js";

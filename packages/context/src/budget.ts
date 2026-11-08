@@ -3,16 +3,23 @@
  * tokenizer-specific, and the budget manager only needs a stable,
  * monotonic approximation to decide when to compact.
  *
- * ~4 chars per token is the industry shorthand (OpenAI's own rule of
- * thumb); CJK-heavy text underestimates, which errs toward early
- * compaction — the safe direction.
+ * ASCII uses a four-character heuristic. Non-ASCII is weighted by UTF-8
+ * bytes so CJK/emoji do not receive the severe discount of char counting.
+ * This is explicitly an estimate; provider usage supplies actual billing.
  */
 export function estimateTokens(text: string): number {
   if (text.length === 0) return 0;
-  return Math.ceil(text.length / 4);
+  let units = 0;
+  for (const character of text)
+    units +=
+      character.codePointAt(0)! < 128
+        ? 0.25
+        : Buffer.byteLength(character, "utf8") * 0.5;
+  return Math.ceil(units);
 }
 
 export interface MessageLike {
+  images?: { data: string }[];
   role: string;
   content: string;
   toolCalls?: { name: string; args: unknown }[];
@@ -22,6 +29,8 @@ export function estimateMessageTokens(message: MessageLike): number {
   // ~4 tokens of framing overhead per message (role tags, separators)
   let total = 4;
   total += estimateTokens(message.content);
+  for (const image of message.images ?? [])
+    total += Math.max(1024, Math.ceil(image.data.length / 1000));
   for (const call of message.toolCalls ?? []) {
     total += 8; // call framing
     total += estimateTokens(call.name);
@@ -67,7 +76,8 @@ export class TokenBudget {
 
   constructor(config: BudgetConfig) {
     this.contextWindow = config.contextWindow;
-    this.reserve = (config.reserveOutput ?? 8192) + (config.reserveSystem ?? 2048);
+    this.reserve =
+      (config.reserveOutput ?? 8192) + (config.reserveSystem ?? 2048);
     this.highWaterMark = config.highWaterMark ?? 0.95;
   }
 

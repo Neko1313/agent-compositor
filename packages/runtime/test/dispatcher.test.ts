@@ -23,6 +23,30 @@ async function emitAll(r: Runtime, event: string, input: unknown) {
 }
 
 describe("Runtime", () => {
+  it("selects a replaceable provider while preserving guard hooks", async () => {
+    const r = new Runtime({ providers: { "service.project.query": "replacement" } });
+    let oldCalls = 0, guards = 0;
+    r.register({ ...manifest("callix"), provides: ["service.project.query"] }, { "service.project.query": () => { oldCalls++; return { value: "old" }; } });
+    r.register({ ...manifest("replacement"), provides: ["service.project.query"] }, { "service.project.query": () => ({ value: "new" }) });
+    r.register(manifest("guard"), { "service.project.query": () => { guards++; } }, "prepend");
+    expect((await emitAll(r, "service.project.query", { cwd: ".", action: "status" })).value.value).toEqual({ value: "new" });
+    expect(oldCalls).toBe(0); expect(guards).toBe(1);
+    const missing = new Runtime({ providers: { "service.project.query": "missing" } });
+    missing.register({ ...manifest("callix"), provides: ["service.project.query"] }, { "service.project.query": () => ({ value: "wrong" }) });
+    expect((await emitAll(missing, "service.project.query", { cwd: ".", action: "status" })).value.value).not.toEqual({ value: "wrong" });
+  });
+
+  it("applies declared timeouts to trusted provider hooks", async () => {
+    const r = new Runtime();
+    r.register({ ...manifest("provider"), hookTimeouts: { "service.project.query": 20 } }, {
+      "service.project.query": async (_event, ctx) => {
+        await new Promise<void>(done => ctx.signal.addEventListener("abort", () => done(), { once: true }));
+        return { deny: "provider cancelled" };
+      },
+    });
+    expect((await emitAll(r, "service.project.query", { cwd: ".", action: "status" })).value.value).toEqual({ deny: "provider cancelled" });
+  });
+
   it("returns input unchanged when no hooks are registered", async () => {
     const r = new Runtime();
     const { value, yields } = await emitAll(r, "tool.call", toolCallInput);

@@ -6,11 +6,14 @@ export interface ChatToolCall {
   id: string;
   name: string;
   args: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  images?: { mimeType: string; data: string }[];
+  metadata?: Record<string, unknown>;
   toolCallId?: string;
   name?: string;
   toolCalls?: ChatToolCall[];
@@ -24,15 +27,34 @@ export interface ToolDecl {
 
 export type ProviderEvent =
   | { type: "text_delta"; text: string }
-  | { type: "tool_call"; id: string; name: string; args: unknown }
-  | { type: "usage"; inputTokens: number; outputTokens: number }
-  | { type: "finish"; reason: "stop" | "tool_calls" | "length" | "error"; error?: string };
+  | {
+      type: "tool_call";
+      id: string;
+      name: string;
+      args: unknown;
+      metadata?: Record<string, unknown>;
+    }
+  | { type: "metadata"; data: Record<string, unknown> }
+  | {
+      type: "usage";
+      inputTokens: number;
+      outputTokens: number;
+      cachedInputTokens?: number;
+      estimated?: boolean;
+    }
+  | {
+      type: "finish";
+      reason: "stop" | "tool_calls" | "length" | "error";
+      error?: string;
+    };
 
 export interface CompletionRequest {
   messages: ChatMessage[];
   tools: ToolDecl[];
   signal: AbortSignal;
   model?: string;
+  profile?: string;
+  maxOutputTokens?: number;
 }
 
 export interface ModelProvider {
@@ -62,7 +84,7 @@ export class ScriptedProvider implements ModelProvider {
 
   constructor(
     private script: ScriptedStep[],
-    private opts: { respectSignal?: boolean } = {},
+    private opts: { respectSignal?: boolean } = {}
   ) {}
 
   async *complete(req: CompletionRequest): AsyncIterable<ProviderEvent> {
@@ -75,16 +97,30 @@ export class ScriptedProvider implements ModelProvider {
     if (step.text) yield { type: "text_delta", text: step.text };
     let n = 0;
     for (const tc of step.toolCalls ?? []) {
-      yield { type: "tool_call", id: `call_${this.requests.length}_${n++}`, name: tc.name, args: tc.args };
+      yield {
+        type: "tool_call",
+        id: `call_${this.requests.length}_${n++}`,
+        name: tc.name,
+        args: tc.args,
+      };
     }
-    if (step.usage) yield { type: "usage", inputTokens: step.usage.inputTokens, outputTokens: step.usage.outputTokens };
+    if (step.usage)
+      yield {
+        type: "usage",
+        inputTokens: step.usage.inputTokens,
+        outputTokens: step.usage.outputTokens,
+      };
     if (step.hold) {
       await Promise.race([this.waitForRelease(), aborts(req.signal)]);
       if (req.signal.aborted) return; // interrupted while parked
     } else if (this.opts.respectSignal && req.signal.aborted) {
       return; // interrupted: vanish quietly
     }
-    yield { type: "finish", reason: step.finish ?? (step.toolCalls ? "tool_calls" : "stop"), error: step.error };
+    yield {
+      type: "finish",
+      reason: step.finish ?? (step.toolCalls ? "tool_calls" : "stop"),
+      error: step.error,
+    };
   }
 
   private releases: Array<() => void> = [];

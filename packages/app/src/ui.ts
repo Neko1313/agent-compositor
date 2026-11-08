@@ -1,0 +1,1762 @@
+import { PluginPanel, type PluginWindow } from "./plugin-panel.js";
+import {
+  resolvePlacement,
+  type PlacementConfig,
+  type Placement,
+} from "./placement.js";
+import { WindowManager, type ResizeHandle, type DropEdge } from "./windows.js";
+import {
+  hello,
+  answerHello,
+  type WireMessage,
+} from "@agent-compositor/protocol";
+import type {
+  AgentCore,
+  AgentCoreOptions,
+  LoopEvent,
+} from "@agent-compositor/core";
+import {
+  uiAppearanceSchema,
+  uiTextViewSchema,
+  type UiAppearance,
+} from "@agent-compositor/events";
+import {
+  appearanceFrom,
+  gridFrom,
+  viewRows,
+  textRows,
+  transcriptRows,
+  wrap,
+  type Row,
+  type TranscriptBlock,
+} from "./presentation.js";
+import { QuestionDialog, type QuestionRequest } from "./question.js";
+
+type MouseInput = Extract<
+  Extract<WireMessage, { type: "input" }>["data"],
+  { kind: "mouse" }
+>;
+type Drag =
+  | { kind: "resize"; handle: ResizeHandle }
+  | {
+      kind: "move";
+      surface: string;
+      col: number;
+      row: number;
+      moved: boolean;
+      target?: string;
+      edge?: DropEdge;
+      workspace?: number;
+    };
+
+/** Core-side controller. Renderers see only versioned wire messages. */
+export class AppUI {
+  core: AgentCore;
+  private sink?: (message: WireMessage) => void;
+  private transcript: TranscriptBlock[] = [];
+  private appearances = new Map<string, UiAppearance>();
+  private theme = appearanceFrom([]);
+  private viewCache = new Map<string, { key: string; rows?: Row[] }>();
+  private hitRows = new Map<string, Row[]>();
+  private savedLayout = "";
+  private reportedFocus = "";
+  private activeAgentPane?: string;
+  private fileCatalog?: string[];
+  private loadingFiles = false;
+  private draft = "";
+  private cursor = 0;
+  private history: string[] = [];
+  private historyIndex = -1;
+  private historyDraft = "";
+  private selectedCommand = 0;
+  private completionDismissed = false;
+  private commandNavigated = false;
+  private scroll = new Map<string, number>();
+  private get offset(): number {
+    return (
+      this.scroll.get(
+        this.windows.focused === "input" ? "session" : this.windows.focused
+      ) ?? 0
+    );
+  }
+  private set offset(value: number) {
+    this.scroll.set(
+      this.windows.focused === "input" ? "session" : this.windows.focused,
+      value
+    );
+  }
+  private tiled = false;
+  private columns = 80;
+  private rows = 24;
+  readonly windows = new WindowManager();
+  private serial = 0;
+  private tools = "No tools called yet.";
+  private panes = new Map<
+    string,
+    {
+      title: string;
+      kind: string;
+      text?: string;
+      view?: import("@agent-compositor/events").UiTextView;
+    }
+  >([
+    ["session", { title: "Conversation", kind: "session" }],
+    ["tools", { title: "Tools", kind: "tools" }],
+  ]);
+  private visibility = new Map<string, string>();
+  private pluginWindows = new Map<string, PluginWindow>();
+  private panel?: PluginPanel;
+  private drag?: Drag;
+  private lastMouse?: MouseInput;
+  private hoveredTitle?: string;
+  private pointerSupported = false;
+  private pointer?: Extract<WireMessage, { type: "pointer" }>["shape"];
+  private status = "Ready";
+  private approval?: {
+    text: string;
+    resolve: (
+      answer: Awaited<ReturnType<NonNullable<AgentCoreOptions["onApproval"]>>>
+    ) => void;
+  };
+  private approvalQueue: NonNullable<AppUI["approval"]>[] = [];
+  private question?: {
+    dialog: QuestionDialog;
+    resolve: (answer: string | string[]) => void;
+    reject: (error: Error) => void;
+  };
+  private questionQueue: NonNullable<AppUI["question"]>[] = [];
+  private unsubscribe: () => void;
+  private closed = false;
+  private ready = false;
+  private tasks = new Set<Promise<void>>();
+  private greeting = hello("core", {
+    surfaces: ["terminal", "headless"],
+    sites: [],
+    elements: ["Text", "Box", "Layout", "Pointer"],
+    encodings: ["jsonl"],
+  });
+
+  constructor(
+    createCore: (
+      approve: NonNullable<AgentCoreOptions["onApproval"]>,
+      ask?: NonNullable<AgentCoreOptions["onAsk"]>
+    ) => AgentCore,
+    private reload?: (core: AgentCore) => Promise<string>,
+    notices: string[] = [],
+    private commandList: () => {
+      name: string;
+      description: string;
+      usage?: string;
+    }[] = () => [],
+    private placementConfig: PlacementConfig = {},
+    private panelOptions: {
+      save?: (
+        rule: NonNullable<PlacementConfig["rules"]>[number]
+      ) => Promise<string>;
+      resume?: (
+        id: string,
+        approve: NonNullable<AgentCoreOptions["onApproval"]>,
+        ask: NonNullable<AgentCoreOptions["onAsk"]>
+      ) => Promise<AgentCore>;
+      edit?: (draft: string) => Promise<string>;
+      files?: () => Promise<string[]>;
+      saveLayout?: (layout: unknown) => Promise<void>;
+    } = {}
+  ) {
+    this.core = createCore(
+      (req) => this.requestApproval(req),
+      (req) => this.askUser(req)
+    );
+    this.transcript = this.core
+      .getMessages()
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({
+        kind: m.role === "user" ? "user" : "assistant",
+        text: m.content,
+      }));
+    for (const notice of notices)
+      this.transcript.push({ kind: "notice", text: notice });
+    this.windows.focused = "tools";
+    this.windows.close();
+    this.windows.focused = "input";
+    this.unsubscribe = this.core.subscribe((event) => this.event(event));
+    this.installResume();
+  }
+  connect(sink: (message: WireMessage) => void): void {
+    this.sink = sink;
+    sink(this.greeting);
+  }
+  resize(columns: number, rows: number): void {
+    this.cancelDrag();
+    this.columns = Math.max(16, columns);
+    this.rows = Math.max(12, rows);
+    this.draw();
+  }
+  restoreLayout(value: unknown): void {
+    const layout = value as {
+      windows?: unknown;
+      views?: { id: string; title: string; kind: string }[];
+    };
+    if (!layout?.windows) return;
+    for (const view of (layout.views ?? []).slice(0, 100)) {
+      if (
+        /^window-\d+$/.test(view.id) &&
+        ["session", "tools", "help"].includes(view.kind)
+      ) {
+        this.panes.set(view.id, { title: view.title, kind: view.kind });
+        this.serial = Math.max(this.serial, Number(view.id.slice(7)));
+      }
+    }
+    this.windows.restore(layout.windows, new Set(this.panes.keys()));
+    for (const window of this.pluginWindows.values()) {
+      if (
+        this.placementConfig.rules?.some(
+          (rule) =>
+            (!rule.match.plugin || rule.match.plugin === window.plugin) &&
+            (!rule.match.surface || rule.match.surface === window.surface)
+        )
+      ) {
+        this.windows.relocate(
+          window.id,
+          resolvePlacement(
+            this.placementConfig,
+            window.plugin,
+            window.surface,
+            window.placement
+          )
+        );
+      }
+    }
+    this.draw();
+  }
+  private event(event: LoopEvent): void {
+    if (event.kind === "text") {
+      let block = this.transcript.at(-1);
+      if (block?.kind !== "assistant") {
+        block = { kind: "assistant", text: "" };
+        this.transcript.push(block);
+      }
+      block.text += event.delta;
+    } else {
+      const { input, event: name } = event;
+      if (name === "ui.inputTarget") {
+        this.activeAgentPane =
+          typeof input.surface === "string" &&
+          input.surface.startsWith("plugin-agent-hub-agent-")
+            ? input.surface.slice("plugin-agent-hub-agent-".length)
+            : undefined;
+        this.sink?.({
+          type: "declare",
+          surfaces: [
+            {
+              id: "input",
+              kind: "pane",
+              title: input.label
+                ? `Message → ${String(input.label)}`
+                : "Message",
+            },
+          ],
+        });
+      }
+      if (name === "context.restored" && Array.isArray(input.messages))
+        this.transcript = input.messages
+          .filter((m: any) => m.role === "user" || m.role === "assistant")
+          .map((m: any) => ({
+            kind: m.role === "user" ? "user" : "assistant",
+            text: m.content,
+          }));
+      if (name === "ui.invalidate") this.viewCache.clear();
+      if (name === "subagent.start")
+        this.transcript.push({
+          kind: "notice",
+          text: `Subagent ${input.agentId} · working`,
+          tone: "muted",
+        });
+      if (name === "subagent.complete")
+        this.transcript.push({
+          kind: "notice",
+          text: `Subagent ${input.agentId} · ${
+            input.ok ? "completed" : input.error
+          }`,
+          tone: input.ok ? "success" : "danger",
+        });
+      if (name === "ui.notification")
+        this.transcript.push({
+          kind: "notice",
+          text: `${input.plugin}: ${input.message}`,
+          tone:
+            input.level === "error"
+              ? "danger"
+              : input.level === "warn"
+              ? "warning"
+              : "muted",
+        });
+      if (name === "turn.start") {
+        this.status = "Working";
+      }
+      if (name === "ui.appearance" || name === "ui.pluginRemoved") {
+        const plugin = String(input.plugin ?? "custom");
+        if (name === "ui.pluginRemoved")
+          for (const window of [...this.pluginWindows.values()]) {
+            if (window.plugin !== plugin) continue;
+            this.windows.forget(window.id);
+            this.panes.delete(window.id);
+            this.pluginWindows.delete(window.id);
+            this.visibility.delete(window.id);
+            this.viewCache.delete(window.id);
+            void this.core.host
+              .emit("ui.visibility", {
+                site: `plugin:${window.plugin}/${window.surface}`,
+                attached: false,
+                visible: false,
+                columns: 0,
+                rows: 0,
+              })
+              .catch(() => {});
+          }
+        if (name === "ui.pluginRemoved" || input.appearance === null)
+          this.appearances.delete(plugin);
+        else {
+          const parsed = uiAppearanceSchema.safeParse(input.appearance);
+          if (parsed.success) {
+            this.appearances.delete(plugin);
+            this.appearances.set(plugin, parsed.data);
+          }
+        }
+        this.theme = appearanceFrom(this.appearances.values());
+        this.viewCache.clear();
+        if (
+          name === "ui.appearance" &&
+          input.appearance &&
+          (input.appearance as UiAppearance).presentation?.showTools !==
+            undefined
+        ) {
+          if (this.theme.presentation.showTools)
+            this.windows.place("tools", {
+              site: "sidebar",
+              size: 0.3,
+              focus: false,
+            });
+          else if (this.windows.has("tools")) {
+            const focus = this.windows.focused;
+            this.windows.focused = "tools";
+            this.windows.close();
+            this.windows.focused = focus === "tools" ? "input" : focus;
+          }
+        }
+      }
+      if (name === "tool.call")
+        this.tools += `\n${input.tool} ${JSON.stringify(input.input)}\n`;
+      if (name === "tool.result")
+        this.tools += `\n${input.tool}: ${input.ok ? "done" : input.error}\n`;
+      if (name === "ui.surfaceRemoved") {
+        const id = String(input.id),
+          window = this.pluginWindows.get(id);
+        if (window)
+          void this.core.host
+            .emit("ui.visibility", {
+              site: `plugin:${window.plugin}/${window.surface}`,
+              attached: false,
+              visible: false,
+              columns: 0,
+              rows: 0,
+            })
+            .catch(() => {});
+        this.visibility.delete(id);
+        this.windows.forget(id);
+        this.panes.delete(id);
+        this.pluginWindows.delete(id);
+        this.viewCache.delete(id);
+      }
+      if (name === "ui.surface") {
+        const id = String(input.id);
+        const view = uiTextViewSchema.safeParse(input.view);
+        this.panes.set(id, {
+          title: String(input.title),
+          kind: "plugin",
+          text: String(input.text),
+          view: view.success ? view.data : undefined,
+        });
+        const plugin = String(input.plugin ?? "custom"),
+          surface = String(input.surface ?? input.id);
+        const placement = resolvePlacement(
+          this.placementConfig,
+          plugin,
+          surface,
+          this.pluginWindows.get(id)?.placement ??
+            ((input.placement ?? {}) as Placement)
+        );
+        this.pluginWindows.set(id, {
+          id,
+          plugin,
+          surface,
+          title: String(input.title),
+          placement,
+        });
+        if (!this.windows.has(id)) this.windows.place(id, placement);
+      }
+      if (name === "tool.call") {
+        const args = input.input as Record<string, unknown> | undefined;
+        this.transcript.push({
+          kind: "tool",
+          tool: String(input.tool),
+          args: JSON.stringify(input.input),
+          state: "running",
+          text: String(args?.path ?? args?.command ?? "running"),
+        });
+      }
+      if (name === "tool.result") {
+        const block = [...this.transcript]
+          .reverse()
+          .find(
+            (b) =>
+              b.kind === "tool" &&
+              b.tool === input.tool &&
+              b.state === "running"
+          );
+        if (block) {
+          block.state = input.ok ? "done" : "error";
+          block.text = input.ok
+            ? block.text === "running"
+              ? "completed"
+              : block.text
+            : String(input.error);
+        } else if (!input.ok)
+          this.transcript.push({
+            kind: "notice",
+            tone: "danger",
+            text: `Tool error: ${input.error}`,
+          });
+      }
+      if (name === "prompt.queued")
+        this.status = `Working · ${input.depth} queued`;
+      if (name === "turn.complete") {
+        this.status = "Ready";
+      }
+      if (name === "turn.failed" || name === "turn.interrupted") {
+        this.status =
+          name === "turn.failed"
+            ? "Failed — submit to try again"
+            : "Interrupted";
+        this.transcript.push({
+          kind: "notice",
+          tone: name === "turn.failed" ? "danger" : "warning",
+          text: String(input.error ?? "Interrupted"),
+        });
+      }
+    }
+    this.draw();
+  }
+  receive(message: WireMessage): void {
+    if (this.closed) return;
+    if (message.type === "hello") {
+      this.tiled = message.capabilities.elements.includes("Layout");
+      this.pointerSupported = message.capabilities.elements.includes("Pointer");
+      const ack = answerHello(this.greeting, message);
+      this.sink?.(ack);
+      this.ready = ack.ok;
+      if (!ack.ok) {
+        this.close();
+        return;
+      }
+      this.sink?.({
+        type: "declare",
+        surfaces: [
+          { id: "session", kind: "pane", title: "Conversation" },
+          { id: "input", kind: "pane", title: "Message" },
+          { id: "status", kind: "status-bar" },
+        ],
+      });
+      this.sink?.({ type: "focus", surface: "input" });
+      this.draw();
+      return;
+    }
+    if (message.type === "bye") {
+      this.close();
+      return;
+    }
+    if (!this.ready || message.type !== "input") return;
+    const data = message.data;
+    if (data.kind === "mouse") this.lastMouse = data;
+    if (data.kind === "key" && this.drag) {
+      this.cancelDrag();
+      if (data.key === "escape") {
+        this.draw();
+        return;
+      }
+    }
+    if (
+      data.kind === "mouse" &&
+      (data.action === "move" || data.action === "release")
+    ) {
+      if (this.drag && !this.approval && !this.panel) this.continueDrag(data);
+      else {
+        const previous = this.hoveredTitle;
+        this.updatePointer();
+        if (previous !== this.hoveredTitle) this.draw();
+      }
+      return;
+    }
+    if (this.panel && !this.approval && !this.question) {
+      const action = this.panel.handle(data);
+      if (action === "close") this.panel = undefined;
+      else if (action === "apply" || action === "save")
+        this.applyPanel(action === "save");
+      this.draw();
+      return;
+    }
+    if (data.kind === "mouse") {
+      if (this.approval || this.question) {
+        this.cancelDrag();
+        return;
+      } // Human dialogs retain focus until answered.
+      if (this.drag) this.cancelDrag();
+      if (data.button === "left" && data.row >= this.rows - 2) {
+        const wrap = this.columns - 2;
+        const position = (data.row - (this.rows - 2)) * wrap + data.col;
+        const tab = this.workspaceTabs().find(
+          (tab) =>
+            data.col < wrap && position >= tab.start && position < tab.end
+        );
+        const buttonStart = (this.workspaceTabs().at(-1)?.end ?? 0) + 3;
+        if (position >= buttonStart && position < buttonStart + 9) {
+          this.openPanel();
+          this.draw();
+          return;
+        }
+        if (tab) {
+          this.windows.switchTo(tab.id);
+          this.draw();
+        }
+        return;
+      }
+      const dock = this.dockHeight();
+      if (
+        data.button === "left" &&
+        data.row >= this.rows - dock + 3 &&
+        data.row < this.rows - 3
+      ) {
+        const match =
+          this.visibleCompletions()[data.row - (this.rows - dock + 3)];
+        if (match) {
+          this.windows.focused = "input";
+          this.complete(match);
+          return;
+        }
+      }
+      const separator =
+        data.button === "left" && data.action === "press"
+          ? this.windows.separator(
+              data.col,
+              data.row,
+              this.columns,
+              this.rows - dock
+            )
+          : undefined;
+      if (separator) {
+        this.drag = { kind: "resize", handle: separator };
+        this.draw();
+        return;
+      }
+      const frames = [
+        ...this.windows.frames(this.columns, this.rows - dock),
+        {
+          surface: "input",
+          x: 0,
+          y: this.rows - dock,
+          width: this.columns,
+          height: dock - 2,
+        },
+      ];
+      const hit = frames.find(
+        (f) =>
+          data.col >= f.x &&
+          data.col < f.x + f.width &&
+          data.row >= f.y &&
+          data.row < f.y + f.height
+      );
+      if (!hit) return;
+      if (data.button === "left") {
+        this.windows.focused = hit.surface;
+        const action = this.hitRows.get(hit.surface)?.[data.row - hit.y - 2]
+          ?.action;
+        if (
+          action &&
+          data.col >= hit.x + 2 &&
+          data.col < hit.x + hit.width - 2 &&
+          data.action !== "release"
+        ) {
+          this.track(
+            this.core.host
+              .emit("ui.press", { site: hit.surface, key: action })
+              .then(() => {})
+          );
+          this.draw();
+          return;
+        }
+        if (
+          hit.surface !== "input" &&
+          data.row === hit.y + 1 &&
+          hit.width >= 14
+        ) {
+          if (
+            data.col >= hit.x + hit.width - 4 &&
+            data.col < hit.x + hit.width - 1
+          ) {
+            this.windows.close();
+            this.draw();
+            return;
+          }
+          if (
+            data.col >= hit.x + hit.width - 7 &&
+            data.col < hit.x + hit.width - 4
+          ) {
+            this.windows.fullscreen = !this.windows.fullscreen;
+            this.draw();
+            return;
+          }
+        }
+        if (
+          data.action === "press" &&
+          hit.surface !== "input" &&
+          data.row <= hit.y + 1
+        )
+          this.drag = {
+            kind: "move",
+            surface: hit.surface,
+            col: data.col,
+            row: data.row,
+            moved: false,
+          };
+      } else if (data.button === "wheel-up" || data.button === "wheel-down") {
+        const current = this.scroll.get(hit.surface) ?? 0;
+        this.scroll.set(
+          hit.surface,
+          Math.max(0, current + (data.button === "wheel-up" ? 3 : -3))
+        );
+      }
+      this.draw();
+      return;
+    }
+    if (
+      data.kind === "key" &&
+      data.key === "c" &&
+      data.modifiers?.includes("ctrl")
+    ) {
+      if (this.approval) {
+        this.approval.resolve(false);
+        this.approval = undefined;
+      }
+      for (const approval of this.approvalQueue.splice(0))
+        approval.resolve(false);
+      this.cancelQuestions();
+      if (this.activeAgentPane) {
+        this.track(
+          this.core.host
+            .emit("service.agent.control", {
+              action: "stop",
+              id: this.activeAgentPane,
+            })
+            .then(() => {})
+        );
+        this.draw();
+        return;
+      }
+      if (this.core.getState() === "running") {
+        this.core.interrupt();
+        this.draw();
+      } else this.close();
+      return;
+    }
+    if (this.question && !this.approval) {
+      const result = this.question.dialog.handle(data);
+      if (result) {
+        const question = this.question;
+        this.question = undefined;
+        if (result === "cancel")
+          question.reject(new Error("Question cancelled by user"));
+        else question.resolve(result.answer);
+        this.question = this.questionQueue.shift();
+      }
+      this.draw();
+      return;
+    }
+    if (
+      data.kind === "key" &&
+      data.key === "g" &&
+      data.modifiers?.includes("ctrl") &&
+      this.windows.focused === "input" &&
+      this.panelOptions.edit
+    ) {
+      this.track(
+        this.panelOptions.edit(this.draft).then((value) => {
+          this.draft = value;
+          this.cursor = value.length;
+          this.draw();
+        })
+      );
+      return;
+    }
+    if (this.approval) {
+      const key = data.kind === "text" ? data.text.toLowerCase() : data.key;
+      if (["y", "a", "p", "n", "escape"].includes(key)) {
+        const approval = this.approval;
+        this.approval = this.approvalQueue.shift();
+        approval.resolve({
+          allow: ["y", "a", "p"].includes(key),
+          scope: key === "a" ? "session" : key === "p" ? "project" : "once",
+        });
+        this.draw();
+      }
+      return;
+    }
+    const matches = this.completions();
+    if (
+      this.windows.focused === "input" &&
+      data.kind === "key" &&
+      matches.length
+    ) {
+      if (data.key === "escape") {
+        this.completionDismissed = true;
+        this.draw();
+        return;
+      }
+      if (data.key === "up" || data.key === "down") {
+        this.selectedCommand =
+          (this.selectedCommand +
+            (data.key === "up" ? -1 : 1) +
+            matches.length) %
+          matches.length;
+        this.commandNavigated = true;
+        this.draw();
+        return;
+      }
+      const selected =
+        matches[Math.min(this.selectedCommand, matches.length - 1)];
+      if (
+        data.key === "tab" ||
+        (data.key === "enter" &&
+          !data.modifiers?.includes("shift") &&
+          (this.commandNavigated || this.draft !== selected.name))
+      ) {
+        this.complete(selected);
+        return;
+      }
+    }
+    if (data.kind === "key" && data.modifiers?.includes("meta")) {
+      const key = data.key.toLowerCase(),
+        shift = data.modifiers.includes("shift");
+      const direction =
+        (
+          { h: "left", j: "down", k: "up", l: "right" } as Record<
+            string,
+            string
+          >
+        )[key] ?? key;
+      if (["left", "right", "up", "down"].includes(direction))
+        this.windows.direction(
+          direction,
+          this.columns,
+          this.rows - this.dockHeight(),
+          shift
+        );
+      else if (/^[1-9]$/.test(key)) {
+        if (shift) this.windows.moveWorkspace(Number(key));
+        else this.windows.switchTo(Number(key));
+      } else if (key === "p") this.openPanel();
+      else if (key === "b") this.windows.axis = "horizontal";
+      else if (key === "v") this.windows.axis = "vertical";
+      else if (key === "f") this.windows.fullscreen = !this.windows.fullscreen;
+      else if (key === "q") this.windows.close();
+      else if (key === "i") {
+        this.windows.focused = "input";
+        this.windows.fullscreen = false;
+      } else if (key === "=" || key === "+") this.windows.resize(0.05);
+      else if (key === "-") this.windows.resize(-0.05);
+      else if (["enter", "t", "s", "?", "/"].includes(key)) {
+        const kind =
+          key === "t"
+            ? "tools"
+            : key === "s" || key === "enter"
+            ? "session"
+            : "help";
+        const id = `window-${++this.serial}`;
+        this.panes.set(id, {
+          title:
+            kind === "tools"
+              ? "Tools"
+              : kind === "session"
+              ? "Conversation"
+              : "Window controls",
+          kind,
+        });
+        this.windows.open(id);
+      }
+      this.draw();
+      return;
+    }
+    if (data.kind === "key" && data.key === "escape") {
+      this.windows.focused = this.windows.ids()[0] ?? "input";
+      this.draw();
+      return;
+    }
+    if (this.windows.focused !== "input") {
+      if (data.kind === "key" && data.key === "pageup")
+        this.offset += Math.max(1, this.rows - 10);
+      else if (data.kind === "key" && data.key === "pagedown")
+        this.offset = Math.max(0, this.offset - Math.max(1, this.rows - 10));
+      else if (this.panes.get(this.windows.focused)?.kind === "plugin")
+        this.track(
+          this.core.host
+            .emit("ui.press", {
+              site: this.windows.focused,
+              key: data.kind === "text" ? data.text : data.key,
+            })
+            .then(() => {})
+        );
+      this.draw();
+      return;
+    }
+    if (
+      data.kind === "text" ||
+      (data.kind === "key" && ["backspace", "delete"].includes(data.key))
+    ) {
+      this.completionDismissed = false;
+      this.selectedCommand = 0;
+      this.commandNavigated = false;
+    }
+    if (data.kind === "text") {
+      const text = data.text
+        .replace(/\r\n?/g, "\n")
+        .replace(/[\x00-\x09\x0b-\x1f\x7f]/g, " ");
+      this.draft =
+        this.draft.slice(0, this.cursor) + text + this.draft.slice(this.cursor);
+      this.cursor += text.length;
+      if (
+        this.draft.includes("@") &&
+        !this.fileCatalog &&
+        !this.loadingFiles &&
+        this.panelOptions.files
+      ) {
+        this.loadingFiles = true;
+        this.track(
+          this.panelOptions
+            .files()
+            .then((files) => {
+              this.fileCatalog = files;
+            })
+            .finally(() => {
+              this.loadingFiles = false;
+              this.draw();
+            })
+        );
+      }
+    } else if (
+      (data.key === "enter" && data.modifiers?.includes("shift")) ||
+      (data.key === "j" && data.modifiers?.includes("ctrl"))
+    ) {
+      this.draft =
+        this.draft.slice(0, this.cursor) + "\n" + this.draft.slice(this.cursor);
+      this.cursor++;
+    } else if (
+      (data.key === "up" || data.key === "down") &&
+      (!this.draft.includes("\n") || this.historyIndex >= 0) &&
+      this.history.length
+    ) {
+      if (this.historyIndex === -1) this.historyDraft = this.draft;
+      this.historyIndex = Math.max(
+        -1,
+        Math.min(
+          this.history.length - 1,
+          this.historyIndex + (data.key === "up" ? 1 : -1)
+        )
+      );
+      this.draft =
+        this.historyIndex < 0
+          ? this.historyDraft
+          : this.history[this.history.length - 1 - this.historyIndex];
+      this.cursor = this.draft.length;
+    } else if (data.key === "pageup") this.offset += this.rows;
+    else if (data.key === "pagedown")
+      this.offset = Math.max(0, this.offset - this.rows);
+    else if (data.key === "left") this.cursor = Math.max(0, this.cursor - 1);
+    else if (data.key === "right")
+      this.cursor = Math.min(this.draft.length, this.cursor + 1);
+    else if (data.key === "home") this.cursor = 0;
+    else if (data.key === "end") this.cursor = this.draft.length;
+    else if (data.key === "backspace" && this.cursor > 0) {
+      this.draft =
+        this.draft.slice(0, this.cursor - 1) + this.draft.slice(this.cursor);
+      this.cursor--;
+    } else if (data.key === "delete")
+      this.draft =
+        this.draft.slice(0, this.cursor) + this.draft.slice(this.cursor + 1);
+    else if (
+      (data.key === "enter" || data.key === "tab") &&
+      this.draft.trim()
+    ) {
+      const text = this.draft;
+      this.draft = "";
+      this.cursor = 0;
+      this.offset = 0;
+      if (this.history.at(-1) !== text) this.history.push(text);
+      this.historyIndex = -1;
+      this.historyDraft = "";
+      this.transcript.push({ kind: "user", text });
+      if (text === "/plugins") {
+        this.openPanel();
+        this.draw();
+        return;
+      }
+      const task =
+        text === "/reload" && this.reload
+          ? this.reload(this.core).then((result) => {
+              this.transcript.push({ kind: "notice", text: result });
+              this.viewCache.clear();
+              this.draw();
+            })
+          : data.key === "tab"
+          ? this.core.steer(text)
+          : this.core.submit(text);
+      this.track(task);
+    }
+    this.draw();
+  }
+  private track(task: Promise<void>): void {
+    const safe = task.catch((error) => {
+      this.transcript.push({
+        kind: "notice",
+        tone: "danger",
+        text: `Error: ${String(error)}`,
+      });
+      this.status = "Error";
+      this.draw();
+    });
+    this.tasks.add(safe);
+    void safe.finally(() => this.tasks.delete(safe));
+  }
+  private requestApproval(
+    req: Parameters<NonNullable<AgentCoreOptions["onApproval"]>>[0]
+  ): ReturnType<NonNullable<AgentCoreOptions["onApproval"]>> {
+    if (req.signal?.aborted || this.closed) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      this.cancelDrag();
+      const entry = {
+        text: `${req.tool} ${JSON.stringify(req.descriptor)}\n${
+          req.reason ?? ""
+        }\nY allow once / A session / P project / N deny`,
+        resolve: (
+          value: Awaited<
+            ReturnType<NonNullable<AgentCoreOptions["onApproval"]>>
+          >
+        ) => {
+          req.signal?.removeEventListener("abort", abort);
+          resolve(value);
+        },
+      };
+      const abort = () => {
+        if (this.approval === entry) this.approval = this.approvalQueue.shift();
+        else
+          this.approvalQueue = this.approvalQueue.filter(
+            (item) => item !== entry
+          );
+        entry.resolve(false);
+        this.draw();
+      };
+      req.signal?.addEventListener("abort", abort, { once: true });
+      if (this.approval) this.approvalQueue.push(entry);
+      else this.approval = entry;
+      this.windows.focused = "input";
+      this.draw();
+    });
+  }
+  private installResume(): void {
+    if (!this.panelOptions.resume) return;
+    this.core.runtime.setResolver(
+      "service.session.control",
+      this.sessionResolver()
+    );
+  }
+  private sessionResolver(): (args: any) => Promise<unknown> {
+    // Delegate non-resume actions through the original service resolver by
+    // retaining it via a private alias installed by the app host.
+    return async (args) => {
+      if (args.action !== "resume")
+        return (await this.core.host.emit("service.session.store", args)).value;
+      if (!this.core.controlsReady)
+        return { deny: "Wait until the current turn finishes" };
+      const next = await this.panelOptions.resume!(
+        args.id ?? this.core.sessionId,
+        (req) => this.requestApproval(req),
+        (req) => this.askUser(req)
+      );
+      this.unsubscribe();
+      this.core = next;
+      this.unsubscribe = next.subscribe((event) => this.event(event));
+      this.installResume();
+      this.transcript = next
+        .getMessages()
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({
+          kind: m.role === "user" ? "user" : "assistant",
+          text: m.content,
+        }));
+      this.appearances.clear();
+      this.theme = appearanceFrom([]);
+      this.viewCache.clear();
+      this.status = "Ready";
+      await next.start();
+      this.draw();
+      return { value: true };
+    };
+  }
+  private askUser(
+    request: QuestionRequest & { signal?: AbortSignal }
+  ): Promise<string | string[]> {
+    return new Promise((resolve, reject) => {
+      if (this.closed || request.signal?.aborted) {
+        reject(new Error("UI closed or question cancelled"));
+        return;
+      }
+      const cleanup = () => request.signal?.removeEventListener("abort", abort);
+      const entry = {
+        dialog: new QuestionDialog(request),
+        resolve: (value: string | string[]) => {
+          cleanup();
+          resolve(value);
+        },
+        reject: (error: Error) => {
+          cleanup();
+          reject(error);
+        },
+      };
+      const abort = () => {
+        if (this.question === entry) this.question = this.questionQueue.shift();
+        else
+          this.questionQueue = this.questionQueue.filter(
+            (item) => item !== entry
+          );
+        entry.reject(new Error("Question cancelled"));
+        this.draw();
+      };
+      request.signal?.addEventListener("abort", abort, { once: true });
+      this.questionQueue.push(entry);
+      this.question ??= this.questionQueue.shift();
+      this.cancelDrag();
+      this.panel = undefined;
+      this.windows.focused = "input";
+      this.draw();
+    });
+  }
+  private cancelQuestions(): void {
+    const questions = [
+      ...(this.question ? [this.question] : []),
+      ...this.questionQueue,
+    ];
+    this.question = undefined;
+    this.questionQueue = [];
+    for (const question of questions)
+      question.reject(new Error("Question cancelled"));
+  }
+  private lines(text: string, columns = this.columns - 2): string[] {
+    return wrap(text, columns);
+  }
+  private updatePointer(): void {
+    if (!this.pointerSupported) return;
+    const mouse = this.lastMouse;
+    this.hoveredTitle = undefined;
+    let shape: Extract<WireMessage, { type: "pointer" }>["shape"] = "default";
+    if (mouse && !this.approval && !this.question) {
+      if (this.drag?.kind === "resize")
+        shape =
+          this.drag.handle.node.axis === "horizontal"
+            ? "ew-resize"
+            : "ns-resize";
+      else if (this.drag?.kind === "move")
+        shape =
+          this.drag.moved &&
+          !this.drag.target &&
+          this.drag.workspace === undefined
+            ? "not-allowed"
+            : "grabbing";
+      else if (this.panel)
+        shape = this.panel.interactiveRow(mouse.row) ? "pointer" : "default";
+      else {
+        const { col, row } = mouse,
+          dock = this.dockHeight();
+        const wrap = this.columns - 2,
+          position = (row - (this.rows - 2)) * wrap + col;
+        const buttonStart = (this.workspaceTabs().at(-1)?.end ?? 0) + 3;
+        if (
+          row >= this.rows - 2 &&
+          col < wrap &&
+          (this.workspaceTabs().some(
+            (tab) => position >= tab.start && position < tab.end
+          ) ||
+            (position >= buttonStart && position < buttonStart + 9))
+        )
+          shape = "pointer";
+        else if (
+          row >= this.rows - dock + 3 &&
+          row < this.rows - 3 &&
+          this.visibleCompletions()[row - (this.rows - dock + 3)]
+        )
+          shape = "pointer";
+        else if (
+          row >= this.rows - dock &&
+          row < this.rows - 2 &&
+          col < this.columns
+        )
+          shape = "text";
+        else {
+          const split = this.windows.separator(
+            col,
+            row,
+            this.columns,
+            this.rows - dock
+          );
+          if (split)
+            shape =
+              split.node.axis === "horizontal" ? "ew-resize" : "ns-resize";
+          else {
+            const frame = this.windows
+              .frames(this.columns, this.rows - dock)
+              .find(
+                (f) =>
+                  col >= f.x &&
+                  col < f.x + f.width &&
+                  row >= f.y &&
+                  row < f.y + f.height
+              );
+            if (
+              frame &&
+              this.hitRows.get(frame.surface)?.[row - frame.y - 2]?.action
+            )
+              shape = "pointer";
+            else if (frame && row <= frame.y + 1) {
+              this.hoveredTitle = frame.surface;
+              shape =
+                row === frame.y + 1 &&
+                frame.width >= 14 &&
+                col >= frame.x + frame.width - 7 &&
+                col < frame.x + frame.width - 1
+                  ? "pointer"
+                  : "grab";
+            }
+          }
+        }
+      }
+    }
+    if (shape !== this.pointer) {
+      this.pointer = shape;
+      this.sink?.({ type: "pointer", shape });
+    }
+  }
+  private cancelDrag(): void {
+    if (this.drag?.kind === "resize")
+      this.windows.cancelResize(this.drag.handle);
+    this.drag = undefined;
+  }
+  private continueDrag(data: MouseInput): void {
+    const drag = this.drag;
+    if (!drag) return;
+    if (drag.kind === "resize") {
+      if (!this.windows.dragResize(drag.handle, data.col, data.row))
+        this.cancelDrag();
+      else if (data.action === "release") this.drag = undefined;
+      this.draw();
+      return;
+    }
+    drag.moved ||=
+      Math.abs(data.col - drag.col) + Math.abs(data.row - drag.row) >= 2;
+    drag.workspace = undefined;
+    drag.target = undefined;
+    drag.edge = undefined;
+    if (drag.moved) {
+      if (data.row >= this.rows - 2) {
+        const wrap = this.columns - 2,
+          position = (data.row - (this.rows - 2)) * wrap + data.col;
+        drag.workspace = this.workspaceTabs().find(
+          (tab) =>
+            data.col < wrap && position >= tab.start && position < tab.end
+        )?.id;
+      } else {
+        const frame = this.windows
+          .frames(this.columns, this.rows - this.dockHeight())
+          .find(
+            (f) =>
+              f.surface !== drag.surface &&
+              data.col >= f.x &&
+              data.col < f.x + f.width &&
+              data.row >= f.y &&
+              data.row < f.y + f.height
+          );
+        if (frame) {
+          drag.target = frame.surface;
+          const x = (data.col - frame.x) / frame.width,
+            y = (data.row - frame.y) / frame.height;
+          const edges = [
+            { edge: "left" as const, distance: x },
+            { edge: "right" as const, distance: 1 - x },
+            { edge: "top" as const, distance: y },
+            { edge: "bottom" as const, distance: 1 - y },
+          ].sort((a, b) => a.distance - b.distance);
+          drag.edge = edges[0].distance < 0.25 ? edges[0].edge : "center";
+        }
+      }
+    }
+    if (data.action === "release") {
+      if (
+        drag.moved &&
+        drag.workspace !== undefined &&
+        drag.workspace !== this.windows.workspace
+      ) {
+        this.windows.focused = drag.surface;
+        this.windows.moveWorkspace(drag.workspace);
+      } else if (drag.moved && drag.target && drag.edge)
+        this.windows.drop(drag.surface, drag.target, drag.edge);
+      this.drag = undefined;
+    }
+    this.draw();
+  }
+  private dragHint(): string {
+    const drag = this.drag;
+    if (!drag)
+      return "Drag title to move · drag divider to resize · Esc cancels";
+    if (drag.kind === "resize")
+      return "Resizing split · release to keep · Esc cancels";
+    if (drag.workspace !== undefined)
+      return `Move to workspace ${drag.workspace} · release to place · Esc cancels`;
+    if (drag.target)
+      return `${
+        drag.edge === "center" ? "Swap with" : `Place ${drag.edge} of`
+      } ${
+        this.panes.get(drag.target)?.title ?? drag.target
+      } · release to place · Esc cancels`;
+    return "Drag to an edge to split, center to swap, or workspace number to move";
+  }
+  private openPanel(): void {
+    this.panel = new PluginPanel(
+      () =>
+        [...this.pluginWindows.values()].map((window) => ({
+          ...window,
+          placement: {
+            ...resolvePlacement(
+              this.placementConfig,
+              window.plugin,
+              window.surface,
+              window.placement
+            ),
+            workspace:
+              this.windows.workspaceOf(window.id) ??
+              window.placement.workspace ??
+              this.windows.workspace,
+          },
+        })),
+      () => [...this.panes.keys()]
+    );
+  }
+  private applyPanel(save: boolean): void {
+    const panel = this.panel,
+      window = panel?.target();
+    if (!panel || !window || panel.busy) return;
+    const placement = { ...panel.draft };
+    const rule = {
+      ...placement,
+      match: { plugin: window.plugin, surface: window.surface },
+    };
+    const apply = () => {
+      const rules = (this.placementConfig.rules ?? []).filter(
+        (r) =>
+          r.match.plugin !== window.plugin || r.match.surface !== window.surface
+      );
+      this.placementConfig.rules = [...rules, rule];
+      this.windows.relocate(window.id, placement);
+      panel.message = save
+        ? "Rule saved. Placement applied."
+        : "Applied for this run. Choose Save to keep it.";
+    };
+    if (!save) {
+      apply();
+      return;
+    }
+    if (!this.panelOptions.save) {
+      panel.message = "Saving is unavailable in this host.";
+      return;
+    }
+    panel.busy = true;
+    this.track(
+      this.panelOptions
+        .save(rule)
+        .then(() => {
+          apply();
+        })
+        .catch((error) => {
+          panel.message = `Save failed: ${String(error)}`;
+        })
+        .finally(() => {
+          panel.busy = false;
+          this.draw();
+        })
+    );
+  }
+  private completions(): {
+    name: string;
+    description: string;
+    usage?: string;
+  }[] {
+    if (
+      this.panel ||
+      this.completionDismissed ||
+      this.approval ||
+      this.question ||
+      this.windows.focused !== "input"
+    )
+      return [];
+    const file = /@(?:"([^"]*)|([^\s"]*))$/.exec(
+      this.draft.slice(0, this.cursor)
+    );
+    if (file)
+      return (this.fileCatalog ?? [])
+        .filter((path) => path.startsWith(file[1] ?? file[2]))
+        .slice(0, 100)
+        .map((path) => ({
+          name: `@${path.includes(" ") ? JSON.stringify(path) : path}`,
+          description: "Attach project file",
+        }));
+    if (!/^\/[^\s]*$/.test(this.draft)) return [];
+    return [
+      ...this.commandList().filter((command) => command.name !== "/plugins"),
+      { name: "/plugins", description: "Place plugin windows" },
+    ].filter((command) => command.name.startsWith(this.draft));
+  }
+  private visibleCompletions() {
+    const matches = this.completions();
+    const count = Math.min(5, Math.max(0, this.rows - 12));
+    const start = Math.max(
+      0,
+      Math.min(this.selectedCommand - count + 1, matches.length - count)
+    );
+    return matches.slice(start, start + count);
+  }
+  private dockHeight(): number {
+    if (this.question && !this.approval)
+      return Math.min(
+        this.rows - 4,
+        Math.max(8, this.question.dialog.rows(this.columns - 4).length + 6)
+      );
+    const extra = Math.min(
+      3,
+      Math.max(0, this.rows - 10),
+      Math.max(0, wrap(`› ${this.draft}▏`, this.columns - 4).length - 1)
+    );
+    return this.approval ? 8 : 6 + extra + this.visibleCompletions().length;
+  }
+  private complete(command: { name: string; usage?: string }): void {
+    if (command.name.startsWith("@")) {
+      const start = this.draft.lastIndexOf("@", this.cursor - 1);
+      this.draft =
+        this.draft.slice(0, start) +
+        command.name +
+        " " +
+        this.draft.slice(this.cursor);
+      this.cursor = start + command.name.length + 1;
+    } else {
+      this.draft = command.name + (command.usage ? " " : "");
+      this.cursor = this.draft.length;
+    }
+    this.completionDismissed = true;
+    this.commandNavigated = false;
+    this.draw();
+  }
+  /** Same labels and character offsets drive painting and mouse hit testing. */
+  private workspaceTabs(): {
+    id: number;
+    label: string;
+    start: number;
+    end: number;
+  }[] {
+    let offset = 0;
+    return this.windows.workspaces().map((id) => {
+      const label =
+        this.drag?.kind === "move" && this.drag.workspace === id
+          ? `<${id}>`
+          : id === this.windows.workspace
+          ? `[${id}]`
+          : ` ${id} `;
+      const tab = { id, label, start: offset, end: offset + label.length };
+      offset += label.length + 1;
+      return tab;
+    });
+  }
+  /** Default view first; cached plugin overrides replace it after the hook settles.
+   * A cache-entry identity check discards stale async responses after resize/reload. */
+  private paint(
+    surface: string,
+    site: string,
+    rows: Row[],
+    width: number,
+    height: number,
+    props: Record<string, unknown> = {}
+  ): void {
+    const input = {
+      site,
+      surface: "terminal" as const,
+      props: {
+        ...props,
+        lines: props.lines ?? rows.map(({ cells, ...row }) => row),
+      },
+      viewport: { columns: width, rows: height },
+    };
+    const key = JSON.stringify(input);
+    let cached = this.viewCache.get(surface);
+    const send = (content: Row[]) => {
+      this.hitRows.set(surface, content.slice(0, height));
+      if (!this.closed)
+        this.sink?.({
+          type: "render",
+          surface,
+          mode: "full",
+          flush: true,
+          grid: gridFrom(content.slice(0, height), this.theme, width),
+        });
+    };
+    if (cached?.key === key) {
+      send(cached.rows ?? rows);
+      return;
+    }
+    cached = { key };
+    this.viewCache.set(surface, cached);
+    send(rows);
+    // Approval and text input remain host-owned. Plugins style them via configure.
+    if (surface === "input") return;
+    const entry = cached;
+    const task = this.core.host
+      .emit("ui.render", input)
+      .then((result) => {
+        if (this.closed || this.viewCache.get(surface) !== entry) return;
+        const parsed = uiTextViewSchema.safeParse(
+          (result.value as { tree?: unknown } | undefined)?.tree
+        );
+        if (!parsed.success) return; // no answer / bad answer: keep the working default
+        entry.rows = viewRows(parsed.data, width, height).slice(0, height);
+        send(entry.rows);
+      })
+      .catch(() => {});
+    this.tasks.add(task);
+    void task.finally(() => this.tasks.delete(task));
+  }
+  private draw(): void {
+    if (this.windows.focused.startsWith("plugin-agent-hub-agent-"))
+      this.activeAgentPane = this.windows.focused.slice(
+        "plugin-agent-hub-agent-".length
+      );
+    else if (this.windows.focused === "session")
+      this.activeAgentPane = undefined;
+    if (this.reportedFocus !== this.windows.focused) {
+      this.reportedFocus = this.windows.focused;
+      void this.core.host
+        .emit("ui.focus", { site: this.windows.focused })
+        .catch(() => {});
+    }
+    if (!this.ready || this.closed) return;
+    if (this.panelOptions.saveLayout) {
+      const layout = {
+        windows: this.windows.snapshot(),
+        views: [...this.panes]
+          .filter(([id]) => id.startsWith("window-"))
+          .map(([id, pane]) => ({ id, title: pane.title, kind: pane.kind })),
+      };
+      const signature = JSON.stringify(layout);
+      if (signature !== this.savedLayout) {
+        this.savedLayout = signature;
+        this.track(this.panelOptions.saveLayout(layout));
+      }
+    }
+    this.updatePointer();
+    const dock = this.dockHeight();
+    const panelActive = this.panel && !this.approval && !this.question;
+    const frames = panelActive
+      ? [
+          {
+            surface: "plugin-placement",
+            x: 0,
+            y: 0,
+            width: this.columns,
+            height: this.rows - dock,
+          },
+        ]
+      : this.windows.frames(this.columns, this.rows - dock);
+    const allFrames = [
+      ...frames,
+      {
+        surface: "input",
+        x: 0,
+        y: this.rows - dock,
+        width: this.columns,
+        height: dock - 2,
+      },
+      {
+        surface: "status",
+        x: 0,
+        y: this.rows - 2,
+        width: this.columns,
+        height: 2,
+      },
+    ];
+    const chrome = { ...this.theme.chrome, ...this.theme.colors };
+    this.sink?.({
+      type: "declare",
+      surfaces: [...this.panes].map(([id, pane]) => ({
+        id,
+        kind: "pane",
+        title: pane.title,
+      })),
+    });
+    if (panelActive)
+      this.sink?.({
+        type: "declare",
+        surfaces: [
+          {
+            id: "plugin-placement",
+            kind: "pane",
+            title: "Plugins · placement",
+          },
+        ],
+      });
+    if (this.tiled)
+      this.sink?.({
+        type: "layout",
+        width: this.columns,
+        height: this.rows,
+        frames: allFrames.map((frame) => ({
+          ...frame,
+          chrome,
+          controls: this.windows.ids().includes(frame.surface),
+          hovered: this.hoveredTitle === frame.surface,
+          ...(this.drag?.kind === "move" && this.drag.target === frame.surface
+            ? { drop: this.drag.edge }
+            : {}),
+        })),
+      });
+    this.sink?.({
+      type: "focus",
+      surface: panelActive ? "plugin-placement" : this.windows.focused,
+    });
+    for (const window of this.pluginWindows.values()) {
+      const frame = frames.find((frame) => frame.surface === window.id);
+      const data = {
+        site: `plugin:${window.plugin}/${window.surface}`,
+        attached: this.windows.has(window.id),
+        visible: !!frame,
+        columns: frame ? Math.max(1, frame.width - 4) : 0,
+        rows: frame ? Math.max(1, frame.height - 3) : 0,
+      };
+      const signature = JSON.stringify(data);
+      if (this.visibility.get(window.id) !== signature) {
+        this.visibility.set(window.id, signature);
+        void this.core.host.emit("ui.visibility", data).catch(() => {});
+      }
+    }
+    for (const frame of frames) {
+      const width = Math.max(1, frame.width - 4),
+        height = Math.max(1, frame.height - 3);
+      if (frame.surface === "plugin-placement" && this.panel) {
+        // Panel click rows retain their existing coordinates; no interior padding.
+        this.sink?.({
+          type: "render",
+          surface: frame.surface,
+          mode: "full",
+          flush: true,
+          grid: gridFrom(
+            this.panel
+              .rows(frame.height)
+              .map((text) => ({ text, tone: "text" })),
+            this.theme,
+            frame.width - 2
+          ),
+        });
+        continue;
+      }
+      const pane = this.panes.get(frame.surface);
+      let rows: Row[];
+      if (pane?.kind === "session") {
+        rows = transcriptRows(this.transcript, width, this.theme);
+        if (!this.transcript.some((block) => block.kind !== "notice"))
+          rows = [
+            { text: "" },
+            ...textRows(this.theme.presentation.welcome, width).map((row) => ({
+              ...row,
+              bold: true,
+            })),
+            { text: "" },
+            ...textRows(
+              "Describe a task, ask a question, or type / for commands.",
+              width,
+              "muted"
+            ),
+            { text: "" },
+            ...rows,
+          ];
+      } else {
+        rows = pane?.view
+          ? viewRows(pane.view, width, height)
+          : textRows(
+              pane?.kind === "tools"
+                ? this.tools
+                : pane?.kind === "help"
+                ? HELP
+                : pane?.text ?? "",
+              width
+            );
+        if (pane?.kind === "plugin" && !pane.view)
+          rows = rows.map((row) => ({
+            ...row,
+            tone: row.text.startsWith("[x]")
+              ? "success"
+              : row.text.startsWith("[~]")
+              ? "accent"
+              : "text",
+          }));
+      }
+      const offset = Math.min(
+        this.scroll.get(frame.surface) ?? 0,
+        Math.max(0, rows.length - height)
+      );
+      const end = rows.length - offset;
+      const visible =
+        pane?.kind === "help"
+          ? rows.slice(0, height)
+          : rows.slice(Math.max(0, end - height), end);
+      const plugin = this.pluginWindows.get(frame.surface);
+      this.paint(
+        frame.surface,
+        pane?.kind === "session"
+          ? "conversation"
+          : pane?.kind === "tools"
+          ? "tools"
+          : plugin
+          ? `plugin:${plugin.plugin}/${plugin.surface}`
+          : pane?.kind ?? "pane",
+        visible,
+        width,
+        height,
+        {
+          title: pane?.title,
+          status: this.status,
+          ...(pane?.view?.raster
+            ? { raster: pane.view.raster, lines: pane.view.lines }
+            : {}),
+          ...(plugin ? { plugin: plugin.plugin, surface: plugin.surface } : {}),
+        }
+      );
+    }
+    const inputWidth = Math.max(1, this.columns - 4);
+    const prompt = `› ${this.draft.slice(0, this.cursor)}▏${this.draft.slice(
+      this.cursor
+    )}`;
+    const draftRows = textRows(prompt, inputWidth);
+    const caretRow =
+      wrap(`› ${this.draft.slice(0, this.cursor)}▏`, inputWidth).length - 1;
+    const startRow = Math.max(0, caretRow - (dock - 5) + 1);
+    let inputRows: Row[] = draftRows.slice(startRow, startRow + dock - 5);
+    if (!this.approval && !this.draft)
+      inputRows = [{ text: "› ▏Describe your task…", tone: "muted" }];
+    if (!this.approval && this.visibleCompletions().length) {
+      const selected =
+        this.completions()[
+          Math.min(this.selectedCommand, this.completions().length - 1)
+        ];
+      inputRows = [
+        ...textRows(prompt, inputWidth).slice(-1),
+        ...this.visibleCompletions().map((command) => ({
+          text: `${command.name === selected?.name ? "›" : " "} ${
+            command.usage ?? command.name
+          } — ${command.description}`,
+          tone:
+            command.name === selected?.name
+              ? ("accent" as const)
+              : ("muted" as const),
+          bold: command.name === selected?.name,
+          selected: command.name === selected?.name,
+        })),
+      ];
+    }
+    if (this.approval)
+      inputRows = textRows(this.approval.text, inputWidth, "warning").slice(
+        -(dock - 5)
+      );
+    else if (this.question)
+      inputRows = this.question.dialog.visible(inputWidth, dock - 5);
+    this.paint("input", "input", inputRows, inputWidth, dock - 5);
+    const barWidth = this.columns - 2;
+    const bar = `${this.workspaceTabs()
+      .map((tab) => tab.label)
+      .join(" ")} | [Plugins]  ${this.status}${
+      this.windows.fullscreen ? " · FULLSCREEN" : ""
+    }`;
+    // Fixed-width splitting keeps workspace painting identical to mouse coordinates.
+    const barRows: Row[] = [];
+    for (let i = 0; i < bar.length; i += barWidth)
+      barRows.push({ text: bar.slice(i, i + barWidth), tone: "accent" });
+    const hint = this.question
+      ? "Enter answer · Esc cancel · PgUp/PgDn question details"
+      : this.drag
+      ? this.dragHint()
+      : this.status.startsWith("Working")
+      ? "Ctrl+C stop · Tab steer · Enter queue"
+      : this.columns < 70
+      ? "/ commands · Ctrl+J newline"
+      : "/ commands · Ctrl+J newline · Alt+t tools · Alt+? shortcuts";
+    if (this.theme.presentation.hints)
+      barRows.push({ text: hint, tone: "muted" });
+    this.paint("status", "status", barRows.slice(0, 2), barWidth, 2, {
+      status: this.status,
+      workspace: this.windows.workspace,
+    });
+  }
+  close(): void {
+    if (this.closed) return;
+    this.cancelDrag();
+    this.closed = true;
+    for (const window of this.pluginWindows.values())
+      void this.core.host
+        .emit("ui.visibility", {
+          site: `plugin:${window.plugin}/${window.surface}`,
+          visible: false,
+          attached: false,
+          columns: 0,
+          rows: 0,
+        })
+        .catch(() => {});
+    this.approval?.resolve(false);
+    for (const approval of this.approvalQueue.splice(0))
+      approval.resolve(false);
+    this.core.interrupt();
+    this.unsubscribe();
+    this.cancelQuestions();
+    this.sink?.({ type: "bye", reason: "closed" });
+  }
+  async settled(): Promise<void> {
+    while (this.tasks.size) await Promise.all([...this.tasks]);
+  }
+}
+
+const HELP = `WINDOW CONTROLS
+Alt+h/j/k/l or Alt+arrows: directional focus
+Alt+Shift+direction: move window
+Alt+b: next split side by side
+Alt+v: next split top/bottom
+Alt+Enter / Alt+s: open conversation view
+Alt+t: open tools view
+Alt+q: close focused window
+Alt+f: toggle fullscreen
+Alt+= / Alt+-: resize focused split
+Alt+1..9: switch workspace
+Alt+Shift+1..9: move window to workspace
+Alt+i: focus message input
+Alt+p or /plugins: place plugin windows
+Escape: focus first window
+PageUp/PageDown: scroll window content
+Enter: send or queue · Tab: steer
+Ctrl+C: interrupt work / exit when idle`;

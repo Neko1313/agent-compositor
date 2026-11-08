@@ -16,12 +16,28 @@ import type { Tier } from "@agent-compositor/runtime";
  *   }
  */
 export const diskManifestSchema = manifestSchema.extend({
+  trust: z.enum(["trusted", "sandboxed", "render-only"]).default("trusted"),
+  commands: z
+    .array(
+      z.object({
+        name: z.string().regex(/^\/[a-z][a-z0-9-]*(?::[a-z0-9][a-z0-9_-]*)?$/),
+        description: z.string(),
+        usage: z.string().optional(),
+      })
+    )
+    .optional(),
   /** entry file relative to the plugin root */
   main: z.string().min(1).optional(),
+  entry: z.string().min(1).optional(),
   /** chain tier for this plugin's hooks; default "user" */
   tier: z.enum(["prepend", "user", "append", "builtin", "core"]).optional(),
 });
 
 export type DiskManifest = z.infer<typeof diskManifestSchema> & { tier?: Tier };
 
-export const DEFAULT_MAIN_CANDIDATES = ["index.ts", "index.js", "index.mjs"] as const;
+export const DEFAULT_MAIN_CANDIDATES = [
+  "hooks.ts",
+  "index.ts",
+  "index.js",
+  "index.mjs",
+] as const;

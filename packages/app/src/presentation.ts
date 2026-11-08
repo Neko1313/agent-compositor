@@ -1,0 +1,245 @@
+import type { UiAppearance, UiTextView } from "@agent-compositor/events";
+import type { RenderMessage } from "@agent-compositor/protocol";
+
+export const DEFAULT_APPEARANCE = {
+  colors: {
+    text: "#dce3e9",
+    muted: "#9aa9b6",
+    accent: "#8fc7dd",
+    success: "#a8cca0",
+    warning: "#e5c18c",
+    danger: "#ef9c9c",
+    border: "#46525c",
+    titleBackground: "#202b34",
+    selectionBackground: "#314652",
+  },
+  chrome: {
+    borderStyle: "single" as "single" | "round" | "double",
+    controls: "focus" as "always" | "focus",
+  },
+  presentation: {
+    userLabel: "You",
+    agentLabel: "Agent",
+    welcome: "What would you like to work on?",
+    toolDetails: false,
+    hints: true,
+    showTools: false,
+  },
+};
+export type Appearance = typeof DEFAULT_APPEARANCE;
+export type Tone = NonNullable<UiTextView["lines"][number]["tone"]>;
+export type Row = UiTextView["lines"][number] & { cells?: Grid[number] };
+export type Grid = NonNullable<RenderMessage["grid"]>;
+export interface TranscriptBlock {
+  kind: "user" | "assistant" | "tool" | "notice";
+  text: string;
+  tone?: Tone;
+  tool?: string;
+  args?: string;
+  state?: "running" | "done" | "error";
+}
+
+/** Contributions replace per plugin; later publishers win per field. */
+export function appearanceFrom(
+  contributions: Iterable<UiAppearance>
+): Appearance {
+  const result: Appearance = structuredClone(DEFAULT_APPEARANCE);
+  for (const patch of contributions) {
+    Object.assign(result.colors, patch.colors);
+    Object.assign(result.chrome, patch.chrome);
+    Object.assign(result.presentation, patch.presentation);
+  }
+  return result;
+}
+
+/** Strip all controls, including OSC payload escapes, before creating cells. */
+export function clean(text: string): string {
+  return text
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "")
+    .replace(/\t/g, "  ");
+}
+
+export function wrap(text: string, columns: number): string[] {
+  const width = Math.max(1, columns);
+  return clean(text)
+    .split("\n")
+    .flatMap((line) => {
+      const result: string[] = [];
+      let chars = Array.from(line);
+      while (chars.length > width) {
+        let cut = chars.slice(0, width + 1).lastIndexOf(" ");
+        if (cut < Math.floor(width / 2)) cut = width;
+        result.push(chars.slice(0, cut).join(""));
+        chars = chars.slice(cut + (chars[cut] === " " ? 1 : 0));
+      }
+      result.push(chars.join(""));
+      return result;
+    });
+}
+
+export function textRows(
+  text: string,
+  columns: number,
+  tone: Tone = "text"
+): Row[] {
+  return clean(text)
+    .split("\n")
+    .flatMap((line) => {
+      const indent = /^\[[ x~]\] /.test(line) && columns > 12 ? "    " : "";
+      const lines = wrap(line, columns);
+      if (!indent || lines.length < 2)
+        return lines.map((text) => ({ text, tone }));
+      const remainder = line.slice(lines[0].length).trimStart();
+      return [
+        { text: lines[0], tone },
+        ...wrap(remainder, columns - indent.length).map((text) => ({
+          text: indent + text,
+          tone,
+        })),
+      ];
+    });
+}
+
+export function transcriptRows(
+  blocks: TranscriptBlock[],
+  columns: number,
+  theme: Appearance
+): Row[] {
+  const rows: Row[] = [];
+  for (const block of blocks) {
+    if (rows.length) rows.push({ text: "" });
+    if (block.kind === "tool") {
+      const symbol =
+        block.state === "done" ? "✓" : block.state === "error" ? "!" : "…";
+      rows.push(
+        ...textRows(
+          `${symbol} ${block.tool} · ${block.text}`,
+          columns,
+          block.state === "error"
+            ? "danger"
+            : block.state === "done"
+            ? "success"
+            : "muted"
+        )
+      );
+      if (theme.presentation.toolDetails && block.args)
+        rows.push(...textRows(block.args, columns, "muted"));
+    } else if (block.kind === "notice")
+      rows.push(...textRows(block.text, columns, block.tone ?? "muted"));
+    else {
+      rows.push({
+        text:
+          block.kind === "user"
+            ? theme.presentation.userLabel
+            : theme.presentation.agentLabel,
+        tone: block.kind === "user" ? "accent" : "muted",
+        bold: true,
+      });
+      let code = false;
+      for (const line of clean(block.text).split("\n")) {
+        if (/^\s*```/.test(line)) {
+          code = !code;
+          rows.push({
+            text: code ? `── ${line.trim().slice(3) || "code"}` : "──",
+            tone: "muted",
+          });
+          continue;
+        }
+        const heading = !code && /^#{1,6}\s+/.test(line);
+        rows.push(
+          ...wrap(heading ? line.replace(/^#{1,6}\s+/, "") : line, columns).map(
+            (text) => ({
+              text,
+              tone: code ? ("accent" as const) : ("text" as const),
+              ...(heading ? { bold: true } : {}),
+            })
+          )
+        );
+      }
+    }
+  }
+  return rows;
+}
+
+/** Simple inline Markdown in the default view; plugins can replace the entire view. */
+export function gridFrom(
+  rows: Row[],
+  theme: Appearance,
+  columns: number
+): Grid {
+  return rows.map((row) => {
+    if (row.cells) return row.cells.slice(0, columns);
+    const cells: Grid[number] = [];
+    const parts = clean(row.text).split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+    for (const part of parts) {
+      const code =
+        part.startsWith("`") && part.endsWith("`") && part.length > 1;
+      const strong =
+        part.startsWith("**") && part.endsWith("**") && part.length > 3;
+      const text = code ? part.slice(1, -1) : strong ? part.slice(2, -2) : part;
+      for (const ch of Array.from(text))
+        cells.push({
+          ch,
+          fg: theme.colors[code ? "accent" : row.tone ?? "text"],
+          ...(row.selected ? { bg: theme.colors.selectionBackground } : {}),
+          ...(row.bold || strong ? { bold: true } : {}),
+        });
+    }
+    return cells.slice(0, Math.max(1, columns));
+  });
+}
+
+/** Portable true-colour half-block raster rendering, shared by all plugins. */
+export function viewRows(
+  view: UiTextView,
+  columns: number,
+  height: number
+): Row[] {
+  const text = view.lines.flatMap((row) =>
+    wrap(row.text, columns).map((text) => ({ ...row, text }))
+  );
+  const image = view.raster;
+  const available = Math.max(0, height - text.length);
+  if (!image || !available) return text;
+  const rgba = Buffer.from(image.rgba, "base64");
+  if (rgba.length !== image.width * image.height * 4) return text;
+  const scale = Math.min(
+    columns / image.width,
+    (available * 2) / image.height,
+    1
+  );
+  const w = Math.max(1, Math.floor(image.width * scale)),
+    h = Math.max(1, Math.floor(image.height * scale));
+  const color = (x: number, y: number): string | undefined => {
+    if (y >= h) return;
+    const i =
+      (Math.min(image.height - 1, Math.floor(y / scale)) * image.width +
+        Math.min(image.width - 1, Math.floor(x / scale))) *
+      4;
+    return rgba[i + 3] < 16
+      ? undefined
+      : "#" + rgba.subarray(i, i + 3).toString("hex");
+  };
+  const rows: Row[] = [];
+  for (let y = 0; y < h; y += 2) {
+    const cells: Grid[number] = Array.from(
+      { length: Math.floor((columns - w) / 2) },
+      () => ({ ch: " " })
+    );
+    for (let x = 0; x < w; x++) {
+      const top = color(x, y),
+        bottom = color(x, y + 1);
+      cells.push(
+        top
+          ? { ch: "▀", fg: top, ...(bottom ? { bg: bottom } : {}) }
+          : bottom
+          ? { ch: "▄", fg: bottom }
+          : { ch: " " }
+      );
+    }
+    rows.push({ text: "", cells });
+  }
+  return [...rows, ...text];
+}

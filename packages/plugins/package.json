@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agent-compositor/runtime": "^0.1.0"
+    "@agent-compositor/runtime": "^0.1.0",
+    "@agent-compositor/loader": "^0.1.0",
+    "@agent-compositor/hooks": "^0.3.0"
   }
 }

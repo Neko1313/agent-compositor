@@ -1,0 +1,4 @@
+interface:
+  display_name: "TUI Visual Check"
+  short_description: "Inspect the real TUI through a browser PTY"
+  default_prompt: "Use $tui-visual-check to run the visual bench and verify the affected TUI interaction."

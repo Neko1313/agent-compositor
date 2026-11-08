@@ -1,7 +1,7 @@
 {
   "name": "@agent-compositor/app",
   "version": "0.1.0",
-  "description": "The assembled agent: config \u2192 provider \u2192 disk plugins \u2192 session store \u2192 REPL. This is the sway-analog entrypoint the libraries exist for.",
+  "description": "The assembled agent: config → provider → disk plugins → session store → REPL. This is the sway-analog entrypoint the libraries exist for.",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
@@ -13,14 +13,23 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build:binary": "bun build --compile src/bin.ts --outfile ../../dist/compositor",
-    "start": "bun src/bin.ts"
+    "start": "bun src/bin.ts --cwd ../.."
   },
   "dependencies": {
     "@agent-compositor/cli": "^0.1.0",
     "@agent-compositor/config": "^0.1.0",
+    "@agent-compositor/context": "^0.1.0",
     "@agent-compositor/core": "^0.1.0",
+    "@agent-compositor/events": "^0.3.0",
+    "@agent-compositor/loader": "^0.1.0",
+    "@agent-compositor/permissions": "^0.1.0",
     "@agent-compositor/plugins": "^0.1.0",
+    "@agent-compositor/protocol": "^0.1.0",
     "@agent-compositor/provider": "^0.1.0",
-    "@agent-compositor/session": "^0.1.0"
+    "@agent-compositor/renderer-ink": "^0.1.0",
+    "@agent-compositor/session": "^0.1.0",
+    "@agent-compositor/skills": "^0.1.0",
+    "@agent-compositor/tools": "^0.1.0",
+    "ajv": "^8.20.0"
   }
 }

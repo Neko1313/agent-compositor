@@ -1,0 +1,1 @@
+{"name":"network-proxy","version":"1.0.0","trust":"trusted","description":"Optional HTTP CONNECT proxy for model streams and network tools, with child-process proxy environment.","commands":[{"name":"/proxy","description":"Configure network proxy","usage":"/proxy [status|on|off]"}]}

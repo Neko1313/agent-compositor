@@ -3,5 +3,14 @@
   "version": "1.0.0",
   "description": "Pre-write file checkpoints (Claude Code rewind analog): write/edit tool calls snapshot the previous content; /rewind restores the most recent snapshot. Journal: .agent-compositor/checkpoints.json. Drop this folder to remove.",
   "trust": "trusted",
-  "capabilities": ["tool.call", "prompt.submit"]
+  "capabilities": [
+    "tool.call",
+    "prompt.submit"
+  ],
+  "commands": [
+    {
+      "name": "/rewind",
+      "description": "Restore the last file checkpoint"
+    }
+  ]
 }

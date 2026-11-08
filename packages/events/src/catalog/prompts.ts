@@ -12,6 +12,7 @@ export const promptSubmit = defineEvent({
   }),
   responses: [
     { kind: "next", summary: "pass on, possibly rewritten", schema: z.unknown() },
+    { kind: "text", summary: "replace submitted text", schema: z.object({ text: z.string() }) },
     { kind: "drop", summary: "drop the prompt", schema: z.object({ drop: z.string() }) },
   ],
   frozen: true,

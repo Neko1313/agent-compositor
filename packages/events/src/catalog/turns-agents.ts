@@ -6,7 +6,7 @@ export const turnStart = defineEvent({
   since: "0.1.0",
   version: 1,
   summary: "A turn begins.",
-  input: z.object({ turnId: z.string() }),
+  input: z.object({ turnId: z.string(), interactiveTool: z.boolean().optional() }),
   responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
   aliases: ["turn.started"],
   frozen: true,

@@ -79,7 +79,7 @@ export const inputMessage = z.object({
   data: z.union([
     z.object({ kind: z.literal("key"), key: z.string(), modifiers: z.array(z.string()).optional() }),
     z.object({ kind: z.literal("text"), text: z.string() }),
-    z.object({ kind: z.literal("mouse"), row: z.number(), col: z.number(), button: z.string() }),
+    z.object({ kind: z.literal("mouse"), row: z.number().int().nonnegative(), col: z.number().int().nonnegative(), button: z.string(), action: z.enum(["press", "move", "release"]).optional() }),
   ]),
 });
 
@@ -102,8 +102,26 @@ export const byeMessage = z.object({
   reason: z.string().optional(),
 });
 
+/** Compositor-resolved rectangles; dimensions include window chrome. */
+export const layoutMessage = z.object({
+  type: z.literal("layout"), width: z.number().int().positive(), height: z.number().int().positive(),
+  frames: z.array(z.object({ surface: z.string(), x: z.number().int().nonnegative(), y: z.number().int().nonnegative(),
+    width: z.number().int().positive(), height: z.number().int().positive(),
+    chrome: z.object({ border: z.string(), accent: z.string(), text: z.string(), muted: z.string(),
+      titleBackground: z.string(), warning: z.string(), borderStyle: z.enum(["single", "round", "double"]),
+      controls: z.enum(["always", "focus"]) }).optional(),
+    controls: z.boolean().optional(), hovered: z.boolean().optional(), drop: z.enum(["left", "right", "top", "bottom", "center"]).optional() })),
+});
+
+/** Mouse pointer, distinct from the text caret in a surface grid. */
+export const pointerMessage = z.object({
+  type: z.literal("pointer"), shape: z.enum(["default", "pointer", "text", "grab", "grabbing", "ew-resize", "ns-resize", "not-allowed"]),
+});
+
 export const wireMessage = z.discriminatedUnion("type", [
   helloMessage,
+  layoutMessage,
+  pointerMessage,
   helloAckMessage,
   declareMessage,
   renderMessage,

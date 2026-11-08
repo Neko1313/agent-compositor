@@ -5,6 +5,9 @@ export type {
   LoadIssue,
   LoadReport,
   PluginLoaderOptions,
+  PluginTool,
 } from "./loader.js";
 export { diskManifestSchema, DEFAULT_MAIN_CANDIDATES } from "./manifest.js";
 export type { DiskManifest } from "./manifest.js";
+
+export { claudeManifest, loadClaudePlugin, contained } from "./claude.js";

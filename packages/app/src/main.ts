@@ -1,3 +1,7 @@
+import { readFile } from "node:fs/promises";
+import { resolve, extname } from "node:path";
+import { runHeadless } from "./headless.js";
+import { runTui } from "./tui.js";
 import { runRepl } from "@agent-compositor/cli";
 import type { AgentCore } from "@agent-compositor/core";
 import { buildApp } from "./build.js";
@@ -15,7 +19,7 @@ export interface MainOptions {
 /**
  * The `compositor` binary: flags → buildApp → REPL.
  *
- *   compositor [--plugins dir ...] [--resume sessionId] [--cwd dir]
+ *   compositor [--plugins dir ...] [--resume sessionId] [--cwd dir] [--plain]
  *
  * Provider comes from env (AGENT_BASE_URL / AGENT_API_KEY / AGENT_MODEL) or
  * config (`providers.default`, `model`). Exits 2 on unknown flags.
@@ -28,10 +32,23 @@ export async function main(options: MainOptions = {}): Promise<number> {
   const stdout = options.stdout ?? process.stdout;
 
   const pluginDirs: string[] = [];
+  let plain = false;
+  let prompt: string | undefined, schemaFile: string | undefined;
+  let format: 'text' | 'json' | 'stream-json' = 'text';
+  let maxSteps: number | undefined;
+  let model: string | undefined;
+  const imageFiles: string[] = [];
   let resumeSessionId: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--plugins") {
+    if (arg === '--image' || arg === '-i') { const path = argv[++i]; if (!path) return fail(stdout, '--image needs a file'); imageFiles.push(path);
+    } else if (arg === '--prompt' || arg === '-p') { prompt = argv[++i]; if (prompt === undefined) return fail(stdout, '--prompt needs text (or - for stdin)');
+    } else if (arg === '--output-format') { const value = argv[++i]; if (!['text', 'json', 'stream-json'].includes(value)) return fail(stdout, 'Invalid output format'); format = value as typeof format;
+    } else if (arg === '--output-schema') { schemaFile = argv[++i]; if (!schemaFile) return fail(stdout, '--output-schema needs a JSON schema file');
+    } else if (arg === '--max-steps') { maxSteps = Number(argv[++i]); if (!Number.isInteger(maxSteps) || maxSteps < 1) return fail(stdout, '--max-steps must be a positive integer');
+    } else if (arg === '--model') { model = argv[++i]; if (!model) return fail(stdout, '--model needs a model name');
+    } else if (arg === "--plain") { plain = true;
+    } else if (arg === "--plugins") {
       const dir = argv[++i];
       if (!dir) return fail(stdout, "--plugins needs a directory");
       pluginDirs.push(dir);
@@ -47,8 +64,21 @@ export async function main(options: MainOptions = {}): Promise<number> {
     }
   }
 
-  const app = await buildApp({ cwd, env, pluginDirs, resumeSessionId, provider: options.provider });
+  if (prompt === '-') { prompt = ''; for await (const chunk of stdin) prompt += String(chunk); }
+  if ((schemaFile || format !== 'text') && prompt === undefined) return fail(stdout, 'Structured output requires --prompt');
+  const images = await Promise.all(imageFiles.map(async file => {
+    const path = resolve(cwd, file), mimeType = ({ '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' } as Record<string,string>)[extname(path).toLowerCase()];
+    if (!mimeType) throw new Error('Unsupported image type');
+    const bytes = await readFile(path); if (bytes.length > 10 * 1024 * 1024) throw new Error('Image exceeds 10MB');
+    return { mimeType, data: bytes.toString('base64') };
+  }));
+  const app = await buildApp({ cwd, images, env: model ? { ...env, AGENT_MODEL: model } : env, pluginDirs, resumeSessionId, provider: options.provider, maxSteps });
+  if (prompt !== undefined) { try { return await runHeadless(app, prompt, format, text => { stdout.write(text); }, schemaFile); } finally { await app.close(); } }
 
+  if (!plain && stdin.isTTY && stdout.isTTY) {
+    await runTui(app, stdin, stdout);
+    return 0;
+  }
   if (app.pluginErrors.length > 0) {
     stdout.write("plugin load errors (skipped):\n");
     for (const e of app.pluginErrors) stdout.write(`  ${e.dir}: ${e.error}\n`);
@@ -60,11 +90,11 @@ export async function main(options: MainOptions = {}): Promise<number> {
     stdout.write(`resumed: ${app.resumedEvents.length} events replayed\n`);
   }
 
-  await runRepl({ createCore: app.createCore, stdin: stdin as never, stdout: stdout as never });
+  try { await runRepl({ createCore: app.createCore, stdin: stdin as never, stdout: stdout as never }); } finally { await app.close(); }
   return 0;
 }
 
 function fail(stdout: NodeJS.WriteStream, message: string): number {
-  stdout.write(`compositor: ${message}\nusage: compositor [--plugins dir ...] [--resume sessionId] [--cwd dir]\n`);
+  stdout.write(`compositor: ${message}\nusage: compositor [--plugins dir ...] [--resume sessionId] [--cwd dir] [--plain] [-p prompt] [--output-format text|json|stream-json]\n`);
   return 2;
 }

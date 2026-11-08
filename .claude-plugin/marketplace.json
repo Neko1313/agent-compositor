@@ -1,0 +1,242 @@
+{
+  "name": "agent-compositor",
+  "owner": {
+    "name": "Agent Compositor contributors"
+  },
+  "metadata": {
+    "description": "Native compositor plugins plus explicitly portable Claude-format examples. See docs/marketplace.md for runtime compatibility."
+  },
+  "plugins": [
+    {
+      "name": "auto-approve",
+      "source": "./plugins/auto-approve",
+      "description": "Opt-in low-risk approval review using a separate small model profile. Explicit denies remain absolute.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "btw",
+      "source": "./plugins/btw",
+      "description": "/btw <question> \u2014 ask a side question answered in isolation by a fresh model call (Claude Code /btw analog: the answer lands as a notification and never enters the conversation). Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "callix",
+      "source": "./plugins/callix",
+      "description": "Default code navigation provider using the native Callix CLI and its JSON graph. Replace via serviceProviders or disable this plugin.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "checkpoint-history",
+      "source": "./plugins/checkpoint-history",
+      "description": "Turn snapshots for code and conversation, with conflict-aware restore and review.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "checkpoints",
+      "source": "./plugins/checkpoints",
+      "description": "Pre-write file checkpoints (Claude Code rewind analog): write/edit tool calls snapshot the previous content; /rewind restores the most recent snapshot. Journal: .agent-compositor/checkpoints.json. Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "cost",
+      "source": "./plugins/cost",
+      "description": "/cost and /usage \u2014 token accounting from turn.usage events (Claude Code /cost analog). Tally survives across turns in plugin state; drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "doctor",
+      "source": "./plugins/doctor",
+      "description": "/doctor \u2014 sanity report: env vars (AGENT_BASE_URL/AGENT_API_KEY/AGENT_MODEL) and a live provider ping (Claude Code /doctor analog). Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "export",
+      "source": "./plugins/export",
+      "description": "/export \u2014 dump the session transcript (your prompts + assistant text) to .agent-compositor/session-<id>.md (Claude Code /export analog). Buffer caps at 100k chars. Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "guard-scope",
+      "source": "./plugins/guard-scope",
+      "description": "Workspace jail for write/edit tools: paths escaping the session cwd are denied regardless of config permissions (belt over the builtin rules' suspenders). Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "guard-secrets",
+      "source": "./plugins/guard-secrets",
+      "description": "Blocks private keys and API tokens from reaching the model or tool arguments (AWS AKIA\u2026, OpenAI sk-\u2026, GitHub ghp_\u2026, Slack xoxb-\u2026, PEM blocks). Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "mascot",
+      "source": "./plugins/mascot",
+      "description": "Replaceable animated APNG companion reacting to agent, tool, dialog and planning events.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "mcp",
+      "source": "./plugins/mcp",
+      "description": "MCP client: expose stdio MCP servers' tools to the model through the mcp_call gateway. Servers come from AGENT_MCP_CONFIG (JSON, Claude-style mcpServers) or <cwd>/.agent-compositor/mcp.json.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "memory",
+      "source": "./plugins/memory",
+      "description": "COMPOSITOR.md project memory \u2014 GEMINI.md / CLAUDE.md analog. `# <note>` appends to the memory file; every prompt gets the memory prepended as context. Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "monty",
+      "source": "./plugins/monty",
+      "description": "Replaceable Python sandbox provider using Monty. No filesystem, network or shell capabilities are supplied.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "network-proxy",
+      "source": "./plugins/network-proxy",
+      "description": "Optional HTTP CONNECT proxy for model streams and network tools, with child-process proxy environment.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "notify-done",
+      "source": "./plugins/notify-done",
+      "description": "Desktop notification when a turn finishes or fails \u2014 the Claude Code Notification / codex notify hook analog, so you can look away while the agent works. Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "output-style",
+      "source": "./plugins/output-style",
+      "description": "Output style for assistant text (Claude Code output-styles analog). /style terse strips filler openers ('Sure!', 'Certainly!'\u2026), /style off disables. Rewrites assistant.text pre-render, so this plugin is trusted (render-only hooks see the opaque element tree). Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "plan-mode",
+      "source": "./plugins/plan-mode",
+      "description": "Plan mode (Claude Code /plan analog): toggle with /plan \u2014 the model gets a read-only reminder, every write/exec call is denied until you toggle it off. Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "session-ctl",
+      "source": "./plugins/session-ctl",
+      "description": "/compact \u2014 force context compaction now; /clear \u2014 drop the conversation, keep the system prompt (Claude Code /compact and /clear analogs). Both ride $.agent. Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "slash-commands",
+      "source": "./plugins/slash-commands",
+      "description": "/help, /status, /usage \u2014 command palette harvested from Claude Code / Gemini CLI slash-command UX. Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "todos",
+      "source": "./plugins/todos",
+      "description": "Persistent task list window. Restores tasks on startup, updates after todo tool calls, and opens with /todos. Placement is controlled by the compositor.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "turn-log",
+      "source": "./plugins/turn-log",
+      "description": "Append-only JSONL journal of every turn (prompt, outcome, error) at .agent-compositor/turn-log.jsonl \u2014 the /stats data source. Drop this folder to remove.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "ui-theme",
+      "source": "./plugins/ui-theme",
+      "description": "Switch between slate, amber and mono themes. Demonstrates appearance and ui.render overrides.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "web",
+      "source": "./plugins/web",
+      "description": "Bounded web fetch and configurable Brave/SearXNG search through normal tool permissions.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "workflows",
+      "source": "./plugins/workflows",
+      "description": "Deterministic Python workflows through the selected sandbox provider. Explicit await task('...') calls run permission-gated subagents; successful steps are journaled and replayed on identical reruns. Generated code has no direct filesystem, shell or network access.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
+      "name": "portable-example",
+      "source": "./examples/plugins/portable-example",
+      "description": "Portable namespaced command example for Claude Code and Agent Compositor.",
+      "version": "1.0.0"
+    }
+  ]
+}

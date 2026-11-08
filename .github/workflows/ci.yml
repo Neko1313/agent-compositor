@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,9 +18,25 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      - run: npm run test:ci
+      - run: npm run marketplace:validate
+      - run: npm run eval -- --output dist/evals-ci
+      - run: npm run eval:proxy
+      - name: preserve quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports
+          path: |
+            reports/junit.xml
+            reports/coverage.xml
+            dist/evals-ci/
+          if-no-files-found: warn
       # Neovim api-metadata pattern: generated artifacts are committed,
       # CI fails if docs/events.md or schema/events.json drift from source.
       - run: npm run gen

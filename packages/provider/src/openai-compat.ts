@@ -1,3 +1,4 @@
+import { postJson, type TransportConfig } from "./transport.js";
 import type {
   ChatMessage,
   ChatToolCall,
@@ -7,7 +8,9 @@ import type {
   ToolDecl,
 } from "@agent-compositor/core";
 
-export interface OpenAICompatConfig {
+export interface OpenAICompatConfig extends TransportConfig {
+  maxOutputTokens?: number;
+  reasoningEffort?: string;
   /** e.g. https://api.openai.com/v1 — the /chat/completions suffix is appended */
   baseUrl: string;
   apiKey: string;
@@ -33,7 +36,11 @@ interface StreamChoiceDelta {
 
 interface StreamPayload {
   choices?: StreamChoiceDelta[];
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    prompt_tokens_details?: { cached_tokens?: number };
+  };
   error?: { message?: string };
 }
 
@@ -58,10 +65,18 @@ export class OpenAICompatProvider implements ModelProvider {
 
   async *complete(req: CompletionRequest): AsyncIterable<ProviderEvent> {
     const model = req.model ?? this.config.model;
-    const response = await this.post(req, model);
+    const signal = AbortSignal.any([
+      req.signal,
+      AbortSignal.timeout(this.config.timeoutMs ?? 120000),
+    ]);
+    const response = await this.post({ ...req, signal }, model);
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      yield { type: "finish", reason: "error", error: `HTTP ${response.status}: ${body.slice(0, 500)}` };
+      yield {
+        type: "finish",
+        reason: "error",
+        error: `HTTP ${response.status}: ${body.slice(0, 500)}`,
+      };
       return;
     }
     if (!response.body) {
@@ -69,15 +84,25 @@ export class OpenAICompatProvider implements ModelProvider {
       return;
     }
 
-    const toolCalls = new Map<number, { id: string; name: string; args: string }>();
+    const toolCalls = new Map<
+      number,
+      { id: string; name: string; args: string }
+    >();
     const textParts: string[] = [];
     let finish: ProviderEvent | undefined;
 
     try {
-      for await (const payload of readSse<StreamPayload>(response.body, req.signal)) {
+      for await (const payload of readSse<StreamPayload>(
+        response.body,
+        signal
+      )) {
         if (payload.error) {
-          finish = { type: "finish", reason: "error", error: payload.error.message ?? "stream error" };
-          break;
+          yield {
+            type: "finish",
+            reason: "error",
+            error: payload.error.message ?? "stream error",
+          };
+          return;
         }
         const choice = payload.choices?.[0];
         const delta = choice?.delta;
@@ -88,7 +113,11 @@ export class OpenAICompatProvider implements ModelProvider {
         }
 
         for (const tc of delta?.tool_calls ?? []) {
-          const slot = toolCalls.get(tc.index) ?? { id: tc.id ?? "", name: "", args: "" };
+          const slot = toolCalls.get(tc.index) ?? {
+            id: tc.id ?? "",
+            name: "",
+            args: "",
+          };
           if (tc.id) slot.id = tc.id;
           if (tc.function?.name) slot.name += tc.function.name;
           if (tc.function?.arguments) slot.args += tc.function.arguments;
@@ -100,17 +129,34 @@ export class OpenAICompatProvider implements ModelProvider {
             type: "usage",
             inputTokens: payload.usage.prompt_tokens ?? 0,
             outputTokens: payload.usage.completion_tokens ?? 0,
+            cachedInputTokens:
+              payload.usage.prompt_tokens_details?.cached_tokens,
           };
         }
 
         if (choice?.finish_reason) {
           // flush assembled tool calls, then finish IN WIRE ORDER — the
           // usage chunk (stream_options.include_usage) arrives AFTER this
-          for (const [, tc] of [...toolCalls.entries()].sort((a, b) => a[0] - b[0])) {
-            yield { type: "tool_call", id: tc.id, name: tc.name, args: safeParseArgs(tc.args) };
+          for (const [, tc] of [...toolCalls.entries()].sort(
+            (a, b) => a[0] - b[0]
+          )) {
+            yield {
+              type: "tool_call",
+              id: tc.id,
+              name: tc.name,
+              args: safeParseArgs(tc.args),
+            };
           }
           const reason = choice.finish_reason;
-          finish = { type: "finish", reason: reason === "length" ? "length" : reason === "tool_calls" ? "tool_calls" : "stop" };
+          finish = {
+            type: "finish",
+            reason:
+              reason === "length"
+                ? "length"
+                : reason === "tool_calls"
+                ? "tool_calls"
+                : "stop",
+          };
           yield finish;
         }
       }
@@ -119,48 +165,54 @@ export class OpenAICompatProvider implements ModelProvider {
         // caller aborted: vanish quietly, the loop owns the narrative
         return;
       }
-      yield { type: "finish", reason: "error", error: err instanceof Error ? err.message : String(err) };
+      yield {
+        type: "finish",
+        reason: "error",
+        error: err instanceof Error ? err.message : String(err),
+      };
       return;
     }
 
     if (req.signal.aborted) return; // aborted between chunks: no synthetic finish
-    if (!finish) yield { type: "finish", reason: "stop" };
+    if (!finish)
+      yield {
+        type: "finish",
+        reason: "error",
+        error: "Provider stream ended before completion",
+      };
     void textParts;
   }
 
   private async post(req: CompletionRequest, model: string): Promise<Response> {
-    const timeoutMs = this.config.timeoutMs ?? 120_000;
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const controller = new AbortController();
-    // propagate caller abort into the transport
-    if (req.signal.aborted) controller.abort();
-    else req.signal.addEventListener("abort", () => controller.abort(), { once: true });
-    try {
-      return await fetch(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${this.config.apiKey}`,
-          ...this.config.headers,
-        },
-        body: JSON.stringify({
-          model,
-          stream: true,
-          stream_options: { include_usage: true },
-          messages: req.messages.map(toWire),
-          tools: req.tools.length > 0 ? req.tools.map(toWireTool) : undefined,
-        }),
-      });
-    } finally {
-      clearTimeout(timer);
-    }
+    return postJson(
+      `${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`,
+      {
+        model,
+        stream: true,
+        stream_options: { include_usage: true },
+        ...(req.maxOutputTokens ?? this.config.maxOutputTokens
+          ? { max_tokens: req.maxOutputTokens ?? this.config.maxOutputTokens }
+          : {}),
+        messages: req.messages.map(toWire),
+        tools: req.tools.length ? req.tools.map(toWireTool) : undefined,
+        ...(this.config.reasoningEffort
+          ? { reasoning_effort: this.config.reasoningEffort }
+          : {}),
+      },
+      { authorization: `Bearer ${this.config.apiKey}`, ...this.config.headers },
+      req.signal,
+      this.config
+    );
   }
 }
 
 function toWire(message: ChatMessage): Record<string, unknown> {
   if (message.role === "tool") {
-    return { role: "tool", tool_call_id: message.toolCallId, content: message.content };
+    return {
+      role: "tool",
+      tool_call_id: message.toolCallId,
+      content: message.content,
+    };
   }
   if (message.role === "assistant" && message.toolCalls?.length) {
     return {
@@ -173,11 +225,29 @@ function toWire(message: ChatMessage): Record<string, unknown> {
       })),
     };
   }
-  return { role: message.role, content: message.content };
+  return {
+    role: message.role,
+    content: message.images?.length
+      ? [
+          { type: "text", text: message.content },
+          ...message.images.map((image) => ({
+            type: "image_url",
+            image_url: { url: `data:${image.mimeType};base64,${image.data}` },
+          })),
+        ]
+      : message.content,
+  };
 }
 
 function toWireTool(tool: ToolDecl): Record<string, unknown> {
-  return { type: "function", function: { name: tool.name, description: tool.description, parameters: tool.parameters } };
+  return {
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    },
+  };
 }
 
 function safeParseArgs(raw: string): unknown {
@@ -197,7 +267,10 @@ function isAbortError(err: unknown): boolean {
  * Minimal SSE reader: yields parsed JSON payloads from `data:` lines,
  * terminates on `[DONE]`, ignores comments/blank lines and other fields.
  */
-export async function* readSse<T>(body: ReadableStream<Uint8Array>, signal: AbortSignal): AsyncGenerator<T> {
+export async function* readSse<T>(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal
+): AsyncGenerator<T> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";

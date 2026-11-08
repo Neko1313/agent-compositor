@@ -33,7 +33,7 @@ describe("handshake", () => {
     const renderer = hello("renderer", caps(["terminal"]));
     const ack = answerHello(core, renderer);
     expect(ack.ok).toBe(true);
-    expect(ack.version).toBe("0.1.0");
+    expect(ack.version).toBe("0.5.0");
   });
 
   it("fails with no shared surface", () => {

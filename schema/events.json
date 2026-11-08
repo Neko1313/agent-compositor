@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.2.0",
+  "version": "0.9.0",
   "events": {
     "session.start": {
       "since": "0.1.0",
@@ -107,6 +107,12 @@
       "responses": {
         "next": {
           "summary": "pass on, possibly rewritten",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "text": {
+          "summary": "replace submitted text",
           "schema": {
             "note": "opaque"
           }
@@ -376,6 +382,477 @@
         }
       }
     },
+    "prompt.steer": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "A steering message is injected into the running turn (codex Tab semantics).",
+      "namespace": "prompt",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "prompt.queued": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "A prompt arrived while the agent was busy; it will start when the turn ends.",
+      "namespace": "prompt",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "assistant.text": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "One streamed assistant text delta. Renderers usually subscribe() instead; the chain event exists for plugins that log or rewrite.",
+      "namespace": "assistant",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "pass on",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "text": {
+          "summary": "rewrite the delta",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "tool.result": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "A tool call resolved (ok or error). Errors are values — the turn continues.",
+      "namespace": "tool",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "turn.failed": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "A turn ended in an error (model failure, stream error). Fail-operational: the session stays alive.",
+      "namespace": "turn",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "turn.interrupted": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "The user interrupted the turn. In-flight model stream and tools were aborted best-effort.",
+      "namespace": "turn",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "turn.usage": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Token usage of a turn, cumulative across its model steps. Fires before turn.complete/failed so cost plugins can tally.",
+      "namespace": "turn",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "subagent.start": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "A subagent (fresh AgentCore, isolated transcript) started on a prompt.",
+      "namespace": "subagent",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "subagent.complete": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "A subagent finished: ok with its final text, or failed with an error value (fail-operational).",
+      "namespace": "subagent",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "context.compacted": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "The transcript was compacted: the middle was folded into a summary, system prompt and recent tail kept verbatim.",
+      "namespace": "context",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "context.compacting": {
+      "since": "0.9.0",
+      "version": 1,
+      "summary": "Before context compaction, allowing observers to save state.",
+      "namespace": "context",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "service.ui.configure": {
+      "since": "0.7.0",
+      "version": 1,
+      "summary": "Replace this plugin's appearance contribution. Partial sections inherit defaults; null removes the contribution. User window placements remain authoritative.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "appearance accepted",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.storage.read": {
+      "since": "0.9.0",
+      "version": 1,
+      "summary": "Read JSON in the calling plugin namespace; missing values return undefined.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "stored value",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.storage.write": {
+      "since": "0.9.0",
+      "version": 1,
+      "summary": "Atomically persist bounded JSON in the calling plugin namespace and selected scope.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "saved",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.storage.config": {
+      "since": "0.9.0",
+      "version": 1,
+      "summary": "Read merged global/project/local plugin configuration.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "merged configuration",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "project.changed": {
+      "since": "0.9.0",
+      "version": 1,
+      "summary": "Files or Git state changed; consumers can invalidate and refresh project indexes.",
+      "namespace": "project",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "service.network.configure": {
+      "since": "0.9.0",
+      "version": 1,
+      "summary": "Configure this application network client; preserves protocol and streams, never changes global process environment.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "redacted configuration",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "ui.visibility": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Plugin surface attachment and visible viewport changed; lets producers suspend hidden animations.",
+      "namespace": "ui",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "ui.reaction": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Semantic activity signal for optional visual companions. Consumers must not change the operation being observed.",
+      "namespace": "ui",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "service.ui.remove": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Remove this plugin surface from all workspaces.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "removed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "agent.activity": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Metadata-only activity of a background agent, for optional UI observers; excludes prompts and tool arguments.",
+      "namespace": "agent",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "service.ui.inputTarget": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Label the current input destination. Routing remains owned by the plugin.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "accepted",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.ui.view": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Publish a semantic plugin view. Action rows receive ui.press on click; placement remains user controlled.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "view accepted",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.agent.tool": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Run a user-invoked plugin tool through the normal permission and tool hook chain, without a model request.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "tool outcome",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.ui.surface": {
+      "since": "0.6.0",
+      "version": 1,
+      "summary": "Publish or update a plugin window with optional split/sidebar/inspector/status-bar placement hints; user rules control workspace, size and focus.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "surface accepted",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
     "ui.render": {
       "since": "0.1.0",
       "version": 1,
@@ -579,6 +1056,32 @@
         }
       }
     },
+    "service.ui.ask": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "$.ui.ask / the ask_user tool: ask the human a question (optionally with choices). Headless sessions deny (fail closed).",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "answer": {
+          "summary": "the user's answer",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
     "service.ui.notify": {
       "since": "0.2.0",
       "version": 1,
@@ -609,6 +1112,578 @@
       "since": "0.2.0",
       "version": 1,
       "summary": "$.telemetry.log(event, data?): structured log line.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.skills.load": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Load a skill by name from the configured registry.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.project.query": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Replaceable project navigation provider: files, text, symbols, definitions and graph relations. Symbolic results include resolution metadata.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.sandbox.run": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Replaceable isolated code execution. Host-supplied functions are process-local callbacks receiving (args, AbortSignal); never inferred from generated code.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.permission.review": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Optional risk review only after permissions require approval. A reviewer may allow this exact call or return to manual approval; explicit denies cannot be overridden.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.context.control": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Snapshot or restore conversation context. Restore is restricted to interactive controls outside model execution.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "model.usage": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Per-request usage including auxiliary calls. Provider counts are preferred; estimated=true explicitly marks a fallback used for budgeting.",
+      "namespace": "model",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "service.usage.quota": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Read optional provider-reported account quota; unavailable is explicit, not estimated.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "context.restored": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Conversation restored from a checkpoint; resets replay and renderer transcript.",
+      "namespace": "context",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "service.checkpoint.control": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "List, inspect and restore turn checkpoints through a replaceable provider.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.agent.control": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Manage independent persisted agents and optional Git worktrees; messages run asynchronously with separate budgets.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.model.stream": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Shared streaming provider gateway for agent turns, compaction and plugin model calls. Return an AsyncIterable of provider events.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "context.prepared": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Final user content after project context and explicit file references have been expanded.",
+      "namespace": "context",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "assistant.metadata": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Provider reasoning continuation metadata for faithful session replay.",
+      "namespace": "assistant",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "service.session.control": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "List, search, name, fork, archive or resume local sessions. Resume requires an interactive host.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.session.store": {
+      "since": "0.8.0",
+      "version": 1,
+      "summary": "Local session storage operations used by interactive session hosts.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.shell.exec": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Core exec tool: run a shell command (session cwd, timeout, env). With background: true it returns immediately with a shell id and keeps running.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.shell.execOutput": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Read a backgrounded shell's buffered output (BashOutput analog).",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.shell.execKill": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Terminate a backgrounded shell by id (KillShell analog).",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.agent.spawn": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Spawn a subagent: a fresh AgentCore (shared provider/permissions/plugins, isolated transcript) runs the prompt to completion and returns its final text. Core-resolved.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.todo.update": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Core todo tool: replace (or read) the process-scoped task list.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.file.read": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Core read tool: paginated file read with truncation note.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.file.readText": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Internal: raw full-text read (undo pre-image). null when missing.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.file.write": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Core write tool: create or overwrite a file.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.file.edit": {
+      "since": "0.5.0",
+      "version": 1,
+      "summary": "Core edit tool: exact (or whitespace-normalized) text replacement.",
       "namespace": "service",
       "generator": false,
       "aliases": [],

@@ -48,10 +48,12 @@ async function fake$(tmp: string) {
           fs.mkdir(path.dirname(path.resolve(tmp, p)), { recursive: true }).then(() => fs.writeFile(path.resolve(tmp, p), content)),
       },
       ui: {
+        surface: async () => {},
         notify: async (message: string, level: string) => {
           notifications.push({ message, level });
         },
       },
+      emit: async () => undefined,
       model: {
         complete: async (request: unknown) => {
           modelCalls.push(request);
@@ -92,7 +94,7 @@ describe("default market: unit", () => {
     const { $ } = await fake$(tmp);
     const hooks = memory as unknown as Record<string, (e: any, $: any) => any>;
     expect(await hooks["prompt.submit"]({ text: "# prefer pnpm" }, $)).toEqual({ drop: expect.any(String) });
-    expect(await fs.readFile(path.join(tmp, "COMPOSITOR.md"), "utf8")).toContain("prefer pnpm");
+    expect(await fs.readFile(path.join(tmp,"COMPOSITOR.md"), "utf8")).toContain("prefer pnpm");
 
     const rewritten = (await hooks["prompt.submit"]({ text: "install deps" }, $)) as { text: string };
     expect(rewritten.text).toContain("<memory>");
@@ -169,7 +171,6 @@ describe("default market: unit", () => {
     const { $ } = await fake$(tmp);
     const hooks = todosPlugin as unknown as Record<string, (e: any, $: any) => any>;
     await hooks["tool.result"]({ tool: "todo", ok: true, output: { todos: [{ content: "ship it", status: "in_progress" }] } }, $);
-    await new Promise((r) => setTimeout(r, 50)); // persistence is fire-and-forget
     const saved = JSON.parse(await fs.readFile(path.join(tmp, ".agent-compositor/todos.json"), "utf8"));
     expect(saved).toEqual([{ content: "ship it", status: "in_progress" }]);
   });
@@ -253,19 +254,26 @@ describe("default market: unit", () => {
 });
 
 describe("default market: end-to-end through the assembled app", () => {
-  it("all 17 default plugins load with valid manifests", async () => {
+  it("all default plugins load with valid manifests", async () => {
     const provider = new ScriptedProvider([{ text: "unused" }]);
     const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [REPO_PLUGINS] });
+    expect(app.pluginErrors).toEqual([]);
     expect(app.plugins.map((p) => p.manifest.name).sort()).toEqual([
+      "auto-approve",
       "btw",
+      "callix",
+      "checkpoint-history",
       "checkpoints",
       "cost",
       "doctor",
       "export",
       "guard-scope",
       "guard-secrets",
+      "mascot",
       "mcp",
       "memory",
+      "monty",
+      "network-proxy",
       "notify-done",
       "output-style",
       "plan-mode",
@@ -273,6 +281,8 @@ describe("default market: end-to-end through the assembled app", () => {
       "slash-commands",
       "todos",
       "turn-log",
+      "ui-theme",
+      "web",
       "workflows",
     ]);
   });
@@ -294,7 +304,7 @@ describe("default market: end-to-end through the assembled app", () => {
     await runRepl({ createCore: app.createCore, stdin: stdin as never, stdout: stdout as never });
 
     expect(provider.requests).toHaveLength(0); // every prompt consumed by plugins, zero model round-trips
-    await expect(fs.readFile(path.join(tmp, "COMPOSITOR.md"), "utf8")).resolves.toContain("prefers vitest");
+    await expect(fs.readFile(path.join(app.storage.paths.state, "memory.md"), "utf8")).resolves.toContain("prefers vitest");
   });
 
   it("real turn emits usage; /cost reports it; /export dumps the transcript — all without extra model calls", async () => {
@@ -314,10 +324,10 @@ describe("default market: end-to-end through the assembled app", () => {
     await runRepl({ createCore: app.createCore, stdin: stdin as never, stdout: stdout as never });
 
     expect(provider.requests).toHaveLength(1); // one real turn; both commands answered from plugin state
-    const md = await fs.readdir(path.join(tmp, ".agent-compositor"));
+    const md = await fs.readdir(app.storage.paths.state);
     expect(md.find((f) => f.startsWith("session-") && f.endsWith(".md"))).toBeTruthy();
     const transcript = await fs.readFile(
-      path.join(tmp, ".agent-compositor", md.find((f) => f.startsWith("session-"))!),
+      path.join(app.storage.paths.state, md.find((f) => f.startsWith("session-"))!),
       "utf8",
     );
     expect(transcript).toContain("do the thing");

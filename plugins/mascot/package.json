@@ -1,0 +1,9 @@
+{
+  "name": "@agent-compositor/plugin-mascot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "upng-js": "2.1.0"
+  }
+}

@@ -72,11 +72,12 @@ export class TerminalRenderer {
   }
 
   /** The approval dialog shown when the permission layer escalates. */
-  async askApproval(req: ApprovalPrompt): Promise<boolean> {
+  async askApproval(req: ApprovalPrompt): Promise<boolean | {allow: boolean; scope: "session" | "project"}> {
     this.write(`\n[permission] ${req.tool} ${truncate(JSON.stringify(req.args ?? {}), 80)}\n`);
     if (req.reason) this.write(`  reason: ${req.reason}\n`);
-    const answer = (await this.promptKey("Allow? [y=once / a=session / n=deny] ")).trim().toLowerCase();
-    return answer.startsWith("y") || answer.startsWith("a");
+    const answer = (await this.promptKey("Allow? [y=once / a=session / p=project / n=deny] ")).trim().toLowerCase();
+    if (answer.startsWith("a") || answer.startsWith("p")) return { allow: true, scope: answer.startsWith("p") ? "project" : "session" };
+    return answer.startsWith("y");
   }
 
   /** The AskUserQuestion dialog: numbered options or free text. */

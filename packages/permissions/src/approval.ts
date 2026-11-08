@@ -9,6 +9,7 @@ export interface Approval {
   pattern?: string;
   path?: string;
   tool?: string;
+  url?: string;
   approvedAt: number;
   note?: string;
 }
@@ -28,6 +29,7 @@ export class ApprovalSession {
       tool: call.tool,
       command: call.command ? call.command.join(" ") : undefined,
       path: call.path,
+      url: call.url,
       approvedAt: this.now(),
       note,
     };
@@ -54,6 +56,7 @@ export class ApprovalSession {
   check(call: ToolCallDescriptor): DecisionResult | undefined {
     for (const a of this.approvals) {
       if (a.tool && a.tool !== call.tool) continue;
+      if (a.url !== undefined) { if (call.url === a.url) return { decision: "allow", matched: true, via: "approval" }; continue; }
       if (a.command !== undefined) {
         if (!call.command || call.command.join(" ") !== a.command) continue;
         return { decision: "allow", matched: true, via: "approval" };
@@ -79,6 +82,7 @@ export class ApprovalSession {
   list(): readonly Approval[] {
     return this.approvals;
   }
+  restore(values: readonly Approval[]): void { this.approvals = values.map(value => ({ ...value })); }
 
   revoke(index: number): boolean {
     if (index < 0 || index >= this.approvals.length) return false;

@@ -1,3 +1,4 @@
+import { mouseInput } from "./mouse.js";
 import { render } from "ink";
 import React from "react";
 import { answerHello, hello } from "@agent-compositor/protocol";
@@ -7,6 +8,7 @@ import { RendererState } from "./state.js";
 
 /** Observable store: the run loop writes, the Ink app subscribes. */
 export class RendererStore {
+  suspend?: (callback: () => Promise<void>) => Promise<void>;
   readonly state = new RendererState();
   private readonly listeners = new Set<() => void>();
 
@@ -34,6 +36,8 @@ export interface InkRendererOptions {
   stderr?: NodeJS.WritableStream;
   /** default true: a bye from the core unmounts the app */
   exitOnBye?: boolean;
+  /** Let the core decide whether Ctrl+C interrupts or exits. */
+  hostControlsExit?: boolean;
   /** override the hello we advertise (capabilities) */
   localHello?: HelloMessage;
   /** exit hook, mostly for tests; default calls process.exit */
@@ -41,6 +45,7 @@ export interface InkRendererOptions {
 }
 
 export interface InkRendererHandle {
+  runExternal: (callback: () => Promise<void>) => Promise<void>;
   store: RendererStore;
   stop: () => Promise<void>;
   waitUntilExit: Promise<void>;
@@ -59,12 +64,32 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     hello("renderer", {
       surfaces: ["terminal", "headless"],
       sites: [],
-      elements: ["Text", "Box"],
+      elements: ["Text", "Box", "Layout", "Pointer"],
       encodings: ["jsonl"],
     });
   const exit = opts.exit ?? ((code: number) => process.exit(code));
   let acked = false;
   let exiting = false;
+
+  const stdin = opts.stdin ?? process.stdin;
+  const stdout = opts.stdout ?? process.stdout;
+  const mouseEnabled = !!(opts.hostControlsExit && (stdin as NodeJS.ReadStream).isTTY && (stdout as NodeJS.WriteStream).isTTY);
+  const mouse = mouseEnabled ? mouseInput(stdin, data => {
+    if (!acked || exiting) return;
+    // Coordinates are terminal-global; compositor performs hit testing.
+    opts.send({ type: "input", surface: store.state.focused ?? "input", data });
+  }) : undefined;
+  if (mouseEnabled) stdout.write("\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h");
+  let pointer: string | undefined;
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return; cleaned = true;
+    process.off("exit", cleanup);
+    mouse?.dispose();
+    if (mouseEnabled) stdout.write("\x1b]22;\x1b\\\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1049l");
+  };
+
+  if (mouseEnabled) process.once("exit", cleanup);
 
   /** Unmount, let Ink flush its final frame, then exit. */
   const shutdown = (code: number) => {
@@ -73,29 +98,30 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     // let any pending React commit land before the final frame is captured
     setTimeout(() => {
       app.unmount();
-      void app.waitUntilExit().then(() => exit(code));
+      void app.waitUntilExit().then(() => { cleanup(); exit(code); });
     }, 10);
   };
 
-  const app = render(
+  let app: ReturnType<typeof render>;
+  try { app = render(
     React.createElement(RendererApp, {
       store,
       onKey: (surface, data) => {
         if (!acked || exiting) return;
         opts.send({ type: "input", surface, data });
-        if (data.kind === "key" && data.key === "c" && data.modifiers?.includes("ctrl")) {
+        if (!opts.hostControlsExit && data.kind === "key" && data.key === "c" && data.modifiers?.includes("ctrl")) {
           opts.send({ type: "bye", reason: "ctrl+c" });
           shutdown(0);
         }
       },
     }),
     {
-      ...(opts.stdin ? { stdin: opts.stdin } : {}),
+      stdin: mouse?.input ?? stdin,
       ...(opts.stdout ? { stdout: opts.stdout } : {}),
       ...(opts.stderr ? { stderr: opts.stderr } : {}),
       exitOnCtrlC: false, // ctrl+c is protocol input, not a silent kill
     },
-  );
+  ); } catch (error) { cleanup(); throw error; }
 
   const consume = (async () => {
     opts.send(localHello);
@@ -110,6 +136,13 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
         acked = msg.ok;
         continue;
       }
+      if (msg.type === "pointer") {
+        if (mouseEnabled && pointer !== msg.shape) {
+          stdout.write(`\x1b]22;${msg.shape}\x1b\\`);
+          pointer = msg.shape;
+        }
+        continue;
+      }
       store.apply(msg);
       if (msg.type === "bye" && opts.exitOnBye !== false && !exiting) {
         shutdown(0);
@@ -120,12 +153,25 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
 
   return {
     store,
+    runExternal: async callback => {
+      if (!store.suspend) throw new Error('Terminal suspension is unavailable');
+      await store.suspend(async () => {
+        mouse?.pause();
+        if (mouseEnabled) stdout.write('\x1b[?1000l\x1b[?1003l\x1b[?1006l\x1b[?1049l');
+        try { await callback(); }
+        finally {
+          if (mouseEnabled) stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h');
+          mouse?.resume();
+        }
+      });
+    },
     waitUntilExit: consume
       .then(() => app.waitUntilExit())
-      .then(() => {}),
+      .then(() => { cleanup(); }, error => { app.unmount(); cleanup(); throw error; }),
     stop: async () => {
       exiting = true;
       app.unmount();
+      cleanup();
       await consume.catch(() => {});
     },
   };

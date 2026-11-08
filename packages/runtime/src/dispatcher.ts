@@ -48,9 +48,11 @@ export class Runtime {
   private trace: ChainTrace["write"];
   /** core behavior at the end of a chain: service.* events resolve to real operations */
   private resolvers = new Map<string, (input: any) => unknown>();
+  private readonly providers: Record<string, string>;
 
-  constructor(opts: { trace?: ChainTrace["write"] } = {}) {
+  constructor(opts: { trace?: ChainTrace["write"]; providers?: Record<string, string> } = {}) {
     this.trace = opts.trace ?? (() => {});
+    this.providers = { ...opts.providers };
   }
 
   /**
@@ -69,7 +71,8 @@ export class Runtime {
       }
       const dupe = this.hooks.find((h) => h.plugin === manifest.name && h.event === def.name);
       if (dupe) throw new Error(`plugin "${manifest.name}": duplicate hook for "${def.name}"`);
-      this.hooks.push({ plugin: manifest.name, tier, event: def.name, fn, budget: { ...defaultBudget } });
+      const timeout = manifest.trust === "trusted" ? manifest.hookTimeouts?.[def.name] : undefined;
+      this.hooks.push({ plugin: manifest.name, tier, event: def.name, fn, budget: timeout ? { ownMs: timeout, threadMs: timeout, yieldMs: timeout } : { ...defaultBudget } });
     }
     this.plugins.set(manifest.name, { manifest, tier });
   }
@@ -84,6 +87,7 @@ export class Runtime {
   private hooksFor(event: string): RegisteredHook[] {
     return this.hooks
       .filter((h) => h.event === event)
+      .filter(h => !this.providers[event] || !this.plugins.get(h.plugin)?.manifest.provides?.includes(event) || this.providers[event] === h.plugin)
       .sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier]);
   }
 

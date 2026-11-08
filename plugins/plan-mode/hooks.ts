@@ -8,10 +8,11 @@ export default {
     if (event.text === "/plan") {
       const on = !$.state.get("planning");
       $.state.set("planning", on);
+      void $.emit("ui.reaction", {source:"plan-mode",kind:"planning",id:"mode",active:on});
       void $.ui.notify(on ? "plan mode ON — writes denied" : "plan mode OFF — writes allowed", "info");
       return { drop: "plan-mode: toggled" };
     }
-    if ($.state.get("planning")) {
+    if ($.state.get("planning") && !event.text.startsWith("/")) {
       return { text: event.text + REMINDER };
     }
   },

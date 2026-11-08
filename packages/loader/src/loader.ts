@@ -1,3 +1,5 @@
+import { claudeManifest, loadClaudePlugin } from "./claude.js";
+import * as nodeModule from "node:module";
 import { access, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve as resolvePath } from "node:path";
@@ -17,12 +19,25 @@ export interface DiscoveredPlugin {
 }
 
 export interface LoadedPlugin {
+  mcpServers?: Record<string, unknown>;
+  dispose?: () => void | Promise<void>;
   name: string;
   version: string;
   trust: TrustClass;
   tier: Tier;
   root: string;
   hookCount: number;
+  commands?: DiskManifest["commands"];
+  tools: PluginTool[];
+}
+
+/** Structural ToolSpec contract: loader does not depend on the agent core. */
+export interface PluginTool {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  describe(args: unknown): unknown;
+  execute(ctx: unknown, args: unknown): Promise<unknown>;
 }
 
 export interface LoadIssue {
@@ -41,6 +56,7 @@ export interface LoadReport {
 }
 
 export interface PluginLoaderOptions {
+  disabled?: string[];
   /** explicit search dirs; default: project `./plugins`, `./.agent-compositor/plugins`, user config dir */
   dirs?: string[];
   /** defaults to process.cwd() */
@@ -50,6 +66,11 @@ export interface PluginLoaderOptions {
 /** Every plugin subdirectory of `dir`, alphabetical, fail-soft. */
 async function listPluginDirs(dir: string): Promise<string[]> {
   try {
+    if (
+      (await fileExists(join(dir, "plugin.json"))) ||
+      (await fileExists(join(dir, ".claude-plugin/plugin.json")))
+    )
+      return [dir];
     const ents = await readdir(dir, { withFileTypes: true });
     return ents
       .filter((e) => e.isDirectory())
@@ -69,15 +90,25 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
-async function resolveEntry(root: string, manifest: DiskManifest): Promise<string> {
+async function resolveEntry(
+  root: string,
+  manifest: DiskManifest
+): Promise<string> {
   const candidates: string[] = [];
+  manifest = { ...manifest, main: manifest.main ?? manifest.entry };
   if (manifest.main) {
-    candidates.push(isAbsolute(manifest.main) ? manifest.main : join(root, manifest.main));
+    candidates.push(
+      isAbsolute(manifest.main) ? manifest.main : join(root, manifest.main)
+    );
     if (!/\.(ts|js|mjs|cjs)$/.test(manifest.main)) {
-      candidates.push(join(root, `${manifest.main}.ts`), join(root, `${manifest.main}.js`));
+      candidates.push(
+        join(root, `${manifest.main}.ts`),
+        join(root, `${manifest.main}.js`)
+      );
     }
   } else {
-    for (const name of DEFAULT_MAIN_CANDIDATES) candidates.push(join(root, name));
+    for (const name of DEFAULT_MAIN_CANDIDATES)
+      candidates.push(join(root, name));
   }
   for (const c of candidates) {
     if (await fileExists(c)) return c;
@@ -85,7 +116,9 @@ async function resolveEntry(root: string, manifest: DiskManifest): Promise<strin
   throw new Error(
     manifest.main
       ? `entry "${manifest.main}" not found under ${root}`
-      : `no entry found (tried ${DEFAULT_MAIN_CANDIDATES.join(", ")}) under ${root}`,
+      : `no entry found (tried ${DEFAULT_MAIN_CANDIDATES.join(
+          ", "
+        )}) under ${root}`
   );
 }
 
@@ -101,51 +134,124 @@ async function resolveEntry(root: string, manifest: DiskManifest): Promise<strin
  *     inside the plugin file don't resolve (data: has no base) — single-file
  *     plugins only, and production is unaffected.
  */
-async function importHooks(
+async function importModule(
   entryPath: string,
-  lastModule?: unknown,
-): Promise<{ hooks: Record<string, UserHookFn>; module: unknown }> {
+  lastModule?: unknown
+): Promise<Record<string, unknown>> {
   const fromSource = async () => {
     const src = await readFile(entryPath, "utf8");
-    const url = `data:text/javascript;base64,${Buffer.from(src).toString("base64")}`;
+    const code = entryPath.endsWith(".ts")
+      ? nodeModule.stripTypeScriptTypes(src)
+      : src;
+    const url = `data:text/javascript;base64,${Buffer.from(code).toString(
+      "base64"
+    )}`;
     return (await import(url)) as Record<string, unknown>;
   };
   let mod: Record<string, unknown>;
   try {
-    const url = `${pathToFileURL(entryPath).href}?t=${Date.now()}`;
+    const url = `${
+      pathToFileURL(entryPath).href
+    }?t=${Date.now()}-${Math.random().toString(16).slice(2)}`;
     mod = (await import(url)) as Record<string, unknown>;
     if (mod === lastModule) mod = await fromSource(); // stale under path-keyed runners
-  } catch {
-    mod = await fromSource();
+  } catch (original) {
+    try {
+      mod = await fromSource();
+    } catch {
+      throw original instanceof Error
+        ? original
+        : new Error(
+            String(
+              (original as { message?: string })?.message ??
+                JSON.stringify(original)
+            )
+          );
+    }
   }
-  const hooks = (mod.hooks ?? (mod.default as Record<string, unknown> | undefined)?.hooks) as
-    | Record<string, unknown>
-    | undefined;
-  if (typeof hooks !== "object" || hooks === null) {
-    throw new Error(`hooks module must export a named "hooks" object (e.g. export const hooks = { "tool.check": ... })`);
+  return mod;
+}
+
+async function importHooks(
+  entryPath: string,
+  lastModule?: unknown
+): Promise<{ hooks: Record<string, UserHookFn>; module: unknown }> {
+  const mod = await importModule(entryPath, lastModule);
+  const hooks = (mod.hooks ??
+    (mod.default as Record<string, unknown> | undefined)?.hooks ??
+    mod.default) as Record<string, unknown> | undefined;
+  if (typeof hooks !== "object" || hooks === null || Array.isArray(hooks)) {
+    throw new Error(
+      `hooks module must export a named "hooks" object (e.g. export const hooks = { "tool.check": ... })`
+    );
   }
   for (const [name, fn] of Object.entries(hooks)) {
-    if (typeof fn !== "function") throw new Error(`hook "${name}" is not a function`);
+    if (typeof fn !== "function")
+      throw new Error(`hook "${name}" is not a function`);
   }
   return { hooks: hooks as Record<string, UserHookFn>, module: mod };
 }
 
+async function importTools(
+  entryPath: string,
+  lastModule?: unknown
+): Promise<{ tools: PluginTool[]; module: unknown }> {
+  const mod = await importModule(entryPath, lastModule);
+  const tools = mod.default ?? mod.tools;
+  if (!Array.isArray(tools))
+    throw new Error(
+      "tools entry must export an array of tools (default or named tools)"
+    );
+  const names = new Set<string>();
+  for (const [i, tool] of tools.entries()) {
+    const t = tool as Partial<PluginTool> | null;
+    if (!t || typeof t !== "object")
+      throw new Error(`tools[${i}] is not an object`);
+    if (typeof t.name !== "string" || !t.name)
+      throw new Error(`tools[${i}] missing name`);
+    if (names.has(t.name)) throw new Error(`duplicate tool name: ${t.name}`);
+    names.add(t.name);
+    if (typeof t.description !== "string")
+      throw new Error(`tools[${i}] missing description`);
+    if (
+      !t.parameters ||
+      typeof t.parameters !== "object" ||
+      Array.isArray(t.parameters)
+    )
+      throw new Error(`tools[${i}] missing parameters object`);
+    if (typeof t.describe !== "function" || typeof t.execute !== "function")
+      throw new Error(`tools[${i}] requires describe() and execute()`);
+  }
+  return { tools: tools as PluginTool[], module: mod };
+}
+
 export class PluginLoader {
+  private readonly disabled: string[];
   private readonly dirs: string[];
   private readonly loadedByName = new Map<
     string,
-    LoadedPlugin & { manifest: DiskManifest; entry: string; module?: unknown }
+    LoadedPlugin & {
+      manifest: DiskManifest;
+      entry?: string;
+      module?: unknown;
+      toolsModule?: unknown;
+    }
   >();
 
   constructor(
     private readonly host: HooksHost,
-    opts: PluginLoaderOptions = {},
+    opts: PluginLoaderOptions = {}
   ) {
+    this.disabled = opts.disabled ?? [];
     const cwd = opts.cwd ?? process.cwd();
     this.dirs = opts.dirs ?? [
       join(cwd, "plugins"),
       join(cwd, ".agent-compositor", "plugins"),
-      join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "agent-compositor", "plugins"),
+      join(
+        process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"),
+        "agent-compositor",
+        "plugins"
+      ),
     ];
   }
 
@@ -169,19 +275,32 @@ export class PluginLoader {
   }
 
   /** Scan search dirs for plugin.json manifests. One corrupt manifest never hides the others. */
-  async discover(): Promise<{ found: DiscoveredPlugin[]; issues: LoadIssue[] }> {
+  async discover(): Promise<{
+    found: DiscoveredPlugin[];
+    issues: LoadIssue[];
+  }> {
     const found: DiscoveredPlugin[] = [];
     const issues: LoadIssue[] = [];
     for (const dir of this.dirs) {
       for (const root of await listPluginDirs(dir)) {
-        const manifestPath = join(root, "plugin.json");
+        const native = await fileExists(join(root, "plugin.json"));
+        const manifestPath = native
+          ? join(root, "plugin.json")
+          : join(root, ".claude-plugin/plugin.json");
         if (!(await fileExists(manifestPath))) continue;
         try {
-          const raw = JSON.parse(await readFile(manifestPath, "utf8")) as unknown;
-          const manifest = diskManifestSchema.parse(raw);
+          const raw = JSON.parse(
+            await readFile(manifestPath, "utf8")
+          ) as unknown;
+          const manifest = native
+            ? diskManifestSchema.parse(raw)
+            : await claudeManifest(root);
           found.push({ root, manifestPath, manifest, via: dir });
         } catch (err) {
-          issues.push({ path: manifestPath, reason: err instanceof Error ? err.message : String(err) });
+          issues.push({
+            path: manifestPath,
+            reason: err instanceof Error ? err.message : String(err),
+          });
         }
       }
     }
@@ -197,19 +316,39 @@ export class PluginLoader {
     const seen = new Set<string>();
     for (const disc of found) {
       const name = disc.manifest.name;
+      if (this.disabled.includes(name)) {
+        report.skipped.push({
+          name,
+          path: disc.root,
+          reason: "disabled before import",
+        });
+        continue;
+      }
       if (seen.has(name)) {
-        report.skipped.push({ name, path: disc.root, reason: `duplicate name; first hit in search order wins (via ${disc.via})` });
+        report.skipped.push({
+          name,
+          path: disc.root,
+          reason: `duplicate name; first hit in search order wins (via ${disc.via})`,
+        });
         continue;
       }
       seen.add(name);
       if (this.loadedByName.has(name)) {
-        report.skipped.push({ name, path: disc.root, reason: "already loaded (reload it instead)" });
+        report.skipped.push({
+          name,
+          path: disc.root,
+          reason: "already loaded (reload it instead)",
+        });
         continue;
       }
       try {
         report.loaded.push(await this.register(disc));
       } catch (err) {
-        report.failed.push({ name, path: disc.root, reason: err instanceof Error ? err.message : String(err) });
+        report.failed.push({
+          name,
+          path: disc.root,
+          reason: err instanceof Error ? err.message : String(err),
+        });
       }
     }
     return report;
@@ -223,6 +362,7 @@ export class PluginLoader {
   async reload(name: string): Promise<LoadedPlugin> {
     const current = this.loadedByName.get(name);
     if (!current) throw new Error(`plugin "${name}" is not loaded`);
+    await current.dispose?.();
     const lastModule = current.module; // keep the reference: path-keyed runners
     // return the stale object, and importHooks needs it to detect that
     this.host.unregisterPlugin(name);
@@ -235,37 +375,84 @@ export class PluginLoader {
     };
     // re-read the manifest too: version bumps on disk should apply
     try {
-      const raw = JSON.parse(await readFile(disc.manifestPath, "utf8")) as unknown;
+      const raw = JSON.parse(
+        await readFile(disc.manifestPath, "utf8")
+      ) as unknown;
       disc.manifest = diskManifestSchema.parse(raw);
     } catch {
       disc.manifest = current.manifest; // keep the last known good manifest
     }
-    const loaded = await this.register(disc, lastModule);
+    const loaded = await this.register(disc, lastModule, current.toolsModule);
     return loaded;
   }
 
   /** Unregister without re-registering. */
   async unload(name: string): Promise<boolean> {
+    await this.loadedByName.get(name)?.dispose?.();
     this.loadedByName.delete(name);
     return this.host.unregisterPlugin(name);
   }
 
-  private async register(disc: DiscoveredPlugin, lastModule?: unknown): Promise<LoadedPlugin> {
+  private async register(
+    disc: DiscoveredPlugin,
+    lastModule?: unknown,
+    lastToolsModule?: unknown
+  ): Promise<LoadedPlugin> {
     const { manifest, root } = disc;
     if (manifest.trust === "sandboxed") {
       throw new Error(
-        'trust "sandboxed" requires the QuickJS host, which is not linked into this runtime yet ' +
-          "(workflows/generated code). Load it as \"trusted\" only if you wrote it yourself.",
+        "Sandboxed plugin modules require an explicit language host. Use the configured sandbox service for generated code; trusted TS plugins run on the host."
       );
     }
-    const entry = await resolveEntry(root, manifest);
-    const { hooks, module } = await importHooks(entry, lastModule);
+    if (
+      (await fileExists(join(root, ".claude-plugin/plugin.json"))) &&
+      !(await fileExists(join(root, "plugin.json")))
+    ) {
+      const adapted = await loadClaudePlugin(root);
+      const tier = manifest.tier ?? "user";
+      this.host.registerPlugin(adapted.manifest, adapted.hooks, tier);
+      const loaded = {
+        name: manifest.name,
+        version: manifest.version,
+        trust: manifest.trust,
+        tier,
+        root,
+        hookCount: Object.keys(adapted.hooks).length,
+        commands: adapted.manifest.commands,
+        tools: [],
+        mcpServers: adapted.mcpServers,
+      };
+      this.loadedByName.set(manifest.name, { ...loaded, manifest });
+      return loaded;
+    }
+    const toolsPath = join(root, "tools.ts");
+    const hasTools = await fileExists(toolsPath);
+    if (hasTools && manifest.trust === "render-only")
+      throw new Error("render-only plugins may not export model-facing tools");
+    const entry = await resolveEntry(root, manifest).catch((error) => {
+      if (hasTools && !manifest.main && !manifest.entry) return undefined;
+      throw error;
+    });
+    const { hooks, module } = entry
+      ? await importHooks(entry, lastModule)
+      : { hooks: {}, module: undefined };
+    const { tools, module: toolsModule } = hasTools
+      ? await importTools(toolsPath, lastToolsModule)
+      : { tools: [], module: undefined };
     const hookCount = Object.keys(hooks).length;
     const tier: Tier = manifest.tier ?? "user";
     this.host.registerPlugin(
-      { name: manifest.name, version: manifest.version, description: manifest.description, trust: manifest.trust, capabilities: manifest.capabilities },
+      {
+        name: manifest.name,
+        version: manifest.version,
+        description: manifest.description,
+        trust: manifest.trust,
+        capabilities: manifest.capabilities,
+        provides: manifest.provides,
+        hookTimeouts: manifest.hookTimeouts,
+      },
       hooks,
-      tier,
+      tier
     );
     const loaded: LoadedPlugin = {
       name: manifest.name,
@@ -274,12 +461,30 @@ export class PluginLoader {
       tier,
       root,
       hookCount,
+      dispose: async () => {
+        for (const item of [module, toolsModule]) {
+          const dispose = (item as { dispose?: () => unknown } | undefined)
+            ?.dispose;
+          if (typeof dispose === "function") await dispose();
+        }
+      },
+      commands: manifest.commands,
+      tools,
     };
-    this.loadedByName.set(manifest.name, { ...loaded, manifest, entry, module });
+    this.loadedByName.set(manifest.name, {
+      ...loaded,
+      manifest,
+      entry,
+      module,
+      toolsModule,
+    });
     return loaded;
   }
 }
 
-export function createPluginLoader(host: HooksHost, opts?: PluginLoaderOptions): PluginLoader {
+export function createPluginLoader(
+  host: HooksHost,
+  opts?: PluginLoaderOptions
+): PluginLoader {
   return new PluginLoader(host, opts);
 }

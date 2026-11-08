@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Compositor · visual terminal</title>
+<link rel="stylesheet" href="/xterm.css"><style>
+body{margin:0;padding:24px;background:#121619;color:#dce5e9;font:14px system-ui}header{display:flex;align-items:center;gap:24px;margin-bottom:16px}h1{font-size:18px;margin:0}button{background:#263137;color:#edf7fc;border:1px solid #5a727d;padding:7px 12px;cursor:pointer}small{color:#a9b9c0}#terminal{display:inline-block;padding:12px;background:#101417;border:1px solid #425660}#terminal,#terminal *{cursor:var(--pointer-shape,default)!important}
+</style><header><h1>Compositor · real PTY</h1><button id="restart">Restart session</button><small>Scripted provider · temporary project · actual terminal input</small></header><div id="terminal"></div>
+<script src="/xterm.js"></script><script>
+const terminal = new Terminal({ cols:100,rows:30,fontSize:14,lineHeight:1.15,fontFamily:'monospace',theme:{background:'#101417',foreground:'#dce5e9'},scrollback:1000 });
+terminal.open(document.querySelector('#terminal')); terminal.focus();
+window.visual = { terminal, frames:0, generation:0, pointer:'default', text:() => Array.from({length:terminal.rows},(_,n)=>terminal.buffer.active.getLine(n+terminal.buffer.active.viewportY)?.translateToString(true)??'').join('\n') };
+terminal.parser.registerOscHandler(22, shape => { const allowed=['default','pointer','text','grab','grabbing','ew-resize','ns-resize','not-allowed'];shape=allowed.includes(shape)?shape:'default';window.visual.pointer=shape;document.querySelector('#terminal').style.setProperty('--pointer-shape',shape);return true; });
+const socket=new WebSocket(`ws://${location.host}/ws${location.search}`);
+terminal.onData(data=>socket.readyState===1&&socket.send(JSON.stringify({type:'input',data})));
+terminal.onResize(({cols,rows})=>socket.readyState===1&&socket.send(JSON.stringify({type:'resize',cols,rows})));
+socket.onmessage=event=>{const msg=JSON.parse(event.data);if(msg.type==='data')terminal.write(msg.data,()=>window.visual.frames++);if(msg.type==='reset'){terminal.reset();window.visual.frames=0;window.visual.generation++;}if(msg.type==='error')console.error(msg.data);};
+document.querySelector('#restart').onclick=()=>{socket.send(JSON.stringify({type:'restart'}));terminal.focus();};
+</script></html>

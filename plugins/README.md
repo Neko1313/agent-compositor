@@ -26,6 +26,13 @@ Delete any folder = the feature is gone. Nothing here is load-bearing.
 | `session-ctl` | `/compact`, `/clear` session commands | Claude Code `/compact /clear` |
 | `mcp` | MCP client: `mcp_call` gateway to stdio MCP servers (config: `AGENT_MCP_CONFIG` or `.agent-compositor/mcp.json`) | Claude Code MCP support |
 | `workflows` | `workflow` tool: deterministic multi-agent orchestration with a replayable result journal (Restate Dynamic Workflows pattern) | Restate "Dynamic Workflows" |
+| `ui-theme` | `/theme slate\|amber\|mono`, saved appearance and status view override | Terminal themes |
+| `callix` | Native binary code graph navigation (`code_query`) plus `glob`/`grep`; replaceable `service.project.query` provider | [Callix](callix/README.md) |
+| `monty` | `run_python` and Python workflow execution through replaceable `service.sandbox.run`; bounded resources and explicit host capabilities | [Monty](monty/README.md) |
+| `auto-approve` | Opt-in `/auto` risk review using a small model, manual fallback and audit | [Setup](../docs/agent-features.md#auto-review) |
+| `checkpoint-history` | Code/conversation turn snapshots, `/checkpoints`, `/restore`, `/review`, file-by-file Keep/Revert | [Setup](../docs/agent-features.md#checkpoints-и-review) |
+| `web` | Bounded `web_fetch` and Brave/SearXNG `web_search` through tool permissions | [Setup](../docs/agent-features.md#web-и-базовые-интеграции) |
+
 
 ## Install
 
@@ -38,6 +45,9 @@ npm run install:defaults   # copies plugins/ → ~/.agent-compositor/plugins
 
 ## Write your own
 
+For overriding colors, chrome, conversation presentation or named text views,
+see [UI appearance and view plugins](../docs/ui-theming.md).
+
 Copy `examples/plugins/hello` or any folder here. `plugin.json` is required;
 a plugin carries one or both of:
 
@@ -49,3 +59,17 @@ a plugin carries one or both of:
 - **`tools.ts`**: an array (default or named export `tools`) of model-facing
   tools `{name, description, parameters, describe, execute}`. Tools are
   appended to the core toolset and pass through the same permission gate.
+
+`todos` publishes a persistent **Todos** window at startup. It restores
+`.agent-compositor/todos.json`, displays pending/active/completed tasks and
+updates on successful `todo` tool results. `/todos` reopens the window.
+The placement panel identifies it as plugin `todos`, surface `tasks`;
+it requests the sidebar with background focus by default.
+
+`mascot` — optional animated Ghost companion with a replaceable APNG pack,
+interactive pause/pet controls and hook-driven reactions. See
+[configuration and integration](mascot/README.md).
+
+`network-proxy` configures optional model/tool proxy routing; `/proxy status|on|off`.
+See [transport and storage](../docs/state-and-network.md). Distribution uses the
+[marketplace format](../docs/marketplace.md); verify with `npm run marketplace:validate`.

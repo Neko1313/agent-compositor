@@ -5,12 +5,32 @@ import { z } from "zod";
  * older cores must tolerate newer config). Values stay loosely typed here;
  * subsystem packages narrow what they read.
  */
+const placement = z.object({
+  site: z.enum(["split", "sidebar", "inspector", "status-bar"]).optional(),
+  workspace: z.number().int().min(1).max(9).optional(), size: z.number().min(.1).max(.8).optional(),
+  relativeTo: z.string().min(1).max(64).optional(), focus: z.boolean().optional(),
+});
+
 export const ConfigSchema = z
   .object({
+    ui: z.object({
+      sites: z.object({ split: placement.optional(), sidebar: placement.optional(), inspector: placement.optional(), "status-bar": placement.optional() }).optional(),
+      rules: z.array(placement.extend({ match: z.object({ plugin: z.string().optional(), surface: z.string().optional() }) })).optional(),
+    }).optional(),
+    serviceProviders: z.record(z.string()).optional(),
+    disabledPlugins: z.array(z.string()).optional(),
     model: z.string().optional(),
     small_model: z.string().optional(),
     providers: z.record(z.string(), z.unknown()).optional(),
-    permissions: z.record(z.string(), z.unknown()).optional(),
+    permissions: z.object({ rules: z.array(z.object({
+      tool: z.string().optional(), decision: z.enum(["allow", "ask", "deny"]),
+      command: z.string().optional(), executable: z.string().optional(), path: z.string().optional(),
+      url: z.string().optional(), reason: z.string().optional(),
+    })).optional() }).passthrough().optional(),
+    compaction: z.object({ enabled: z.boolean().optional(), contextWindow: z.number().int().min(2048).optional(),
+      reserveOutput: z.number().int().nonnegative().optional(), reserveSystem: z.number().int().nonnegative().optional(),
+      highWaterMark: z.number().positive().max(1).optional() }).optional(),
+    skills: z.array(z.string()).optional(),
     plugins: z.array(z.string()).optional(),
     status_line: z.string().optional(),
     hooks: z.record(z.string(), z.unknown()).optional(),

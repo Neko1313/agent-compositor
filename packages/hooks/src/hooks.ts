@@ -1,7 +1,18 @@
+import type {
+  SurfacePlacement,
+  UiAppearance,
+  UiTextView,
+} from "@agent-compositor/events";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve as resolvePath, sep } from "node:path";
 import { Runtime } from "@agent-compositor/runtime";
-import type { HookContext, NextMarker, PluginManifest, Tier } from "@agent-compositor/runtime";
+import type {
+  HookContext,
+  NextMarker,
+  PluginManifest,
+  Tier,
+} from "@agent-compositor/runtime";
 import type {
   AuthProvider,
   HooksHostConfig,
@@ -21,6 +32,19 @@ export interface HooksApi {
   /** aborted when the hook's thread budget fires */
   readonly signal: AbortSignal;
   readonly session: { id: string; cwd: string };
+  storage: {
+    paths?: { home: string; state: string; project: string };
+    config(name?: string): Promise<any>;
+    get(
+      key: string,
+      scope?: "project" | "global" | "session" | "cache"
+    ): Promise<unknown>;
+    set(
+      key: string,
+      value: unknown,
+      scope?: "project" | "global" | "session" | "cache"
+    ): Promise<void>;
+  };
   state: {
     get<T = unknown>(key: string): T | undefined;
     set(key: string, value: unknown): void;
@@ -35,7 +59,7 @@ export interface HooksApi {
     run(
       cmd: string,
       args?: string[],
-      opts?: { timeoutMs?: number },
+      opts?: { timeoutMs?: number }
     ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   };
   model: {
@@ -46,10 +70,28 @@ export interface HooksApi {
     status(): { loggedIn: boolean; provider?: string };
   };
   ui: {
+    remove(id: string): Promise<void>;
+    configure(appearance: UiAppearance | null): Promise<void>;
+    view(
+      id: string,
+      title: string,
+      view: UiTextView,
+      placement?: SurfacePlacement
+    ): Promise<void>;
     notify(message: string, level?: "info" | "warn" | "error"): Promise<void>;
+    surface(
+      id: string,
+      title: string,
+      text: string,
+      placement?: SurfacePlacement
+    ): Promise<void>;
   };
   /** session-level agent controls — /compact and /clear for plugins */
   agent: {
+    tool(
+      name: string,
+      args: unknown
+    ): Promise<{ ok: boolean; output?: unknown; error?: string }>;
     compact(reason?: string): Promise<void>;
     clear(): Promise<void>;
   };
@@ -62,10 +104,7 @@ export interface HooksApi {
 }
 
 export class PermissionError extends Error {
-  constructor(
-    readonly by: string,
-    reason: string,
-  ) {
+  constructor(readonly by: string, reason: string) {
     super(`denied by ${by}: ${reason}`);
     this.name = "PermissionError";
   }
@@ -73,7 +112,7 @@ export class PermissionError extends Error {
 
 export class HooksHost {
   private readonly pluginState = new Map<string, Map<string, unknown>>();
-  private readonly rendering = new Set<string>();
+  private readonly rendering = new AsyncLocalStorage<string>();
   private readonly workspaceRoot: string;
 
   /** The workspace the $ API confines fs/exec to. */
@@ -85,27 +124,31 @@ export class HooksHost {
 
   constructor(
     private readonly runtime: Runtime,
-    private readonly config: HooksHostConfig,
+    private readonly config: HooksHostConfig
   ) {
-    this.workspaceRoot = resolvePath(config.workspaceRoot ?? config.session.cwd);
+    this.workspaceRoot = resolvePath(
+      config.workspaceRoot ?? config.session.cwd
+    );
     this.fsReadMax = config.limits?.fsReadMaxBytes ?? 1_048_576;
     this.fsWriteMax = config.limits?.fsWriteMaxBytes ?? 10_485_760;
     this.installResolvers();
   }
 
   /** Register a plugin with user-facing hooks (event, $). */
-  registerPlugin(manifest: PluginManifest, hooks: Record<string, UserHookFn>, tier: Tier = "user"): void {
-    const wrapped: Record<string, (event: any, ctx: HookContext) => unknown> = {};
+  registerPlugin(
+    manifest: PluginManifest,
+    hooks: Record<string, UserHookFn>,
+    tier: Tier = "user"
+  ): void {
+    const wrapped: Record<string, (event: any, ctx: HookContext) => unknown> =
+      {};
     for (const [name, fn] of Object.entries(hooks)) {
       const isUiRender = name === "ui.render";
       wrapped[name] = (event: any, ctx: HookContext) => {
         if (!isUiRender) return fn(event, this.buildApi(manifest.name, ctx));
-        this.rendering.add(manifest.name);
-        try {
-          return fn(event, this.buildApi(manifest.name, ctx));
-        } finally {
-          this.rendering.delete(manifest.name);
-        }
+        return this.rendering.run(manifest.name, () =>
+          fn(event, this.buildApi(manifest.name, ctx))
+        );
       };
     }
     this.runtime.register(manifest, wrapped, tier);
@@ -114,11 +157,16 @@ export class HooksHost {
 
   unregisterPlugin(name: string): boolean {
     this.pluginState.delete(name);
-    return this.runtime.unregister(name);
+    const removed = this.runtime.unregister(name);
+    if (removed) this.config.onPluginRemoved?.(name);
+    return removed;
   }
 
   /** Consume one emission fully; returns the chain result. */
-  async emit(event: string, input: unknown): Promise<{ value: unknown; faults: unknown[] }> {
+  async emit(
+    event: string,
+    input: unknown
+  ): Promise<{ value: unknown; faults: unknown[] }> {
     const gen = this.runtime.emit(event, input);
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -132,16 +180,38 @@ export class HooksHost {
   private buildApi(plugin: string, ctx: HookContext): HooksApi {
     const host = this;
     const stateGuard = (op: string) => {
-      if (host.rendering.has(plugin)) {
-        throw new Error(`$.state.${op}: writing plugin state during ui.render is forbidden`);
+      if (host.rendering.getStore() === plugin) {
+        throw new Error(
+          `$.state.${op}: writing plugin state during ui.render is forbidden`
+        );
       }
     };
     const state = this.pluginState.get(plugin)!;
 
-    const callService = async (event: string, input: Record<string, unknown>): Promise<unknown> => {
+    const callService = async (
+      event: string,
+      input: Record<string, unknown>
+    ): Promise<unknown> => {
+      if (
+        [
+          "service.storage.write",
+          "service.ui.configure",
+          "service.ui.surface",
+          "service.ui.view",
+          "service.ui.inputTarget",
+          "service.ui.remove",
+          "ui.reaction",
+        ].includes(event)
+      )
+        stateGuard(event);
       const res = await host.emit(event, { plugin, ...input });
       const v = res.value as Record<string, unknown> | undefined;
-      if (v && typeof v === "object" && "deny" in v && typeof v.deny === "string") {
+      if (
+        v &&
+        typeof v === "object" &&
+        "deny" in v &&
+        typeof v.deny === "string"
+      ) {
         throw new PermissionError("chain interceptor", v.deny);
       }
       if (v && typeof v === "object" && "value" in v) return v.value;
@@ -151,7 +221,9 @@ export class HooksHost {
     return {
       plugin,
       next: (event?: unknown) => ctx.next(event),
-      signal: ctx.signal,
+      signal: this.config.signal
+        ? AbortSignal.any([ctx.signal, this.config.signal()])
+        : ctx.signal,
       session: { ...this.config.session },
       state: {
         get: (key) => state.get(key) as never,
@@ -165,31 +237,82 @@ export class HooksHost {
         },
         keys: () => [...state.keys()],
       },
+      storage: {
+        paths: this.config.storage?.paths,
+        config: (name = plugin + ".json") =>
+          callService("service.storage.config", { name }),
+        get: (key, scope = "project") =>
+          callService("service.storage.read", { key, scope }),
+        set: async (key, value, scope = "project") => {
+          stateGuard("storage.set");
+          const accepted = await callService("service.storage.write", {
+            key,
+            value,
+            scope,
+          });
+          if (accepted !== true) throw Error("Storage write was not accepted");
+        },
+      },
       fs: {
-        read: (path) => callService("service.fs.read", { path }) as Promise<string>,
-        write: (path, content) => callService("service.fs.write", { path, content }) as Promise<void>,
+        read: (path) =>
+          callService("service.fs.read", { path }) as Promise<string>,
+        write: (path, content) =>
+          callService("service.fs.write", { path, content }) as Promise<void>,
       },
       exec: {
         run: (cmd, args, opts) =>
-          callService("service.exec.run", { cmd, args, timeoutMs: opts?.timeoutMs }) as Promise<{
+          callService("service.exec.run", {
+            cmd,
+            args,
+            timeoutMs: opts?.timeoutMs,
+          }) as Promise<{
             exitCode: number;
             stdout: string;
             stderr: string;
           }>,
       },
       model: {
-        complete: (request) => callService("service.model.complete", { request }),
+        complete: (request) =>
+          callService("service.model.complete", { request }),
       },
       auth: {
         login: (provider) =>
-          callService("service.auth.login", { provider }) as Promise<{ status: string }>,
+          callService("service.auth.login", { provider }) as Promise<{
+            status: string;
+          }>,
         status: () => this.config.auth?.status() ?? { loggedIn: false },
       },
       ui: {
+        view: async (id, title, view, placement) => {
+          await callService("service.ui.view", { id, title, view, placement });
+        },
+        remove: async (id) => {
+          await callService("service.ui.remove", { id });
+        },
+        configure: async (appearance) => {
+          stateGuard("ui.configure");
+          await callService("service.ui.configure", { appearance });
+        },
+        surface: async (id, title, text, placement) => {
+          await callService("service.ui.surface", {
+            id,
+            title,
+            text,
+            placement,
+          });
+        },
         notify: (message, level) =>
           callService("service.ui.notify", { message, level }) as Promise<void>,
       },
       agent: {
+        tool: (name, args) => {
+          stateGuard("agent.tool");
+          return callService("service.agent.tool", { name, args }) as Promise<{
+            ok: boolean;
+            output?: unknown;
+            error?: string;
+          }>;
+        },
         compact: async (reason) => {
           await this.config.agent?.compact(reason);
         },
@@ -198,7 +321,11 @@ export class HooksHost {
         },
       },
       telemetry: {
-        log: (event, data) => callService("service.telemetry.log", { event, data }) as Promise<void>,
+        log: (event, data) =>
+          callService("service.telemetry.log", {
+            event,
+            data,
+          }) as Promise<void>,
         measure: async (name, fn) => {
           const t0 = performance.now();
           try {
@@ -212,7 +339,23 @@ export class HooksHost {
           }
         },
       },
-      emit: async (event, input) => (await host.emit(event, input)).value,
+      emit: async (event, input) => {
+        if (
+          [
+            "ui.invalidate",
+            "service.storage.write",
+            "service.ui.configure",
+            "service.ui.surface",
+            "service.ui.view",
+            "service.ui.inputTarget",
+            "service.ui.remove",
+            "ui.reaction",
+            "service.network.configure",
+          ].includes(event)
+        )
+          stateGuard(event);
+        return (await host.emit(event, input)).value;
+      },
     };
   }
 
@@ -230,58 +373,185 @@ export class HooksHost {
       return abs;
     };
 
+    r.setResolver(
+      "service.storage.config",
+      async ({ name }: { name: string }) => ({
+        value: (await this.config.storage?.config(name)) ?? {},
+      })
+    );
+    r.setResolver(
+      "service.storage.read",
+      async ({
+        plugin,
+        key,
+        scope,
+      }: {
+        plugin: string;
+        key: string;
+        scope: string;
+      }) => {
+        if (!this.config.storage) return { value: undefined };
+        try {
+          return {
+            value: await this.config.storage.read(
+              plugin,
+              key,
+              scope,
+              this.config.session.id
+            ),
+          };
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "ENOENT")
+            return { value: undefined };
+          throw e;
+        }
+      }
+    );
+    r.setResolver(
+      "service.storage.write",
+      async ({
+        plugin,
+        key,
+        value,
+        scope,
+      }: {
+        plugin: string;
+        key: string;
+        value: unknown;
+        scope: string;
+      }) => {
+        if (!this.config.storage)
+          throw Error("No persistent storage configured");
+        const text = JSON.stringify(value);
+        if (text === undefined || Buffer.byteLength(text) > this.fsWriteMax)
+          throw Error("Storage value exceeds limit or is not JSON");
+        await this.config.storage.write(
+          plugin,
+          key,
+          value,
+          scope,
+          this.config.session.id
+        );
+        return { value: true };
+      }
+    );
     r.setResolver("service.fs.read", async ({ path }: { path: string }) => {
+      if (this.config.storage && /^\.agent-compositor[\\/]/.test(path)) {
+        const text = await this.config.storage.legacyRead(path);
+        if (Buffer.byteLength(text) > this.fsReadMax)
+          throw Error("Storage file exceeds read limit");
+        return { value: text };
+      }
       const abs = confine(path);
       const st = await stat(abs);
-      if (st.size > this.fsReadMax) throw new Error(`file exceeds read limit (${this.fsReadMax} bytes)`);
+      if (st.size > this.fsReadMax)
+        throw new Error(`file exceeds read limit (${this.fsReadMax} bytes)`);
       return { value: await readFile(abs, "utf8") };
     });
 
-    r.setResolver("service.fs.write", async ({ path, content }: { path: string; content: string }) => {
-      if (content.length > this.fsWriteMax) throw new Error(`content exceeds write limit (${this.fsWriteMax} bytes)`);
-      const abs = confine(path);
-      await mkdir(dirname(abs), { recursive: true });
-      await writeFile(abs, content, "utf8");
-      return { value: undefined };
-    });
+    r.setResolver(
+      "service.fs.write",
+      async ({ path, content }: { path: string; content: string }) => {
+        if (content.length > this.fsWriteMax)
+          throw new Error(
+            `content exceeds write limit (${this.fsWriteMax} bytes)`
+          );
+        if (this.config.storage && /^\.agent-compositor[\\/]/.test(path)) {
+          await this.config.storage.legacyWrite(path, content);
+          return { value: undefined };
+        }
+        const abs = confine(path);
+        await mkdir(dirname(abs), { recursive: true });
+        await writeFile(abs, content, "utf8");
+        return { value: undefined };
+      }
+    );
 
-    r.setResolver("service.exec.run", async ({ cmd, args, timeoutMs }: { cmd: string; args?: string[]; timeoutMs?: number }) => {
-      const { execFile } = await import("node:child_process");
-      return {
-        value: await new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve, reject) => {
-          const child = execFile(cmd, args ?? [], { cwd: root, shell: false, timeout: timeoutMs ?? 30_000 },
-            (error, stdout, stderr) => {
-              if (error && (error as NodeJS.ErrnoException).code === "ABORT_ERR") return;
-              resolve({ exitCode: child.exitCode ?? -1, stdout, stderr });
-            });
-          child.on("error", reject);
-        }),
-      };
-    });
+    r.setResolver(
+      "service.exec.run",
+      async ({
+        cmd,
+        args,
+        timeoutMs,
+      }: {
+        cmd: string;
+        args?: string[];
+        timeoutMs?: number;
+      }) => {
+        const { execFile } = await import("node:child_process");
+        return {
+          value: await new Promise<{
+            exitCode: number;
+            stdout: string;
+            stderr: string;
+          }>((resolve, reject) => {
+            const child = execFile(
+              cmd,
+              args ?? [],
+              {
+                cwd: root,
+                shell: false,
+                timeout: timeoutMs ?? 30_000,
+                env: { ...process.env, ...this.config.execEnvironment?.() },
+              },
+              (error, stdout, stderr) => {
+                if (
+                  error &&
+                  (error as NodeJS.ErrnoException).code === "ABORT_ERR"
+                )
+                  return;
+                resolve({ exitCode: child.exitCode ?? -1, stdout, stderr });
+              }
+            );
+            child.on("error", reject);
+          }),
+        };
+      }
+    );
 
-    r.setResolver("service.model.complete", async ({ request }: { request: ModelRequest }) => {
-      const provider = this.config.model;
-      if (!provider) throw new Error("no model provider configured");
-      return { value: await provider.complete(request) };
-    });
+    r.setResolver(
+      "service.model.complete",
+      async ({ request }: { request: ModelRequest }) => {
+        const provider = this.config.model;
+        if (!provider) throw new Error("no model provider configured");
+        return { value: await provider.complete(request) };
+      }
+    );
 
-    r.setResolver("service.auth.login", async ({ provider }: { provider?: string }) => {
-      const auth = this.config.auth;
-      if (!auth) throw new Error("no auth provider configured");
-      return { value: await auth.login(provider) };
-    });
+    r.setResolver(
+      "service.auth.login",
+      async ({ provider }: { provider?: string }) => {
+        const auth = this.config.auth;
+        if (!auth) throw new Error("no auth provider configured");
+        return { value: await auth.login(provider) };
+      }
+    );
 
-    r.setResolver("service.ui.notify", ({ plugin, message, level }: { plugin: string; message: string; level?: "info" | "warn" | "error" }) => {
-      const sink: NotifySink | undefined = this.config.notify;
-      if (sink) sink(message, level ?? "info", plugin);
-      return { value: undefined };
-    });
+    r.setResolver(
+      "service.ui.notify",
+      ({
+        plugin,
+        message,
+        level,
+      }: {
+        plugin: string;
+        message: string;
+        level?: "info" | "warn" | "error";
+      }) => {
+        const sink: NotifySink | undefined = this.config.notify;
+        if (sink) sink(message, level ?? "info", plugin);
+        return { value: undefined };
+      }
+    );
 
-    r.setResolver("service.telemetry.log", ({ event, data }: { event: string; data?: Record<string, unknown> }) => {
-      const sink: TelemetrySink | undefined = this.config.telemetry;
-      if (sink) sink(event, data ?? {});
-      return { value: undefined };
-    });
+    r.setResolver(
+      "service.telemetry.log",
+      ({ event, data }: { event: string; data?: Record<string, unknown> }) => {
+        const sink: TelemetrySink | undefined = this.config.telemetry;
+        if (sink) sink(event, data ?? {});
+        return { value: undefined };
+      }
+    );
   }
 }
 

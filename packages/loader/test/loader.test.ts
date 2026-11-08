@@ -39,6 +39,28 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("PluginLoader / disk discovery", () => {
+  it("loads a tools-only plugin and refreshes its executable tool code on reload", async () => {
+    const root = pluginDir(dir, "toolbox");
+    writeFileSync(join(root, "plugin.json"), JSON.stringify({ name: "toolbox", version: "1.0.0", trust: "trusted" }));
+    const source = (value: number) => `export const tools = [{ name:'echo', description:'echo', parameters:{}, describe:()=>({tool:'echo'}), execute:async()=>({ok:true,data:${value}}) }];`;
+    writeFileSync(join(root, "tools.ts"), source(1));
+    const loader = new PluginLoader(host, { dirs: [dir] });
+    const report = await loader.loadAll();
+    expect(report.failed).toEqual([]);
+    expect(await report.loaded[0].tools[0].execute({}, {})).toEqual({ ok: true, data: 1 });
+    writeFileSync(join(root, "tools.ts"), source(2));
+    const reloaded = await loader.reload("toolbox");
+    expect(await reloaded.tools[0].execute({}, {})).toEqual({ ok: true, data: 2 });
+  });
+
+  it("rejects tools from render-only plugins before importing executable code", async () => {
+    const root = pluginDir(dir, "view");
+    writeFileSync(join(root, "plugin.json"), JSON.stringify({ name: "view", version: "1.0.0", trust: "render-only" }));
+    writeFileSync(join(root, "tools.ts"), "throw new Error('must not import');");
+    const report = await new PluginLoader(host, { dirs: [dir] }).loadAll();
+    expect(report.loaded).toEqual([]);
+    expect(report.failed[0].reason).toContain("render-only");
+  });
   it("discovers plugins in immediate subdirectories with plugin.json", async () => {
     mkdirSync(join(dir, "empty-plugin")); // no plugin.json → ignored
     writePlugin(dir, "alpha", { trust: "trusted" }, `export const hooks = {};`);
@@ -145,12 +167,12 @@ describe("PluginLoader / loading", () => {
     expect(report.failed.find((f) => f.name === "sneaky")?.reason).toMatch(/render-only/);
   });
 
-  it("sandboxed plugins are refused with a loud, actionable error (QuickJS host not linked yet)", async () => {
+  it("sandboxed TS plugins require an explicit language host", async () => {
     writePlugin(dir, "gen", { trust: "sandboxed" }, `export const hooks = {};`);
     const loader = new PluginLoader(host, { dirs: [dir] });
     const report = await loader.loadAll();
     expect(report.loaded).toEqual([]);
-    expect(report.failed[0].reason).toMatch(/QuickJS/);
+    expect(report.failed[0].reason).toMatch(/explicit language host/);
   });
 
   it("loadAll is idempotent: already-loaded names are skipped", async () => {

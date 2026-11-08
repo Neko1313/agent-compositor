@@ -1,7 +1,23 @@
 {
   "name": "slash-commands",
   "version": "1.0.0",
-  "description": "/help, /status, /usage — command palette harvested from Claude Code / Gemini CLI slash-command UX. Drop this folder to remove.",
+  "description": "/help, /status, /usage \u2014 command palette harvested from Claude Code / Gemini CLI slash-command UX. Drop this folder to remove.",
   "trust": "trusted",
-  "capabilities": ["prompt.submit"]
+  "capabilities": [
+    "prompt.submit"
+  ],
+  "commands": [
+    {
+      "name": "/help",
+      "description": "Show available help"
+    },
+    {
+      "name": "/status",
+      "description": "Session and project status"
+    },
+    {
+      "name": "/usage",
+      "description": "Token usage"
+    }
+  ]
 }

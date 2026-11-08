@@ -28,10 +28,33 @@ export interface HooksHostConfig {
   session: { id: string; cwd: string };
   /** fs confinement root; defaults to session.cwd */
   workspaceRoot?: string;
+  execEnvironment?: () => Record<string, string>;
+  storage?: {
+    paths: { home: string; state: string; project: string };
+    config(name: string): Promise<unknown>;
+    read(
+      plugin: string,
+      key: string,
+      scope?: string,
+      session?: string
+    ): Promise<unknown>;
+    write(
+      plugin: string,
+      key: string,
+      value: unknown,
+      scope?: string,
+      session?: string
+    ): Promise<void>;
+    legacyRead(path: string): Promise<string>;
+    legacyWrite(path: string, content: string): Promise<void>;
+  };
+  /** Current agent operation cancellation, combined with hook budgets. */
+  signal?: () => AbortSignal;
   model?: ModelProvider;
   auth?: AuthProvider;
   notify?: NotifySink;
   telemetry?: TelemetrySink;
+  onPluginRemoved?: (plugin: string) => void;
   /** session agent controls exposed to plugins as $.agent.compact/clear */
   agent?: {
     compact(reason?: string): Promise<void> | void;

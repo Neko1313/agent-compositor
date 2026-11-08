@@ -32,11 +32,11 @@ async function makePlugin(dir: string, name: string, manifest: Record<string, un
 describe("loadPluginsFromDisk", () => {
   it("loads a well-formed plugin: manifest mapped, hooks record validated", async () => {
     const dir = path.join(tmp, "plugins");
-    await makePlugin(dir, "hello-plugin", { trust: "sandboxed", description: "demo" });
+    await makePlugin(dir, "hello-plugin", { trust: "trusted", description: "demo" });
     const { plugins, errors } = await loadPluginsFromDisk([dir]);
     expect(errors).toEqual([]);
     expect(plugins).toHaveLength(1);
-    expect(plugins[0].manifest).toMatchObject({ name: "hello-plugin", version: "1.0.0", trust: "sandboxed" });
+    expect(plugins[0].manifest).toMatchObject({ name: "hello-plugin", version: "1.0.0", trust: "trusted" });
     expect(plugins[0].tier).toBe("user");
     expect(typeof (plugins[0].hooks as Record<string, unknown>)["tool.call"]).toBe("function");
   });
@@ -51,14 +51,14 @@ describe("loadPluginsFromDisk", () => {
     await fs.writeFile(path.join(brokenDir, "plugin.json"), "not json{");
     const notFnDir = path.join(dir, "notfn");
     await fs.mkdir(notFnDir, { recursive: true });
-    await fs.writeFile(path.join(notFnDir, "plugin.json"), JSON.stringify({ name: "notfn", version: "1" }));
+    await fs.writeFile(path.join(notFnDir, "plugin.json"), JSON.stringify({ name: "notfn", version: "1.0.0" }));
     await fs.writeFile(path.join(notFnDir, "hooks.ts"), `export default { "tool.call": 42 };`);
 
     const { plugins, errors } = await loadPluginsFromDisk([dir]);
     expect(plugins.map((p) => p.manifest.name)).toEqual(["good"]);
     expect(errors).toHaveLength(3);
-    expect(errors.map((e) => e.error).join("\n")).toContain("not valid JSON");
-    expect(errors.map((e) => e.error).join("\n")).toContain("missing hooks entry");
+    expect(errors.map((e) => e.error).join("\n")).toMatch(/JSON/i);
+    expect(errors.map((e) => e.error).join("\n")).toContain("no entry found");
     expect(errors.map((e) => e.error).join("\n")).toContain("not a function");
   });
 
@@ -82,6 +82,14 @@ describe("loadPluginsFromDisk", () => {
     expect(plugins[0].dir).toContain("workspace");
   });
 
+  it("refuses sandboxed modules before importing code", async () => {
+    const dir = path.join(tmp, "plugins");
+    await makePlugin(dir, "unsafe", { trust: "sandboxed" }, 'throw new Error("must not execute");');
+    const result = await loadPluginsFromDisk([dir]);
+    expect(result.plugins).toEqual([]);
+    expect(result.errors[0].error).toContain("explicit language host");
+  });
+
   it("missing dirs are silently empty (no throw)", async () => {
     const { plugins, errors } = await loadPluginsFromDisk([path.join(tmp, "nope"), path.join(tmp, "nada")]);
     expect(plugins).toEqual([]);
@@ -92,7 +100,7 @@ describe("loadPluginsFromDisk", () => {
     const dir = path.join(tmp, "plugins");
     const pluginDir = path.join(dir, "named");
     await fs.mkdir(pluginDir, { recursive: true });
-    await fs.writeFile(path.join(pluginDir, "plugin.json"), JSON.stringify({ name: "named", version: "1" }));
+    await fs.writeFile(path.join(pluginDir, "plugin.json"), JSON.stringify({ name: "named", version: "1.0.0" }));
     await fs.writeFile(
       path.join(pluginDir, "hooks.ts"),
       `export const hooks = { "assistant.text": async (e) => e };\n`,

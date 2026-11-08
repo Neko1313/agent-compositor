@@ -1,0 +1,1 @@
+{"name":"auto-approve","version":"1.0.0","trust":"trusted","description":"Opt-in low-risk approval review using a separate small model profile. Explicit denies remain absolute.","provides":["service.permission.review"],"hookTimeouts":{"service.permission.review":20000},"commands":[{"name":"/auto","description":"Configure automatic risk review","usage":"/auto on|off|status"}]}

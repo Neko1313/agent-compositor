@@ -17,7 +17,18 @@ export const contextCompacted = defineEvent({
     tokensBefore: z.number().int(),
     tokensAfter: z.number().int(),
     summary: z.string(),
+    messages: z.array(z.unknown()).optional(),
   }),
   responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
+  frozen: true,
+});
+
+export const contextCompacting = defineEvent({
+  name: "context.compacting",
+  since: "0.9.0",
+  version: 1,
+  summary: "Before context compaction, allowing observers to save state.",
+  input: z.object({ sessionId: z.string() }),
+  responses: [],
   frozen: true,
 });

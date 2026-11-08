@@ -89,6 +89,23 @@ describe("HooksHost / $ API", () => {
     expect(readFileSync(join(dir, "notes/a.txt"), "utf8")).toBe("hello");
   });
 
+  it("keeps async render read-only without blocking another event's state writes", async () => {
+    let release!: () => void;
+    let entered!: () => void;
+    const ready = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    host.registerPlugin(manifest("async-view"), {
+      "ui.render": async (_e, $) => { entered(); await gate; $.state.set("bad", true); },
+      "session.start": (_e, $) => { $.state.set("ok", true); },
+    });
+    const rendering = host.emit("ui.render", { site: "s", surface: "terminal", props: {} });
+    await ready;
+    const concurrent = await host.emit("session.start", { sessionId: "s", cwd: dir, plugins: [] });
+    expect(concurrent.faults).toEqual([]);
+    release();
+    expect((await rendering).faults).toMatchObject([{ kind: "error", message: expect.stringContaining("during ui.render") }]);
+  });
+
   it("$.fs escape attempts are recorded faults (fail-operational)", async () => {
     host.registerPlugin(manifest("esc"), {
       "session.start": (_e: unknown, $: HooksApi) => $.fs.read("../../etc/passwd"),

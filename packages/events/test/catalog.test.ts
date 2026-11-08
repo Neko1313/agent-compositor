@@ -70,8 +70,9 @@ function minimalSample(schema: unknown): unknown {
     case "ZodRecord":
       return {};
     case "ZodOptional":
-    case "ZodNullable":
       return undefined;
+    case "ZodNullable":
+      return null;
     case "ZodEnum":
       return (def as { values: string[] }).values[0];
     case "ZodUnknown":

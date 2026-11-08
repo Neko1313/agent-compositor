@@ -24,7 +24,9 @@ describe("mapKey", () => {
   it("modifiers ride along", () => {
     expect(mapKey("c", k({ ctrl: true }))).toEqual({ kind: "key", key: "c", modifiers: ["ctrl"] });
     expect(mapKey("x", k({ meta: true }))).toEqual({ kind: "key", key: "x", modifiers: ["meta"] });
-    expect(mapKey("A", k({ shift: true }))).toEqual({ kind: "key", key: "A", modifiers: ["shift"] });
+    expect(mapKey("A", k({ shift: true }))).toEqual({ kind: "text", text: "A" });
+    expect(mapKey("?", k({ shift: true }))).toEqual({ kind: "text", text: "?" });
+    expect(mapKey("A", k({ shift: true, meta: true }))).toEqual({ kind: "key", key: "A", modifiers: ["meta", "shift"] });
   });
 
   it("ctrl turns printable text into a key", () => {

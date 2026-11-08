@@ -10,12 +10,17 @@ A model provider integrates via plugins, not by forking: override the login with
 |---|---|
 | Core (agent harness: models, tools, sessions, context compaction) | TypeScript / Node.js |
 | Plugin runtime | In-process, onion event chain; Claude Mods API compatible |
-| Sandbox for generated code | QuickJS (workflow scripts with budgets) |
+| Sandbox for generated code | Replaceable Monty plugin for Python with explicit host capabilities |
+| Code navigation | Replaceable Callix plugin using the native CLI JSON graph |
 | Reference TUI | Ink (React + Yoga flexbox), scroll views built in |
 | Core ↔ renderer protocol | JSON Lines, semver-versioned |
 | License | MIT |
 
 ## Packages
+
+The implemented agent feature set, commands, configuration and limits are in
+[the agent features guide](docs/agent-features.md), including auto review,
+independent worktree agents, checkpoints, authentication and extension management.
 
 | Package | What it is |
 |---|---|
@@ -39,6 +44,8 @@ Or the disk-plugin demo (load → run → edit on disk → hot-reload):
 npm run example:loader   # or: npm run example:ink (interactive TUI)
 ```
 
+Run the interactive app with `npm run start -w @agent-compositor/app` (Bun required). Provider settings are documented in the app README.
+
 ## Documentation
 
 Start with [docs/INDEX.md](docs/INDEX.md) — a map of all topics and the decision log:
@@ -50,8 +57,23 @@ Start with [docs/INDEX.md](docs/INDEX.md) — a map of all topics and the decisi
 
 ## Status
 
-Design stage. The core is growing out of the [kimi-code](https://github.com/Neko1313/kimi-code) fork (branch `feat/plugin-in-process-runtime-poc`): the in-process plugin runtime is already production-shaped and has passed an external architecture review.
+Working prototype: streaming agent core, tools, sessions, permissions, compaction, skills, disk plugins and an interactive Ink UI. The app UI uses the versioned core/renderer protocol. See [app usage and configuration](packages/app/README.md), [native Callix setup](plugins/callix/README.md), and [Monty sandbox](plugins/monty/README.md). Workflows execute Python through the selected sandbox; legacy JavaScript journals are preserved for inspection. Marketplace and web rendering remain future work.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Visual verification
+
+Run the actual TUI in a browser-backed PTY with `npm run visual:serve`, or
+exercise drag, resize, task updates and restart persistence with
+`npm run visual:check`. See [the visual bench guide](tools/visual/README.md).
+
+## Marketplace, state and quality
+
+- [Plugin marketplaces and Claude-format compatibility](docs/marketplace.md).
+- [Home/project state, plugin storage API and network proxy](docs/state-and-network.md).
+- [Quality evals, Ollama and Harness² adapter](docs/evals.md).
+
+Quick checks: `npm run marketplace:validate`, `npm run eval`, `npm run eval:proxy`,
+`npm run test:ci`. Live Ollama checks: `npm run eval:ollama`.

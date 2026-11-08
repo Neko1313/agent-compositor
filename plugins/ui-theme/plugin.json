@@ -1,0 +1,8 @@
+{
+  "name": "ui-theme",
+  "version": "1.0.0",
+  "description": "Switch between slate, amber and mono themes. Demonstrates appearance and ui.render overrides.",
+  "trust": "trusted",
+  "capabilities": ["session.start", "session.reload", "prompt.submit", "ui.render", "service.ui.configure"],
+  "commands": [{ "name": "/theme", "description": "Change UI theme", "usage": "/theme slate|amber|mono" }]
+}

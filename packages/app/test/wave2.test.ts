@@ -40,13 +40,25 @@ describe("wave 2: subagents (task tool)", () => {
     await core.submit("delegate the summary");
 
     expect(provider.requests).toHaveLength(3); // parent call, child turn, parent follow-up
-    const start = events.find((e) => e.kind === "catalog" && e.event === "subagent.start");
-    const complete = events.find((e) => e.kind === "catalog" && e.event === "subagent.complete");
-    expect(start).toMatchObject({ input: { prompt: "summarize the repo", depth: 0 } });
-    expect(complete).toMatchObject({ input: { ok: true, output: "child report: everything is fine" } });
+    const start = events.find(
+      (e) => e.kind === "catalog" && e.event === "subagent.start"
+    );
+    const complete = events.find(
+      (e) => e.kind === "catalog" && e.event === "subagent.complete"
+    );
+    expect(start).toMatchObject({
+      input: { prompt: "summarize the repo", depth: 0 },
+    });
+    expect(complete).toMatchObject({
+      input: { ok: true, output: "child report: everything is fine" },
+    });
     const result = JSON.parse(lastToolMessage(core));
-    expect(result).toMatchObject({ output: "child report: everything is fine" });
-    expect(result.agentId).toBe((complete as unknown as { input: { agentId: string } }).input.agentId);
+    expect(result).toMatchObject({
+      output: "child report: everything is fine",
+    });
+    expect(result.agentId).toBe(
+      (complete as unknown as { input: { agentId: string } }).input.agentId
+    );
   });
 
   it("child failure is an error value, the parent turn survives", async () => {
@@ -84,7 +96,10 @@ describe("wave 2: subagents (task tool)", () => {
   });
 
   it("missing prompt is a validation error value", async () => {
-    const provider = new ScriptedProvider([{ toolCalls: [{ name: "task", args: {} }] }, { text: "ok" }]);
+    const provider = new ScriptedProvider([
+      { toolCalls: [{ name: "task", args: {} }] },
+      { text: "ok" },
+    ]);
     const core = new AgentCore({ cwd: tmp, provider });
     await core.submit("bad call");
     expect(lastToolMessage(core)).toContain("prompt is required");
@@ -94,7 +109,14 @@ describe("wave 2: subagents (task tool)", () => {
 describe("wave 2: ask_user (AskUserQuestion)", () => {
   it("headless (no onAsk) denies with a fail-closed error value", async () => {
     const provider = new ScriptedProvider([
-      { toolCalls: [{ name: "ask_user", args: { question: "pick a color", options: ["red", "blue"] } }] },
+      {
+        toolCalls: [
+          {
+            name: "ask_user",
+            args: { question: "pick a color", options: ["red", "blue"] },
+          },
+        ],
+      },
       { text: "no answer then" },
     ]);
     const core = new AgentCore({ cwd: tmp, provider });
@@ -105,9 +127,17 @@ describe("wave 2: ask_user (AskUserQuestion)", () => {
   });
 
   it("onAsk answers; single-select resolves to the picked option", async () => {
-    const asked: { question: string; options?: string[]; multi?: boolean }[] = [];
+    const asked: { question: string; options?: string[]; multi?: boolean }[] =
+      [];
     const provider = new ScriptedProvider([
-      { toolCalls: [{ name: "ask_user", args: { question: "deploy where?", options: ["staging", "prod"] } }] },
+      {
+        toolCalls: [
+          {
+            name: "ask_user",
+            args: { question: "deploy where?", options: ["staging", "prod"] },
+          },
+        ],
+      },
       { text: "deploying" },
     ]);
     const core = new AgentCore({
@@ -120,13 +150,31 @@ describe("wave 2: ask_user (AskUserQuestion)", () => {
     });
     await core.submit("ask the user");
 
-    expect(asked).toEqual([{ question: "deploy where?", options: ["staging", "prod"], multi: false }]);
+    expect(asked).toEqual([
+      {
+        question: "deploy where?",
+        options: ["staging", "prod"],
+        multi: false,
+        signal: expect.any(AbortSignal),
+      },
+    ]);
     expect(JSON.parse(lastToolMessage(core))).toEqual({ answer: "prod" });
   });
 
   it("multi-select can return an array", async () => {
     const provider = new ScriptedProvider([
-      { toolCalls: [{ name: "ask_user", args: { question: "which ones?", options: ["a", "b", "c"], multi: true } }] },
+      {
+        toolCalls: [
+          {
+            name: "ask_user",
+            args: {
+              question: "which ones?",
+              options: ["a", "b", "c"],
+              multi: true,
+            },
+          },
+        ],
+      },
       { text: "got it" },
     ]);
     const core = new AgentCore({
@@ -145,30 +193,41 @@ describe("wave 2: plugin tools.ts (loader → extraTools)", () => {
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(
       path.join(dir, "plugin.json"),
-      JSON.stringify({ name: "echoer", version: "1.0.0", description: "echo tool", trust: "trusted", capabilities: ["tool"] }),
+      JSON.stringify({
+        name: "echoer",
+        version: "1.0.0",
+        description: "echo tool",
+        trust: "trusted",
+        capabilities: ["tool"],
+      })
     );
     await fs.writeFile(
       path.join(dir, "tools.ts"),
       [
-        'const echoTool = {',
+        "const echoTool = {",
         '  name: "echo",',
         '  description: "echo text back",',
         '  parameters: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },',
         '  describe: () => ({ tool: "echo" }),',
-        '  async execute(_ctx: unknown, args: { text?: string }) {',
+        "  async execute(_ctx: unknown, args: { text?: string }) {",
         '    if (!args.text) return { ok: false, error: "echo: text is required" };',
-        '    return { ok: true, data: { text: `echo: ${args.text}` } };',
-        '  },',
-        '};',
+        "    return { ok: true, data: { text: `echo: ${args.text}` } };",
+        "  },",
+        "};",
         "export default [echoTool];",
-      ].join("\n"),
+      ].join("\n")
     );
 
     const provider = new ScriptedProvider([
       { toolCalls: [{ name: "echo", args: { text: "hi" } }] },
       { text: "heard the echo" },
     ]);
-    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [path.join(tmp, "market")] });
+    const app = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider,
+      pluginDirs: [path.join(tmp, "market")],
+    });
     expect(app.pluginErrors).toEqual([]);
     expect(app.plugins.map((p) => p.manifest.name)).toEqual(["echoer"]);
 
@@ -184,12 +243,26 @@ describe("wave 2: plugin tools.ts (loader → extraTools)", () => {
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(
       path.join(dir, "plugin.json"),
-      JSON.stringify({ name: "broken", version: "1.0.0", description: "bad", trust: "trusted", capabilities: [] }),
+      JSON.stringify({
+        name: "broken",
+        version: "1.0.0",
+        description: "bad",
+        trust: "trusted",
+        capabilities: [],
+      })
     );
-    await fs.writeFile(path.join(dir, "tools.ts"), "export default [{ name: 42 }];\n");
+    await fs.writeFile(
+      path.join(dir, "tools.ts"),
+      "export default [{ name: 42 }];\n"
+    );
 
     const provider = new ScriptedProvider([{ text: "unused" }]);
-    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [path.join(tmp, "market")] });
+    const app = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider,
+      pluginDirs: [path.join(tmp, "market")],
+    });
     expect(app.plugins).toEqual([]);
     expect(app.pluginErrors).toHaveLength(1);
     expect(app.pluginErrors[0].dir).toContain("broken");
@@ -198,7 +271,44 @@ describe("wave 2: plugin tools.ts (loader → extraTools)", () => {
 });
 
 describe("wave 2: workflows plugin (run + replay)", () => {
-  const CODE = 'const a = await task("count the files"); const b = await task("count the lines"); return a + b;';
+  const CODE =
+    'a = await task("count the files")\nb = await task("count the lines")\na + b';
+
+  it("replays only completed steps after a failed child", async () => {
+    const first = new ScriptedProvider([
+      { toolCalls: [{ name: "workflow", args: { code: CODE } }] },
+      { text: "3" },
+      { finish: "error", error: "try again" },
+      { text: "failed safely" },
+    ]);
+    const app = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider: first,
+      pluginDirs: [REPO_PLUGINS],
+    });
+    await app.createCore(async () => true).submit("first");
+    const second = new ScriptedProvider([
+      { toolCalls: [{ name: "workflow", args: { code: CODE } }] },
+      { text: "7" },
+      { text: "done" },
+    ]);
+    const retry = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider: second,
+      pluginDirs: [REPO_PLUGINS],
+    });
+    const core = retry.createCore(async () => true);
+    await core.submit("retry");
+    expect(second.requests).toHaveLength(3);
+    expect(JSON.parse(lastToolMessage(core))).toMatchObject({
+      output: "37",
+      steps: 2,
+      replayed: 1,
+      ran: 1,
+    });
+  });
 
   it("runs subagents per task() call and returns the workflow's value", async () => {
     const provider = new ScriptedProvider([
@@ -207,7 +317,12 @@ describe("wave 2: workflows plugin (run + replay)", () => {
       { text: "7" },
       { text: "workflow finished" },
     ]);
-    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [REPO_PLUGINS] });
+    const app = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider,
+      pluginDirs: [REPO_PLUGINS],
+    });
     const core = app.createCore(() => Promise.resolve(true));
     await core.submit("run the workflow");
 
@@ -216,12 +331,20 @@ describe("wave 2: workflows plugin (run + replay)", () => {
     expect(result.output).toBe("37");
     expect(result).toMatchObject({ steps: 2, replayed: 0, ran: 2 });
 
-    const journalDir = path.join(tmp, ".agent-compositor", "workflows");
+    const journalDir = path.join(app.storage.paths.state, "workflows");
     const journals = await fs.readdir(journalDir);
     expect(journals).toHaveLength(1);
-    const journal = JSON.parse(await fs.readFile(path.join(journalDir, journals[0], "journal.json"), "utf8"));
+    const journal = JSON.parse(
+      await fs.readFile(
+        path.join(journalDir, journals[0], "journal.json"),
+        "utf8"
+      )
+    );
     expect(journal).toHaveLength(2);
-    expect(journal[0]).toMatchObject({ prompt: "count the files", result: "3" });
+    expect(journal[0]).toMatchObject({
+      prompt: "count the files",
+      result: "3",
+    });
   });
 
   it("identical re-run replays the journal without touching the model", async () => {
@@ -231,7 +354,12 @@ describe("wave 2: workflows plugin (run + replay)", () => {
       { text: "7" },
       { text: "done" },
     ]);
-    const runApp = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: runProvider, pluginDirs: [REPO_PLUGINS] });
+    const runApp = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider: runProvider,
+      pluginDirs: [REPO_PLUGINS],
+    });
     await runApp.createCore(() => Promise.resolve(true)).submit("first run");
     expect(runProvider.requests).toHaveLength(4);
 
@@ -239,27 +367,47 @@ describe("wave 2: workflows plugin (run + replay)", () => {
       { toolCalls: [{ name: "workflow", args: { code: CODE } }] },
       { text: "done" },
     ]);
-    const replayApp = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: replayProvider, pluginDirs: [REPO_PLUGINS] });
+    const replayApp = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider: replayProvider,
+      pluginDirs: [REPO_PLUGINS],
+    });
     const replayCore = replayApp.createCore(() => Promise.resolve(true));
     await replayCore.submit("second run");
 
     expect(replayProvider.requests).toHaveLength(2); // workflow call + parent wrap-up; zero subagent turns
     const result = JSON.parse(lastToolMessage(replayCore));
-    expect(result).toMatchObject({ output: "37", steps: 2, replayed: 2, ran: 0 });
+    expect(result).toMatchObject({
+      output: "37",
+      steps: 2,
+      replayed: 2,
+      ran: 0,
+    });
   });
 
   it("structural change (different code) re-runs from scratch", async () => {
-    const otherCode = 'const a = await task("count the files"); return a + "!";';
+    const otherCode = 'a = await task("count the files")\na + "!"';
     const provider = new ScriptedProvider([
       { toolCalls: [{ name: "workflow", args: { code: otherCode } }] },
       { text: "3" },
       { text: "done" },
     ]);
-    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [REPO_PLUGINS] });
+    const app = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider,
+      pluginDirs: [REPO_PLUGINS],
+    });
     const core = app.createCore(() => Promise.resolve(true));
     await core.submit("different workflow");
     const result = JSON.parse(lastToolMessage(core));
-    expect(result).toMatchObject({ output: "3!", steps: 1, replayed: 0, ran: 1 });
+    expect(result).toMatchObject({
+      output: "3!",
+      steps: 1,
+      replayed: 0,
+      ran: 1,
+    });
   });
 });
 
@@ -270,7 +418,7 @@ describe("wave 2: mcp plugin (stdio MCP client)", () => {
       serverPath,
       [
         'const readline = require("node:readline");',
-        'const rl = readline.createInterface({ input: process.stdin });',
+        "const rl = readline.createInterface({ input: process.stdin });",
         'rl.on("line", (line) => {',
         "  let msg; try { msg = JSON.parse(line); } catch { return; }",
         '  if (msg.method === "initialize") {',
@@ -282,7 +430,7 @@ describe("wave 2: mcp plugin (stdio MCP client)", () => {
         '    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: "hello " + name }] } }) + "\\n");',
         "  }",
         "});",
-      ].join("\n"),
+      ].join("\n")
     );
     process.env.AGENT_MCP_CONFIG = JSON.stringify({
       mcpServers: { fake: { command: process.execPath, args: [serverPath] } },
@@ -290,10 +438,27 @@ describe("wave 2: mcp plugin (stdio MCP client)", () => {
 
     const provider = new ScriptedProvider([
       { toolCalls: [{ name: "mcp_call", args: { action: "list" } }] },
-      { toolCalls: [{ name: "mcp_call", args: { action: "call", server: "fake", tool: "greet", arguments: { name: "nik" } } }] },
+      {
+        toolCalls: [
+          {
+            name: "mcp_call",
+            args: {
+              action: "call",
+              server: "fake",
+              tool: "greet",
+              arguments: { name: "nik" },
+            },
+          },
+        ],
+      },
       { text: "greeted" },
     ]);
-    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [REPO_PLUGINS] });
+    const app = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider,
+      pluginDirs: [REPO_PLUGINS],
+    });
     const core = app.createCore(() => Promise.resolve(true));
     await core.submit("use the mcp server");
 
@@ -304,7 +469,9 @@ describe("wave 2: mcp plugin (stdio MCP client)", () => {
       name: "fake",
       tools: [{ name: "greet" }],
     });
-    expect(JSON.parse(toolMessages[1].content).content[0].text).toBe("hello nik");
+    expect(JSON.parse(toolMessages[1].content).content[0].text).toBe(
+      "hello nik"
+    );
   });
 
   it("no config is a clean error value, not a crash", async () => {
@@ -312,7 +479,12 @@ describe("wave 2: mcp plugin (stdio MCP client)", () => {
       { toolCalls: [{ name: "mcp_call", args: { action: "list" } }] },
       { text: "never mind" },
     ]);
-    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [REPO_PLUGINS] });
+    const app = await buildApp({
+      cwd: tmp,
+      env: { HOME: tmp },
+      provider,
+      pluginDirs: [REPO_PLUGINS],
+    });
     const core = app.createCore(() => Promise.resolve(true));
     await core.submit("mcp without config");
     expect(lastToolMessage(core)).toContain("no MCP config");

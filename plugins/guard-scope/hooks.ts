@@ -13,14 +13,14 @@ interface ToolCheck {
 }
 
 export default {
-  "tool.check": async (event: ToolCheck) => {
+  "tool.check": async (event: ToolCheck, $?: { session: { cwd: string } }) => {
     if (event.tool !== "write" && event.tool !== "edit") return undefined;
 
     const input = (event.input ?? {}) as { path?: string };
     if (!input.path) return undefined;
 
-    const resolved = path.resolve(input.path);
-    const cwd = path.resolve(process.cwd()); // session cwd is the REPL's cwd
+    const cwd = path.resolve($?.session.cwd ?? process.cwd());
+    const resolved = path.resolve(cwd, input.path); // session cwd is the REPL's cwd
     const rel = path.relative(cwd, resolved);
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
       return {

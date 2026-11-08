@@ -1,3 +1,4 @@
+import * as storage from "./storage.js";
 import type { EventDef } from "../define.js";
 import * as tools from "./tools.js";
 import * as session from "./session.js";
@@ -41,7 +42,22 @@ export const catalog: readonly EventDef[] = [
   coreTurns.subagentStart,
   coreTurns.subagentComplete,
   coreContext.contextCompacted,
+  coreContext.contextCompacting,
   // interface
+  ui.uiConfigure,
+  storage.storageRead,
+  storage.storageWrite,
+  storage.storageConfig,
+  ui.projectChanged,
+  ui.networkConfigure,
+  ui.uiVisibility,
+  ui.uiReaction,
+  ui.uiRemove,
+  ui.agentActivity,
+  ui.uiInputTarget,
+  ui.uiView,
+  ui.agentTool,
+  ui.uiSurface,
   ui.uiRender,
   ui.uiPress,
   ui.uiFocus,
@@ -56,6 +72,21 @@ export const catalog: readonly EventDef[] = [
   services.serviceUiNotify,
   services.serviceTelemetryLog,
   // core-tool services (model-facing tools; same interception story as $ API)
+  coreServices.serviceSkillsLoad,
+  coreServices.serviceProjectQuery,
+  coreServices.serviceSandboxRun,
+  coreServices.servicePermissionReview,
+  coreServices.serviceContextControl,
+  coreServices.modelUsage,
+  coreServices.serviceUsageQuota,
+  coreServices.contextRestored,
+  coreServices.serviceCheckpointControl,
+  coreServices.serviceAgentControl,
+  coreServices.serviceModelStream,
+  coreServices.contextPrepared,
+  coreServices.assistantMetadata,
+  coreServices.serviceSessionControl,
+  coreServices.serviceSessionStore,
   coreServices.serviceShellExec,
   coreServices.serviceShellExecOutput,
   coreServices.serviceShellExecKill,
@@ -70,3 +101,15 @@ export const catalog: readonly EventDef[] = [
 export { namespaceOf } from "../define.js";
 export type { EventDef, ResponseDef } from "../define.js";
 export { defineEvent } from "../define.js";
+
+export {
+  surfacePlacementSchema,
+  type SurfacePlacement,
+  uiAppearanceSchema,
+  type UiAppearance,
+  uiTextViewSchema,
+  type UiTextView,
+  uiToneSchema,
+} from "./ui.js";
+
+export * from "./storage.js";

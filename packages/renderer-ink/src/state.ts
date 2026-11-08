@@ -14,10 +14,12 @@ export class RendererState {
   readonly surfaces = new Map<string, SurfaceDecl>();
   readonly grids = new Map<string, SurfaceGrid>();
   focused: string | undefined;
+  layout?: Extract<WireMessage, { type: "layout" }>;
 
   /** Apply one wire message. Returns true when the visual state changed. */
   apply(msg: WireMessage): boolean {
     switch (msg.type) {
+      case "layout": this.layout = msg; return true;
       case "declare":
         for (const decl of msg.surfaces) {
           this.surfaces.set(decl.id, decl);

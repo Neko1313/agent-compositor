@@ -1,7 +1,15 @@
 {
   "name": "workflows",
   "version": "1.0.0",
-  "description": "Deterministic multi-agent workflows: the model writes a small async function whose awaited task('...') calls run as subagents. Every step is journaled (content-hash chain) under .agent-compositor/workflows/, so an identical re-run replays recorded results without touching the model. Design reference: Restate's \"Dynamic Workflows\" — orchestration as a replayable function of a result journal.",
+  "description": "Deterministic Python workflows through the selected sandbox provider. Explicit await task('...') calls run permission-gated subagents; successful steps are journaled and replayed on identical reruns. Generated code has no direct filesystem, shell or network access.",
   "trust": "trusted",
-  "capabilities": ["tool"]
+  "capabilities": [
+    "tool"
+  ],
+  "commands": [
+    {
+      "name": "/workflows",
+      "description": "Open workflow runs and replay journal"
+    }
+  ]
 }

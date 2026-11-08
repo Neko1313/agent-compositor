@@ -30,7 +30,7 @@ Base domains:
 | Class | Execution | Purpose |
 |---|---|---|
 | `trusted` | Node.js, full access | provider plugins, first-party |
-| `sandboxed` | QuickJS, strict budgets, no network | generated code, workflow scripts |
+| `sandboxed` | Explicit language host required; TS modules currently refused | generated code through a replaceable sandbox provider |
 | `render-only` | no state mutations | themes, layouts, visualizations |
 
 The class is declared in the manifest and enforced by the runtime.
@@ -51,7 +51,14 @@ The class is declared in the manifest and enforced by the runtime.
 
 The hooks module exports a named `hooks` object: event name → `(event, $) => response | undefined`.
 
-Search dirs, in precedence order (first hit wins name collisions): `./plugins`, `./.agent-compositor/plugins`, `$XDG_CONFIG_HOME/agent-compositor/plugins`. One corrupt manifest never blocks the rest; `sandboxed` plugins are refused until the QuickJS host is linked.
+Search dirs, in precedence order (first hit wins name collisions): `./plugins`, `./.agent-compositor/plugins`, `$XDG_CONFIG_HOME/agent-compositor/plugins`. One corrupt manifest never blocks the rest; `sandboxed` plugin modules are refused until an explicit language host is linked. Monty is selected for generated Python, separately from trusted TypeScript module loading.
+
+Replaceable service providers declare `provides` in their manifest. The app's
+`serviceProviders` maps canonical event names to a selected plugin, while guard
+hooks remain in the chain. `disabledPlugins` removes a plugin and its tools.
+For example, `callix` provides `service.project.query` through the native CLI's
+JSON graph. Trusted providers may declare bounded `hookTimeouts` for slow
+operations; cancellation is exposed through `$.signal`.
 
 Reload = reverse teardown (hooks + per-plugin state) + cache-busted re-import. State does not survive a reload — `session.reload` with the new composition is the documented recovery point.
 

@@ -18,12 +18,16 @@ import type { SessionEvent } from "@agent-compositor/session";
  * Events carrying no transcript meaning (turn.step, tool.check, ui.*,
  * prompt.queued) are ignored.
  */
-export function replayTranscript(events: SessionEvent[], systemPrompt?: string): ChatMessage[] {
+export function replayTranscript(
+  events: SessionEvent[],
+  systemPrompt?: string
+): ChatMessage[] {
   const messages: ChatMessage[] = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
 
   let pendingText = "";
   let pendingCalls: ChatToolCall[] = [];
+  let pendingMetadata: Record<string, unknown> | undefined;
   /** an assistant message with toolCalls was emitted and its results landed —
    * the next tool.call belongs to a NEW assistant message */
   let batchClosed = false;
@@ -34,19 +38,48 @@ export function replayTranscript(events: SessionEvent[], systemPrompt?: string):
         role: "assistant",
         content: pendingText,
         toolCalls: pendingCalls.length > 0 ? pendingCalls : undefined,
+        metadata: pendingMetadata,
       });
       pendingText = "";
       pendingCalls = [];
+      pendingMetadata = undefined;
     }
   };
 
   for (const event of events) {
     switch (event.type) {
+      case "context.restored": {
+        if (Array.isArray(event.messages))
+          messages.splice(
+            0,
+            messages.length,
+            ...(event.messages as ChatMessage[])
+          );
+        pendingText = "";
+        pendingCalls = [];
+        pendingMetadata = undefined;
+        batchClosed = false;
+        break;
+      }
+      case "context.prepared": {
+        const last = messages[messages.length - 1];
+        if (last?.role === "user" && typeof event.text === "string") {
+          last.content = event.text;
+          last.images = event.images as ChatMessage["images"];
+        }
+        break;
+      }
+      case "assistant.metadata":
+        pendingMetadata = event.metadata as Record<string, unknown>;
+        break;
       case "prompt.submit":
       case "prompt.steer": {
         flushAssistant();
         batchClosed = false;
-        messages.push({ role: "user", content: typeof event.text === "string" ? event.text : "" });
+        messages.push({
+          role: "user",
+          content: typeof event.text === "string" ? event.text : "",
+        });
         break;
       }
       case "assistant.text": {
@@ -56,9 +89,13 @@ export function replayTranscript(events: SessionEvent[], systemPrompt?: string):
       case "tool.call": {
         if (batchClosed) flushAssistant(); // post-result text becomes its own assistant message
         pendingCalls.push({
-          id: typeof event.callId === "string" ? event.callId : `call_${messages.length}_${pendingCalls.length}`,
+          id:
+            typeof event.callId === "string"
+              ? event.callId
+              : `call_${messages.length}_${pendingCalls.length}`,
           name: typeof event.tool === "string" ? event.tool : "unknown",
           args: event.input,
+          metadata: event.metadata as Record<string, unknown> | undefined,
         });
         break;
       }
@@ -68,18 +105,41 @@ export function replayTranscript(events: SessionEvent[], systemPrompt?: string):
         const ok = event.ok === true;
         messages.push({
           role: "tool",
-          toolCallId: typeof event.callId === "string" ? event.callId : `call_${messages.length}`,
+          toolCallId:
+            typeof event.callId === "string"
+              ? event.callId
+              : `call_${messages.length}`,
           name: typeof event.tool === "string" ? event.tool : "unknown",
-          content: ok ? safeStringify(event.output) : `error: ${String(event.error ?? "unknown")}`,
+          content: ok
+            ? safeStringify(event.output)
+            : `error: ${String(event.error ?? "unknown")}`,
         });
         break;
       }
       case "context.compacted": {
-        const head = messages.length > 0 && messages[0].role === "system" ? [messages[0]] : [];
+        if (Array.isArray(event.messages)) {
+          messages.splice(
+            0,
+            messages.length,
+            ...(event.messages as ChatMessage[])
+          );
+          pendingText = "";
+          pendingCalls = [];
+          batchClosed = false;
+          break;
+        }
+        const head =
+          messages.length > 0 && messages[0].role === "system"
+            ? [messages[0]]
+            : [];
         const summary = typeof event.summary === "string" ? event.summary : "";
         messages.length = 0;
         messages.push(...head);
-        if (summary) messages.push({ role: "system", content: `Summary of earlier conversation:\n${summary}` });
+        if (summary)
+          messages.push({
+            role: "system",
+            content: `Summary of earlier conversation:\n${summary}`,
+          });
         pendingText = "";
         pendingCalls = [];
         batchClosed = false;

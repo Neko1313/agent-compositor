@@ -3,6 +3,10 @@ import type { ToolCallDescriptor } from "@agent-compositor/permissions";
 /** The $ API handle every tool receives. Wired by the loop to the hooks
  *  dispatcher: plugins see these as service.* events and can intercept. */
 export interface ToolContext {
+  settings?: (name: string) => Promise<any>;
+  stateDir?: string;
+  env?: Record<string, string>;
+  fetch?: typeof fetch;
   request<T = unknown>(service: string, payload: unknown): Promise<T>;
   /** session-scoped undo log; resolvers for fs ops append inverse entries */
   undo: UndoStore;

@@ -30,6 +30,10 @@ export interface PluginManifest {
   description?: string;
   trust: TrustClass;
   capabilities?: string[];
+  /** Service events supplied by this replaceable provider plugin. */
+  provides?: string[];
+  /** Explicit wall-time limits for slow provider operations (milliseconds). */
+  hookTimeouts?: Record<string, number>;
 }
 
 const NEXT: unique symbol = Symbol("agent-compositor.next");

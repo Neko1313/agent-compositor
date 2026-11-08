@@ -1,5 +1,10 @@
+import { resolve as resolvePath } from "node:path";
 import { randomUUID } from "node:crypto";
-import { Runtime, type PluginManifest, type Tier } from "@agent-compositor/runtime";
+import {
+  Runtime,
+  type PluginManifest,
+  type Tier,
+} from "@agent-compositor/runtime";
 import { HooksHost, type UserHookFn } from "@agent-compositor/hooks";
 import {
   ApprovalSession,
@@ -9,7 +14,13 @@ import {
   type ToolCallDescriptor,
 } from "@agent-compositor/permissions";
 import { SessionStore } from "@agent-compositor/session";
-import { compactTranscript, TokenBudget, type Summarizer } from "@agent-compositor/context";
+import {
+  compactTranscript,
+  TokenBudget,
+  estimateMessageTokens,
+  estimateTokens,
+  type Summarizer,
+} from "@agent-compositor/context";
 import {
   builtinTools,
   builtinToolRules,
@@ -20,7 +31,14 @@ import {
 } from "@agent-compositor/tools";
 import { replayTranscript } from "./resume.js";
 import { askTool, taskTool, SUBAGENT_SYSTEM_PROMPT } from "./tools/index.js";
-import type { ChatMessage, ChatToolCall, ModelProvider, ToolDecl } from "./provider.js";
+import type {
+  ChatMessage,
+  ChatToolCall,
+  ModelProvider,
+  ToolDecl,
+  CompletionRequest,
+  ProviderEvent,
+} from "./provider.js";
 
 export interface CorePlugin {
   manifest: PluginManifest;
@@ -29,6 +47,20 @@ export interface CorePlugin {
 }
 
 export interface AgentCoreOptions {
+  maxTokensPerTurn?: number;
+  maxTokensPerSession?: number;
+  auth?: ConstructorParameters<typeof HooksHost>[1]["auth"];
+  serviceProviders?: Record<string, string>;
+  preparePrompt?: (
+    text: string
+  ) => Promise<string | { text: string; images?: ChatMessage["images"] }>;
+  initialImages?: ChatMessage["images"];
+  model?: () => string;
+  /** Host service resolvers are inherited by children (e.g. the skill registry). */
+  services?: Record<string, (payload: any) => unknown | Promise<unknown>>;
+  storage?: ConstructorParameters<typeof HooksHost>[1]["storage"];
+  toolEnv?: () => Record<string, string>;
+  fetch?: typeof fetch;
   cwd: string;
   provider: ModelProvider;
   plugins?: CorePlugin[];
@@ -36,7 +68,17 @@ export interface AgentCoreOptions {
   rules?: PermissionRule[];
   approvals?: ApprovalSession;
   /** renderer hook: ask the human about a tool call; undefined = headless (ask → deny) */
-  onApproval?: (req: { tool: string; descriptor: ToolCallDescriptor; reason?: string }) => Promise<boolean>;
+  onApproval?: (req: {
+    tool: string;
+    descriptor: ToolCallDescriptor;
+    reason?: string;
+    signal?: AbortSignal;
+  }) => Promise<
+    boolean | { allow: boolean; scope?: "once" | "session" | "project" }
+  >;
+  persistApprovals?: (
+    approvals: readonly import("@agent-compositor/permissions").Approval[]
+  ) => Promise<void>;
   sessions?: SessionStore;
   sessionId?: string;
   systemPrompt?: string;
@@ -46,11 +88,20 @@ export interface AgentCoreOptions {
   /** append model-facing tools (e.g. plugin-provided tools.ts) on top of the builtins */
   extraTools?: ToolSpec<unknown, unknown>[];
   /** AskUserQuestion channel; undefined = headless, questions are denied (fail closed) */
-  onAsk?: (req: { question: string; options?: string[]; multi?: boolean }) => Promise<string | string[]>;
+  onAsk?: (req: {
+    question: string;
+    options?: string[];
+    multi?: boolean;
+    signal?: AbortSignal;
+  }) => Promise<string | string[]>;
   /** recursion guard for the task tool / service.agent.spawn (default 2 deep) */
   subagentDepth?: number;
   maxSubagentDepth?: number;
-  notify?: (message: string, level: "info" | "warn" | "error", plugin: string) => void;
+  notify?: (
+    message: string,
+    level: "info" | "warn" | "error",
+    plugin: string
+  ) => void;
   /** wire context pressure management into the loop: trip the budget → compact */
   compaction?: {
     budget: TokenBudget;
@@ -88,7 +139,7 @@ export class AgentCore {
   readonly sessionId: string;
 
   private readonly provider: ModelProvider;
-  private readonly toolSpecs: ToolSpec<unknown, unknown>[];
+  private toolSpecs: ToolSpec<unknown, unknown>[];
   private readonly compiledRules: ReturnType<typeof compileRules>;
   private readonly approvals?: ApprovalSession;
   private readonly onApproval?: AgentCoreOptions["onApproval"];
@@ -103,40 +154,91 @@ export class AgentCore {
   private interruptedByUser = false;
   private state: CoreState = "idle";
   private listeners = new Set<(ev: LoopEvent) => void>();
+  private inPromptHook = false;
+  private invokingTool = false;
 
   constructor(private options: AgentCoreOptions) {
+    for (const value of [
+      options.maxTokensPerTurn,
+      options.maxTokensPerSession,
+      options.maxStepsPerTurn,
+    ])
+      if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0))
+        throw new Error("Agent budgets must be positive integers");
     this.provider = options.provider;
     this.sessionId = options.sessionId ?? randomUUID();
     this.maxSteps = options.maxStepsPerTurn ?? 32;
-    this.toolSpecs = [...(options.tools ?? builtinTools), taskTool, askTool, ...(options.extraTools ?? [])];
+    this.toolSpecs = this.composeTools(options.extraTools ?? []);
     this.approvals = options.approvals;
     this.onApproval = options.onApproval;
     this.sessions = options.sessions;
     this.compiledRules = compileRules(
       [
         ...builtinToolRules,
-        { decision: "allow", tool: "task", reason: "subagents run under the same permission gate" },
-        { decision: "allow", tool: "ask_user", reason: "asking the user is not a side effect" },
+        {
+          decision: "allow",
+          tool: "task",
+          reason: "subagents run under the same permission gate",
+        },
+        {
+          decision: "allow",
+          tool: "ask_user",
+          reason: "asking the user is not a side effect",
+        },
         ...(options.rules ?? []),
       ],
-      "config",
+      "config"
     );
 
-    this.runtime = new Runtime();
+    this.runtime = new Runtime({ providers: options.serviceProviders });
     this.host = new HooksHost(this.runtime, {
       session: { id: this.sessionId, cwd: options.cwd },
       workspaceRoot: options.cwd,
-      notify: options.notify,
+      storage: options.storage,
+      execEnvironment: options.toolEnv,
+      auth: options.auth,
+      signal: () => this.abort.signal,
+      onPluginRemoved: (plugin) =>
+        this.broadcast({
+          kind: "catalog",
+          event: "ui.pluginRemoved",
+          input: { plugin },
+        }),
+      notify: (message, level, plugin) => {
+        options.notify?.(message, level, plugin);
+        this.broadcast({
+          kind: "catalog",
+          event: "ui.notification",
+          input: { message, level, plugin },
+        });
+      },
       // $.model.complete rides the configured provider (collected to text)
       model: {
         complete: async (request) => {
           let text = "";
-          for await (const ev of this.provider.complete({
+          for await (const ev of this.streamModel({
             messages: request.messages as ChatMessage[],
             tools: [],
-            signal: this.abort.signal,
+            profile:
+              typeof request.profile === "string" ? request.profile : undefined,
+            maxOutputTokens:
+              typeof request.maxOutputTokens === "number" &&
+              Number.isFinite(request.maxOutputTokens) &&
+              request.maxOutputTokens > 0
+                ? Math.floor(request.maxOutputTokens)
+                : undefined,
+            signal:
+              request.signal instanceof AbortSignal
+                ? AbortSignal.any([this.abort.signal, request.signal])
+                : this.abort.signal,
           })) {
             if (ev.type === "text_delta") text += ev.text;
+            if (text.length > 64000)
+              throw new Error("Plugin model response exceeds limit");
+            if (ev.type === "finish" && ev.reason !== "stop")
+              throw new Error(
+                ev.error ?? `Incomplete model response: ${ev.reason}`
+              );
           }
           return text;
         },
@@ -147,34 +249,225 @@ export class AgentCore {
       },
     });
 
-    // core resolvers at the chain end; everything above them can deny/value
-    registerDefaultResolvers({
-      on: (service, handler) => {
-        this.runtime.setResolver(service, async (payload: unknown) => ({ value: await handler(payload) }));
-      },
+    this.runtime.setResolver(
+      "service.ui.configure",
+      (input: {
+        plugin?: string;
+        appearance: import("@agent-compositor/events").UiAppearance | null;
+      }) => {
+        this.broadcast({ kind: "catalog", event: "ui.appearance", input });
+        return { value: true };
+      }
+    );
+    this.runtime.setResolver("service.ui.inputTarget", (input: any) => {
+      this.broadcast({ kind: "catalog", event: "ui.inputTarget", input });
+      return { value: true };
     });
+    this.runtime.setResolver(
+      "ui.invalidate",
+      (input: Record<string, unknown>) => {
+        this.broadcast({ kind: "catalog", event: "ui.invalidate", input });
+      }
+    );
+    this.runtime.setResolver(
+      "service.ui.surface",
+      (input: {
+        id: string;
+        title: string;
+        text: string;
+        plugin?: string;
+        placement?: import("@agent-compositor/events").SurfacePlacement;
+      }) => {
+        this.broadcast({
+          kind: "catalog",
+          event: "ui.surface",
+          input: {
+            ...input,
+            surface: input.id,
+            id: `plugin-${input.plugin ?? "custom"}-${input.id}`
+              .replace(/[^A-Za-z0-9_-]/g, "_")
+              .slice(0, 64),
+          },
+        });
+        return { value: true };
+      }
+    );
+    this.runtime.setResolver(
+      "service.ui.view",
+      (input: {
+        id: string;
+        title: string;
+        plugin?: string;
+        view: import("@agent-compositor/events").UiTextView;
+      }) => {
+        this.broadcast({
+          kind: "catalog",
+          event: "ui.surface",
+          input: {
+            ...input,
+            text: input.view.lines.map((row) => row.text).join("\n"),
+            surface: input.id,
+            id: `plugin-${input.plugin ?? "custom"}-${input.id}`
+              .replace(/[^A-Za-z0-9_-]/g, "_")
+              .slice(0, 64),
+          },
+        });
+        return { value: true };
+      }
+    );
+    this.runtime.setResolver(
+      "service.ui.remove",
+      (input: { plugin: string; id: string }) => {
+        this.broadcast({
+          kind: "catalog",
+          event: "ui.surfaceRemoved",
+          input: {
+            id: `plugin-${input.plugin}-${input.id}`
+              .replace(/[^A-Za-z0-9_-]/g, "_")
+              .slice(0, 64),
+          },
+        });
+        return { value: true };
+      }
+    );
+    this.runtime.setResolver(
+      "service.agent.tool",
+      async ({ name, args }: { name: string; args: unknown }) => ({
+        value: await this.invokeTool(name, args),
+      })
+    );
+
+    // core resolvers at the chain end; everything above them can deny/value
+    registerDefaultResolvers(
+      {
+        on: (service, handler) => {
+          this.runtime.setResolver(service, async (payload: unknown) => ({
+            value: await handler(payload),
+          }));
+        },
+      },
+      {
+        root: options.cwd,
+        signal: () => this.abort.signal,
+        env: options.toolEnv,
+        onFilesChanged: async (path: string) => {
+          await this.emit("project.changed", {
+            cwd: options.cwd,
+            paths: [path],
+            reason: "tool",
+          });
+        },
+      }
+    );
+    this.runtime.setResolver(
+      "service.model.stream",
+      ({ request }: { request: CompletionRequest }) => ({
+        value: this.provider.complete(request),
+      })
+    );
+    this.runtime.setResolver("service.permission.review", () => ({
+      value: { decision: "ask" },
+    }));
+    this.runtime.setResolver(
+      "service.context.control",
+      async (input: {
+        action: string;
+        beforeTurn?: boolean;
+        messages?: ChatMessage[];
+      }) => {
+        if (input.action === "snapshot")
+          return {
+            value: {
+              sessionId: this.sessionId,
+              canRestore: this.controlsReady || this.invokingTool,
+              messages: structuredClone(
+                input.beforeTurn && this.messages.at(-1)?.role === "user"
+                  ? this.messages.slice(0, -1)
+                  : this.messages
+              ),
+            },
+          };
+        if (!this.controlsReady && !this.invokingTool)
+          return {
+            deny: "Restore context from interactive controls after the turn finishes",
+          };
+        if (
+          !Array.isArray(input.messages) ||
+          !input.messages.every(
+            (m) =>
+              m &&
+              ["system", "user", "assistant", "tool"].includes(m.role) &&
+              typeof m.content === "string"
+          )
+        )
+          return { deny: "Invalid conversation snapshot" };
+        if (this.invokingTool)
+          this.pendingContextRestore = structuredClone(input.messages);
+        else {
+          this.messages = structuredClone(input.messages);
+          await this.emit("context.restored", { messages: this.messages });
+        }
+        return { value: true };
+      }
+    );
+    for (const [name, resolver] of Object.entries(options.services ?? {}))
+      this.runtime.setResolver(name, resolver);
 
     // subagent spawns ride the service chain (plugins can deny them); the
     // ask channel is fail-closed — no onAsk, no answers
-    this.runtime.setResolver("service.agent.spawn", async (payload: unknown) => {
-      const args = payload as { prompt?: string; systemPrompt?: string; agentId?: string };
-      if (!args.prompt || typeof args.prompt !== "string") return { deny: "spawn: prompt is required" };
-      try {
-        return { value: await this.runSubagent({ prompt: args.prompt, systemPrompt: args.systemPrompt, agentId: args.agentId }) };
-      } catch (err) {
-        return { deny: err instanceof Error ? err.message : String(err) };
+    this.runtime.setResolver(
+      "service.agent.spawn",
+      async (payload: unknown) => {
+        const args = payload as {
+          prompt?: string;
+          systemPrompt?: string;
+          agentId?: string;
+          signal?: unknown;
+        };
+        if (!args.prompt || typeof args.prompt !== "string")
+          return { deny: "spawn: prompt is required" };
+        try {
+          return {
+            value: await this.runSubagent({
+              prompt: args.prompt,
+              systemPrompt: args.systemPrompt,
+              agentId: args.agentId,
+              signal:
+                args.signal instanceof AbortSignal ? args.signal : undefined,
+            }),
+          };
+        } catch (err) {
+          return { deny: err instanceof Error ? err.message : String(err) };
+        }
       }
-    });
+    );
     this.runtime.setResolver("service.ui.ask", async (payload: unknown) => {
       const onAsk = this.options.onAsk;
       if (!onAsk) return { deny: "headless: no user channel for questions" };
-      const args = payload as { question?: string; options?: string[]; multi?: boolean };
-      if (!args.question || typeof args.question !== "string") return { deny: "ask: question is required" };
-      const answer = await onAsk({
-        question: args.question,
-        options: Array.isArray(args.options) ? args.options : undefined,
-        multi: args.multi === true,
-      });
+      const args = payload as {
+        question?: string;
+        options?: string[];
+        multi?: boolean;
+      };
+      if (!args.question || typeof args.question !== "string")
+        return { deny: "ask: question is required" };
+      const reaction = {
+        source: "questions",
+        kind: "question",
+        id: randomUUID(),
+      };
+      await this.emit("ui.reaction", { ...reaction, active: true });
+      let answer: Awaited<ReturnType<typeof onAsk>>;
+      try {
+        answer = await onAsk({
+          signal: this.state === "running" ? this.abort.signal : undefined,
+          question: args.question,
+          options: Array.isArray(args.options) ? args.options : undefined,
+          multi: args.multi === true,
+        });
+      } finally {
+        await this.emit("ui.reaction", { ...reaction, active: false });
+      }
       return { value: { answer } };
     });
 
@@ -182,11 +475,196 @@ export class AgentCore {
       this.host.registerPlugin(plugin.manifest, plugin.hooks, plugin.tier);
     }
 
-    if (options.systemPrompt) this.messages.push({ role: "system", content: options.systemPrompt });
+    if (options.systemPrompt)
+      this.messages.push({ role: "system", content: options.systemPrompt });
   }
 
   getState(): CoreState {
     return this.state;
+  }
+  get failure(): string | undefined {
+    return this.lastTurnError;
+  }
+  getBudget() {
+    return {
+      spentTokens: this.spentTokens,
+      turnTokens: this.turnTokens,
+      maxTokensPerTurn: this.options.maxTokensPerTurn,
+      maxTokensPerSession: this.options.maxTokensPerSession,
+      maxStepsPerTurn: this.maxSteps,
+    };
+  }
+  private pendingContextRestore?: ChatMessage[];
+  private spentTokens = 0;
+  private turnTokens = 0;
+  get controlsReady(): boolean {
+    return this.state !== "running" || this.inPromptHook;
+  }
+  async *streamModel(request: CompletionRequest): AsyncIterable<ProviderEvent> {
+    const remaining = Math.min(
+      (this.options.maxTokensPerSession ?? Infinity) - this.spentTokens,
+      (this.options.maxTokensPerTurn ?? Infinity) - this.turnTokens
+    );
+    if (remaining <= 0) throw new Error("Token budget exhausted");
+    if (Number.isFinite(remaining))
+      request = {
+        ...request,
+        maxOutputTokens: Math.max(
+          1,
+          Math.floor(Math.min(request.maxOutputTokens ?? 8192, remaining))
+        ),
+      };
+    const result = (await this.host.emit("service.model.stream", { request }))
+      .value as { value?: AsyncIterable<ProviderEvent>; deny?: string };
+    if (result?.deny) throw new Error(result.deny);
+    if (
+      !result?.value ||
+      typeof result.value[Symbol.asyncIterator] !== "function"
+    )
+      throw new Error(
+        "Model stream hook must return an AsyncIterable in {value}"
+      );
+    let reported = false,
+      outputText = "";
+    const account = async (
+      event: Extract<ProviderEvent, { type: "usage" }>
+    ) => {
+      this.spentTokens += event.inputTokens + event.outputTokens;
+      this.turnTokens += event.inputTokens + event.outputTokens;
+      await this.emit("model.usage", {
+        model: request.model ?? this.options.model?.(),
+        profile: request.profile,
+        inputTokens: event.inputTokens,
+        outputTokens: event.outputTokens,
+        cachedInputTokens: event.cachedInputTokens,
+        estimated: event.estimated,
+      });
+    };
+    for await (const event of result.value) {
+      if (event.type === "text_delta") outputText += event.text;
+      if (event.type === "tool_call") outputText += JSON.stringify(event.args);
+      if (event.type === "usage") {
+        reported = true;
+        await account(event);
+      }
+      yield event;
+      if (
+        (this.options.maxTokensPerTurn &&
+          this.turnTokens >= this.options.maxTokensPerTurn) ||
+        (this.options.maxTokensPerSession &&
+          this.spentTokens >= this.options.maxTokensPerSession)
+      )
+        throw new Error("Token budget exhausted");
+    }
+    if (!reported && !request.signal.aborted) {
+      const event = {
+        type: "usage" as const,
+        inputTokens:
+          request.messages.reduce(
+            (sum, m) => sum + estimateMessageTokens(m),
+            0
+          ) + estimateTokens(JSON.stringify(request.tools)),
+        outputTokens: estimateTokens(outputText),
+        estimated: true,
+      };
+      await account(event);
+      yield event;
+      if (
+        (this.options.maxTokensPerTurn &&
+          this.turnTokens >= this.options.maxTokensPerTurn) ||
+        (this.options.maxTokensPerSession &&
+          this.spentTokens >= this.options.maxTokensPerSession)
+      )
+        throw new Error("Token budget exhausted");
+    }
+  }
+
+  async invokeTool(
+    name: string,
+    args: unknown
+  ): Promise<{ ok: boolean; output?: unknown; error?: string }> {
+    if (this.invokingTool || (this.state === "running" && !this.inPromptHook))
+      return {
+        ok: false,
+        error: "Agent is busy; retry after the current turn",
+      };
+    const previous = this.state,
+      turnId = randomUUID(),
+      callId = randomUUID();
+    this.invokingTool = true;
+    this.state = "running";
+    this.turnTokens = 0;
+    this.abort = new AbortController();
+    let outcome: { ok: boolean; output?: unknown; error?: string } = {
+      ok: false,
+      error: "Tool produced no result",
+    };
+    const unsubscribe = this.subscribe((event) => {
+      if (
+        event.kind === "catalog" &&
+        event.event === "tool.result" &&
+        event.input.callId === callId
+      )
+        outcome = {
+          ok: event.input.ok === true,
+          output: event.input.output,
+          error: event.input.error as string | undefined,
+        };
+    });
+    try {
+      await this.emit("turn.start", { turnId, interactiveTool: true });
+      this.messages.push({
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: callId, name, args }],
+      });
+      await this.runToolBatch(turnId, [{ id: callId, name, args }]);
+      if (this.pendingContextRestore) {
+        this.messages = this.pendingContextRestore;
+        this.pendingContextRestore = undefined;
+        await this.emit("context.restored", { messages: this.messages });
+      }
+      await this.emit("turn.complete", { turnId, text: "" });
+      return outcome;
+    } catch (error) {
+      return { ok: false, error: String(error) };
+    } finally {
+      unsubscribe();
+      this.invokingTool = false;
+      this.state = previous;
+    }
+  }
+
+  private composeTools(
+    extraTools: ToolSpec<unknown, unknown>[]
+  ): ToolSpec<unknown, unknown>[] {
+    const tools = [
+      ...(this.options.tools ?? builtinTools),
+      taskTool,
+      askTool,
+      ...extraTools,
+    ];
+    // Children inherit the effective toolset; do not advertise task/ask twice.
+    return tools.filter(
+      (tool, index) =>
+        tools.findIndex((other) => other.name === tool.name) === index
+    );
+  }
+
+  /** Idle-only composition update: hooks, tools and future children stay in sync. */
+  replacePlugins(
+    plugins: CorePlugin[],
+    extraTools: ToolSpec<unknown, unknown>[]
+  ): void {
+    if (this.state === "running")
+      throw new Error("Cannot reload plugins during a running turn");
+    for (const plugin of this.options.plugins ?? [])
+      this.host.unregisterPlugin(plugin.manifest.name);
+    for (const plugin of plugins)
+      this.host.registerPlugin(plugin.manifest, plugin.hooks, plugin.tier);
+    this.options.plugins = plugins;
+    this.options.extraTools = extraTools;
+    this.toolSpecs = this.composeTools(extraTools);
   }
 
   /** Current message history (for introspection / future resume replay). */
@@ -203,11 +681,29 @@ export class AgentCore {
     return () => this.listeners.delete(fn);
   }
 
+  private started?: Promise<void>;
+  /** Called after UI subscribes so startup plugin surfaces are observable. */
+  start(): Promise<void> {
+    this.started ??= this.emit("session.start", {
+      sessionId: this.sessionId,
+      cwd: this.options.cwd,
+      plugins: (this.options.plugins ?? []).map((p) => ({
+        name: p.manifest.name,
+        version: p.manifest.version,
+        tier: p.tier ?? "user",
+      })),
+    }).then(() => {});
+    return this.started;
+  }
+
   /** Renderer entry: send a prompt. If busy, it queues (codex Enter). */
   async submit(text: string): Promise<void> {
     if (this.state === "running") {
       this.promptQueue.push(text);
-      await this.emit("prompt.queued", { text, depth: this.promptQueue.length });
+      await this.emit("prompt.queued", {
+        text,
+        depth: this.promptQueue.length,
+      });
       return;
     }
     await this.runTurn(text);
@@ -226,6 +722,8 @@ export class AgentCore {
 
   /** Renderer entry: interrupt the running turn. */
   interrupt(): void {
+    this.promptQueue = [];
+    this.steerQueue = [];
     if (this.state !== "running") return;
     this.interruptedByUser = true;
     this.abort.abort();
@@ -237,8 +735,18 @@ export class AgentCore {
   private messagesSinceCompaction = 0;
 
   /** Resume factory: adopt a replayed transcript instead of starting fresh. */
-  static resume(opts: AgentCoreOptions, events: import("@agent-compositor/session").SessionEvent[]): AgentCore {
+  static resume(
+    opts: AgentCoreOptions,
+    events: import("@agent-compositor/session").SessionEvent[]
+  ): AgentCore {
     const core = new AgentCore(opts);
+    core.spentTokens = events
+      .filter((e) => e.type === "model.usage")
+      .reduce(
+        (sum, e) =>
+          sum + Number(e.inputTokens ?? 0) + Number(e.outputTokens ?? 0),
+        0
+      );
     core.messages = replayTranscript(events, opts.systemPrompt);
     return core;
   }
@@ -246,30 +754,77 @@ export class AgentCore {
   // ---- the turn engine -----------------------------------------------------
 
   private async runTurn(text: string): Promise<void> {
+    try {
+      await this.runTurnUnchecked(text);
+    } catch (error) {
+      this.lastTurnError = String(error);
+      await this.emit("turn.failed", {
+        turnId: this.currentTurnId ?? randomUUID(),
+        error: this.lastTurnError,
+      });
+      this.state = "idle";
+      this.currentTurnId = undefined;
+    }
+  }
+  private async runTurnUnchecked(text: string): Promise<void> {
     const turnId = randomUUID();
     this.currentTurnId = turnId;
     this.lastTurnError = undefined;
+    this.turnTokens = 0;
     this.state = "running";
     this.interruptedByUser = false;
     this.abort = new AbortController();
     const usage = { inputTokens: 0, outputTokens: 0 };
 
-    const submitted = await this.emit("prompt.submit", { text });
+    this.inPromptHook = true;
+    let submitted: unknown;
+    try {
+      submitted = await this.emit("prompt.submit", { text });
+    } finally {
+      this.inPromptHook = false;
+    }
     if (submitted && typeof submitted === "object" && "drop" in submitted) {
       this.state = "idle";
       return;
     }
-    const promptText =
-      submitted && typeof submitted === "object" && "text" in submitted && typeof (submitted as { text: unknown }).text === "string"
+    let promptText =
+      submitted &&
+      typeof submitted === "object" &&
+      "text" in submitted &&
+      typeof (submitted as { text: unknown }).text === "string"
         ? (submitted as { text: string }).text
         : text;
-    this.messages.push({ role: "user", content: promptText });
+    if (this.options.preparePrompt) {
+      const prepared = await this.options.preparePrompt(promptText);
+      if (typeof prepared === "string") promptText = prepared;
+      else {
+        promptText = prepared.text;
+        this.options.initialImages = [
+          ...(this.options.initialImages ?? []),
+          ...(prepared.images ?? []),
+        ];
+      }
+      await this.emit("context.prepared", {
+        text: promptText,
+        images: this.options.initialImages,
+      });
+    }
+    this.messages.push({
+      role: "user",
+      content: promptText,
+      ...(this.options.initialImages?.length
+        ? { images: this.options.initialImages }
+        : {}),
+    });
+    this.options.initialImages = undefined;
     await this.emit("turn.start", { turnId });
 
     let fullText = "";
+    let metadata: Record<string, unknown> | undefined;
     let failed: string | undefined;
 
     for (let step = 0; step < this.maxSteps; step++) {
+      if (this.abort.signal.aborted) break;
       // steering lands at the natural step boundary
       while (this.steerQueue.length > 0) {
         const steerText = this.steerQueue.shift()!;
@@ -279,24 +834,39 @@ export class AgentCore {
       // steering landed at the natural step boundary; now check context
       // pressure before paying for another model request
       await this.maybeCompact();
+      if (this.abort.signal.aborted) break;
 
       await this.emit("turn.step", { turnId });
       const batch: ChatToolCall[] = [];
       let finish: { reason: string; error?: string } | undefined;
 
       try {
-        for await (const ev of this.provider.complete(this.request())) {
+        for await (const ev of this.streamModel(this.request())) {
           if (this.abort.signal.aborted) break;
           if (ev.type === "text_delta") {
-            const rewritten = await this.emit("assistant.text", { turnId, text: ev.text });
+            const rewritten = await this.emit("assistant.text", {
+              turnId,
+              text: ev.text,
+            });
             const delta =
-              rewritten && typeof rewritten === "object" && "text" in rewritten && typeof (rewritten as { text: unknown }).text === "string"
+              rewritten &&
+              typeof rewritten === "object" &&
+              "text" in rewritten &&
+              typeof (rewritten as { text: unknown }).text === "string"
                 ? (rewritten as { text: string }).text
                 : ev.text;
             fullText += delta;
             this.broadcast({ kind: "text", turnId, delta });
           } else if (ev.type === "tool_call") {
-            batch.push({ id: ev.id, name: ev.name, args: ev.args });
+            batch.push({
+              id: ev.id,
+              name: ev.name,
+              args: ev.args,
+              metadata: ev.metadata,
+            });
+          } else if (ev.type === "metadata") {
+            metadata = ev.data;
+            await this.emit("assistant.metadata", { turnId, metadata });
           } else if (ev.type === "usage") {
             usage.inputTokens += ev.inputTokens;
             usage.outputTokens += ev.outputTokens;
@@ -312,21 +882,30 @@ export class AgentCore {
 
       if (this.interruptedByUser || this.abort.signal.aborted) break;
 
+      if (finish?.reason === "error" || finish?.reason === "length") {
+        failed =
+          finish.reason === "error"
+            ? finish.error ?? "provider error"
+            : "model response exceeded output/context limit";
+        break;
+      }
       if (batch.length > 0) {
-        this.messages.push({ role: "assistant", content: fullText, toolCalls: batch });
+        this.messages.push({
+          role: "assistant",
+          content: fullText,
+          metadata,
+          toolCalls: batch,
+        });
         fullText = "";
+        metadata = undefined;
         await this.runToolBatch(turnId, batch);
+        if (step === this.maxSteps - 1) {
+          failed = `Step limit (${this.maxSteps}) reached`;
+          break;
+        }
         continue;
       }
 
-      if (finish?.reason === "error") {
-        failed = finish.error ?? "provider error";
-        break;
-      }
-      if (finish?.reason === "length") {
-        failed = "model stopped: context length";
-        break;
-      }
       break; // stop
     }
 
@@ -338,12 +917,14 @@ export class AgentCore {
       this.state = "interrupted";
       await this.emit("turn.interrupted", { turnId });
     } else if (failed !== undefined) {
-      if (fullText) this.messages.push({ role: "assistant", content: fullText });
+      if (fullText)
+        this.messages.push({ role: "assistant", content: fullText, metadata });
       await this.emit("turn.failed", { turnId, error: failed });
       this.lastTurnError = failed;
       this.state = "idle";
     } else {
-      if (fullText) this.messages.push({ role: "assistant", content: fullText });
+      if (fullText)
+        this.messages.push({ role: "assistant", content: fullText, metadata });
       await this.emit("turn.complete", { turnId, text: fullText });
       this.state = "idle";
     }
@@ -364,9 +945,14 @@ export class AgentCore {
   async compactNow(): Promise<void> {
     const compaction = this.options.compaction;
     if (!compaction) return;
-    const result = await compactTranscript(this.messages, compaction.summarize, {
-      signal: this.abort.signal,
-    });
+    await this.emit("context.compacting", { sessionId: this.sessionId });
+    const result = await compactTranscript(
+      this.messages,
+      compaction.summarize,
+      {
+        signal: this.abort.signal,
+      }
+    );
     if (result.foldedCount === 0) return;
     this.messages = [...(result.messages as ChatMessage[])];
     this.messagesSinceCompaction = this.messages.length;
@@ -374,7 +960,8 @@ export class AgentCore {
       foldedCount: result.foldedCount,
       tokensBefore: result.tokensBefore,
       tokensAfter: result.tokensAfter,
-      summary: result.summary.slice(0, 2000),
+      summary: result.summary,
+      messages: this.messages,
     });
   }
 
@@ -392,11 +979,16 @@ export class AgentCore {
     prompt: string;
     systemPrompt?: string;
     agentId?: string;
+    signal?: AbortSignal;
   }): Promise<{ agentId: string; output: string }> {
     const depth = this.options.subagentDepth ?? 0;
     const maxDepth = this.options.maxSubagentDepth ?? 2;
-    if (depth >= maxDepth) throw new Error(`subagent depth limit (${maxDepth}) reached`);
-    const agentId = args.agentId && typeof args.agentId === "string" ? args.agentId : randomUUID();
+    if (depth >= maxDepth)
+      throw new Error(`subagent depth limit (${maxDepth}) reached`);
+    const agentId =
+      args.agentId && typeof args.agentId === "string"
+        ? args.agentId
+        : randomUUID();
     await this.emit("subagent.start", { agentId, prompt: args.prompt, depth });
 
     const child = new AgentCore({
@@ -404,17 +996,43 @@ export class AgentCore {
       sessionId: randomUUID(),
       tools: [...this.toolSpecs],
       extraTools: undefined,
+      initialImages: undefined,
       sessions: undefined, // subagents are ephemeral: no session persistence
       compaction: undefined,
-      systemPrompt: typeof args.systemPrompt === "string" ? args.systemPrompt : SUBAGENT_SYSTEM_PROMPT,
+      systemPrompt:
+        typeof args.systemPrompt === "string"
+          ? args.systemPrompt
+          : SUBAGENT_SYSTEM_PROMPT,
       subagentDepth: depth + 1,
     });
+    const unsubscribeReaction = child.subscribe((event) => {
+      if (event.kind === "catalog" && event.event === "ui.reaction")
+        void this.host
+          .emit("agent.activity", {
+            agentId,
+            event: event.event,
+            data: event.input,
+          })
+          .catch(() => {});
+    });
+    const interruptChild = () => child.interrupt();
+    const parentSignal = args.signal
+      ? AbortSignal.any([this.abort.signal, args.signal])
+      : this.abort.signal;
+    parentSignal.addEventListener("abort", interruptChild, { once: true });
     try {
+      if (parentSignal.aborted) throw new Error("Interrupted");
       await child.submit(args.prompt);
+      if (child.getState() === "interrupted") throw new Error("Interrupted");
       if (child.lastTurnError) throw new Error(child.lastTurnError);
       const lastAssistant = [...child.getMessages()]
         .reverse()
-        .find((m) => m.role === "assistant" && typeof m.content === "string" && m.content.trim().length > 0);
+        .find(
+          (m) =>
+            m.role === "assistant" &&
+            typeof m.content === "string" &&
+            m.content.trim().length > 0
+        );
       const output = lastAssistant?.content?.trim() ?? "";
       await this.emit("subagent.complete", { agentId, ok: true, output });
       return { agentId, output };
@@ -422,6 +1040,9 @@ export class AgentCore {
       const error = err instanceof Error ? err.message : String(err);
       await this.emit("subagent.complete", { agentId, ok: false, error });
       throw new Error(`subagent failed: ${error}`);
+    } finally {
+      unsubscribeReaction();
+      parentSignal.removeEventListener("abort", interruptChild);
     }
   }
 
@@ -432,52 +1053,158 @@ export class AgentCore {
     }
   }
 
-  private async runToolBatch(turnId: string, batch: ChatToolCall[]): Promise<void> {
+  private async runToolBatch(
+    turnId: string,
+    batch: ChatToolCall[]
+  ): Promise<void> {
     for (const call of batch) {
       const spec = this.toolSpecs.find((t) => t.name === call.name);
       if (!spec) {
-        await this.emit("tool.result", { callId: call.id, tool: call.name, ok: false, error: `unknown tool: ${call.name}` });
-        this.messages.push({ role: "tool", toolCallId: call.id, name: call.name, content: `unknown tool: ${call.name}` });
+        await this.emit("tool.result", {
+          callId: call.id,
+          tool: call.name,
+          ok: false,
+          error: `unknown tool: ${call.name}`,
+        });
+        this.messages.push({
+          role: "tool",
+          toolCallId: call.id,
+          name: call.name,
+          content: `unknown tool: ${call.name}`,
+        });
         continue;
       }
 
       const args = call.args ?? {};
       // 1) tool.call: a plugin may answer ({result}) or refuse ({deny})
-      const intercepted = await this.emit("tool.call", { tool: call.name, input: args, callId: call.id });
+      const intercepted = await this.emit("tool.call", {
+        tool: call.name,
+        input: args,
+        callId: call.id,
+        metadata: call.metadata,
+      });
       let result: unknown;
       let denied = false;
       let error: string | undefined;
 
-      const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
-      const interceptedResult = isObject(intercepted) && "result" in intercepted ? intercepted.result : undefined;
+      const isObject = (v: unknown): v is Record<string, unknown> =>
+        typeof v === "object" && v !== null;
+      const interceptedResult =
+        isObject(intercepted) && "result" in intercepted
+          ? intercepted.result
+          : undefined;
 
-      if (error === undefined && isObject(intercepted) && "deny" in intercepted) {
+      if (
+        error === undefined &&
+        isObject(intercepted) &&
+        "deny" in intercepted
+      ) {
         denied = true;
         error = `denied: ${String(intercepted.deny)}`;
       }
 
-      if (error === undefined && !(isObject(intercepted) && "result" in intercepted)) {
+      if (
+        error === undefined &&
+        !(isObject(intercepted) && "result" in intercepted)
+      ) {
         // 2) permissions via tool.check (chain may override with {decision})
         const descriptor = spec.describe(args);
+        if (descriptor.path && typeof (args as any).path === "string")
+          descriptor.path = resolvePath(this.options.cwd, (args as any).path);
         let decision = evaluate(descriptor, this.compiledRules, this.approvals);
+        let overrideReason: string | undefined;
         const checkRes = await this.emit("tool.check", {
           tool: call.name,
           input: args,
           callId: call.id,
           isReadOnly: call.name === "read",
         });
-        if (checkRes && typeof checkRes === "object" && "decision" in (checkRes as object)) {
-          const override = (checkRes as { decision: "allow" | "ask" | "deny"; reason?: string }).decision;
-          decision = { ...decision, decision: override };
+        if (
+          checkRes &&
+          typeof checkRes === "object" &&
+          "decision" in (checkRes as object)
+        ) {
+          const override = (
+            checkRes as { decision: "allow" | "ask" | "deny"; reason?: string }
+          ).decision;
+          if (decision.decision !== "deny") {
+            decision = { ...decision, decision: override };
+            overrideReason =
+              typeof (checkRes as any).reason === "string"
+                ? (checkRes as any).reason
+                : undefined;
+          }
         }
 
         if (decision.decision === "deny") {
           denied = true;
-          error = `denied by permission rules${decision.rule?.reason ? `: ${decision.rule.reason}` : ""}`;
+          error = `denied by permission rules${
+            overrideReason ?? decision.rule?.reason
+              ? `: ${overrideReason ?? decision.rule?.reason}`
+              : ""
+          }`;
         } else if (decision.decision === "ask") {
-          const allowed = this.onApproval
-            ? await this.onApproval({ tool: call.name, descriptor, reason: decision.rule?.reason })
+          let automatic = false;
+          try {
+            const review = await this.emit("service.permission.review", {
+              tool: call.name,
+              callId: call.id,
+              input: args,
+              descriptor,
+            });
+            const verdict = (
+              review as {
+                value?: { decision?: string; risk?: string; reason?: string };
+              }
+            )?.value;
+            automatic =
+              verdict?.decision === "allow" &&
+              verdict.risk === "low" &&
+              typeof verdict.reason === "string" &&
+              verdict.reason.length > 0;
+          } catch {
+            /* reviewer failure returns control to manual approval */
+          }
+          const answer = automatic
+            ? true
+            : this.onApproval
+            ? await (async () => {
+                const reaction = {
+                  source: "permissions",
+                  kind: "approval",
+                  id: call.id,
+                };
+                await this.emit("ui.reaction", { ...reaction, active: true });
+                try {
+                  return await this.onApproval!({
+                    tool: call.name,
+                    descriptor,
+                    reason: decision.rule?.reason,
+                    signal: this.abort.signal,
+                  });
+                } finally {
+                  await this.emit("ui.reaction", {
+                    ...reaction,
+                    active: false,
+                  });
+                }
+              })()
             : false;
+          const allowed = typeof answer === "boolean" ? answer : answer.allow;
+          if (
+            allowed &&
+            typeof answer === "object" &&
+            answer.scope &&
+            answer.scope !== "once"
+          ) {
+            this.approvals?.approve(descriptor, answer.scope);
+            if (answer.scope === "project" && this.approvals)
+              await this.options.persistApprovals?.(
+                this.approvals
+                  .list()
+                  .filter((approval) => approval.note === "project")
+              );
+          }
           if (!allowed) {
             denied = true;
             error = "denied: no approval (headless or user declined)";
@@ -487,12 +1214,15 @@ export class AgentCore {
         // 3) execute through the $ service chain
         if (!denied) {
           const ctx = this.buildToolContext();
-          const executed = await spec.execute(ctx, args);
-          if (executed.ok) {
-            result = executed.data;
-          } else {
-            error = executed.error;
-            denied = executed.denied ?? false;
+          try {
+            const executed = await spec.execute(ctx, args);
+            if (executed.ok) result = executed.data;
+            else {
+              error = executed.error;
+              denied = executed.denied ?? false;
+            }
+          } catch (caught) {
+            error = String(caught);
           }
         }
       } else if (error === undefined) {
@@ -520,12 +1250,27 @@ export class AgentCore {
   private buildToolContext(): ToolContext {
     return {
       cwd: this.options.cwd,
+      stateDir: this.options.storage?.paths.state,
+      env: this.options.toolEnv?.(),
+      fetch: this.options.fetch,
+      settings: (name: string) =>
+        this.options.storage?.config(name) ?? Promise.resolve({}),
       signal: this.abort.signal,
       undo: this.undo,
-      request: async <T = unknown>(service: string, payload: unknown): Promise<T> => {
+      request: async <T = unknown>(
+        service: string,
+        payload: unknown
+      ): Promise<T> => {
         const res = await this.host.emit(service, payload);
-        const v = (res as EmitValue).value as Record<string, unknown> | undefined;
-        if (v && typeof v === "object" && "deny" in v && typeof v.deny === "string") {
+        const v = (res as EmitValue).value as
+          | Record<string, unknown>
+          | undefined;
+        if (
+          v &&
+          typeof v === "object" &&
+          "deny" in v &&
+          typeof v.deny === "string"
+        ) {
           throw new Error(`denied by chain interceptor: ${v.deny}`);
         }
         if (v && typeof v === "object" && "value" in v) return v.value as T;
@@ -534,15 +1279,49 @@ export class AgentCore {
     };
   }
 
-  private request(): { messages: ChatMessage[]; tools: ToolDecl[]; signal: AbortSignal } {
+  private request(): CompletionRequest {
+    const messages: ChatMessage[] = [];
+    let pending = new Map<string, string>();
+    const close = () => {
+      for (const [id, name] of pending)
+        messages.push({
+          role: "tool",
+          toolCallId: id,
+          name,
+          content: "error: interrupted before a tool result was recorded",
+        });
+      pending.clear();
+    };
+    for (const message of this.messages) {
+      if (message.role === "tool") {
+        if (message.toolCallId && pending.has(message.toolCallId)) {
+          messages.push({ ...message });
+          pending.delete(message.toolCallId);
+        }
+        continue;
+      }
+      close();
+      messages.push({ ...message });
+      for (const call of message.toolCalls ?? [])
+        pending.set(call.id, call.name);
+    }
+    close();
     return {
-      messages: this.messages.map((m) => ({ ...m })),
-      tools: this.toolSpecs.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
+      messages,
+      tools: this.toolSpecs.map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      })),
       signal: this.abort.signal,
+      model: this.options.model?.(),
     };
   }
 
-  private async emit(event: string, input: Record<string, unknown>): Promise<unknown> {
+  private async emit(
+    event: string,
+    input: Record<string, unknown>
+  ): Promise<unknown> {
     this.broadcast({ kind: "catalog", event, input });
     const gen = this.runtime.emit(event, input);
     let step = await gen.next();
@@ -564,15 +1343,24 @@ export class AgentCore {
 
   private sessionEnsured: Promise<unknown> | undefined;
 
-  private async persist(event: string, input: Record<string, unknown>): Promise<void> {
+  private async persist(
+    event: string,
+    input: Record<string, unknown>
+  ): Promise<void> {
     if (!this.sessions) return;
     // the store requires a created session before append; ensure exactly once
     // (create is idempotent-ish: a second create for the same id is a no-op
     // error we swallow — the roll/meta may already exist from a prior run)
-    this.sessionEnsured ??= this.sessions.create(this.options.cwd, { id: this.sessionId }).catch(() => undefined);
+    this.sessionEnsured ??= this.sessions
+      .create(this.options.cwd, { id: this.sessionId })
+      .catch(() => undefined);
     try {
       await this.sessionEnsured;
-      await this.sessions.append(this.sessionId, [{ type: event, ...input }], this.options.cwd);
+      await this.sessions.append(
+        this.sessionId,
+        [{ type: event, ...input }],
+        this.options.cwd
+      );
     } catch {
       // storage is best-effort; the turn must not die on a full disk
     }

@@ -1,7 +1,19 @@
 {
   "name": "todos",
   "version": "1.0.0",
-  "description": "Persistent task list: the builtin todo tool keeps state in memory; this plugin mirrors every update to .agent-compositor/todos.json so the plan survives restarts (Claude Code TodoWrite + persistence). Drop this folder to remove.",
+  "description": "Persistent task list window. Restores tasks on startup, updates after todo tool calls, and opens with /todos. Placement is controlled by the compositor.",
   "trust": "trusted",
-  "capabilities": ["tool.result"]
+  "capabilities": [
+    "session.start",
+    "session.reload",
+    "prompt.submit",
+    "tool.result",
+    "service.ui.surface"
+  ],
+  "commands": [
+    {
+      "name": "/todos",
+      "description": "Open the persistent task list window"
+    }
+  ]
 }

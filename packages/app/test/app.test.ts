@@ -129,3 +129,70 @@ describe("main — the compositor binary", () => {
     expect(outText.join("")).toContain("usage:");
   });
 });
+
+describe("configured app features", () => {
+  it("injects skills and loads their full bodies through an interceptable service", async () => {
+    await fs.mkdir(path.join(tmp, ".agent-compositor/skills/demo"), { recursive: true });
+    await fs.writeFile(path.join(tmp, ".agent-compositor/skills/demo/SKILL.md"), "---\nname: demo\ndescription: Example workflow\n---\nFollow these steps.");
+    const provider = new ScriptedProvider([{ toolCalls: [{ name: "skills", args: { name: "demo" } }] }, { text: "loaded" }]);
+    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider });
+    const core = app.createCore(async () => false);
+    await core.submit("use demo");
+    expect(provider.requests[0].messages[0].content).toContain("demo: Example workflow");
+    expect(core.getMessages().find(m => m.role === "tool")?.content).toContain("Follow these steps");
+  });
+  it("applies config permissions and supports explicit compaction with resumable tail", async () => {
+    await fs.writeFile(path.join(tmp, "agent-compositor.json"), JSON.stringify({ permissions: { rules: [{ tool: "exec", decision: "deny" }] } }));
+    const provider = new ScriptedProvider([
+      { toolCalls: [{ name: "exec", args: { command: "echo blocked" } }] }, { text: "denied" },
+      ...Array.from({ length: 5 }, () => ({ text: "reply" })), { text: "summary" },
+    ]);
+    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider });
+    const core = app.createCore(async () => { throw new Error("must not ask"); });
+    await core.submit("run");
+    expect(core.getMessages().find(m => m.role === "tool")?.content).toContain("denied");
+    for (let i = 0; i < 5; i++) await core.submit(`turn ${i}`);
+    await core.compactNow();
+    expect(core.getMessages().some(m => m.content.includes("Summary of earlier"))).toBe(true);
+    const resumed = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, resumeSessionId: core.sessionId });
+    const continued = resumed.createCore(async () => false);
+    expect(continued.sessionId).toBe(core.sessionId);
+    expect(continued.getMessages()).toEqual(core.getMessages());
+  });
+  it("reloads edited disk hooks without restarting the session", async () => {
+    await makePlugin(path.join(tmp, "plugins"), "reloadable", 'export default { "prompt.submit": () => ({ text: "old" }) };');
+    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: new ScriptedProvider([{ text: "one" }, { text: "two" }]) });
+    const core = app.createCore(async () => false);
+    await core.submit("input");
+    await fs.writeFile(path.join(tmp, "plugins/reloadable/hooks.ts"), 'export default { "prompt.submit": () => ({ text: "new" }) };');
+    await app.reloadPlugins(core); await core.submit("input");
+    expect(core.getMessages().filter(m => m.role === "user").map(m => m.content)).toEqual(["old", "new"]);
+  });
+});
+
+describe("command discovery", () => {
+  it("lists only loaded plugin declarations, deduplicates them and refreshes on reload", async () => {
+    await makePlugin(path.join(tmp, "plugins"), "custom", 'export default { "prompt.submit": () => undefined };');
+    const manifest = path.join(tmp, "plugins/custom/plugin.json");
+    const metadata = { name: "custom", version: "1.0.0", trust: "trusted", commands: [{ name: "/custom", description: "Custom action" }] };
+    await fs.writeFile(manifest, JSON.stringify(metadata));
+    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: new ScriptedProvider([]) });
+    const builtins = ["/agents","/auth", "/login", "/logout", "/extensions", "/marketplace", "/archive", "/fork", "/model", "/reload", "/rename", "/resume", "/sessions", "/unarchive"];
+    expect(app.commands().map(c => c.name)).toEqual([...builtins, "/custom"].sort());
+    const core = app.createCore(async () => false);
+    metadata.commands = [{ name: "/changed", description: "Changed action" }];
+    await fs.writeFile(manifest, JSON.stringify(metadata));
+    await app.reloadPlugins(core);
+    expect(app.commands().map(c => c.name)).toEqual([...builtins, "/changed"].sort());
+  });
+});
+
+describe("placement panel persistence bridge", () => {
+  it("restores saved rules on restart without persisting other Apply-only changes", async () => {
+    const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: new ScriptedProvider([]) });
+    app.config.config.ui = { rules: [{ match: { plugin: "unsaved" }, site: "inspector" }] };
+    await app.savePlacement({ match: { plugin: "cost", surface: "usage" }, site: "sidebar", workspace: 2 });
+    const next = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: new ScriptedProvider([]) });
+    expect(next.config.config.ui?.rules).toEqual([{ match: { plugin: "cost", surface: "usage" }, site: "sidebar", workspace: 2 }]);
+  });
+});

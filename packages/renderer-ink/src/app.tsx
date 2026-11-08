@@ -1,5 +1,5 @@
 import React, { useEffect, useReducer } from "react";
-import { Box, Text, useInput, useStdin } from "ink";
+import { Box, Text, useInput, useStdin, useApp } from "ink";
 import type { InputData } from "./keys.js";
 import { mapKey } from "./keys.js";
 import type { RendererStore } from "./run.js";
@@ -36,10 +36,13 @@ function SurfaceView({
   decl,
   store,
   focused,
+  width, height, drop, controls, chrome, hovered,
 }: {
   decl: SurfaceDecl;
   store: RendererStore;
   focused: boolean;
+  width?: number; height?: number; drop?: string; controls?: boolean; hovered?: boolean;
+  chrome?: NonNullable<RendererStore["state"]["layout"]>["frames"][number]["chrome"];
 }) {
   const grid = store.state.grid(decl.id);
   if (!grid) return null;
@@ -47,11 +50,17 @@ function SurfaceView({
   const lines = grid.height;
   return (
     <Box
-      flexDirection="column"
-      borderStyle={isBar ? undefined : "round"}
-      borderColor={focused ? "cyan" : isBar ? undefined : "gray"}
+      flexDirection="column" width={width} height={height} overflow="hidden"
+      borderStyle={isBar ? undefined : chrome?.borderStyle ?? "single"}
+      borderColor={drop ? chrome?.warning ?? "yellow" : focused ? chrome?.accent ?? "cyan" : chrome?.border ?? "gray"}
     >
-      {!isBar && decl.title ? <Text bold>{decl.title}</Text> : null}
+      {!isBar && decl.title ? <Box height={1} flexDirection="row">
+        <Box flexGrow={1} flexShrink={1} overflow="hidden"><Text bold={focused} color={focused ? chrome?.accent : chrome?.muted}
+          backgroundColor={chrome?.titleBackground} wrap="truncate">{` ${drop ? `Drop ${drop === "center" ? "to swap" : drop} · ${decl.title}` : decl.title}`.padEnd(Math.max(0, (width ?? 0) - (controls ? 8 : 2)))}</Text></Box>
+        {controls && (width ?? 0) >= 14 ? <Text color={focused ? chrome?.accent ?? "cyan" : chrome?.muted ?? "gray"}
+          backgroundColor={chrome?.titleBackground}>{focused || hovered || chrome?.controls !== "focus" ? "[F][x]" : "      "}</Text> : null}
+      </Box> : null}
+      <Box flexDirection="column" paddingX={isBar || decl.id === "plugin-placement" ? 0 : 1}>
       {Array.from({ length: lines }, (_, row) => (
         <SegmentRow
           key={row}
@@ -59,6 +68,7 @@ function SurfaceView({
           height={1}
         />
       ))}
+      </Box>
     </Box>
   );
 }
@@ -75,13 +85,14 @@ export function RendererApp({
   onKey: (surface: string, data: InputData) => void;
 }) {
   const [, bump] = useReducer((x: number) => x + 1, 0);
+  const { suspendTerminal } = useApp();
+  useEffect(() => { store.suspend = suspendTerminal; return () => { store.suspend = undefined; }; }, [store, suspendTerminal]);
   useEffect(() => store.subscribe(bump), [store]);
 
   const { isRawModeSupported } = useStdin();
   if (isRawModeSupported) {
     // conditional: useInput throws when stdin has no raw mode (pipes, CI)
     useInput((input, key) => {
-      if (key.ctrl && input === "c") return; // exit is the host's decision (run loop handles it)
       const data = mapKey(input, key);
       const surface = store.state.focused;
       if (data && surface) onKey(surface, data);
@@ -89,6 +100,15 @@ export function RendererApp({
   }
 
   const surfaces = store.state.surfaceList();
+  const layout = store.state.layout;
+  if (layout) return <Box position="relative" width={layout.width} height={layout.height}>
+    {layout.frames.map(frame => {
+      const decl = store.state.surfaces.get(frame.surface);
+      return decl ? <Box key={frame.surface} position="absolute" marginLeft={frame.x} marginTop={frame.y} width={frame.width} height={frame.height}>
+        <SurfaceView decl={decl} store={store} focused={store.state.focused === frame.surface} width={frame.width} height={frame.height} drop={frame.drop} controls={frame.controls} chrome={frame.chrome} hovered={frame.hovered} />
+      </Box> : null;
+    })}
+  </Box>;
   return (
     <>
       {surfaces.map((decl) => (

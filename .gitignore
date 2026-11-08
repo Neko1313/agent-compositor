@@ -1,4 +1,54 @@
+# Dependencies and build output
 node_modules/
 dist/
+*.tsbuildinfo
+
+# Local application state: sessions, tasks, checkpoints, indexes and preferences
 .agent-compositor/
-**/tsconfig.tsbuildinfo
+
+# Test/eval reports and instrumenter caches
+reports/
+coverage/
+htmlcov/
+.nyc_output/
+.vitest/
+.vite/
+/runs/
+
+# Python environments and caches (including the local Harness² environment)
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+
+# Local secrets; retain shareable configuration templates
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.*.example
+!.env.*.sample
+!.env.*.template
+
+# Disposable caches, logs, temporary and editor backup files
+.cache/
+/tmp/
+.tmp/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

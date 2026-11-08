@@ -125,7 +125,7 @@ export class SessionStore {
     const upto = opts.uptoEventIndex ?? source.events.length;
     const meta = await this.create(source.meta.cwd, { name: opts.name, parentId: id });
     const events = source.events.slice(0, upto);
-    if (events.length > 0) await this.append(meta.id, events);
+    if (events.length > 0) await this.append(meta.id, events, source.meta.cwd);
     return { ...meta, eventCount: events.length };
   }
 
@@ -135,6 +135,14 @@ export class SessionStore {
     meta.updatedAt = this.now();
     await this.writeMeta(this.root(meta.cwd), meta);
     return meta;
+  }
+  async rename(id: string, name: string, cwd: string): Promise<SessionMeta> {
+    const meta = await this.requireMeta(id, cwd); meta.name = name.slice(0, 200); meta.updatedAt = this.now();
+    await this.writeMeta(this.root(meta.cwd), meta); return meta;
+  }
+  async unarchive(id: string, cwd: string): Promise<SessionMeta> {
+    const meta = await this.requireMeta(id, cwd); meta.archived = false; meta.updatedAt = this.now();
+    await this.writeMeta(this.root(meta.cwd), meta); return meta;
   }
 
   async remove(id: string, cwd?: string): Promise<void> {
@@ -152,9 +160,11 @@ export class SessionStore {
   }
 
   private rollPath(root: string, id: string): string {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) throw new Error("Invalid session id");
     return path.join(root, `${id}.jsonl`);
   }
   private metaPath(root: string, id: string): string {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) throw new Error("Invalid session id");
     return path.join(root, `${id}.meta.json`);
   }
 

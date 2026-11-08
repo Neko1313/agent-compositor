@@ -6,6 +6,10 @@ composed from plugins riding the event chain, not hardcoded in the loop.
 
 ## Run
 
+See [the agent features guide](../../docs/agent-features.md) for auto review,
+worktree agents, code/conversation checkpoints, web, credentials, quotas and
+extension installation.
+
 ```bash
 # from source (bun resolves the workspace TS directly)
 npm run start -w @agent-compositor/app
@@ -18,7 +22,7 @@ npm run build:binary -w @agent-compositor/app
 ## Flags
 
 ```
-compositor [--plugins dir ...] [--resume sessionId] [--cwd dir]
+compositor [--plugins dir ...] [--resume sessionId] [--cwd dir] [--plain]
 ```
 
 - `--plugins dir` — extra plugin directory (repeatable). Convention dirs
@@ -57,3 +61,275 @@ The plugin's `{result}` short-circuits the call: the builtin exec resolver
 never runs. `deny: "reason"` refuses instead. Anything else (or `undefined`)
 falls through to the next chain handler. See `examples/plugins/hello` for
 the fuller version (destructive-command refusal included).
+
+## Interactive UI
+
+In a terminal, the app starts the Ink UI automatically. The core-side
+`AppUI` controller exchanges versioned protocol messages with the renderer:
+hello/ack, declare, render, focus, input and bye. The renderer has no access
+to the agent state. Resizing reflows the visible conversation.
+
+- Enter submits a message or queues it while the agent is working.
+- Tab injects a steering message at the next model step.
+- Left/Right, Home/End, Backspace/Delete edit the input.
+- PageUp/PageDown scroll the conversation.
+- Y/N answers tool permission requests (once per call).
+- Ctrl+C interrupts work; when idle it exits.
+- `/reload` reloads disk plugins between turns, resetting plugin state.
+
+`--plain` forces the legacy line-oriented REPL; redirected input also uses
+that mode. It is retained for existing scripts and does not use the grid
+protocol. The interactive UI is the protocol-based product path.
+
+## App configuration
+
+```json
+{
+  "permissions": {
+    "rules": [{ "tool": "exec", "command": "git status*", "decision": "allow" }]
+  },
+  "compaction": { "enabled": true, "contextWindow": 32768 },
+  "skills": ["./team-skills"]
+}
+```
+
+Compaction is enabled by default with an estimated 32768-token window;
+configure it for your model. `/compact` summarizes older messages through
+the configured provider, preserving the system prompt and recent tail.
+The persisted compaction snapshot restores that same tail on resume.
+
+Skills are discovered in `.agent-compositor/skills`, configured directories,
+`~/.agent-compositor/skills`, `~/.claude/skills`, and `~/.cursor/skills`, in
+that priority order. The model receives a compact index and can use the
+`skills` tool to load a full body through `service.skills.load`.
+
+Plugin loading is shared with `@agent-compositor/loader`, including manifest
+validation and cache-busted imports. `hooks.ts`, index entries, default hook
+records and named `hooks` exports are supported. In the app, workspace/extra
+directories override global directories. Sandboxed plugins are rejected
+before importing their code until an explicit language host is available.
+Monty is the default replaceable backend for generated Python and workflows;
+it does not execute TypeScript plugin modules or legacy JavaScript workflows.
+See [sandbox setup and limits](../../plugins/monty/README.md).
+
+The default `callix` plugin uses a native binary for code graph navigation.
+See [installation and provider replacement](../../plugins/callix/README.md).
+
+## Tiling windows
+
+The terminal UI now uses a binary container tree. Conversation and tools
+start side by side; windows can be nested, resized, moved and closed. A
+focused window has an accent border. Message input stays in a dock and only
+receives typing when focused. Conversation views share the current agent
+session; creating a view does not spawn another agent. Scroll positions
+belong to individual windows. Layouts live in memory for this app run.
+
+| Shortcut | Action |
+|---|---|
+| Alt+h/j/k/l or Alt+arrows | Focus in a direction |
+| Alt+Shift+direction | Swap window with its directional neighbour |
+| Alt+b / Alt+v | Choose horizontal / vertical split for the next window |
+| Alt+Enter or Alt+s | Open another conversation view |
+| Alt+t | Open tools view |
+| Alt+q | Close focused window; collapse its empty container |
+| Alt+= / Alt+- | Grow / shrink the nearest split |
+| Alt+f | Toggle focused window fullscreen (input/status remain docked) |
+| Alt+1..9 | Switch workspace |
+| Alt+Shift+1..9 | Move focused window to workspace and follow it |
+| Alt+i | Focus message input |
+| Alt+? | Open shortcut reference |
+| Escape | Focus first window |
+
+Alt is used because terminal apps cannot reliably receive Super. Some
+terminal/desktop shortcuts may need remapping to pass Alt combinations.
+Small terminals display the focused branch when a split cannot fit.
+
+Plugins can publish an inert text window from a hook:
+
+```ts
+await $.ui.surface("tasks", "Tasks", "Build: running\nTests: pending");
+```
+
+Repeating the same id updates its content; it retains its workspace and
+placement. Plugin ids are namespaced. Input in a focused plugin window is
+emitted as `ui.press` with its surface id as `site`. Placement, splitting,
+focus and workspaces belong to the compositor, never to plugin code.
+The protocol's new `layout` message carries resolved rectangles; peers
+advertise `Layout` in their element capabilities. Older peers receive the
+existing sequential surface stream.
+
+
+Mouse focus is enabled automatically in an interactive TTY with SGR mouse
+support. Left-click a window (including its border) to focus it; click the
+message dock to type. Wheel up/down scrolls the window under the pointer.
+Permission prompts retain focus until answered. Mouse reporting is disabled
+on exit and the previous terminal screen is restored. Hold Shift to use the
+terminal's native text selection in terminals that support that override.
+
+Click a workspace number in the bottom bar to switch to it. Empty workspaces
+start with no windows; use Alt+Enter or Alt+t to open a view there.
+
+
+## Slash command suggestions
+
+Type `/` in the message dock to see commands declared by loaded plugins.
+Continue typing to filter by prefix. Up/Down selects a command; Tab or
+Enter completes the selection. Press Enter again to execute a completed
+command. Exact commands can be submitted directly. Escape hides the list;
+clicking a suggestion completes it. Normal Tab steering is unchanged outside
+the command list. `/reload` refreshes command metadata along with plugins.
+
+Declare commands in `plugin.json` to make your plugin discoverable:
+
+```json
+{
+  "name": "example", "version": "1.0.0", "trust": "trusted",
+  "commands": [{ "name": "/example", "description": "Run an example", "usage": "/example <argument>" }]
+}
+```
+
+The declaration supplies UI metadata; the plugin still handles execution
+in its `prompt.submit` hook.
+
+## Placement rules for plugin windows
+
+A plugin may request a named site when publishing a surface:
+
+```ts
+await $.ui.surface("usage", "Usage", "Tokens: 12 400", {
+  site: "sidebar", size: 0.25, focus: false
+});
+```
+
+Sites are compositor-managed tiling positions:
+
+- `split`: split the focused window, using the current split direction.
+- `sidebar`: split the workspace at the right edge.
+- `inspector`: split below `relativeTo` (defaults to `session` when present).
+- `status-bar`: split a strip below the workspace's windows. This remains a
+  movable plugin window; it does not replace the app's docked system bar.
+
+`size` is the new window's fraction of the target region (0.1–0.8).
+`workspace` selects 1–9. Named sites open in the background by default;
+`split` keeps the original focus-on-open behavior. Explicit `focus: true`
+follows the window to its workspace. Missing anchors fall back to the
+workspace region. Small terminals use the existing focused-branch fallback.
+
+Users override plugin hints in `agent-compositor.json`:
+
+```json
+{
+  "ui": {
+    "sites": {
+      "sidebar": { "size": 0.3, "focus": false }
+    },
+    "rules": [
+      {
+        "match": { "plugin": "cost", "surface": "usage" },
+        "site": "sidebar",
+        "workspace": 2,
+        "size": 0.25,
+        "focus": false
+      },
+      {
+        "match": { "plugin": "diagnostics" },
+        "site": "inspector",
+        "relativeTo": "session"
+      }
+    ]
+  }
+}
+```
+
+Matches use exact plugin names and local surface ids (the `usage` passed to
+`$.ui.surface`, before compositor namespacing). An omitted selector matches
+all. Later matching rules override earlier rules field by field. The final
+site is selected from rules or the plugin hint; that site's configured
+values override plugin hints, and matching rule values override both.
+`relativeTo` uses a compositor surface id (`session`, `tools`, or a
+namespaced plugin id).
+
+Placement runs only when a surface is first created (or recreated after
+closing). Updating its text does not steal focus, switch workspaces, or
+undo manual moves and resizing. External configuration edits apply after app restart. The placement panel below
+can apply and save individual plugin rules during a running session.
+
+
+## Manage plugin placement in the UI
+
+Click **[Plugins]** in the bottom bar, press **Alt+p**, or submit **/plugins**.
+The panel lists surfaces already published by plugins, including closed
+windows that can be reopened by applying placement. Plugins without a UI
+surface are not listed; the empty state explains this.
+
+Select **Window**, then change **Place**, **Workspace**, **Size**,
+**Neighbour** and **Focus on opening**. Use Up/Down (or Tab) to choose a
+field and Left/Right to change it; clicking a value cycles it forward.
+Click an action or select it and press Enter:
+
+- **Apply now** relocates the selected surface for this run.
+- **Save rule + apply** saves an exact plugin/surface rule to the project's
+  `.agent-compositor/agent-compositor.jsonc` and applies it immediately.
+- **Close** (or Escape) returns to the window layout.
+
+Saving preserves JSONC comments, unrelated settings and inherited placement
+rules. Malformed configuration and write failures are reported in the panel.
+Only the chosen rule is saved; Apply-only changes for other surfaces remain
+session-local. Saved placement is used when that plugin publishes its surface
+in later app sessions. This does not save the complete window tree or create
+plugin surfaces automatically.
+
+
+The default `todos` plugin now supplies a real plugin window. It opens at
+startup, restores tasks from `.agent-compositor/todos.json`, and updates
+when the agent uses `todo`. Use `/todos` to reopen it after closing.
+In **Plugins**, select **todos / Todos** to apply or save its placement.
+Markers: `[ ]` pending, `[~]` in progress, `[x]` completed.
+
+
+## Drag windows and resize with the mouse
+
+The interactive TUI enables SGR button-motion reporting automatically.
+
+- Drag a window's title or outer top border onto another window. Release
+  near an edge to split on that side; release in the center to swap windows.
+  A yellow target border and title show the pending operation.
+- Drag a separator (either border cell between two windows) to resize its
+  container. Changes preview live, with minimum sizes enforced.
+- Drag a title onto a workspace number to move the window there and follow it.
+- Click **[F]** in a window title to toggle fullscreen, **[x]** to close it.
+- Escape cancels a drag; resizing the terminal cancels the active gesture.
+  Dropping outside a window or workspace leaves window placement unchanged.
+
+Message input and the system bar remain docked. Plugin placement controls,
+permission prompts and slash suggestions react only to mouse presses, so
+releasing a drag does not trigger a second action. Dragging changes the
+current session's tiling layout; it does not automatically save placement
+rules. Use **Plugins → Save rule + apply** for explicit plugin rules.
+
+
+Mouse hover is reported without holding a button. The compositor requests
+`grab` over titles, directional resize pointers over separators, `pointer`
+over buttons/workspace tabs and `text` over input. During a drag it requests
+`grabbing` or `not-allowed`. The renderer uses OSC 22 mouse pointer shapes;
+terminal support is required (this controls the OS mouse pointer, not the
+text caret). Unsupported terminals keep their normal pointer. Mouse shape
+and reporting modes are reset when the app exits.
+
+## Appearance and presentation plugins
+
+The default UI gives conversation the main area, opens Tools on demand
+(Alt+t), distinguishes user/agent/tool rows, renders basic Markdown and uses
+a two-line contextual footer. Task text wraps at words with hanging indents.
+Ctrl+J inserts a newline; Shift+Enter works where supported by the terminal.
+Enter sends the whole draft. Up/Down browse this run's prompt history.
+
+The default `ui-theme` plugin offers `/theme slate|amber|mono` and remembers
+the choice in `.agent-compositor/theme.json`.
+
+Plugins can use `$.ui.configure` for palette, window chrome and presentation
+options, or return `{ tree: { lines: [...] } }` from `ui.render` to replace
+conversation, tools, status or plugin views. `ui.invalidate` refreshes cached
+views. Unloading removes a plugin's appearance contribution. Input and
+permission decisions remain host-owned. See [the UI plugin contract](../../docs/ui-theming.md)
+for examples, ordering and rendering constraints.

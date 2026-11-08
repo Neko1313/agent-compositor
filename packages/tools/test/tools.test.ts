@@ -34,11 +34,11 @@ function makeCtx(extra?: (service: string, payload: unknown, next: () => Promise
     undo,
     cwd,
     signal: new AbortController().signal,
-    async request(service, payload) {
+    async request<T = unknown>(service: string, payload: unknown): Promise<T> {
       const handler = handlers.get(service);
       if (!handler) throw new Error(`no resolver for ${service}`);
-      if (!extra) return handler(payload);
-      return extra(service, payload, () => handler(payload));
+      if (!extra) return handler(payload) as Promise<T>;
+      return extra(service, payload, () => handler(payload)) as Promise<T>;
     },
   };
 }

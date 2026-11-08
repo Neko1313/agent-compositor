@@ -143,33 +143,41 @@ function countOccurrences(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 
-/** whitespace-normalized matching: collapse runs of whitespace in both the
- *  needle and candidate windows so indentation drift still matches. */
+/** whitespace-normalized matching: collapse whitespace runs (with a raw-index
+ *  map) so indentation drift matches, then map matches back to raw offsets. */
 function normalizedReplace(content: string, oldText: string, newText: string, all: boolean): { content: string; count: number } {
-  const norm = (s: string) => s.replace(/\s+/g, " ");
-  const needle = norm(oldText);
   let count = 0;
-  let out = "";
-  let i = 0;
-  while (i < content.length) {
-    // grow a window to oldText's length, normalize, compare
-    const windowRaw = content.slice(i, i + oldText.length);
-    if (windowRaw.length < oldText.length) {
-      out += content.slice(i);
-      break;
-    }
-    if (norm(windowRaw) === needle) {
-      out += newText;
-      i += oldText.length;
-      count++;
-      if (!all) {
-        out += content.slice(i);
-        break;
-      }
-      continue;
-    }
-    out += content[i];
-    i++;
+  let result = content;
+  for (;;) {
+    const { norm, map } = normalizeWithMap(result);
+    const needle = normalizeWithMap(oldText).norm;
+    const idx = norm.indexOf(needle);
+    if (idx === -1) break;
+    const rawStart = map[idx];
+    const rawEnd = map[idx + needle.length - 1] + 1;
+    result = result.slice(0, rawStart) + newText + result.slice(rawEnd);
+    count++;
+    if (!all) break;
   }
-  return { content: out, count };
+  return { content: result, count };
+}
+
+function normalizeWithMap(s: string): { norm: string; map: number[] } {
+  let norm = "";
+  const map: number[] = [];
+  let inWhitespace = false;
+  for (let i = 0; i < s.length; i++) {
+    if (/\s/.test(s[i])) {
+      if (!inWhitespace) {
+        norm += " ";
+        map.push(i);
+        inWhitespace = true;
+      }
+    } else {
+      norm += s[i];
+      map.push(i);
+      inWhitespace = false;
+    }
+  }
+  return { norm, map };
 }

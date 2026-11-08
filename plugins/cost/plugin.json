@@ -1,0 +1,7 @@
+{
+  "name": "cost",
+  "version": "1.0.0",
+  "description": "/cost and /usage — token accounting from turn.usage events (Claude Code /cost analog). Tally survives across turns in plugin state; drop this folder to remove.",
+  "trust": "trusted",
+  "capabilities": ["turn.usage", "prompt.submit"]
+}

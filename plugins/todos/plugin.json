@@ -1,0 +1,7 @@
+{
+  "name": "todos",
+  "version": "1.0.0",
+  "description": "Persistent task list: the builtin todo tool keeps state in memory; this plugin mirrors every update to .agent-compositor/todos.json so the plan survives restarts (Claude Code TodoWrite + persistence). Drop this folder to remove.",
+  "trust": "trusted",
+  "capabilities": ["tool.result"]
+}

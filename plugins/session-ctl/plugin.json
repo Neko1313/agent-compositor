@@ -1,0 +1,7 @@
+{
+  "name": "session-ctl",
+  "version": "1.0.0",
+  "description": "/compact — force context compaction now; /clear — drop the conversation, keep the system prompt (Claude Code /compact and /clear analogs). Both ride $.agent. Drop this folder to remove.",
+  "trust": "trusted",
+  "capabilities": ["prompt.submit"]
+}

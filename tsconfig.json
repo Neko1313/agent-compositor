@@ -14,6 +14,9 @@
       "path": "packages/session"
     },
     {
+      "path": "packages/tools"
+    },
+    {
       "path": "packages/protocol"
     },
     {

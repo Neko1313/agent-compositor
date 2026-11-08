@@ -1,0 +1,17 @@
+{
+  "name": "@agent-compositor/tools",
+  "version": "0.1.0",
+  "description": "Builtin tools (exec/read/write/edit) riding the $ API: implementations emit service.* events so core operations stay interceptable by plugins. Semantics harvested from the kimi fork + Claude Code.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-compositor/permissions": "^0.1.0",
+    "zod": "^3.24.0"
+  }
+}

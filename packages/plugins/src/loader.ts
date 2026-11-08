@@ -6,10 +6,23 @@ import type { PluginManifest, TrustClass } from "@agent-compositor/runtime";
 export interface DiskPlugin {
   manifest: PluginManifest;
   hooks: Record<string, unknown>;
+  /** optional model-facing tools (tools.ts module; appended to the core toolset) */
+  tools: PluginTool[];
   /** disk plugins always ride the user tier of the hook chain */
   tier: "user";
   /** absolute path of the plugin directory (for diagnostics) */
   dir: string;
+}
+
+/** Structural shape of a model-facing tool a plugin can ship (tools.ts).
+ *  Mirrors core's ToolSpec without importing it — the plugin loader stays
+ *  dependency-light. */
+export interface PluginTool {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  describe(args: unknown): unknown;
+  execute(ctx: unknown, args: unknown): Promise<unknown>;
 }
 
 export interface LoadResult {
@@ -100,20 +113,29 @@ async function loadOne(pluginDir: string): Promise<DiskPlugin> {
 
   const entry = manifestJson.entry ?? "hooks.ts";
   const entryPath = path.join(pluginDir, entry);
-  await fs.access(entryPath).catch(() => {
+  const toolsPath = path.join(pluginDir, "tools.ts");
+  const hasHooks = await fs.access(entryPath).then(() => true, () => false);
+  const hasTools = await fs.access(toolsPath).then(() => true, () => false);
+  if (!hasHooks && !hasTools) {
     throw new Error(`missing hooks entry: ${entry}`);
-  });
+  }
 
-  const mod = (await import(pathToFileURL(entryPath).href)) as Record<string, unknown>;
-  const hooks = (mod.default ?? mod.hooks) as Record<string, unknown> | undefined;
-  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
-    throw new Error(`hooks entry must export a record of event-name → hook function (default or named "hooks")`);
-  }
-  for (const [eventName, fn] of Object.entries(hooks)) {
-    if (typeof fn !== "function") {
-      throw new Error(`hook for "${eventName}" is not a function`);
+  let hooks: Record<string, unknown> = {};
+  if (hasHooks) {
+    const mod = (await import(pathToFileURL(entryPath).href)) as Record<string, unknown>;
+    const loaded = (mod.default ?? mod.hooks) as Record<string, unknown> | undefined;
+    if (!loaded || typeof loaded !== "object" || Array.isArray(loaded)) {
+      throw new Error(`hooks entry must export a record of event-name → hook function (default or named "hooks")`);
     }
+    for (const [eventName, fn] of Object.entries(loaded)) {
+      if (typeof fn !== "function") {
+        throw new Error(`hook for "${eventName}" is not a function`);
+      }
+    }
+    hooks = loaded;
   }
+
+  const tools = hasTools ? await loadToolsModule(toolsPath) : [];
 
   const manifest: PluginManifest = {
     name: manifestJson.name,
@@ -122,5 +144,25 @@ async function loadOne(pluginDir: string): Promise<DiskPlugin> {
     trust,
     capabilities: manifestJson.capabilities,
   };
-  return { manifest, hooks, tier: "user" as const, dir: pluginDir };
+  return { manifest, hooks, tools, tier: "user" as const, dir: pluginDir };
+}
+
+async function loadToolsModule(toolsPath: string): Promise<PluginTool[]> {
+  const mod = (await import(pathToFileURL(toolsPath).href)) as Record<string, unknown>;
+  const tools = (mod.default ?? mod.tools) as unknown;
+  if (!Array.isArray(tools)) {
+    throw new Error(`tools entry must export an array of tools (default or named "tools")`);
+  }
+  return tools.map((tool, i) => {
+    const t = tool as Partial<PluginTool>;
+    if (!t || typeof t !== "object") throw new Error(`tools[${i}] is not an object`);
+    if (typeof t.name !== "string" || !t.name) throw new Error(`tools[${i}] missing name`);
+    if (typeof t.description !== "string") throw new Error(`tools[${i}] (${t.name}) missing description`);
+    if (!t.parameters || typeof t.parameters !== "object" || Array.isArray(t.parameters)) {
+      throw new Error(`tools[${i}] (${t.name}) missing parameters object`);
+    }
+    if (typeof t.describe !== "function") throw new Error(`tools[${i}] (${t.name}) missing describe()`);
+    if (typeof t.execute !== "function") throw new Error(`tools[${i}] (${t.name}) missing execute()`);
+    return t as PluginTool;
+  });
 }

@@ -114,4 +114,3 @@ function globToRegExpCached(g: string): RegExp {
   return re;
 }
 
-import { globToRegExp, urlMatches } from "./glob.js";

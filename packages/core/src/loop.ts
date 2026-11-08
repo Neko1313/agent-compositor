@@ -296,17 +296,14 @@ export class AgentCore {
       let error: string | undefined;
 
       const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+      const interceptedResult = isObject(intercepted) && "result" in intercepted ? intercepted.result : undefined;
 
-      if (isObject(intercepted)) {
-        if ("result" in intercepted) {
-          result = intercepted.result;
-        } else if ("deny" in intercepted) {
-          denied = true;
-          error = `denied: ${String(intercepted.deny)}`;
-        }
+      if (error === undefined && isObject(intercepted) && "deny" in intercepted) {
+        denied = true;
+        error = `denied: ${String(intercepted.deny)}`;
       }
 
-      if (error === undefined && !isObject(intercepted)) {
+      if (error === undefined && !(isObject(intercepted) && "result" in intercepted)) {
         // 2) permissions via tool.check (chain may override with {decision})
         const descriptor = spec.describe(args);
         let decision = evaluate(descriptor, this.compiledRules, this.approvals);
@@ -316,7 +313,7 @@ export class AgentCore {
           callId: call.id,
           isReadOnly: call.name === "read",
         });
-        if (checkRes && typeof checkRes === "object" && "decision" in checkRes) {
+        if (checkRes && typeof checkRes === "object" && "decision" in (checkRes as object)) {
           const override = (checkRes as { decision: "allow" | "ask" | "deny"; reason?: string }).decision;
           decision = { ...decision, decision: override };
         }
@@ -345,6 +342,8 @@ export class AgentCore {
             denied = executed.denied ?? false;
           }
         }
+      } else if (error === undefined) {
+        result = interceptedResult;
       }
 
       await this.emit("tool.result", {

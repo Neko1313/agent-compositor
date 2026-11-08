@@ -1,0 +1,25 @@
+{
+  "name": "@agent-compositor/renderer-ink",
+  "version": "0.1.0",
+  "description": "Reference terminal renderer: consumes the wire protocol (declare/render/focus) and draws it with Ink; keystrokes become input messages. Render-only by contract.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-compositor/protocol": "^0.1.0",
+    "ink": "^8.0.0",
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "ink-testing-library": "^4.0.0"
+  }
+}

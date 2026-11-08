@@ -5,6 +5,8 @@
     { "path": "packages/protocol" },
     { "path": "packages/runtime" },
     { "path": "packages/hooks" },
+    { "path": "packages/loader" },
+    { "path": "packages/renderer-ink" },
     { "path": "examples" }
   ]
 }

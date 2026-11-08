@@ -25,6 +25,7 @@ A model provider integrates via plugins, not by forking: override the login with
 | [`@agent-compositor/runtime`](packages/runtime) | Event dispatcher: onion hook chains with tier ordering (prepend→user→append→builtin→core), own/thread/yield budgets, fail-operational faults, chain trace (`--plugin-trace`). |
 | [`@agent-compositor/hooks`](packages/hooks) | The `$` API (Xwayland surface): every `$` method is itself a `service.*` event — plugins intercept each other's calls with `{deny}`/`{value}`; per-plugin state, workspace-confined fs, model/auth provider contracts. |
 | [`@agent-compositor/loader`](packages/loader) | Plugin loader: discovers `plugins/*/plugin.json` on disk (project + user config dirs), registers through the HooksHost with tier/trust from the manifest, hot-reloads with reverse teardown. |
+| [`@agent-compositor/renderer-ink`](packages/renderer-ink) | Reference terminal renderer: consumes the wire protocol (declare/render/focus), draws surfaces with Ink 8, turns keystrokes into `input` messages. Render-only by contract — the core it faces could be in-process or across a pipe. |
 
 Try the end-to-end headless demo (stdout = protocol JSONL, stderr = chain trace):
 
@@ -35,7 +36,7 @@ npm install && npm run example:headless
 Or the disk-plugin demo (load → run → edit on disk → hot-reload):
 
 ```sh
-npm run example:loader
+npm run example:loader   # or: npm run example:ink (interactive TUI)
 ```
 
 ## Documentation

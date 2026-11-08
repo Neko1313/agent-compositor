@@ -85,7 +85,11 @@ JSONL, semver. Messages:
 | renderer → core | `input` | Input → the focused pane |
 | both | `focus`, `invalidate` | Focus transfer, damaged-region marking |
 
-The renderer never calls the core outside the protocol.
+The renderer never calls the core outside the protocol. `hello`/`hello-ack` negotiate version and shared surfaces at session start.
+
+The acceptance test is behavioral: two renderers on the same event log must produce identical user-visible output. `@agent-compositor/renderer-ink` is the reference terminal implementation (Ink 8, grid state machine + React view); a web/desktop renderer can replace it without touching the core.
+
+Renderers own: cell-grid semantics (full/diff ops, scroll, cursor), style mapping to their toolkit, input key mapping. Renderers never own: focus policy for panes they didn't draw, event ordering, plugin state.
 
 ## Implementation status
 

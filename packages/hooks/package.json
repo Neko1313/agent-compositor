@@ -1,6 +1,6 @@
 {
   "name": "@agent-compositor/hooks",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The $ API: plugin-facing surface over the dispatcher. Every $ method is itself an event (service.*) that plugins can intercept.",
   "type": "module",
   "main": "./src/index.ts",
@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agent-compositor/events": "^0.2.0",
+    "@agent-compositor/events": "^0.3.0",
     "@agent-compositor/runtime": "^0.1.0",
     "zod": "^3.24.0"
   }

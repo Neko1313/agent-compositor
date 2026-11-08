@@ -1,0 +1,25 @@
+{
+  "name": "@agent-compositor/agent",
+  "version": "0.1.0",
+  "description": "Reference agent loop: prompt → model → tools, fired through the catalog so plugins sit on every seam.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agent-compositor/events": "^0.3.0",
+    "@agent-compositor/hooks": "^0.3.0",
+    "@agent-compositor/protocol": "^0.1.0",
+    "@agent-compositor/runtime": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

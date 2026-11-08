@@ -8,6 +8,7 @@ export const turnStart = defineEvent({
   summary: "A turn begins.",
   input: z.object({ turnId: z.string() }),
   responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
+  aliases: ["turn.started"],
   frozen: true,
 });
 
@@ -24,6 +25,7 @@ export const turnStep = defineEvent({
   responses: [
     { kind: "next", summary: "pass on; may change model/effort", schema: z.unknown() },
   ],
+  aliases: ["turn.step.started"],
   generator: true,
   frozen: true,
 });
@@ -38,7 +40,7 @@ export const turnComplete = defineEvent({
     { kind: "next", summary: "proceed", schema: z.unknown() },
     { kind: "text", summary: "append a status line", schema: z.object({ text: z.string() }) },
   ],
-  aliases: ["classic.Stop"],
+  aliases: ["classic.Stop", "turn.completed"],
   frozen: true,
 });
 

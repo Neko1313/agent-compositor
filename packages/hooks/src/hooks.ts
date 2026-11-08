@@ -31,6 +31,13 @@ export interface HooksApi {
     read(path: string): Promise<string>;
     write(path: string, content: string): Promise<void>;
   };
+  exec: {
+    run(
+      cmd: string,
+      args?: string[],
+      opts?: { timeoutMs?: number },
+    ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  };
   model: {
     complete(request: ModelRequest): Promise<unknown>;
   };
@@ -63,6 +70,11 @@ export class HooksHost {
   private readonly pluginState = new Map<string, Map<string, unknown>>();
   private readonly rendering = new Set<string>();
   private readonly workspaceRoot: string;
+
+  /** The workspace the $ API confines fs/exec to. */
+  get root(): string {
+    return this.workspaceRoot;
+  }
   private readonly fsReadMax: number;
   private readonly fsWriteMax: number;
 
@@ -152,6 +164,14 @@ export class HooksHost {
         read: (path) => callService("service.fs.read", { path }) as Promise<string>,
         write: (path, content) => callService("service.fs.write", { path, content }) as Promise<void>,
       },
+      exec: {
+        run: (cmd, args, opts) =>
+          callService("service.exec.run", { cmd, args, timeoutMs: opts?.timeoutMs }) as Promise<{
+            exitCode: number;
+            stdout: string;
+            stderr: string;
+          }>,
+      },
       model: {
         complete: (request) => callService("service.model.complete", { request }),
       },
@@ -210,6 +230,20 @@ export class HooksHost {
       await mkdir(dirname(abs), { recursive: true });
       await writeFile(abs, content, "utf8");
       return { value: undefined };
+    });
+
+    r.setResolver("service.exec.run", async ({ cmd, args, timeoutMs }: { cmd: string; args?: string[]; timeoutMs?: number }) => {
+      const { execFile } = await import("node:child_process");
+      return {
+        value: await new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve, reject) => {
+          const child = execFile(cmd, args ?? [], { cwd: root, shell: false, timeout: timeoutMs ?? 30_000 },
+            (error, stdout, stderr) => {
+              if (error && (error as NodeJS.ErrnoException).code === "ABORT_ERR") return;
+              resolve({ exitCode: child.exitCode ?? -1, stdout, stderr });
+            });
+          child.on("error", reject);
+        }),
+      };
     });
 
     r.setResolver("service.model.complete", async ({ request }: { request: ModelRequest }) => {

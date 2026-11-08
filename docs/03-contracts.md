@@ -93,8 +93,18 @@ Renderers own: cell-grid semantics (full/diff ops, scroll, cursor), style mappin
 
 ## Implementation status
 
-The base runtime is implemented in the kimi-code fork and has passed an external review (Claude Mods API compatibility is pinned by a fixture). Open items:
+The base runtime is implemented in the kimi-code fork and has passed an external review (Claude Mods API compatibility is pinned by a fixture). In this repo the kernel-side packages are implemented and tested end-to-end:
 
-1. A versioned event catalog (`docs/events.md` + CI checks);
-2. Chain trace (`--plugin-trace`) — tracing an event's path through the handler chain;
-3. Explicit priority instead of registration order.
+- **events** — versioned catalog (26 events), generated docs + JSON schema, CI-frozen shapes;
+- **runtime** — onion-chain dispatcher with thread/own/yield budgets, fail-operational faults, chain trace (`--plugin-trace`);
+- **hooks** — mods-style `(event, $)` layer; every `$` method is a `service.*` event; per-plugin state; workspace confinement for fs/exec;
+- **loader** — disk discovery, manifest validation, tiered registration, hot reload with reverse teardown;
+- **protocol** — JSONL wire codec + handshake with version negotiation;
+- **renderer-ink** — reference terminal renderer (grid state machine + Ink view); runs the full contour disk → runtime → protocol → Ink with input routed back;
+- **agent** — reference agent loop: `prompt.submit → turn.start → service.model.complete → tool.call → tool.check → service.exec.run/service.fs.* → turn.complete`. Builtin tools ride the $ API events, so core operations are interceptable like anything else. Providers: OpenAI-compatible streaming (fetch, no SDK) + scripted provider for tests. `SessionPane` streams assistant text to the wire as grid diff ops.
+
+Open items:
+
+1. Explicit priority instead of registration order;
+2. Structured core→renderer delta channel (today streaming renders as grid diffs; a web/desktop renderer may want a protocol minor with typed deltas);
+3. Porting the kimi-code agent core behind the same event seam (decision pending: adapter repo boundary vs. deep port).

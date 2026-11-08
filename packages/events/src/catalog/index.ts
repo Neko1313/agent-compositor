@@ -35,6 +35,7 @@ export const catalog: readonly EventDef[] = [
   // $ API surface: each method is itself an event
   services.serviceFsRead,
   services.serviceFsWrite,
+  services.serviceExecRun,
   services.serviceModelComplete,
   services.serviceAuthLogin,
   services.serviceUiNotify,

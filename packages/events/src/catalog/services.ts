@@ -52,6 +52,21 @@ export const serviceAuthLogin = defineEvent({
   frozen: true,
 });
 
+export const serviceExecRun = defineEvent({
+  name: "service.exec.run",
+  since: "0.3.0",
+  version: 1,
+  summary: "$.exec.run(cmd, args?, opts?): run a workspace-confined subprocess (default 30 s timeout).",
+  input: z.object({
+    plugin: z.string(),
+    cmd: z.string(),
+    args: z.array(z.string()).optional(),
+    timeoutMs: z.number().int().positive().optional(),
+  }),
+  responses: denyValue,
+  frozen: true,
+});
+
 export const serviceUiNotify = defineEvent({
   name: "service.ui.notify",
   since: "0.2.0",

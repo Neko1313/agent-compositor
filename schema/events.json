@@ -257,7 +257,9 @@
       "summary": "A turn begins.",
       "namespace": "turn",
       "generator": false,
-      "aliases": [],
+      "aliases": [
+        "turn.started"
+      ],
       "frozen": true,
       "input": {
         "note": "opaque"
@@ -277,7 +279,9 @@
       "summary": "One request is about to go to the model. Async-generator hook: may yield intermediate values.",
       "namespace": "turn",
       "generator": true,
-      "aliases": [],
+      "aliases": [
+        "turn.step.started"
+      ],
       "frozen": true,
       "input": {
         "note": "opaque"
@@ -298,7 +302,8 @@
       "namespace": "turn",
       "generator": false,
       "aliases": [
-        "classic.Stop"
+        "classic.Stop",
+        "turn.completed"
       ],
       "frozen": true,
       "input": {
@@ -474,6 +479,32 @@
       "since": "0.2.0",
       "version": 1,
       "summary": "$.fs.write(path, content): write a workspace-confined file (max 10 MB).",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.exec.run": {
+      "since": "0.3.0",
+      "version": 1,
+      "summary": "$.exec.run(cmd, args?, opts?): run a workspace-confined subprocess (default 30 s timeout).",
       "namespace": "service",
       "generator": false,
       "aliases": [],

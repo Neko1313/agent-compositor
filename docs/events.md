@@ -15,9 +15,9 @@
 | `tool.call` | 0.1.0 | 1 | A tool is about to run. Return { result } to answer it, { deny } to refuse, or pass the (rewritten) event to next(). | `next`, `deny`, `result` | `classic.PreToolUse` |
 | `tool.check` | 0.1.0 | 1 | Pre-execution decision, after tool.call and rules. Resolves to the allow/ask/deny decision. | `next`, `decision` | — |
 | `tool.describe` | 0.1.0 | 1 | Once per tool, when its description is first sent to the model. | `next`, `description` | — |
-| `turn.start` | 0.1.0 | 1 | A turn begins. | `next` | — |
-| `turn.step` | 0.1.0 | 1 | One request is about to go to the model. Async-generator hook: may yield intermediate values. | `next` | — |
-| `turn.complete` | 0.1.0 | 1 | A turn ended. May show a line under the answer. | `next`, `text` | `classic.Stop` |
+| `turn.start` | 0.1.0 | 1 | A turn begins. | `next` | `turn.started` |
+| `turn.step` | 0.1.0 | 1 | One request is about to go to the model. Async-generator hook: may yield intermediate values. | `next` | `turn.step.started` |
+| `turn.complete` | 0.1.0 | 1 | A turn ended. May show a line under the answer. | `next`, `text` | `classic.Stop`, `turn.completed` |
 | `agent.offer` | 0.1.0 | 1 | A subagent type is offered to the model. | `next`, `withhold` | — |
 | `agent.spawn` | 0.1.0 | 1 | A subagent or teammate is about to start (or resume). May pick its model or deny. | `next`, `deny` | — |
 | `ui.render` | 0.1.0 | 1 | A render site is about to be drawn. Return an element tree. Writing plugin state during render is forbidden. | `tree` | — |
@@ -26,6 +26,7 @@
 | `ui.invalidate` | 0.1.0 | 1 | Damage tracking: the plugin marks changed regions of its pane. | — | — |
 | `service.fs.read` | 0.2.0 | 1 | $.fs.read(path): read a workspace-confined file (max 1 MB). | `deny`, `value` | — |
 | `service.fs.write` | 0.2.0 | 1 | $.fs.write(path, content): write a workspace-confined file (max 10 MB). | `deny`, `value` | — |
+| `service.exec.run` | 0.3.0 | 1 | $.exec.run(cmd, args?, opts?): run a workspace-confined subprocess (default 30 s timeout). | `deny`, `value` | — |
 | `service.model.complete` | 0.2.0 | 1 | $.model.complete(request): call the configured model provider. | `deny`, `value` | — |
 | `service.auth.login` | 0.2.0 | 1 | $.auth.login(provider?): run the auth flow of the configured auth capability. | `deny`, `value` | — |
 | `service.ui.notify` | 0.2.0 | 1 | $.ui.notify(message, level?): post a transient status message. | `deny`, `value` | — |
@@ -40,4 +41,4 @@
 - **turn**: `turn.start`, `turn.step`, `turn.complete`
 - **agent**: `agent.offer`, `agent.spawn`
 - **ui**: `ui.render`, `ui.press`, `ui.focus`, `ui.invalidate`
-- **service**: `service.fs.read`, `service.fs.write`, `service.model.complete`, `service.auth.login`, `service.ui.notify`, `service.telemetry.log`
+- **service**: `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.notify`, `service.telemetry.log`

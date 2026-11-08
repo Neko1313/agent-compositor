@@ -14,8 +14,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agent-compositor/events": "^0.2.0",
-    "@agent-compositor/hooks": "^0.2.0",
+    "@agent-compositor/events": "^0.3.0",
+    "@agent-compositor/hooks": "^0.3.0",
     "@agent-compositor/runtime": "^0.1.0",
     "zod": "^3.24.0"
   }

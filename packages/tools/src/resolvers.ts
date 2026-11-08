@@ -12,11 +12,11 @@ export interface ResolverBus {
 }
 
 export function registerDefaultResolvers(bus: ResolverBus): void {
-  bus.on("service.exec.run", runExec);
-  bus.on("service.fs.read", readFileRange);
-  bus.on("service.fs.readText", readText);
-  bus.on("service.fs.write", writeFile);
-  bus.on("service.fs.edit", editFile);
+  bus.on("service.shell.exec", runExec);
+  bus.on("service.file.read", readFileRange);
+  bus.on("service.file.readText", readText);
+  bus.on("service.file.write", writeFile);
+  bus.on("service.file.edit", editFile);
 }
 
 const MAX_OUTPUT = 512 * 1024;

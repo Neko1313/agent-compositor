@@ -59,9 +59,9 @@ describe("exec tool", () => {
     if (result.ok) expect(result.data.exitCode).toBe(3);
   });
 
-  it("a plugin can deny service.exec.run before the resolver", async () => {
+  it("a plugin can deny service.shell.exec before the resolver", async () => {
     const ctx = makeCtx(async (service, _payload, next) => {
-      if (service === "service.exec.run") throw new Error("denied by policy plugin");
+      if (service === "service.shell.exec") throw new Error("denied by policy plugin");
       return next();
     });
     const result = await execTool.execute(ctx, { command: "echo hi" });

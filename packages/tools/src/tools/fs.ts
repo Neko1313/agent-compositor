@@ -28,7 +28,7 @@ export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
   describe: (args) => ({ tool: "read", path: path.resolve(args.path) }),
   async execute(ctx, args): Promise<ToolResult<ReadOutcome>> {
     try {
-      const outcome = await ctx.request<ReadOutcome>("service.fs.read", {
+      const outcome = await ctx.request<ReadOutcome>("service.file.read", {
         path: path.resolve(ctx.cwd, args.path),
         offset: args.offset,
         limit: args.limit,
@@ -57,8 +57,8 @@ export const writeTool: ToolSpec<WriteArgs, { path: string; bytes: number }> = {
   async execute(ctx, args): Promise<ToolResult<{ path: string; bytes: number }>> {
     const target = path.resolve(ctx.cwd, args.path);
     try {
-      const previous = await ctx.request<string | null>("service.fs.readText", { path: target });
-      const outcome = await ctx.request<{ path: string; bytes: number }>("service.fs.write", {
+      const previous = await ctx.request<string | null>("service.file.readText", { path: target });
+      const outcome = await ctx.request<{ path: string; bytes: number }>("service.file.write", {
         path: target,
         content: args.content,
       });

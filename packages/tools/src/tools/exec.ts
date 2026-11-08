@@ -15,7 +15,7 @@ export interface ExecOutcome {
 }
 
 /**
- * Shell execution. The tool itself only emits `service.exec.run` — the
+ * Shell execution. The tool itself only emits `service.shell.exec` — the
  * default resolver (resolvers.ts) spawns the process; a plugin can sit in
  * the chain to sandbox, log, or rewrite the command before it runs.
  */
@@ -34,7 +34,7 @@ export const execTool: ToolSpec<ExecArgs, ExecOutcome> = {
   describe: (args) => ({ tool: "exec", command: splitCommand(args.command) }),
   async execute(ctx, args): Promise<ToolResult<ExecOutcome>> {
     try {
-      const outcome = await ctx.request<ExecOutcome>("service.exec.run", {
+      const outcome = await ctx.request<ExecOutcome>("service.shell.exec", {
         command: args.command,
         cwd: args.cwd ?? ctx.cwd,
         timeoutMs: args.timeoutMs ?? 120_000,

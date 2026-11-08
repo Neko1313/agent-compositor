@@ -1,0 +1,112 @@
+/**
+ * The streaming model-provider contract. The core only speaks this; adapters
+ * for OpenAI-compatible APIs, Anthropic, or test scripts plug in behind it.
+ */
+export interface ChatToolCall {
+  id: string;
+  name: string;
+  args: unknown;
+}
+
+export interface ChatMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  toolCallId?: string;
+  name?: string;
+  toolCalls?: ChatToolCall[];
+}
+
+export interface ToolDecl {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export type ProviderEvent =
+  | { type: "text_delta"; text: string }
+  | { type: "tool_call"; id: string; name: string; args: unknown }
+  | { type: "usage"; inputTokens: number; outputTokens: number }
+  | { type: "finish"; reason: "stop" | "tool_calls" | "length" | "error"; error?: string };
+
+export interface CompletionRequest {
+  messages: ChatMessage[];
+  tools: ToolDecl[];
+  signal: AbortSignal;
+  model?: string;
+}
+
+export interface ModelProvider {
+  readonly name: string;
+  complete(req: CompletionRequest): AsyncIterable<ProviderEvent>;
+}
+
+/** One canned step of a scripted conversation. `hold` parks the stream until
+ * release() or abort — deterministic hooks for steer/queue/interrupt tests. */
+export interface ScriptedStep {
+  text?: string;
+  toolCalls?: { name: string; args: unknown }[];
+  finish?: "stop" | "tool_calls" | "length" | "error";
+  error?: string;
+  usage?: { inputTokens: number; outputTokens: number };
+  hold?: boolean;
+}
+
+/**
+ * Deterministic provider for tests and headless demos. Each complete() call
+ * consumes one script step; every request is recorded so tests can assert
+ * exactly what the loop sent (steer injection, tool-result feedback).
+ */
+export class ScriptedProvider implements ModelProvider {
+  readonly name = "scripted";
+  readonly requests: CompletionRequest[] = [];
+
+  constructor(
+    private script: ScriptedStep[],
+    private opts: { respectSignal?: boolean } = {},
+  ) {}
+
+  async *complete(req: CompletionRequest): AsyncIterable<ProviderEvent> {
+    this.requests.push(req);
+    const step = this.script.shift();
+    if (!step) {
+      yield { type: "finish", reason: "stop" };
+      return;
+    }
+    if (step.text) yield { type: "text_delta", text: step.text };
+    let n = 0;
+    for (const tc of step.toolCalls ?? []) {
+      yield { type: "tool_call", id: `call_${this.requests.length}_${n++}`, name: tc.name, args: tc.args };
+    }
+    if (step.usage) yield { type: "usage", inputTokens: step.usage.inputTokens, outputTokens: step.usage.outputTokens };
+    if (step.hold) {
+      await Promise.race([this.waitForRelease(), aborts(req.signal)]);
+      if (req.signal.aborted) return; // interrupted while parked
+    } else if (this.opts.respectSignal && req.signal.aborted) {
+      return; // interrupted: vanish quietly
+    }
+    yield { type: "finish", reason: step.finish ?? (step.toolCalls ? "tool_calls" : "stop"), error: step.error };
+  }
+
+  private releases: Array<() => void> = [];
+
+  /** Unblock a step parked with hold. */
+  release(): void {
+    const r = this.releases.shift();
+    r?.();
+  }
+
+  private waitForRelease(): Promise<void> {
+    return new Promise((res) => this.releases.push(res));
+  }
+
+  get exhausted(): boolean {
+    return this.script.length === 0;
+  }
+}
+
+function aborts(signal: AbortSignal): Promise<void> {
+  return new Promise((res) => {
+    if (signal.aborted) return res();
+    signal.addEventListener("abort", () => res(), { once: true });
+  });
+}

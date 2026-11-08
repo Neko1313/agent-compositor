@@ -49,6 +49,21 @@ export const serviceShellExecKill = defineEvent({
   frozen: true,
 });
 
+export const serviceAgentSpawn = defineEvent({
+  name: "service.agent.spawn",
+  since: "0.5.0",
+  version: 1,
+  summary:
+    "Spawn a subagent: a fresh AgentCore (shared provider/permissions/plugins, isolated transcript) runs the prompt to completion and returns its final text. Core-resolved.",
+  input: z.object({
+    prompt: z.string(),
+    systemPrompt: z.string().optional(),
+    agentId: z.string().optional(),
+  }),
+  responses: denyValue,
+  frozen: true,
+});
+
 export const serviceTodoUpdate = defineEvent({
   name: "service.todo.update",
   since: "0.5.0",

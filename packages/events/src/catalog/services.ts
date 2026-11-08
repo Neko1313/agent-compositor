@@ -81,6 +81,29 @@ export const serviceUiNotify = defineEvent({
   frozen: true,
 });
 
+export const serviceUiAsk = defineEvent({
+  name: "service.ui.ask",
+  since: "0.5.0",
+  version: 1,
+  summary:
+    "$.ui.ask / the ask_user tool: ask the human a question (optionally with choices). Headless sessions deny (fail closed).",
+  input: z.object({
+    plugin: z.string(),
+    question: z.string(),
+    options: z.array(z.string()).optional(),
+    multi: z.boolean().optional(),
+  }),
+  responses: [
+    { kind: "deny", summary: "refuse the call", schema: z.object({ deny: z.string() }) },
+    {
+      kind: "answer",
+      summary: "the user's answer",
+      schema: z.object({ answer: z.union([z.string(), z.array(z.string())]) }),
+    },
+  ],
+  frozen: true,
+});
+
 export const serviceTelemetryLog = defineEvent({
   name: "service.telemetry.log",
   since: "0.2.0",

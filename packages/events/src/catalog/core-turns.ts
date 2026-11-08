@@ -84,3 +84,32 @@ export const turnUsage = defineEvent({
   responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
   frozen: true,
 });
+
+export const subagentStart = defineEvent({
+  name: "subagent.start",
+  since: "0.5.0",
+  version: 1,
+  summary: "A subagent (fresh AgentCore, isolated transcript) started on a prompt.",
+  input: z.object({
+    agentId: z.string(),
+    prompt: z.string(),
+    depth: z.number().int(),
+  }),
+  responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
+  frozen: true,
+});
+
+export const subagentComplete = defineEvent({
+  name: "subagent.complete",
+  since: "0.5.0",
+  version: 1,
+  summary: "A subagent finished: ok with its final text, or failed with an error value (fail-operational).",
+  input: z.object({
+    agentId: z.string(),
+    ok: z.boolean(),
+    output: z.string().optional(),
+    error: z.string().optional(),
+  }),
+  responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
+  frozen: true,
+});

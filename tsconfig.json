@@ -1,13 +1,32 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/events" },
-    { "path": "packages/config" },
-    { "path": "packages/protocol" },
-    { "path": "packages/runtime" },
-    { "path": "packages/hooks" },
-    { "path": "packages/loader" },
-    { "path": "packages/renderer-ink" },
-    { "path": "examples" }
+    {
+      "path": "packages/events"
+    },
+    {
+      "path": "packages/config"
+    },
+    {
+      "path": "packages/permissions"
+    },
+    {
+      "path": "packages/protocol"
+    },
+    {
+      "path": "packages/runtime"
+    },
+    {
+      "path": "packages/hooks"
+    },
+    {
+      "path": "packages/loader"
+    },
+    {
+      "path": "packages/renderer-ink"
+    },
+    {
+      "path": "examples"
+    }
   ]
 }

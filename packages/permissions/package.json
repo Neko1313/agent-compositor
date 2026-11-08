@@ -1,0 +1,13 @@
+{
+  "name": "@agent-compositor/permissions",
+  "version": "0.1.0",
+  "description": "Permission decision engine: layered rules (exact → executable → glob/prefix), worst-wins precedence, session approvals. Harvested from codex execpolicy + opencode rules.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

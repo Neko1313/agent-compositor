@@ -253,7 +253,7 @@ describe("default market: unit", () => {
 });
 
 describe("default market: end-to-end through the assembled app", () => {
-  it("all 15 default plugins load with valid manifests", async () => {
+  it("all 17 default plugins load with valid manifests", async () => {
     const provider = new ScriptedProvider([{ text: "unused" }]);
     const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [REPO_PLUGINS] });
     expect(app.plugins.map((p) => p.manifest.name).sort()).toEqual([
@@ -264,6 +264,7 @@ describe("default market: end-to-end through the assembled app", () => {
       "export",
       "guard-scope",
       "guard-secrets",
+      "mcp",
       "memory",
       "notify-done",
       "output-style",
@@ -272,6 +273,7 @@ describe("default market: end-to-end through the assembled app", () => {
       "slash-commands",
       "todos",
       "turn-log",
+      "workflows",
     ]);
   });
 

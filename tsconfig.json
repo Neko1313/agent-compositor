@@ -36,6 +36,12 @@
     },
     {
       "path": "examples"
+    },
+    {
+      "path": "packages/context"
+    },
+    {
+      "path": "packages/skills"
     }
   ]
 }

@@ -1,0 +1,16 @@
+{
+  "name": "@agent-compositor/plugins",
+  "version": "0.1.0",
+  "description": "On-disk plugin loader: manifest (plugin.json) + hooks entry discovery across workspace/global plugin dirs, trust-tier mapping, fail-operational skip-and-continue.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-compositor/runtime": "^0.1.0"
+  }
+}

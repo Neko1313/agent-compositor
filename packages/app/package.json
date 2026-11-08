@@ -1,7 +1,7 @@
 {
   "name": "@agent-compositor/app",
   "version": "0.1.0",
-  "description": "The assembled agent: config → provider → disk plugins → session store → REPL. This is the sway-analog entrypoint the libraries exist for.",
+  "description": "The assembled agent: config \u2192 provider \u2192 disk plugins \u2192 session store \u2192 REPL. This is the sway-analog entrypoint the libraries exist for.",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
@@ -11,7 +11,9 @@
     "compositor": "./src/bin.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build:binary": "bun build --compile src/bin.ts --outfile ../../dist/compositor",
+    "start": "bun src/bin.ts"
   },
   "dependencies": {
     "@agent-compositor/cli": "^0.1.0",

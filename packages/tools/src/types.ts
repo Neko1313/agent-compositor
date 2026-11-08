@@ -38,7 +38,7 @@ export interface ToolSpec<Args = unknown, Result = unknown> {
   parameters: Record<string, unknown>;
   /** reduce a call to what permission rules match on */
   describe(args: Args): ToolCallDescriptor;
-  execute(ctx: ToolContext, args: Args): Promise<Result>;
+  execute(ctx: ToolContext, args: Args): Promise<ToolResult<Result>>;
 }
 
 /** Discriminated tool results — errors are VALUES (fail-operational loop). */

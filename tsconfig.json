@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/events" },
+    { "path": "packages/config" },
     { "path": "packages/protocol" },
     { "path": "packages/runtime" },
     { "path": "packages/hooks" },

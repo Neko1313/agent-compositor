@@ -1,0 +1,17 @@
+{
+  "name": "@agent-compositor/config",
+  "version": "0.1.0",
+  "description": "Layered configuration: system → global → project-walk merge, JSONC, {env:}/{file:} substitutions with origin tracking. Harvested from opencode's config design.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^3.24.0",
+    "jsonc-parser": "^3.3.1"
+  }
+}

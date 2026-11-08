@@ -40,7 +40,7 @@ Reference set: **codex, gemini-cli, qwen-code, opencode, aider, crush, goose, ki
 
 ## Build order
 
-1. **Config** (package `config`) — opencode layering, feeds settings into hooks host.
+1. **Config** (package `config`) — opencode layering, feeds settings into hooks host. — **DONE 2026-11-08** (system→global→project-walk, {env:}/{file:} subs with escape+comment semantics, JSONC, origin tracking with sensitive flags; 17 tests)
 2. **Permissions** — policy rules + execpolicy-style rule files; resolves `tool.check` decisions.
 3. **Sessions** — codex lifecycle semantics over the existing runtime state.
 4. **Loop control** — queue/steer/cancel/retry on top of the reference loop.

@@ -13,7 +13,8 @@
     "gen": "npm run gen --workspaces --if-present",
     "example:headless": "tsx examples/headless-core.ts",
     "example:loader": "tsx examples/loader-demo.ts",
-    "example:ink": "tsx examples/ink-demo.ts"
+    "example:ink": "tsx examples/ink-demo.ts",
+    "install:defaults": "node -e \"fs.cpSync('plugins', require('os').homedir() + '/.agent-compositor/plugins', {recursive: true})\""
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -1,0 +1,7 @@
+{
+  "name": "guard-secrets",
+  "version": "1.0.0",
+  "description": "Blocks private keys and API tokens from reaching the model or tool arguments (AWS AKIA…, OpenAI sk-…, GitHub ghp_…, Slack xoxb-…, PEM blocks). Drop this folder to remove.",
+  "trust": "trusted",
+  "capabilities": ["prompt.submit", "tool.call"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "guard-scope",
+  "version": "1.0.0",
+  "description": "Workspace jail for write/edit tools: paths escaping the session cwd are denied regardless of config permissions (belt over the builtin rules' suspenders). Drop this folder to remove.",
+  "trust": "trusted",
+  "capabilities": ["tool.check"]
+}

@@ -53,19 +53,21 @@ export function compileRules(rules: PermissionRule[], source: RuleSource, startO
 }
 
 /**
- * Decide over a call. Semantics harvested from codex execpolicy:
- *  - every matching rule votes; the WORST decision wins (deny > ask > allow)
+ * Decide over a call. Semantics harvested from codex execpolicy + opencode:
+ *  - matching is layered by SPECIFICITY: command globs > executable / path / url > tool-wide
+ *  - within the most specific matched layer, the WORST decision wins (deny > ask > allow)
  *  - ties break by (source rank, later order) — closer to the user wins
- *  - nothing matched → ask (fail closed; the UI layer can downgrade to allow
- *    under "acceptEdits"-style modes, that is a renderer decision)
- *  - matching is layered: exact command globs → executable name → path/url
+ *  - nothing matched → ask (fail closed; a renderer may downgrade under acceptEdits-style modes)
  */
 export function decide(call: ToolCallDescriptor, rules: CompiledRule[]): DecisionResult {
   const matching = rules.filter((r) => ruleMatches(r, call));
   if (matching.length === 0) return { decision: "ask", matched: false, via: "default" };
 
+  const bestTier = Math.max(...matching.map((r) => specificity(r)));
+  const candidates = matching.filter((r) => specificity(r) === bestTier);
+
   let best: CompiledRule | undefined;
-  for (const rule of matching) {
+  for (const rule of candidates) {
     if (!best) {
       best = rule;
       continue;
@@ -76,6 +78,13 @@ export function decide(call: ToolCallDescriptor, rules: CompiledRule[]): Decisio
     else if (a === b && (SOURCE_RANK[rule.source] > SOURCE_RANK[best.source] || rule.order > best.order)) best = rule;
   }
   return { decision: best!.decision, matched: true, rule: best, via: "rule" };
+}
+
+/** higher = more specific; only same-tier rules compete */
+function specificity(rule: CompiledRule): number {
+  if (rule.command !== undefined) return 3;
+  if (rule.executable !== undefined || rule.path !== undefined || rule.url !== undefined) return 2;
+  return 1; // tool-wide
 }
 
 function ruleMatches(rule: CompiledRule, call: ToolCallDescriptor): boolean {

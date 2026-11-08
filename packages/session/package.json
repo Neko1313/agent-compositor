@@ -1,0 +1,13 @@
+{
+  "name": "@agent-compositor/session",
+  "version": "0.1.0",
+  "description": "Session store: JSONL roll files per session, meta sidecars, resume/fork/archive/delete, cwd scoping. Harvested from codex thread/rollout storage.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

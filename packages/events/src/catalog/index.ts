@@ -5,6 +5,8 @@ import * as prompts from "./prompts.js";
 import * as turnsAgents from "./turns-agents.js";
 import * as ui from "./ui.js";
 import * as services from "./services.js";
+import * as coreServices from "./core-services.js";
+import * as coreTurns from "./core-turns.js";
 
 /** The catalog: ordered, versioned, frozen. The single source of truth. */
 export const catalog: readonly EventDef[] = [
@@ -27,6 +29,13 @@ export const catalog: readonly EventDef[] = [
   turnsAgents.turnComplete,
   turnsAgents.agentOffer,
   turnsAgents.agentSpawn,
+  // core loop events
+  coreTurns.promptSteer,
+  coreTurns.promptQueued,
+  coreTurns.assistantText,
+  coreTurns.toolResult,
+  coreTurns.turnFailed,
+  coreTurns.turnInterrupted,
   // interface
   ui.uiRender,
   ui.uiPress,
@@ -40,6 +49,12 @@ export const catalog: readonly EventDef[] = [
   services.serviceAuthLogin,
   services.serviceUiNotify,
   services.serviceTelemetryLog,
+  // core-tool services (model-facing tools; same interception story as $ API)
+  coreServices.serviceShellExec,
+  coreServices.serviceFileRead,
+  coreServices.serviceFileReadText,
+  coreServices.serviceFileWrite,
+  coreServices.serviceFileEdit,
 ];
 
 export { namespaceOf } from "../define.js";

@@ -1,0 +1,24 @@
+{
+  "name": "@agent-compositor/app",
+  "version": "0.1.0",
+  "description": "The assembled agent: config → provider → disk plugins → session store → REPL. This is the sway-analog entrypoint the libraries exist for.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "compositor": "./src/bin.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-compositor/cli": "^0.1.0",
+    "@agent-compositor/config": "^0.1.0",
+    "@agent-compositor/core": "^0.1.0",
+    "@agent-compositor/plugins": "^0.1.0",
+    "@agent-compositor/provider": "^0.1.0",
+    "@agent-compositor/session": "^0.1.0"
+  }
+}

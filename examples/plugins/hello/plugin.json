@@ -1,0 +1,7 @@
+{
+  "name": "hello-plugin",
+  "version": "1.0.0",
+  "description": "Example disk plugin: answers service.shell.exec calls itself so the builtin exec never runs. Demonstrates tool.call interception — the sway-analog 'window rule' for agents.",
+  "trust": "trusted",
+  "capabilities": ["tool.call:exec"]
+}

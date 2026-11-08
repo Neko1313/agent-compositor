@@ -19,6 +19,7 @@ import {
   type ToolSpec,
 } from "@agent-compositor/tools";
 import { replayTranscript } from "./resume.js";
+import { askTool, taskTool, SUBAGENT_SYSTEM_PROMPT } from "./tools/index.js";
 import type { ChatMessage, ChatToolCall, ModelProvider, ToolDecl } from "./provider.js";
 
 export interface CorePlugin {
@@ -40,7 +41,15 @@ export interface AgentCoreOptions {
   sessionId?: string;
   systemPrompt?: string;
   maxStepsPerTurn?: number;
+  /** replace the builtin toolset wholesale (tests, embedders) */
   tools?: ToolSpec<unknown, unknown>[];
+  /** append model-facing tools (e.g. plugin-provided tools.ts) on top of the builtins */
+  extraTools?: ToolSpec<unknown, unknown>[];
+  /** AskUserQuestion channel; undefined = headless, questions are denied (fail closed) */
+  onAsk?: (req: { question: string; options?: string[]; multi?: boolean }) => Promise<string | string[]>;
+  /** recursion guard for the task tool / service.agent.spawn (default 2 deep) */
+  subagentDepth?: number;
+  maxSubagentDepth?: number;
   notify?: (message: string, level: "info" | "warn" | "error", plugin: string) => void;
   /** wire context pressure management into the loop: trip the budget → compact */
   compaction?: {
@@ -99,11 +108,19 @@ export class AgentCore {
     this.provider = options.provider;
     this.sessionId = options.sessionId ?? randomUUID();
     this.maxSteps = options.maxStepsPerTurn ?? 32;
-    this.toolSpecs = options.tools ?? builtinTools;
+    this.toolSpecs = [...(options.tools ?? builtinTools), taskTool, askTool, ...(options.extraTools ?? [])];
     this.approvals = options.approvals;
     this.onApproval = options.onApproval;
     this.sessions = options.sessions;
-    this.compiledRules = compileRules([...builtinToolRules, ...(options.rules ?? [])], "config");
+    this.compiledRules = compileRules(
+      [
+        ...builtinToolRules,
+        { decision: "allow", tool: "task", reason: "subagents run under the same permission gate" },
+        { decision: "allow", tool: "ask_user", reason: "asking the user is not a side effect" },
+        ...(options.rules ?? []),
+      ],
+      "config",
+    );
 
     this.runtime = new Runtime();
     this.host = new HooksHost(this.runtime, {
@@ -135,6 +152,30 @@ export class AgentCore {
       on: (service, handler) => {
         this.runtime.setResolver(service, async (payload: unknown) => ({ value: await handler(payload) }));
       },
+    });
+
+    // subagent spawns ride the service chain (plugins can deny them); the
+    // ask channel is fail-closed — no onAsk, no answers
+    this.runtime.setResolver("service.agent.spawn", async (payload: unknown) => {
+      const args = payload as { prompt?: string; systemPrompt?: string; agentId?: string };
+      if (!args.prompt || typeof args.prompt !== "string") return { deny: "spawn: prompt is required" };
+      try {
+        return { value: await this.runSubagent({ prompt: args.prompt, systemPrompt: args.systemPrompt, agentId: args.agentId }) };
+      } catch (err) {
+        return { deny: err instanceof Error ? err.message : String(err) };
+      }
+    });
+    this.runtime.setResolver("service.ui.ask", async (payload: unknown) => {
+      const onAsk = this.options.onAsk;
+      if (!onAsk) return { deny: "headless: no user channel for questions" };
+      const args = payload as { question?: string; options?: string[]; multi?: boolean };
+      if (!args.question || typeof args.question !== "string") return { deny: "ask: question is required" };
+      const answer = await onAsk({
+        question: args.question,
+        options: Array.isArray(args.options) ? args.options : undefined,
+        multi: args.multi === true,
+      });
+      return { value: { answer } };
     });
 
     for (const plugin of options.plugins ?? []) {
@@ -191,6 +232,8 @@ export class AgentCore {
   }
 
   private currentTurnId: string | undefined;
+  /** set when the last turn ended in turn.failed (subagent runner reads it) */
+  private lastTurnError: string | undefined;
   private messagesSinceCompaction = 0;
 
   /** Resume factory: adopt a replayed transcript instead of starting fresh. */
@@ -205,6 +248,7 @@ export class AgentCore {
   private async runTurn(text: string): Promise<void> {
     const turnId = randomUUID();
     this.currentTurnId = turnId;
+    this.lastTurnError = undefined;
     this.state = "running";
     this.interruptedByUser = false;
     this.abort = new AbortController();
@@ -296,6 +340,7 @@ export class AgentCore {
     } else if (failed !== undefined) {
       if (fullText) this.messages.push({ role: "assistant", content: fullText });
       await this.emit("turn.failed", { turnId, error: failed });
+      this.lastTurnError = failed;
       this.state = "idle";
     } else {
       if (fullText) this.messages.push({ role: "assistant", content: fullText });
@@ -337,6 +382,47 @@ export class AgentCore {
   clear(): void {
     this.messages = this.messages.filter((m) => m.role === "system");
     this.messagesSinceCompaction = this.messages.length;
+  }
+
+  // ---- subagents (the task tool / service.agent.spawn) --------------------
+
+  /** A fresh AgentCore: shared provider, permissions, plugins, ask channel —
+   *  isolated transcript, no persistence, recursion depth-guarded. */
+  private async runSubagent(args: {
+    prompt: string;
+    systemPrompt?: string;
+    agentId?: string;
+  }): Promise<{ agentId: string; output: string }> {
+    const depth = this.options.subagentDepth ?? 0;
+    const maxDepth = this.options.maxSubagentDepth ?? 2;
+    if (depth >= maxDepth) throw new Error(`subagent depth limit (${maxDepth}) reached`);
+    const agentId = args.agentId && typeof args.agentId === "string" ? args.agentId : randomUUID();
+    await this.emit("subagent.start", { agentId, prompt: args.prompt, depth });
+
+    const child = new AgentCore({
+      ...this.options,
+      sessionId: randomUUID(),
+      tools: [...this.toolSpecs],
+      extraTools: undefined,
+      sessions: undefined, // subagents are ephemeral: no session persistence
+      compaction: undefined,
+      systemPrompt: typeof args.systemPrompt === "string" ? args.systemPrompt : SUBAGENT_SYSTEM_PROMPT,
+      subagentDepth: depth + 1,
+    });
+    try {
+      await child.submit(args.prompt);
+      if (child.lastTurnError) throw new Error(child.lastTurnError);
+      const lastAssistant = [...child.getMessages()]
+        .reverse()
+        .find((m) => m.role === "assistant" && typeof m.content === "string" && m.content.trim().length > 0);
+      const output = lastAssistant?.content?.trim() ?? "";
+      await this.emit("subagent.complete", { agentId, ok: true, output });
+      return { agentId, output };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      await this.emit("subagent.complete", { agentId, ok: false, error });
+      throw new Error(`subagent failed: ${error}`);
+    }
   }
 
   private async drainQueue(): Promise<void> {

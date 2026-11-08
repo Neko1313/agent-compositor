@@ -17,12 +17,52 @@ export const serviceShellExec = defineEvent({
   name: "service.shell.exec",
   since: "0.5.0",
   version: 1,
-  summary: "Core exec tool: run a shell command (session cwd, timeout, env).",
+  summary: "Core exec tool: run a shell command (session cwd, timeout, env). With background: true it returns immediately with a shell id and keeps running.",
   input: z.object({
     command: z.string(),
     cwd: z.string(),
     timeoutMs: z.number().int().positive(),
     env: z.record(z.string()).optional(),
+    background: z.boolean().optional(),
+  }),
+  responses: denyValue,
+  frozen: true,
+});
+
+export const serviceShellExecOutput = defineEvent({
+  name: "service.shell.execOutput",
+  since: "0.5.0",
+  version: 1,
+  summary: "Read a backgrounded shell's buffered output (BashOutput analog).",
+  input: z.object({ id: z.string() }),
+  responses: denyValue,
+  frozen: true,
+});
+
+export const serviceShellExecKill = defineEvent({
+  name: "service.shell.execKill",
+  since: "0.5.0",
+  version: 1,
+  summary: "Terminate a backgrounded shell by id (KillShell analog).",
+  input: z.object({ id: z.string() }),
+  responses: denyValue,
+  frozen: true,
+});
+
+export const serviceTodoUpdate = defineEvent({
+  name: "service.todo.update",
+  since: "0.5.0",
+  version: 1,
+  summary: "Core todo tool: replace (or read) the process-scoped task list.",
+  input: z.object({
+    todos: z
+      .array(
+        z.object({
+          content: z.string(),
+          status: z.enum(["pending", "in_progress", "completed"]),
+        }),
+      )
+      .optional(),
   }),
   responses: denyValue,
   frozen: true,

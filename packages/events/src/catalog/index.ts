@@ -37,6 +37,7 @@ export const catalog: readonly EventDef[] = [
   coreTurns.toolResult,
   coreTurns.turnFailed,
   coreTurns.turnInterrupted,
+  coreTurns.turnUsage,
   coreContext.contextCompacted,
   // interface
   ui.uiRender,
@@ -53,6 +54,9 @@ export const catalog: readonly EventDef[] = [
   services.serviceTelemetryLog,
   // core-tool services (model-facing tools; same interception story as $ API)
   coreServices.serviceShellExec,
+  coreServices.serviceShellExecOutput,
+  coreServices.serviceShellExecKill,
+  coreServices.serviceTodoUpdate,
   coreServices.serviceFileRead,
   coreServices.serviceFileReadText,
   coreServices.serviceFileWrite,

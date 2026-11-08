@@ -70,3 +70,17 @@ export const turnInterrupted = defineEvent({
   responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
   frozen: true,
 });
+
+export const turnUsage = defineEvent({
+  name: "turn.usage",
+  since: "0.5.0",
+  version: 1,
+  summary: "Token usage of a turn, cumulative across its model steps. Fires before turn.complete/failed so cost plugins can tally.",
+  input: z.object({
+    turnId: z.string(),
+    inputTokens: z.number(),
+    outputTokens: z.number(),
+  }),
+  responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
+  frozen: true,
+});

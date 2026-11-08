@@ -42,6 +42,9 @@
     },
     {
       "path": "packages/skills"
+    },
+    {
+      "path": "packages/provider"
     }
   ]
 }

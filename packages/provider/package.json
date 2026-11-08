@@ -1,0 +1,16 @@
+{
+  "name": "@agent-compositor/provider",
+  "version": "0.1.0",
+  "description": "OpenAI-compatible streaming provider adapter over the core ModelProvider contract: SSE parsing, tool-call streaming, abort, retries on transport errors.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-compositor/core": "^0.1.0"
+  }
+}

@@ -1,3 +1,4 @@
+import { profileSettings } from "./provider-settings.js";
 import { marketplaces } from "./marketplaces.js";
 import { NetworkClient } from "@agent-compositor/provider";
 import { ProjectStorage, mergeSettings } from "@agent-compositor/config";
@@ -175,6 +176,15 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   profiles.default = { ...profiles.default, ...settings };
   if (config.config.small_model && !profiles.small)
     profiles.small = { ...settings, model: config.config.small_model };
+  try {
+    const saved = await storage.config('providers.json');
+    for (const [name, entry] of Object.entries(saved.profiles ?? {})) {
+      if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(name) || ['constructor','prototype'].includes(name)) continue;
+      if (entry === null) { if (name !== 'default') delete profiles[name]; continue; }
+      try { profiles[name] = { ...profiles[name], ...profileSettings(entry), apiKey: profiles[name]?.apiKey ?? '', fetch: network.fetch('models') }; }
+      catch { config.warnings.push(`Saved provider profile ${name} is invalid and was skipped`); }
+    }
+  } catch { config.warnings.push('Saved provider connections could not be loaded'); }
   const router = new ProviderRouter(profiles);
   const auth = await authentication(
     env.HOME ?? env.USERPROFILE ?? options.cwd,
@@ -193,9 +203,12 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     .catch(() => undefined);
   if (typeof remembered === "string" && !env.AGENT_MODEL)
     router.select(remembered);
+  if (remembered && typeof remembered === 'object' && typeof remembered.profile === 'string' && typeof remembered.model === 'string' && profiles[remembered.profile] && !env.AGENT_MODEL) {
+    router.select(remembered.profile); router.select(remembered.model);
+  }
   if (env.AGENT_MODEL && profiles[env.AGENT_MODEL])
     router.select(env.AGENT_MODEL);
-  const controls = modelControls(router),
+  const controls = modelControls(router, storage, auth, network.fetch("models")),
     sessionPlugin = sessionControls();
   const approvals = await approvalStore(
     options.cwd,
@@ -565,6 +578,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               ] as const,
             ]
           : []),
+        ...['/settings', '/providers', '/models'].map(name => [name, {name,description:'Manage model providers and connections',usage:name}] as const),
         ...["/auth", "/login", "/logout"].map(
           (name) =>
             [

@@ -1,0 +1,92 @@
+import type { UiForm, UiFormResult } from '@agent-compositor/events';
+import type { WireMessage } from '@agent-compositor/protocol';
+import { textRows, type Row } from './presentation.js';
+type Input=Extract<WireMessage,{type:'input'}>['data'];
+/** Private drafts never enter prompt history, ui.render hooks, or catalog events. */
+export class FormDialog {
+  values:Record<string,string|boolean>={}; focus=0; cursor=0; scroll=0; error=''; selectAll=false;
+  private hits: Array<{row:number;index:number}>=[];
+  constructor(readonly request:UiForm) {
+    for(const field of request.fields) this.values[field.id]=field.type==='toggle'?field.value===true:field.type==='password'?'':String(field.value??field.options?.[0]?.value??'');
+    this.move(0);
+  }
+  private move(index:number) {this.focus=(index+this.request.fields.length+this.request.actions.length)%(this.request.fields.length+this.request.actions.length);const f=this.request.fields[this.focus];this.cursor=f?String(this.values[f.id]).length:0;this.selectAll=false;}
+  private validate() {
+    for(const [i,f] of this.request.fields.entries()) {
+      const value=this.values[f.id];
+      if(f.required&&!String(value).trim()){this.move(i);this.error=`${f.label} is required`;return false;}
+      if(f.type==='url'&&value){try{const url=new URL(String(value));if(!['http:','https:'].includes(url.protocol))throw Error();}catch{this.move(i);this.error=`${f.label}: enter an HTTP(S) URL`;return false;}}
+      if(f.type==='select'&&!f.options?.some(o=>o.value===value)){this.move(i);this.error=`Choose ${f.label}`;return false;}
+    }
+    return true;
+  }
+  visible(columns:number,height:number):Row[] {
+    const rows:Row[]=[];const markers:number[]=[];
+    if(this.request.description) rows.push(...textRows(this.request.description,columns,'muted'),{text:''});
+    for(const [index,f] of this.request.fields.entries()) {
+      markers[index]=rows.length;
+      rows.push({text:f.label,bold:true,tone:this.focus===index?'accent':'text'});
+      const value=String(this.values[f.id]);const active=this.focus===index;
+      let content=f.type==='password'?'•'.repeat(value.length):value;
+      if(f.type==='toggle')content=this.values[f.id]?'[x] Enabled':'[ ] Disabled';
+      if(f.type==='select')content=`‹ ${f.options?.find(o=>o.value===value)?.label??value} ›`;
+      if(['text','password','url'].includes(f.type)) {
+        const start=active?Math.max(0,this.cursor-columns+6):0;
+        content=content.slice(start,start+Math.max(1,columns-4));
+        if(active) {const c=this.cursor-start;content=content.slice(0,c)+'▏'+content.slice(c);}
+      }
+      rows.push({text:`${active?'›':' '} ${content||'…'}`,selected:active});
+      if(f.hint) rows.push(...textRows(f.hint,columns,'muted'));
+      rows.push({text:''});
+    }
+    for(const [i,action] of this.request.actions.entries()){markers[this.request.fields.length+i]=rows.length;rows.push({text:`${this.focus===this.request.fields.length+i?'›':' '} [ ${action.label} ]`,tone:'accent',selected:this.focus===this.request.fields.length+i});}
+    if(this.error)rows.push(...textRows(this.error,columns,'danger'));
+    const position=markers[this.focus];const available=Math.max(1,height-1);
+    if(position<this.scroll)this.scroll=position;
+    if(position+1>=this.scroll+available)this.scroll=Math.max(0,position-available+2);
+    this.hits=markers.map((row,index)=>({row:row-this.scroll,index})).filter(hit=>hit.row>=0&&hit.row<available);
+    return [...rows.slice(this.scroll,this.scroll+available),{text:this.error||'Tab / ↑↓ focus · ←→ choices · Enter next / activate · Esc cancel',tone:this.error?'danger':'muted'}];
+  }
+  handle(input:Input):UiFormResult|'cancel'|undefined {
+    if(input.kind==='mouse') {
+      if(input.button==='wheel-up'||input.button==='wheel-down'){this.move(this.focus+(input.button==='wheel-up'?-1:1));return;}
+      if(input.button!=='left'||input.action==='move'||input.action==='release')return;
+      const hit=[...this.hits].reverse().find(h=>input.row>=h.row&&input.row<=h.row+1);
+      if(!hit)return;this.move(hit.index);
+      const field=this.request.fields[this.focus];
+      if(field&& !['toggle','select'].includes(field.type))return;
+      return this.handle({kind:'key',key:'enter'});
+    }
+    if(input.kind==='key') {
+      if(input.key==='escape'||(input.key==='c'&&input.modifiers?.includes('ctrl')))return 'cancel';
+      if(input.key==='tab'||input.key==='up'||input.key==='down') {this.move(this.focus+(input.key==='up'||input.modifiers?.includes('shift')?-1:1));return;}
+      if(input.key==='enter'&&this.focus>=this.request.fields.length) {
+        const action=this.request.actions[this.focus-this.request.fields.length].id;
+        if(action==='cancel')return 'cancel';
+        if(this.validate())return {action,values:{...this.values}};
+        return;
+      }
+    }
+    // Ink can coalesce consecutive control-only keystrokes in one input chunk.
+    if(input.kind==='text'&&/^[\t\r]+$/.test(input.text)){for(const c of input.text){const result=this.handle({kind:'key',key:c==='\t'?'tab':'enter'});if(result)return result;}return;}
+    const field=this.request.fields[this.focus];if(!field)return;
+    this.error='';
+    if(field.type==='toggle') {if((input.kind==='key'&&['enter','left','right','space'].includes(input.key))||(input.kind==='text'&&input.text===' '))this.values[field.id]=!this.values[field.id];return;}
+    if(field.type==='select') {
+      if(input.kind==='key'&&['enter','left','right','space'].includes(input.key)){const options=field.options??[],current=options.findIndex(o=>o.value===this.values[field.id]);if(options.length)this.values[field.id]=options[(current+(input.key==='left'?-1:1)+options.length)%options.length].value;}return;
+    }
+    let value=String(this.values[field.id]);
+    if(input.kind==='text') {const text=input.text.replace(/[\x00-\x1f\x7f]/g,' ');if(this.selectAll){value='';this.cursor=0;}value=value.slice(0,this.cursor)+text+value.slice(this.cursor);this.cursor=Math.min(4096,this.cursor+text.length);this.selectAll=false;}
+    if(input.kind==='key') {
+      if(input.modifiers?.includes('ctrl')&&input.key==='a'){this.selectAll=true;return;}
+      if(input.modifiers?.includes('ctrl')&&input.key==='u'){value='';this.cursor=0;}
+      if(input.key==='enter'){this.move(this.focus+1);return;}
+      if(input.key==='left')this.cursor=Math.max(0,this.cursor-1);
+      if(input.key==='right')this.cursor=Math.min(value.length,this.cursor+1);
+      if(input.key==='home')this.cursor=0;if(input.key==='end')this.cursor=value.length;
+      if(['backspace','delete'].includes(input.key)){if(this.selectAll){value='';this.cursor=0;this.selectAll=false;}else if(input.key==='backspace'&&this.cursor){value=value.slice(0,this.cursor-1)+value.slice(this.cursor);this.cursor--;}else if(input.key==='delete')value=value.slice(0,this.cursor)+value.slice(this.cursor+1);}
+    }
+    this.values[field.id]=value.slice(0,4096);
+  }
+  clear(){this.values={};}
+}

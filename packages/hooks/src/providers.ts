@@ -30,6 +30,7 @@ export interface HooksHostConfig {
   workspaceRoot?: string;
   execEnvironment?: () => Record<string, string>;
   storage?: {
+    configure?(name: string, value: Record<string, unknown>, scope: "project" | "global"): Promise<void>;
     paths: { home: string; state: string; project: string };
     config(name: string): Promise<unknown>;
     read(

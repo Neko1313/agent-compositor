@@ -225,6 +225,14 @@ export async function authentication(
       },
       { site: "inspector", focus: false }
     );
+  const keyForm = async (name: string, $: any) => {
+    if (!profiles[name]) throw new Error('Unknown provider profile');
+    const result = await $.ui.form({title:`API key · ${name}`,description:'Stored privately in your user credentials file. The key is never sent as a chat message.',fields:[{id:'key',label:'API key',type:'password',required:true}],actions:[{id:'save',label:'Save API key'},{id:'cancel',label:'Cancel'}]});
+    if (!result) return;
+    if (!Object.hasOwn(original,name)) original[name] = profiles[name].apiKey;
+    credentials[name] = {accessToken:String(result.values.key)};
+    await save(name); apply(name);
+  };
   const plugin: CorePlugin = {
     manifest: {
       name: "provider-auth",
@@ -264,7 +272,8 @@ export async function authentication(
               credentials[name] = { accessToken: env[variable]! };
               await save(name);
               apply(name);
-            } else await $.auth.login(name);
+            } else if ((profiles[name] as any)?.oauth?.deviceAuthorizationEndpoint) await $.auth.login(name);
+            else await keyForm(name, $);
           } else if (command === "/logout") {
             if (!profiles[name]) throw new Error("Unknown profile");
             delete credentials[name];
@@ -283,7 +292,9 @@ export async function authentication(
           e.key.startsWith("login:")
         ) {
           try {
-            await $.auth.login(e.key.slice(6));
+            const name = e.key.slice(6);
+            if ((profiles[name] as any)?.oauth?.deviceAuthorizationEndpoint) await $.auth.login(name);
+            else await keyForm(name, $);
             await show($);
           } catch (error) {
             await $.ui.notify(String(error), "error");
@@ -294,6 +305,13 @@ export async function authentication(
   };
   return {
     plugin,
+    setKey: async (name: string, key: string) => {
+      if (!profiles[name]) throw new Error('Unknown provider profile');
+      if (!Object.hasOwn(original, name)) original[name] = profiles[name].apiKey;
+      if (key) credentials[name] = { accessToken: key };
+      else delete credentials[name];
+      await save(name); apply(name);
+    },
     refresh,
     provider: {
       login: async () => {

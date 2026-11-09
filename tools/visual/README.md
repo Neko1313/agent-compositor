@@ -93,3 +93,15 @@ onto workspace 2, hiding/showing its placement, resizing, and removal. Combine
 it with `VISUAL_EXECUTABLE` to verify the compiled distribution through the
 same PTY, without external model requests. Evidence defaults to
 `dist/visual-ghost-lifecycle/`.
+
+### Native settings scenario
+
+Run `npm run visual:settings` to exercise the Settings toolbar, provider preset,
+editable connection form, masked API key, authenticated proxy form, independent
+model/tool switches, cancellation and restoration after restart. The real TUI
+runs in the same isolated PTY fixture. It uses fake keys and local dummy
+addresses, and does not contact an external model. Artifacts default to
+`dist/visual-settings/`; set `VISUAL_OUTPUT` for another run. Inspect the PNGs and
+`report.json`. `input.jsonl` intentionally captures raw input: never use real
+credentials in this diagnostic bench. Provider discovery/authentication and
+transport behavior are also covered by package tests and `npm run eval:proxy`.

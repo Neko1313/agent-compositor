@@ -1,3 +1,4 @@
+import { uiFormSchema, type UiForm, type UiFormResult, type UiFormHandler } from "@agent-compositor/events";
 import type {
   SurfacePlacement,
   UiAppearance,
@@ -24,7 +25,7 @@ import type {
 /** User-facing hook: (event, $) — mods-style. */
 export type UserHookFn = (event: any, $: HooksApi) => unknown;
 
-/** The plugin-facing $ object. Every service method emits its service.* event. */
+/** The plugin-facing $ object. Services use the event chain; local forms and private settings use guarded host callbacks. */
 export interface HooksApi {
   readonly plugin: string;
   /** continue the chain, optionally with a rewritten event */
@@ -33,6 +34,7 @@ export interface HooksApi {
   readonly signal: AbortSignal;
   readonly session: { id: string; cwd: string };
   storage: {
+    configure(name: string, value: Record<string, unknown>, scope?: "project" | "global"): Promise<void>;
     paths?: { home: string; state: string; project: string };
     config(name?: string): Promise<any>;
     get(
@@ -70,6 +72,8 @@ export interface HooksApi {
     status(): { loggedIn: boolean; provider?: string };
   };
   ui: {
+    /** Local human input, returned directly to the requesting plugin; never a catalog payload. */
+    form(request: UiForm): Promise<UiFormResult | null>;
     remove(id: string): Promise<void>;
     configure(appearance: UiAppearance | null): Promise<void>;
     view(
@@ -111,6 +115,9 @@ export class PermissionError extends Error {
 }
 
 export class HooksHost {
+  private readonly pluginTrust = new Map<string, string>();
+  private formHandler?: UiFormHandler;
+  setFormHandler(handler?: UiFormHandler) { this.formHandler = handler; }
   private readonly pluginState = new Map<string, Map<string, unknown>>();
   private readonly rendering = new AsyncLocalStorage<string>();
   private readonly workspaceRoot: string;
@@ -151,11 +158,13 @@ export class HooksHost {
         );
       };
     }
+    this.pluginTrust.set(manifest.name, manifest.trust);
     this.runtime.register(manifest, wrapped, tier);
     this.pluginState.set(manifest.name, new Map());
   }
 
   unregisterPlugin(name: string): boolean {
+    this.pluginTrust.delete(name);
     this.pluginState.delete(name);
     const removed = this.runtime.unregister(name);
     if (removed) this.config.onPluginRemoved?.(name);
@@ -238,6 +247,12 @@ export class HooksHost {
         keys: () => [...state.keys()],
       },
       storage: {
+        configure: async (name, value, scope = "project") => {
+          stateGuard("storage.configure");
+          if (this.pluginTrust.get(plugin) !== "trusted") throw new Error("Only trusted plugins may change shared settings");
+          if (!this.config.storage?.configure) throw new Error("Settings persistence is unavailable");
+          await this.config.storage.configure(name, value, scope);
+        },
         paths: this.config.storage?.paths,
         config: (name = plugin + ".json") =>
           callService("service.storage.config", { name }),
@@ -283,6 +298,12 @@ export class HooksHost {
         status: () => this.config.auth?.status() ?? { loggedIn: false },
       },
       ui: {
+        form: async request => {
+          stateGuard("ui.form");
+          if (this.pluginTrust.get(plugin) !== "trusted") throw new Error("Only trusted plugins may request local forms");
+          if (!this.formHandler) throw new Error("Forms require an interactive UI");
+          return this.formHandler(plugin, uiFormSchema.parse(request), ctx.signal);
+        },
         view: async (id, title, view, placement) => {
           await callService("service.ui.view", { id, title, view, placement });
         },

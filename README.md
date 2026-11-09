@@ -73,7 +73,7 @@ independent worktree agents, checkpoints, authentication and extension managemen
 | [`@agent-compositor/protocol`](packages/protocol) | Wire protocol between core and renderers: JSONL framing, LSP-style capability handshake, Neovim-style grid/diff rendering with flush. |
 
 | [`@agent-compositor/runtime`](packages/runtime) | Event dispatcher: onion hook chains with tier ordering (prepend→user→append→builtin→core), own/thread/yield budgets, fail-operational faults, chain trace (`--plugin-trace`). |
-| [`@agent-compositor/hooks`](packages/hooks) | The `$` API (Xwayland surface): every `$` method is itself a `service.*` event — plugins intercept each other's calls with `{deny}`/`{value}`; per-plugin state, workspace-confined fs, model/auth provider contracts. |
+| [`@agent-compositor/hooks`](packages/hooks) | The `$` API (Xwayland surface): service methods are `service.*` events; local forms and private settings use guarded host callbacks — plugins intercept each other's calls with `{deny}`/`{value}`; per-plugin state, workspace-confined fs, model/auth provider contracts. |
 | [`@agent-compositor/loader`](packages/loader) | Plugin loader: discovers `plugins/*/plugin.json` on disk (project + user config dirs), registers through the HooksHost with tier/trust from the manifest, hot-reloads with reverse teardown. |
 | [`@agent-compositor/renderer-ink`](packages/renderer-ink) | Reference terminal renderer: consumes the wire protocol (declare/render/focus), draws surfaces with Ink 8, turns keystrokes into `input` messages. Render-only by contract — the core it faces could be in-process or across a pipe. |
 
@@ -117,7 +117,7 @@ exercise drag, resize, task updates and restart persistence with
 ## Marketplace, state and quality
 
 - [Plugin marketplaces and Claude-format compatibility](docs/marketplace.md).
-- [Home/project state, plugin storage API and network proxy](docs/state-and-network.md).
+- [Native provider/model settings, project storage and network proxy](docs/state-and-network.md). Click **Settings** in the TUI to configure connections and credentials.
 - [Quality evals, Ollama and Harness² adapter](docs/evals.md).
 
 Quick checks: `npm run marketplace:validate`, `npm run eval`, `npm run eval:proxy`,

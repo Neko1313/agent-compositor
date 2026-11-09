@@ -135,3 +135,53 @@ with `gemma4:31b-cloud` and `deepseek-v4.1-flash:1017-cloud`: the local Ollama
 serves the API while inference runs in the cloud. OpenAI/Anthropic can be
 configured later through the existing provider profiles and credentials using
 the same transport.
+
+## Native provider and proxy settings
+
+Click **Settings** in the workspace bar, or run `/settings`, `/providers` or
+`/models`. **Add provider** offers Ollama, OpenAI Responses, Anthropic, Gemini
+and an OpenAI-compatible gateway. Enter a profile ID, base URL, model ID and
+optional API key. **Test & discover models** calls the provider's model-list
+endpoint without issuing a completion; choose a returned ID or enter one
+manually when a gateway does not expose that endpoint. Existing profiles offer
+edit, test, model selection and removal. Changing the ID in the editor creates
+a copy. Removing a profile hides it for this project and retains its credentials.
+
+Forms support mouse focus, Tab/Shift+Tab and arrow navigation, editable text,
+masked passwords, toggles and selectable options. Ctrl+A replaces a whole field;
+Ctrl+U clears it. Enter advances text fields or activates a selected button.
+Escape cancels without saving. Connection testing does not save a draft.
+`/login <profile>` opens a masked API-key form unless the profile already has a
+configured OAuth device flow. The existing environment-variable login remains
+available. Blank key/password fields retain existing credentials; use the
+explicit removal switch to clear a stored value.
+
+**Network proxy** opens the proxy form directly; `/proxy` and `/proxy configure`
+do the same. Configure an HTTP(S) CONNECT endpoint, optional username/password,
+separate model/tool switches and bypass hosts. SOCKS is not supported. Model
+list requests use the same network client and proxy policy as completions.
+`/proxy status`, `/proxy on` and `/proxy off` remain available.
+
+Choose project or global scope when saving. Project connections and proxy
+settings are stored in the private project state directory; global defaults use
+`~/.agent-compositor/providers.json` and `proxy.json`. Project overrides take
+precedence over global defaults. API keys use the private `credentials.json`
+file. Authenticated proxy URLs are private settings, never shared repository
+files. Writes are atomic with mode 0600. Model selection is restored from the
+private `model.json`. Form drafts and API keys do not enter prompts, chat history or render hooks.
+Form results bypass catalog events; proxy configuration is still consumed by
+the existing storage/network service hooks. Displayed proxy status redacts URL
+credentials. Visual bench inputs use fake credentials: its `input.jsonl` is a
+raw keystroke diagnostic and must never be used with real secrets.
+
+Trusted plugins can request the same native form with `$.ui.form(request)`.
+The request contains a title, optional description, text/password/url/select/
+toggle fields and actions. It returns `{action, values}` or `null` on cancel.
+Password fields cannot declare a nonempty initial value. The host owns the
+modal, masking, scrolling and draft lifecycle. Set an appropriate manifest
+`hookTimeouts` budget (the built-in editors use 300000 ms) when awaiting input. Headless hosts reject forms
+unless an application explicitly installs a form handler. Form results travel
+through a private host callback rather than `service.*` events. Similarly,
+`$.storage.configure(name, value, 'project' | 'global')` writes private component
+settings through a trusted host callback. These two APIs are unavailable to
+sandboxed/render-only plugins and cannot run inside `ui.render`.

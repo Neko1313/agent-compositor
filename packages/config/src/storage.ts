@@ -151,6 +151,12 @@ export class ProjectStorage {
       migratedAt: new Date().toISOString(),
     });
   }
+  async configure(name: string, value: Record<string, unknown>, scope: "project" | "global" = "project") {
+    if (!/^[\w.-]+\.json$/.test(name) || !['project','global'].includes(scope)) throw Error('Invalid settings destination');
+    const root = scope === 'global' ? this.paths.home : this.paths.state;
+    const file = await this.safe(root, name);
+    await atomicJson(file, value);
+  }
   async config(name: string) {
     return mergeSettings(
       structuredClone(this.contributions[name] ?? {}),

@@ -364,3 +364,43 @@ Publishing was skipped because this was a branch run. Main CI also passed:
 https://github.com/Neko1313/agent-compositor/actions/runs/42578290036
 Implementation commit: 99f6b52. The local Linux archive was rebuilt with the
 updated documentation at dist/release/compositor-linux-x64.tar.gz.
+
+## Native model/provider/proxy settings
+
+The workspace bar now exposes Settings. `/settings`, `/providers` and `/models`
+open the built-in model-selector panel. Connections can be added from Ollama,
+OpenAI Responses, Anthropic, Gemini and compatible-gateway presets; edited,
+copied by ID, tested, removed or switched without editing JSON. GET /models
+uses each provider's authentication headers and the shared model network client;
+manual IDs remain available when discovery is unsupported. Discovery is bounded
+and does not issue a completion or display provider error bodies. Profiles use
+private/global providers.json; private model.json restores profile plus model.
+API keys remain in credentials.json (0600). Project overrides beat global
+settings, including immediately after a global edit.
+
+Trusted plugins have host-owned `$.ui.form`: text, URL, masked password, select
+and toggle fields, actions, validation, mouse focus, keyboard navigation,
+scrolling and cancel/abort/close cleanup. Draft/results bypass ui.render and
+catalog events. Password declarations cannot contain initial secrets. Headless
+hosts require an explicit handler. `$.storage.configure` writes private project
+or global component settings atomically; both APIs are guarded against untrusted
+plugins and ui.render mutation. Existing storage/network service hooks still
+consume effective proxy configuration; these callbacks do not replace them.
+
+The network-proxy plugin owns a native form for HTTP(S) CONNECT endpoint,
+username/password, separate model/tool switches, bypass hosts and persistence
+scope. `/proxy` opens it; status/on/off remain available. Blank secret fields
+retain current values; explicit switches clear saved credentials. API-key login
+also uses a native form when no configured OAuth device flow exists. Structured
+plugin views now scroll from the top; conversation logs continue following the
+tail. Arrow/Enter navigation activates visible plugin actions.
+
+Verification: 389 tests passed, 1 optional native Callix test skipped, 49 files;
+coverage lines 80.99%. Typecheck, standard PTY visual regression, settings PTY
+scenario and compiled-binary settings scenario passed. Inspected actual PNGs;
+settings scenarios exercise fake keys, native input, proxy switches, restart and
+cancel. Local proxy smoke passed model/tool HTTP CONNECT and shell environment.
+Linux x64 release build/install/Callix/model smoke passed; no new release tag was
+published. `npm run visual:settings` is the maintained settings check; its raw
+input.jsonl must never contain real credentials. See docs/state-and-network.md
+and tools/visual/README.md for contracts, interaction and scope details.

@@ -243,3 +243,17 @@ describe("HooksHost / $ API", () => {
     expect(seen).toBe(true);
   });
 });
+
+describe('private local settings callbacks',()=>{
+  const form={title:'Key',fields:[{id:'token',label:'Token',type:'password' as const}],actions:[{id:'save',label:'Save'}]};
+  it('requires interactive attachment and trusted plugins; secrets bypass catalog middleware',async()=>{
+    const errors:string[]=[];
+    host.registerPlugin(manifest('headless'),{'session.start':async(_,$)=>{try{await $.ui.form(form);}catch(e){errors.push(String(e));}}});
+    await host.emit('session.start',{sessionId:'s',cwd:dir,plugins:[]});expect(errors.join()).toContain('interactive UI');host.unregisterPlugin('headless');
+    const calls:string[]=[];host.setFormHandler(async(plugin)=>{calls.push(plugin);return{action:'save',values:{token:'private-fake-key'}};});
+    host.registerPlugin(manifest('untrusted','sandboxed'),{'session.start':async(_,$)=>{try{await $.ui.form(form);}catch(e){errors.push(String(e));}try{await $.storage.configure('proxy.json',{});}catch(e){errors.push(String(e));}}});
+    await host.emit('session.start',{sessionId:'s',cwd:dir,plugins:[]});expect(calls).toEqual([]);expect(errors.join()).toContain('Only trusted plugins');host.unregisterPlugin('untrusted');
+    let result:any;host.registerPlugin(manifest('trusted'),{'session.start':async(_,$)=>{result=await $.ui.form(form);}});await host.emit('session.start',{sessionId:'s',cwd:dir,plugins:[]});
+    expect(result.values.token).toBe('private-fake-key');expect(calls).toEqual(['trusted']);
+  });
+});

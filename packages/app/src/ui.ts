@@ -1,3 +1,5 @@
+import { FormDialog } from "./form.js";
+import type { UiForm, UiFormResult } from "@agent-compositor/events";
 import type { UiTextView } from "@agent-compositor/events";
 import { PluginPanel, type PluginWindow } from "./plugin-panel.js";
 import {
@@ -129,6 +131,8 @@ export class AppUI {
   private questionQueue: NonNullable<AppUI["question"]>[] = [];
   private unsubscribe: () => void;
   private closed = false;
+  private actionFocus = new Map<string, number>();
+  private form?: { dialog: FormDialog; finish: (result: UiFormResult | null) => void };
   private ready = false;
   private nativeRaster = false;
   private tasks = new Set<Promise<void>>();
@@ -183,7 +187,26 @@ export class AppUI {
     this.windows.close();
     this.windows.focused = "input";
     this.unsubscribe = this.core.subscribe((event) => this.event(event));
+    this.bindForms();
     this.installResume();
+  }
+  private bindForms(): void {
+    this.core.host.setFormHandler((_plugin, request: UiForm, signal) => {
+      if (this.closed || signal.aborted) return Promise.resolve(null);
+      if (this.form) return Promise.reject(new Error('Close the current form first'));
+      return new Promise(resolve => {
+        const dialog = new FormDialog(request);
+        const abort = () => finish(null);
+        const finish = (result: UiFormResult | null) => {
+          signal.removeEventListener('abort', abort);
+          if (this.form?.dialog === dialog) this.form = undefined;
+          dialog.clear(); resolve(result); this.draw();
+        };
+        this.form = { dialog, finish };
+        signal.addEventListener('abort', abort, { once: true });
+        this.cancelDrag(); this.draw();
+      });
+    });
   }
   connect(sink: (message: WireMessage) => void): void {
     this.sink = sink;
@@ -502,6 +525,13 @@ export class AppUI {
       }
       return;
     }
+    if (this.form && !this.approval && !this.question) {
+      if (data.kind === 'mouse' && (data.row < 2 || data.row >= this.rows - this.dockHeight() - 1 || data.col < 2 || data.col >= this.columns - 2)) return;
+      const input = data.kind === 'mouse' ? { ...data, row: data.row - 2, col: data.col - 2 } : data;
+      const result = this.form.dialog.handle(input);
+      if (result) this.form.finish(result === 'cancel' ? null : result);
+      this.draw(); return;
+    }
     if (this.panel && !this.approval && !this.question) {
       const action = this.panel.handle(data);
       if (action === "close") this.panel = undefined;
@@ -524,6 +554,10 @@ export class AppUI {
             data.col < wrap && position >= tab.start && position < tab.end
         );
         const buttonStart = (this.workspaceTabs().at(-1)?.end ?? 0) + 3;
+        if (position >= buttonStart + 11 && position < buttonStart + 21) {
+          this.track(this.core.host.emit('ui.press', {site:'plugin-model-selector-models',key:'settings'}).then(()=>{}));
+          return;
+        }
         if (position >= buttonStart && position < buttonStart + 9) {
           this.openPanel();
           this.draw();
@@ -637,7 +671,7 @@ export class AppUI {
         const current = this.scroll.get(hit.surface) ?? 0;
         this.scroll.set(
           hit.surface,
-          Math.max(0, current + (data.button === "wheel-up" ? 3 : -3))
+          Math.max(0, current + (data.button === "wheel-up" ? 3 : -3) * (this.panes.get(hit.surface)?.view ? -1 : 1))
         );
       }
       this.draw();
@@ -805,11 +839,21 @@ export class AppUI {
       this.draw();
       return;
     }
+    if (this.windows.focused !== 'input' && this.panes.get(this.windows.focused)?.kind === 'plugin' && data.kind === 'key' && ['up','down','enter'].includes(data.key)) {
+      const actions = (this.hitRows.get(this.windows.focused) ?? []).filter(row=>row.action);
+      if (actions.length) {
+        const current = this.actionFocus.get(this.windows.focused) ?? 0;
+        const index = (current + (data.key === 'up' ? -1 : data.key === 'down' ? 1 : 0) + actions.length) % actions.length;
+        this.actionFocus.set(this.windows.focused, index);
+        if (data.key === 'enter') this.track(this.core.host.emit('ui.press',{site:this.windows.focused,key:actions[index].action!}).then(()=>{}));
+        this.draw(); return;
+      }
+    }
     if (this.windows.focused !== "input") {
       if (data.kind === "key" && data.key === "pageup")
-        this.offset += Math.max(1, this.rows - 10);
+        this.offset = Math.max(0, this.offset + (this.panes.get(this.windows.focused)?.view ? -1 : 1) * Math.max(1, this.rows - 10));
       else if (data.kind === "key" && data.key === "pagedown")
-        this.offset = Math.max(0, this.offset - Math.max(1, this.rows - 10));
+        this.offset = Math.max(0, this.offset + (this.panes.get(this.windows.focused)?.view ? 1 : -1) * Math.max(1, this.rows - 10));
       else if (this.panes.get(this.windows.focused)?.kind === "plugin")
         this.track(
           this.core.host
@@ -996,7 +1040,9 @@ export class AppUI {
         (req) => this.askUser(req)
       );
       this.unsubscribe();
+      this.core.host.setFormHandler(undefined);
       this.core = next;
+      this.bindForms();
       this.unsubscribe = next.subscribe((event) => this.event(event));
       this.installResume();
       this.transcript = next
@@ -1084,6 +1130,8 @@ export class AppUI {
           this.drag.workspace === undefined
             ? "not-allowed"
             : "grabbing";
+      else if (this.form && !this.approval && !this.question)
+        shape = this.form.dialog.request.fields[this.form.dialog.focus]?.type === "password" || ["text","url"].includes(this.form.dialog.request.fields[this.form.dialog.focus]?.type ?? "") ? "text" : "pointer";
       else if (this.panel)
         shape = this.panel.interactiveRow(mouse.row) ? "pointer" : "default";
       else {
@@ -1098,7 +1146,8 @@ export class AppUI {
           (this.workspaceTabs().some(
             (tab) => position >= tab.start && position < tab.end
           ) ||
-            (position >= buttonStart && position < buttonStart + 9))
+            (position >= buttonStart && position < buttonStart + 9) ||
+            (position >= buttonStart + 11 && position < buttonStart + 21))
         )
           shape = "pointer";
         else if (
@@ -1424,7 +1473,11 @@ export class AppUI {
           surface,
           mode: "full",
           flush: true,
-          grid: gridFrom(content.slice(0, height), this.theme, width),
+          grid: gridFrom(content.slice(0, height).map((row) => {
+            const actions = content.filter(item=>item.action);
+            const selected = this.actionFocus.get(surface);
+            return row.action && selected !== undefined && surface === this.windows.focused ? {...row,selected:row===actions[selected % actions.length]} : row;
+          }), this.theme, width),
           ...(this.nativeRaster && view ? { raster: rasterForView(view, width, height) } : {}),
         });
     };
@@ -1483,8 +1536,9 @@ export class AppUI {
     }
     this.updatePointer();
     const dock = this.dockHeight();
-    const panelActive = this.panel && !this.approval && !this.question;
-    const frames = panelActive
+    const formActive = this.form && !this.approval && !this.question;
+    const panelActive = !formActive && this.panel && !this.approval && !this.question;
+    const frames = formActive ? [{surface:"settings-form",x:0,y:0,width:this.columns,height:this.rows-dock}] : panelActive
       ? [
           {
             surface: "plugin-placement",
@@ -1521,6 +1575,7 @@ export class AppUI {
         title: pane.title,
       })),
     });
+    if (formActive) this.sink?.({ type: 'declare', surfaces: [{ id: 'settings-form', kind: 'pane', title: this.form!.dialog.request.title }] });
     if (panelActive)
       this.sink?.({
         type: "declare",
@@ -1549,7 +1604,7 @@ export class AppUI {
       });
     this.sink?.({
       type: "focus",
-      surface: panelActive ? "plugin-placement" : this.windows.focused,
+      surface: formActive ? "settings-form" : panelActive ? "plugin-placement" : this.windows.focused,
     });
     for (const window of this.pluginWindows.values()) {
       const frame = frames.find((frame) => frame.surface === window.id);
@@ -1569,6 +1624,10 @@ export class AppUI {
     for (const frame of frames) {
       const width = Math.max(1, frame.width - 4),
         height = Math.max(1, frame.height - 3);
+      if (frame.surface === 'settings-form' && this.form) {
+        this.sink?.({type:'render',surface:'settings-form',mode:'full',flush:true,grid:gridFrom(this.form.dialog.visible(width,height),this.theme,width)});
+        continue;
+      }
       if (frame.surface === "plugin-placement" && this.panel) {
         // Panel click rows retain their existing coordinates; no interior padding.
         this.sink?.({
@@ -1633,7 +1692,9 @@ export class AppUI {
       );
       const end = rows.length - offset;
       const visible =
-        pane?.kind === "help"
+        pane?.view
+          ? rows.slice(offset, offset + height)
+          : pane?.kind === "help"
           ? rows.slice(0, height)
           : rows.slice(Math.max(0, end - height), end);
       const plugin = this.pluginWindows.get(frame.surface);
@@ -1696,11 +1757,12 @@ export class AppUI {
       );
     else if (this.question)
       inputRows = this.question.dialog.visible(inputWidth, dock - 5);
+    if (formActive) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
     this.paint("input", "input", inputRows, inputWidth, dock - 5);
     const barWidth = this.columns - 2;
     const bar = `${this.workspaceTabs()
       .map((tab) => tab.label)
-      .join(" ")} | [Plugins]  ${this.status}${
+      .join(" ")} | [Plugins]  [Settings]  ${this.status}${
       this.windows.fullscreen ? " · FULLSCREEN" : ""
     }`;
     // Fixed-width splitting keeps workspace painting identical to mouse coordinates.
@@ -1725,8 +1787,10 @@ export class AppUI {
   }
   close(): void {
     if (this.closed) return;
-    this.cancelDrag();
     this.closed = true;
+    this.form?.finish(null);
+    this.core.host.setFormHandler(undefined);
+    this.cancelDrag();
     for (const window of this.pluginWindows.values())
       void this.core.host
         .emit("ui.visibility", {

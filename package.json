@@ -28,7 +28,8 @@
     "release:smoke": "bun tools/release/smoke.mjs",
     "changelog": "git-cliff --output CHANGELOG.md",
     "changelog:preview": "git-cliff --unreleased",
-    "visual:mascot": "node tools/visual/mascot-check.mjs"
+    "visual:mascot": "node tools/visual/mascot-check.mjs",
+    "visual:settings": "node tools/visual/settings-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

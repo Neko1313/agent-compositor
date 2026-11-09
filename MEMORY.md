@@ -518,3 +518,7 @@ checks passed. The rebuilt Linux x64 binary passed install/checksum/default
 plugin smoke, bundled cross-file Callix queries and guarded symbol editing with
 an empty PATH, plus the existing background workflow checks. No release was
 published for this task.
+
+The first CI run exposed missing ripgrep on the hosted runner (regex pagination
+test failed with spawn rg ENOENT). CI explicitly installs ripgrep before tests;
+the regex test remains mandatory rather than skipped when the dependency is absent.

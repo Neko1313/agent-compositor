@@ -3,6 +3,7 @@ import { cp, mkdir, readdir, readFile, writeFile, rm, access } from 'node:fs/pro
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { installCallix } from '../../plugins/callix/distribution.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.chdir(root);
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
@@ -33,10 +34,13 @@ for (const name of await readdir('plugins')) {
   if (entry) { await bundle(join(source, entry), join(dest, 'hooks.js')); manifest.main = 'hooks.js'; delete manifest.entry; }
   if (await exists(join(source, 'tools.ts'))) await bundle(join(source, 'tools.ts'), join(dest, 'tools.js'));
   await writeFile(join(dest, 'plugin.json'), JSON.stringify(manifest, null, 2) + '\n');
-  for (const asset of ['assets', 'worker.mjs', 'install.mjs', 'README.md']) {
+  for (const asset of ['assets', 'worker.mjs', 'install.mjs', 'distribution.mjs', 'README.md']) {
     if (await exists(join(source, asset))) await cp(join(source, asset), join(dest, asset), { recursive: true, dereference: true });
   }
 }
+// Resolve a target-specific verified upstream release, not the ignored local bin/.
+const callix = await installCallix({ destination: join(stage, 'plugins/callix'), platform, archivePath: process.env.CALLIX_RELEASE_ARCHIVE });
+console.log(`Bundled Callix ${callix.version} for ${callix.platform} (${callix.archiveSha256})`);
 // Monty runs in a Node bridge with a platform-specific native worker.
 const dependencies = ['@pydantic/monty', `@pydantic/monty-${platform}${process.platform === 'linux' ? '-gnu' : ''}`];
 const copied = new Set();

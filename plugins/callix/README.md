@@ -6,11 +6,24 @@ version 1 JSON, and keeps the graph in memory. A changed source file, manifest,
 lockfile, addition or deletion invalidates the cache; `refresh: true` forces it.
 There is no analysis at startup and no automatic dependency installation.
 
-Run `node plugins/callix/install.mjs` from the repository to download the pinned
+## Bundled distributions and source setup
+
+New compositor release builds include Callix 1.7.0 for Linux x64/arm64 and macOS
+x64/arm64. The executable lives in `plugins/callix/bin/callix`, alongside its
+upstream `LICENSE` and `release.json` provenance. CI verifies the archive's
+pinned SHA-256 and tests actual cross-file navigation after installation.
+Loading the plugin never downloads software. The older compositor v0.1.1
+published archive predates bundling and needs the explicit setup below.
+
+When working from source, run `node plugins/callix/install.mjs` to download the pinned
 1.7.0 release, verify its SHA-256, and install it under this plugin's `bin/`.
 Linux x64/arm64 and macOS x64/arm64 are supported. This is an explicit setup
-step; loading a plugin does not download software. A downloaded archive can be
+step. A downloaded archive can be
 reused with `--archive /path/to/release.tar.gz` and is verified identically.
+
+Binary selection remains: `CALLIX_BIN` → `executable` setting → plugin-local
+`bin/callix` → `callix` on PATH. Native packaging does not change provider
+selection, user/project overrides or the ability to disable this plugin.
 
 Alternatively install the binary from the [official release](https://github.com/Callix-Tools/callix/releases/tag/v1.7.0)
 on PATH, or set `CALLIX_BIN` to its absolute path. You can also configure

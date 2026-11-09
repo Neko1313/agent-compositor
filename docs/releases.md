@@ -7,14 +7,17 @@ Windows and Linux musl are not currently supported by the installer. The shipped
 Monty native module needs glibc 2.38+; the complete Linux bundle is tested on
 Ubuntu 24.04. Ubuntu 22.04 is not a supported full-bundle target.
 Each archive contains `compositor/compositor`, external standard plugins,
-mascot APNG assets, public host API modules and Monty's platform-specific worker.
+mascot APNG assets, public host API modules, Monty's platform-specific worker,
+and a pinned native Callix executable with its upstream license/provenance.
 The Bun runtime is compiled into the executable. Keep the archive's directories
 together; copying only the executable drops the supplied plugin distribution.
 
 User and project plugin directories take precedence over the distribution's
 defaults. Disable or replace defaults through the existing extension settings.
-Monty's bridge needs Node.js 22+ or `AGENT_NODE_BIN`. Callix is a separate optional
-executable configured with `CALLIX_BIN`; it is not downloaded by the installer.
+Monty's bridge needs Node.js 22+ or `AGENT_NODE_BIN`. Callix 1.7.0 is bundled
+under `plugins/callix/bin/`; the installer needs no separate Callix download.
+`CALLIX_BIN` and plugin settings still override the bundled executable. The
+already-published v0.1.1 archive predates this addition and needs explicit setup.
 Native third-party plugins may declare additional runtime dependencies.
 
 The POSIX installer uses curl, tar, awk and sha256sum (or macOS shasum).
@@ -41,11 +44,23 @@ npm run build:release
 npm run release:smoke
 ```
 
+Building downloads the platform-specific official Callix 1.7.0 archive and
+checks its pinned SHA-256 before extracting only the binary and upstream MIT
+license. `plugins/callix/bin/release.json` records the source URL, platform,
+version, archive digest and binary/license digests. No developer-local binary is
+copied into releases. For an offline build, set `CALLIX_RELEASE_ARCHIVE` to the
+matching official archive; the same pinned checksum is mandatory. Update the
+pins in `plugins/callix/distribution.mjs` when upgrading Callix.
+
 The archive is written to `dist/release/compositor-PLATFORM.tar.gz`.
 The smoke test serves a local release mirror and model endpoint, rejects a
 corrupt checksum, installs from a versioned URL and `latest`, checks default
 plugin discovery outside the repository, executes a headless model request and
-the packaged Monty bridge, and checks state preservation across reinstall.
+the packaged Monty bridge, and checks state preservation across reinstall. It
+also checks Callix provenance, version and license, then invokes `code_query`
+through the installed compositor against a two-file TypeScript project. The
+check requires a resolved cross-file call with `CALLIX_BIN` cleared and PATH
+empty, proving use of the bundled binary.
 It requires no provider credentials or external model service.
 
 ## Changelog and publishing

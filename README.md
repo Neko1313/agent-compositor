@@ -28,7 +28,9 @@ sh install-compositor.sh --version v0.1.1 --prefix "$HOME/.local"
 
 The core includes its runtime; Node.js and Bun are not required to start it.
 The optional Monty sandbox needs Node.js 22+ on `PATH` (or `AGENT_NODE_BIN`).
-Callix needs its separate native executable; set `CALLIX_BIN` to its location.
+New builds include the pinned native Callix executable with its plugin.
+`CALLIX_BIN` can select your own executable. The already-published v0.1.1
+archive predates bundling; use [explicit setup](plugins/callix/README.md) for it.
 Models run through a configured provider: the default is Ollama at
 `http://127.0.0.1:11434/v1` with `gemma4:31b-cloud`. You can select a provider
 using `AGENT_BASE_URL`, `AGENT_MODEL` and `AGENT_API_KEY`.

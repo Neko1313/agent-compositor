@@ -333,3 +333,29 @@ New bench command: npm run visual:mascot. VISUAL_EXECUTABLE selects an extracted
 compiled executable in visual:serve/visual:mascot with isolated home/project.
 The local distribution is dist/release/linux-x64/compositor/compositor; public
 v0.1.1 still contains the earlier implementation. No new release tag was made.
+
+## Bundled Callix native dependency
+
+Release builds now install the pinned official Callix 1.7.0 archive for their
+native Linux/macOS x64/arm64 target. `plugins/callix/distribution.mjs` shares the
+version/checksum table and verified extraction between explicit setup and the
+release builder. Only the verified binary and upstream MIT license are streamed
+out of the archive; a developer-local ignored bin/ is never copied. Offline
+builds can supply CALLIX_RELEASE_ARCHIVE and undergo the same checksum check.
+The distribution includes plugins/callix/bin/callix, LICENSE and release.json,
+with source URL, platform, version and archive/binary/license SHA-256 digests.
+
+The existing runtime priority remains CALLIX_BIN, executable setting, bundled
+binary, then PATH. Provider replacement/disable settings are unchanged; loading
+a plugin performs no installation or downloads. Source users can still run
+node plugins/callix/install.mjs explicitly. Published v0.1.1 predates bundling;
+no existing release or version tag is overwritten by this implementation.
+
+Local validation: 379 tests passed, 1 optional native Callix source test skipped,
+48 files; coverage lines 80.33%, all gates passed. Typecheck and diff checks
+passed. The rebuilt Linux x64 release passed install/checksum/model/Monty smoke.
+Its installed compositor invoked the real code_query tool and returned a
+resolved cross-file TypeScript call with CALLIX_BIN cleared and PATH empty.
+The smoke also checks packaged license/provenance and Callix --version.
+Native four-platform branch builds should be checked through release.yml's
+workflow_dispatch (which builds/tests and does not publish on a branch).

@@ -8,6 +8,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { callixRelease } from '../../plugins/callix/distribution.mjs';
 const exec = promisify(execFile);
 const temp = await mkdtemp(join(tmpdir(), 'compositor-release-'));
 const asset = `compositor-${process.platform}-${process.arch}.tar.gz`;
@@ -16,13 +17,24 @@ const digest = createHash('sha256').update(archive).digest('hex');
 const expected = JSON.parse(await readFile('package.json')).version;
 const installer = resolve('install.sh');
 let corrupt = true;
+let callixResult;
 const server = createServer(async (req, res) => {
   if (req.url.endsWith('/SHA256SUMS')) { res.end(`${corrupt ? '0'.repeat(64) : digest}  ${asset}\n`); return; }
   if (req.url.endsWith(`/${asset}`)) { res.end(archive); return; }
   if (req.url === '/v1/chat/completions') {
-    for await (const _chunk of req) { /* Consume the request before responding. */ }
+    let body = ''; for await (const chunk of req) body += chunk;
+    const request = JSON.parse(body);
     res.writeHead(200, { 'content-type': 'text/event-stream' });
-    res.end('data: {"choices":[{"delta":{"content":"RELEASE_SMOKE_OK"},"finish_reason":null}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+    const frame = (delta, finish_reason = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\n\n`;
+    if (request.messages.some(m => m.role === 'user' && m.content === 'CALLIX_DISTRIBUTION_CHECK')) {
+      const tool = request.messages.filter(m => m.role === 'tool').at(-1);
+      if (!tool) {
+        res.end(frame({ tool_calls: [{ index: 0, id: 'callix-check', type: 'function', function: { name: 'code_query', arguments: JSON.stringify({ action: 'callers', pattern: 'leaf' }) } }] }, 'tool_calls') + 'data: [DONE]\n\n');
+      } else {
+        try { callixResult = JSON.parse(tool.content); } catch { callixResult = { error: tool.content }; }
+        res.end(frame({ content: 'CALLIX_TOOL_RETURNED' }, 'stop') + 'data: [DONE]\n\n');
+      }
+    } else res.end(frame({ content: 'RELEASE_SMOKE_OK' }, 'stop') + 'data: [DONE]\n\n');
     return;
   }
   res.writeHead(404); res.end();
@@ -59,6 +71,25 @@ try {
   // Test the packaged mascot decoder/assets and Monty bridge, not source modules.
   const [distribution] = (await readdir(join(prefix, 'share/agent-compositor'))).filter(name => name.startsWith(`v${expected}-`));
   const directory = join(prefix, 'share/agent-compositor', distribution);
+  const callixDirectory = join(directory, 'plugins/callix/bin');
+  const provenance = JSON.parse(await readFile(join(callixDirectory, 'release.json'), 'utf8'));
+  for (const [key, value] of Object.entries(callixRelease())) assert.equal(provenance[key], value);
+  assert.equal(createHash('sha256').update(await readFile(join(callixDirectory, 'callix'))).digest('hex'), provenance.binarySha256);
+  const license = await readFile(join(callixDirectory, 'LICENSE'));
+  assert.equal(createHash('sha256').update(license).digest('hex'), provenance.licenseSha256);
+  assert.match(license.toString('utf8'), /MIT License/);
+  const noPath = join(temp, 'empty-path'); await mkdir(noPath);
+  const callixOptions = { ...options, timeout: 120000, env: { ...env, CALLIX_BIN: '', PATH: noPath } };
+  assert.equal((await exec(join(callixDirectory, 'callix'), ['--version'], callixOptions)).stdout.trim(), `callix ${provenance.version}`);
+  await writeFile(join(project, 'package.json'), JSON.stringify({ name: 'callix-release-check', private: true, type: 'module' }));
+  await writeFile(join(project, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext' }, include: ['*.ts'] }));
+  await writeFile(join(project, 'leaf.ts'), 'export function leaf(value: number): number { return value + 1; }\n');
+  await writeFile(join(project, 'main.ts'), 'import { leaf } from "./leaf.js";\nexport function start(): number { return leaf(1); }\n');
+  assert.match((await exec(binary, ['-p', 'CALLIX_DISTRIBUTION_CHECK'], callixOptions)).stdout, /CALLIX_TOOL_RETURNED/);
+  assert.equal(callixResult?.provider, 'callix', JSON.stringify(callixResult));
+  assert.ok(callixResult?.relations?.some(r => r.kind === 'calls'), JSON.stringify(callixResult));
+  assert.ok(callixResult?.nodes?.some(n => n.name === 'start'), JSON.stringify(callixResult));
+  assert.ok(callixResult?.symbols?.some(n => n.name === 'leaf'), JSON.stringify(callixResult));
   const verify = join(temp, 'verify.mjs');
   await writeFile(verify, `import hooks from ${JSON.stringify(pathToFileURL(join(directory, 'plugins/monty/hooks.js')).href)};
 const result = await hooks['service.sandbox.run']({language:'python',code:'6 * 7'}, {signal:new AbortController().signal});
@@ -71,7 +102,7 @@ console.log('MONTY_OK');
   await writeFile(marker, 'user state');
   await exec('sh', [installer, '--prefix', prefix], options);
   assert.equal(await readFile(marker, 'utf8'), 'user state');
-  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, model response, state preservation`);
+  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, model response, bundled Callix cross-file analysis without PATH, state preservation`);
 } finally {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   await rm(temp, { recursive: true, force: true });

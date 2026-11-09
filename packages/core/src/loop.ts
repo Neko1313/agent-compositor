@@ -669,6 +669,11 @@ export class AgentCore {
     }
   }
 
+  private latestUserTask():string|undefined {
+    for(let i=this.messages.length-1;i>=0;i--)if(this.messages[i].role==="user")return this.messages[i].content.slice(0,2000);
+    return undefined;
+  }
+
   private composeTools(
     extraTools: ToolSpec<unknown, unknown>[]
   ): ToolSpec<unknown, unknown>[] {
@@ -1072,10 +1077,11 @@ export class AgentCore {
         : randomUUID();
     await this.emit("subagent.start", { agentId, prompt: args.prompt, depth });
 
+    const parentTask=this.latestUserTask();
     const child: AgentCore = new AgentCore({
       ...this.options,
       sessionId: randomUUID(),
-      permissionReview: async input => await this.emit("service.permission.review", input),
+      permissionReview: async input => await this.emit("service.permission.review", {...input,context:{...(input.context&&typeof input.context==="object"?input.context:{}),parentTask}}),
       remainingTokens:()=>Math.min((this.options.maxTokensPerSession??Infinity)-this.spentTokens,this.state==="running"?(this.options.maxTokensPerTurn??Infinity)-this.turnTokens:Infinity,this.options.remainingTokens?.()??Infinity),
       modelProfile: args.profile ?? this.options.modelProfile,
       model: args.profile ? undefined : this.options.model,
@@ -1252,6 +1258,9 @@ export class AgentCore {
               callId: call.id,
               input: args,
               descriptor,
+              description:spec.description.slice(0,3000),
+              parameters:spec.parameters,
+              context:{cwd:this.options.cwd,task:this.latestUserTask()},
             });
             const verdict = (
               review as {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "events": {
     "session.start": {
       "since": "0.1.0",

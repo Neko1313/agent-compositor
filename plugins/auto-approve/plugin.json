@@ -1,8 +1,8 @@
 {
   "name": "auto-approve",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "trust": "trusted",
-  "description": "Opt-in low-risk approval review using a separate small model profile. Explicit denies remain absolute.",
+  "description": "Opt-in risk review for arbitrary console, plugin, MCP and workflow tool actions. Only low-risk decisions pass automatically; explicit denies remain binding.",
   "provides": [
     "service.permission.review"
   ],

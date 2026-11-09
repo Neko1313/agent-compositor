@@ -43,14 +43,14 @@ describe('cost-aware harness', () => {
             await app.close();
         }
     });
-    it('checks effects instead of code vocabulary, keeping external/sensitive actions manual', () => {
+    it('keeps protected write paths manual while arbitrary tools and commands remain reviewable', () => {
         const cwd = '/project';
         expect(reviewPolicy({ tool: 'edit', input: { path: 'src/token.ts', newText: 'secret token curl https://docs' }, descriptor: { path: '/project/src/token.ts' } }, cwd)).toBeUndefined();
         for (const path of ['/etc/config', '/project/.env', '/project/.git/config', '/project/AGENTS.md'])
             expect(reviewPolicy({ tool: 'write', input: { path } }, cwd)).toMatch(/manual/);
         for (const command of ['git push origin main', 'rm -rf build', 'curl https://example.com'])
-            expect(reviewPolicy({ tool: 'exec', input: { command } }, cwd)).toMatch(/manual/);
-        expect(reviewPolicy({ tool: 'mcp_call', input: {} }, cwd)).toMatch(/manual/);
+            expect(reviewPolicy({ tool: 'exec', input: { command } }, cwd)).toBeUndefined();
+        expect(reviewPolicy({ tool: 'mcp_call', input: {} }, cwd)).toBeUndefined();
     });
     it('reserves input before charging a model request and bounds output by the remaining budget', async () => {
         const cwd = await temp(), provider = new ScriptedProvider([{ text: 'never requested' }]);

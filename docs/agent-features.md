@@ -55,10 +55,14 @@ main provider's settings. `.agent-compositor/auto.json`:
 ```
 
 Only actions that require approval through the normal chain are reviewed.
-The plugin examines the exact tool, arguments, and descriptor. It automatically
-approves only clearly low-risk exec/write/edit actions. Dangerous categories,
-other tools, oversized input, exhausted budgets, errors, timeouts, and invalid
-JSON fall back to manual approval. The reviewer has no tools and receives action
+The plugin examines the exact arguments, descriptor, registered description and
+parameter schema, plus bounded task context. Every model-facing tool is eligible:
+arbitrary console commands, MCP, workflows and custom plugins are not excluded
+by name. Already permitted actions avoid a paid review; only ask decisions enter
+the reviewer. Only an allow + low assessment passes automatically. Unclear or
+higher-risk assessments, protected write paths, inputs above 24000 JSON
+characters, exhausted budgets, errors, timeouts, and invalid JSON fall back to
+manual approval. The reviewer has no tools and receives action
 data as untrusted content. Explicit deny remains binding even if tool.check
 tries to override it. Decisions never become broad permissions for future
 commands.
@@ -328,10 +332,10 @@ Auto review remains opt-in (`/auto on`) with a dedicated profile in `auto.json`.
 Ephemeral children inherit the parent's enabled mode and shared review budget;
 turning it off stops subsequent inherited approvals. Review responses may be a
 single JSON object or a single fenced JSON object, as some Anthropic profiles
-return. Invalid/mixed prose, failures, explicit denies and unknown tools retain
-manual fallback. Write/edit policy checks canonical paths rather than scanning
+return. Invalid/mixed prose, failures and explicit denies retain manual fallback.
+Unknown tool semantics require a cautious assessment; tool names are not an eligibility whitelist. Write/edit policy checks canonical paths rather than scanning
 code for words such as `token` or documentation URLs. Sensitive/external paths
-and dangerous command effects still require manual approval. Read-only
+remain guarded; command effects are assessed by the reviewer regardless of executable name. Read-only
 `workflow_run list/status` can be audited automatically without a paid reviewer.
 Manual dialogs include the concrete review fallback reason. `/auto status`
 shows the review history; missing reviewer profiles and exhausted review budgets

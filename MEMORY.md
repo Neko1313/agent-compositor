@@ -638,3 +638,33 @@ compares canonical system targets (including symlink/multicall installations),
 not literal /usr/bin/<name> strings. The positive fixture uses a controlled
 standard PATH; a symlink to the real system ls is accepted, while a shadow shell
 script remains rejected. No generic basename-only executable trust was added.
+
+## Universal auto-review eligibility
+
+The user explicitly requested that auto approvals apply to arbitrary console
+commands and tool calls, rather than a small tool/command whitelist. Auto-approve
+1.2 now accepts every model-facing tool requiring approval for assessment:
+shell, MCP, workflows and custom plugins. Already permitted actions avoid an
+extra review; explicit deny remains binding before any reviewer call. Only
+allow + low passes automatically. No blanket permission or unrestricted mode
+was added; uncertain/higher-risk responses and failures still ask the user.
+
+service.permission.review now optionally carries the registered tool description,
+parameter schema and bounded current task context. Ephemeral children forward
+their task plus the parent's original task; review budgets remain shared. The
+reviewer treats metadata/arguments/context as untrusted data. Inputs above 24000
+JSON characters return to manual approval without truncating hidden effects.
+Command names/URLs are no longer a hard manual-only filter. Protected filesystem
+mutations are guarded by descriptor effects, including custom tool aliases.
+Canonical checks support new nested paths and reject unresolved symlinks.
+
+Audit errors now update the in-memory verdict/history as ask, and disabling auto
+while a review or its audit/UI completion is pending cannot return a stale allow.
+Tests cover generic eligibility, metadata/context delivery, actual plugin tool
+execution, explicit deny, higher-risk verdicts, malformed/oversized/unconfigured
+reviews, shared budgets, nested files, symlinks and late disable. The mode still
+requires /auto on and a dedicated reviewer profile; defaults remain manual.
+
+Verification: 461 tests passed, three optional native tests skipped, 56 files;
+line coverage 82.29%. Typecheck passed. Catalog 0.14 adds optional review metadata;
+marketplace metadata and generated docs/schema are synchronized.

@@ -38,7 +38,8 @@
     "eval:tools": "bun tools/evals/run.ts --suite tools/evals/tool-cases.json",
     "visual:presentation": "node tools/visual/presentation-check.mjs",
     "visual:questions": "node tools/visual/questions-check.mjs",
-    "visual:history": "node tools/visual/history-check.mjs"
+    "visual:history": "node tools/visual/history-check.mjs",
+    "visual:ux": "node tools/visual/ux-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

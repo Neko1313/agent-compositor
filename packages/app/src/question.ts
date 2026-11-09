@@ -28,6 +28,7 @@ interface Draft {
   text: string;
   numbers: string;
   cursor: number;
+  textCursor: number;
   editing: boolean;
   focus: "options" | "text" | "back" | "next";
 }
@@ -56,6 +57,7 @@ export class QuestionDialog {
       text: "",
       numbers: "",
       cursor: 0,
+      textCursor: 0,
       editing: !q.options?.length,
       focus: q.options?.length ? "options" : "text",
     }));
@@ -183,6 +185,16 @@ export class QuestionDialog {
       );
     return rows;
   }
+  private answerLine(columns: number) {
+    const d = this.state, chars = Array.from(d.text);
+    const prefix = columns >= 24 ? "Your answer: " : "Answer: ";
+    const room = Math.max(1, columns - prefix.length - 1);
+    const start = Math.max(0, d.textCursor - room + 1);
+    const visible = chars.slice(start, start + room);
+    visible.splice(d.textCursor - start, 0, "▏");
+    if (start && visible.length > 1) visible[0] = "…";
+    return prefix + visible.join("");
+  }
   private footer(columns: number): DialogRow[] {
     const result: DialogRow[] = [];
     if (this.error) result.push(...textRows(this.error, columns, "danger"));
@@ -191,7 +203,7 @@ export class QuestionDialog {
       const prompt = d.numbers
         ? `Numbers: ${d.numbers}▏`
         : d.editing || !this.q.options?.length
-          ? `Your answer: ${d.text}▏`
+          ? this.answerLine(columns)
           : this.q.multi
             ? "Space toggles choices"
             : "Enter chooses the focused option";
@@ -267,6 +279,7 @@ export class QuestionDialog {
     } else {
       d.selected = new Set([index]);
       d.text = "";
+      d.textCursor = 0;
     }
     d.numbers = "";
     d.cursor = index;
@@ -298,6 +311,7 @@ export class QuestionDialog {
       }
       d.selected = new Set(numbers.map((n) => n - 1));
       d.text = "";
+      d.textCursor = 0;
       d.numbers = "";
     }
     if (!d.selected.size && !d.text.trim()) {
@@ -395,7 +409,7 @@ export class QuestionDialog {
         if (["up", "down", "tab"].includes(input.key)) {
           this.reviewCursor =
             (this.reviewCursor +
-              (input.key === "up" ? -1 : 1) +
+              (input.key === "up" || input.key === "tab" && input.modifiers?.includes("shift") ? -1 : 1) +
               this.questions.length +
               1) %
             (this.questions.length + 1);
@@ -431,15 +445,29 @@ export class QuestionDialog {
       d.editing = true;
       d.focus = "text";
       if (!this.q.multi) d.selected.clear();
-      d.text = (d.text + value).slice(0, 4001);
+      const chars = Array.from(d.text);
+      chars.splice(d.textCursor, 0, ...Array.from(value));
+      d.text = chars.slice(0, 4001).join("");
+      d.textCursor = Math.min(4001, d.textCursor + Array.from(value).length);
       d.numbers = "";
       this.error = "";
       return;
     }
     if (input.kind !== "key") return;
+    if (d.editing && ["left", "right", "home", "end", "backspace", "delete"].includes(input.key)) {
+      const chars = Array.from(d.text);
+      if (input.key === "left") d.textCursor = Math.max(0, d.textCursor - 1);
+      if (input.key === "right") d.textCursor = Math.min(chars.length, d.textCursor + 1);
+      if (input.key === "home") d.textCursor = 0;
+      if (input.key === "end") d.textCursor = chars.length;
+      if (input.key === "backspace" && d.textCursor > 0) chars.splice(--d.textCursor, 1);
+      if (input.key === "delete") chars.splice(d.textCursor, 1);
+      d.text = chars.join("");
+      this.error = "";
+      return;
+    }
     if (input.key === "backspace" || input.key === "delete") {
       if (d.numbers) d.numbers = d.numbers.slice(0, -1);
-      else d.text = Array.from(d.text).slice(0, -1).join("");
       this.error = "";
       return;
     }
@@ -454,7 +482,7 @@ export class QuestionDialog {
         ...(this.index > 0 ? ["back" as const] : []),
         "next",
       ];
-      d.focus = focuses[(focuses.indexOf(d.focus) + 1) % focuses.length];
+      d.focus = focuses[(focuses.indexOf(d.focus) + (input.modifiers?.includes("shift") ? -1 : 1) + focuses.length) % focuses.length];
       d.editing = d.focus === "text";
       this.reveal = true;
       return;
@@ -469,6 +497,9 @@ export class QuestionDialog {
       this.reveal = true;
       return;
     }
+    if (input.key === "space" && (d.focus === "back" || d.focus === "next"))
+      return this.action({ kind: d.focus });
+    if (input.key === "space" && d.editing) return this.handle({ kind: "text", text: " " });
     if (input.key === "space" && !d.editing && options.length) {
       this.choose(d.cursor);
       return;

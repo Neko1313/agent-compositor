@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { AgentCore, ScriptedProvider } from "@agent-compositor/core";
 import { hello, type WireMessage } from "@agent-compositor/protocol";
+import { uiAppearanceSchema, uiTextViewSchema } from "@agent-compositor/events";
+import themeHooks from "../../../plugins/ui-theme/hooks.js";
 import { AppUI } from "../src/ui.js";
-import { appearanceFrom, clean, transcriptRows, wrap } from "../src/presentation.js";
+import { appearanceFrom, clean, gridFrom, transcriptRows, wrap, textRows } from "../src/presentation.js";
 
 function setup(provider = new ScriptedProvider([])) {
   const ui = new AppUI(approve => new AgentCore({ cwd: process.cwd(), provider, onApproval: approve }));
@@ -98,4 +100,39 @@ it('parses Markdown before wrapping and preserves emphasis, lists, quotes, links
 it('renders tables within a narrow viewport and sanitizes control sequences in Markdown',()=>{
   const rows=transcriptRows([{kind:'assistant',text:'| Name | Result |\n| --- | --- |\n| module | **passed** |\n\nText \x1b]22;pointer\x07 safe'}],24,appearanceFrom([]));
   const body=rows.map(r=>r.text).join('\n');expect(body).toContain('Name');expect(body).toContain('passed');expect(body).not.toContain('**');expect(body).not.toContain('\x1b');expect(rows.every(r=>Array.from(r.text).length<=24)).toBe(true);
+});
+
+
+it('uses a readable selection foreground for muted actions and preserves Markdown cell styles',()=>{
+  const base=appearanceFrom([]);
+  const action={text:'Close',tone:'muted' as const,selected:true};
+  const selected=gridFrom([action],base,20)[0];
+  expect(selected.every(cell=>cell.fg===base.colors.selectionText&&cell.bg===base.colors.selectionBackground)).toBe(true);
+  expect(selected[0].fg).not.toBe(selected[0].bg);
+  const custom=appearanceFrom([{colors:{selectionText:'#ffeedd',selectionBackground:'#123456'}}]);
+  const rich={text:'link',selected:true,cells:[{ch:'x',fg:'#ff0000',bold:true,underline:true}]};
+  expect(gridFrom([rich],custom,20)[0][0]).toEqual({ch:'x',fg:'#ffeedd',bg:'#123456',bold:true,underline:true});
+  expect(gridFrom([{...rich,selected:false}],custom,20)[0][0].fg).toBe('#ff0000');
+});
+it('keeps monochrome selected text distinct from its background',async()=>{
+  let appearance:any;
+  const $:any={state:{set:()=>{},get:()=> 'mono'},ui:{configure:async(value:any)=>{appearance=value;},notify:async()=>{}},fs:{write:async()=>{}}};
+  await themeHooks['prompt.submit']({text:'/theme mono'},$);
+  const theme=appearanceFrom([appearance]);
+  expect(theme.colors.muted).toBe('#b8b8b8');
+  expect(gridFrom([{text:'Action',tone:'muted',selected:true}],theme,20)[0][0]).toMatchObject({fg:'#101010',bg:'#b8b8b8'});
+});
+it('accepts optional plugin hints and input labels without changing legacy view validity',()=>{
+  const legacy={lines:[{text:'Browse'}],input:{id:'search',value:''}};
+  expect(uiTextViewSchema.parse(legacy)).toEqual(legacy);
+  expect(uiTextViewSchema.parse({...legacy,hint:'Enter opens the selected item',input:{...legacy.input,label:'Filter'}}).hint).toContain('Enter');
+  expect(uiTextViewSchema.safeParse({...legacy,hint:'x'.repeat(201)}).success).toBe(false);
+  expect(uiTextViewSchema.safeParse({...legacy,input:{...legacy.input,label:'x'.repeat(61)}}).success).toBe(false);
+  expect(uiAppearanceSchema.parse({colors:{selectionText:'black'}})).toEqual({colors:{selectionText:'black'}});
+});
+
+it('keeps whole task words in narrow columns instead of preferring a half-width hard break',()=>{
+ const rows=textRows('[ ] Build interactive UI',20);expect(rows.map(r=>r.text)).toEqual(['[ ] Build','    interactive UI']);
+ expect(rows.map(r=>r.text.trim()).join(' ')).toBe('[ ] Build interactive UI');
+ expect(wrap('    identifierWithoutSpaces',12).every(line=>line.length<=12)).toBe(true);
 });

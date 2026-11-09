@@ -56,7 +56,7 @@ async function service(
   return result.value;
 }
 export const sessionTitle = (meta: SessionMeta) =>
-  meta.name || meta.firstPrompt || `Chat ${meta.id.slice(0, 8)}`;
+  meta.name || meta.firstPrompt || (meta.messageCount ? `Chat ${meta.id.slice(0, 8)}` : "New chat");
 export function sessionControls(): CorePlugin {
   const site = "plugin-session-manager-sessions";
   let state:
@@ -157,6 +157,7 @@ export function sessionControls(): CorePlugin {
       "sessions",
       "Chat history",
       {
+        hint:'Type search · ↑↓ select · Enter resume · Esc close',
         input: {
           id: "search",
           value: s.query,

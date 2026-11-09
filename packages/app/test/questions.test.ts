@@ -155,4 +155,38 @@ describe("human question dialog", () => {
       "cancel",
     );
   });
+  it("reverses Tab and activates focused navigation with key Space", () => {
+    const d = new QuestionDialog({question:"Setup",questions:[
+      {id:"one",question:"First?",options:["A","B"]},
+      {id:"two",question:"Second?",options:["C","D"]},
+    ]});
+    key(d,"space");
+    d.handle({kind:"key",key:"tab",modifiers:["shift"]});
+    expect(d.rows(60).some(r=>r.text==='[ Next ]'&&r.selected)).toBe(true);
+    key(d,"space");
+    expect(d.index).toBe(1);
+    key(d,"tab"); key(d,"tab");
+    key(d,"space");
+    expect(d.index).toBe(0);
+    key(d,"enter"); key(d,"down"); key(d,"enter");
+    expect(d.review).toBe(true);
+    d.handle({kind:"key",key:"tab",modifiers:["shift"]});
+    key(d,"space");
+    expect(d.index).toBe(1);
+  });
+  it("edits custom answers at a Unicode cursor and keeps that cursor visible in narrow panes", () => {
+    const d=new QuestionDialog({question:"Name?"});
+    text(d,"A😀BC"); key(d,"left"); key(d,"backspace"); text(d,"x");
+    expect(d.draft).toBe("A😀xC");
+    key(d,"home"); key(d,"delete"); key(d,"right"); text(d,"!");
+    expect(d.draft).toBe("😀!xC");
+    key(d,"end"); key(d,"space"); text(d,"long answer ".repeat(10));
+    const end=d.visible(24,6).find(r=>r.text.includes("▏"))!;
+    expect(Array.from(end.text).length).toBeLessThanOrEqual(24);
+    expect(end.text).toContain("…");
+    key(d,"home");
+    expect(d.visible(24,6).some(r=>r.text.includes("▏😀!xC"))).toBe(true);
+    expect(key(d,"enter")).toEqual({answer:d.draft.trim()});
+  });
+
 });

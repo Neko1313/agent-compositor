@@ -40,7 +40,20 @@ function remove(node: Tree, id: string): Tree | undefined {
 /** Binary tiling tree owned by the compositor. Renderer receives only rectangles. */
 export class WindowManager {
   workspace = 1;
-  focused = "session";
+  private paneFocus = "session";
+  get focused(): string { return this.paneFocus; }
+  set focused(value: string) {
+    this.paneFocus = value;
+    // The composer is outside the tiling tree; keep its last content pane.
+    const state = this.spaces.get(this.workspace);
+    if (state && leaves(state.tree).includes(value)) state.focus = value;
+  }
+  private contentFocus(): string {
+    const ids = this.ids();
+    const previous = this.spaces.get(this.workspace)?.focus;
+    return ids.includes(this.focused) ? this.focused
+      : previous && ids.includes(previous) ? previous : ids[0] ?? "input";
+  }
   fullscreen = false;
   axis: "horizontal" | "vertical" = "horizontal";
   private spaces = new Map<number, { tree?: Tree; focus?: string }>([
@@ -134,7 +147,7 @@ export class WindowManager {
     return this.spaces.get(this.workspace)?.tree;
   }
   private set tree(tree: Tree | undefined) {
-    this.spaces.set(this.workspace, { tree, focus: this.focused });
+    this.spaces.set(this.workspace, { tree, focus: this.contentFocus() });
   }
   has(id: string): boolean {
     return [...this.spaces.values()].some((space) =>
@@ -161,7 +174,7 @@ export class WindowManager {
     return leaves(this.tree);
   }
   switchTo(id: number): void {
-    this.spaces.set(this.workspace, { tree: this.tree, focus: this.focused });
+    this.spaces.set(this.workspace, { tree: this.tree, focus: this.contentFocus() });
     this.workspace = id;
     this.focused =
       this.spaces.get(id)?.focus ?? leaves(this.tree)[0] ?? "input";
@@ -267,96 +280,53 @@ export class WindowManager {
     this.switchTo(id);
     this.open(surface);
   }
-  frames(width: number, height: number): Frame[] {
-    if (!this.tree) return [];
-    if (this.fullscreen && this.ids().includes(this.focused))
-      return [{ surface: this.focused, x: 0, y: 0, width, height }];
-    const walk = (
-      node: Tree,
-      x: number,
-      y: number,
-      w: number,
-      h: number
-    ): Frame[] => {
-      if ("surface" in node)
-        return [{ surface: node.surface, x, y, width: w, height: h }];
-      const horizontal = node.axis === "horizontal",
-        size = horizontal ? w : h;
-      // Tiny terminals show the focused branch instead of overflowing the terminal.
-      if (size < (horizontal ? 24 : 8))
-        return walk(
-          node.children[
-            leaves(node.children[1]).includes(this.focused) ? 1 : 0
-          ],
-          x,
-          y,
-          w,
-          h
-        );
-      const n = Math.max(1, Math.min(size - 1, Math.floor(size * node.ratio)));
-      return [
-        ...walk(node.children[0], x, y, horizontal ? n : w, horizontal ? h : n),
-        ...walk(
-          node.children[1],
-          horizontal ? x + n : x,
-          horizontal ? y : y + n,
-          horizontal ? w - n : w,
-          horizontal ? h : h - n
-        ),
-      ];
-    };
-    return walk(this.tree, 0, 0, width, height);
-  }
-  /** Find the deepest visible split under either of its two border cells. */
-  separator(
-    col: number,
-    row: number,
-    width: number,
-    height: number
-  ): ResizeHandle | undefined {
-    if (!this.tree || this.fullscreen) return;
-    const walk = (
-      node: Tree,
-      x: number,
-      y: number,
-      w: number,
-      h: number,
-      path: number[]
-    ): ResizeHandle | undefined => {
-      if (
-        "surface" in node ||
-        col < x ||
-        col >= x + w ||
-        row < y ||
-        row >= y + h
-      )
+  /** Project the saved tree without changing ratios, placement or workspace state. */
+  private layout(width: number, height: number, readable = true): {
+    frames: Frame[]; handles: ResizeHandle[];
+  } {
+    const frames: Frame[] = [], handles: ResizeHandle[] = [];
+    if (!this.tree || width <= 0 || height <= 0) return { frames, handles };
+    const focus = this.contentFocus();
+    if (readable && this.fullscreen) {
+      return { frames: [{ surface: focus, x: 0, y: 0, width, height }], handles };
+    }
+    const walk = (node: Tree, x: number, y: number, w: number, h: number, path: number[]): void => {
+      if ("surface" in node) {
+        frames.push({ surface: node.surface, x, y, width: w, height: h });
         return;
-      const horizontal = node.axis === "horizontal",
-        size = horizontal ? w : h;
-      if (size < (horizontal ? 24 : 8)) return;
-      const n = Math.max(1, Math.min(size - 1, Math.floor(size * node.ratio)));
-      const first = walk(
-        node.children[0],
-        x,
-        y,
-        horizontal ? n : w,
-        horizontal ? h : n,
-        [...path, 0]
-      );
-      const second = walk(
-        node.children[1],
-        horizontal ? x + n : x,
-        horizontal ? y : y + n,
-        horizontal ? w - n : w,
-        horizontal ? h : h - n,
-        [...path, 1]
-      );
-      if (first || second) return first ?? second;
-      const coordinate = horizontal ? col - x : row - y;
-      if (coordinate === n - 1 || coordinate === n)
-        return { node, path, x, y, width: w, height: h, original: node.ratio };
+      }
+      const horizontal = node.axis === "horizontal", size = horizontal ? w : h;
+      const minimum = horizontal ? 24 : 6;
+      const n = readable ? Math.max(minimum, Math.min(size - minimum, Math.floor(size * node.ratio))) : size * node.ratio;
+      // Both child rectangles need space for useful content, title and borders.
+      // Nested splits may independently collapse again within their allocation.
+      if (readable && (size < minimum * 2 || (horizontal ? h < 6 : w < 24))) {
+        const index = leaves(node.children[1]).includes(focus) ? 1 : 0;
+        walk(node.children[index], x, y, w, h, [...path, index]);
+        return;
+      }
+      handles.push({ node, path, x, y, width: w, height: h, original: node.ratio });
+      walk(node.children[0], x, y, horizontal ? n : w, horizontal ? h : n, [...path, 0]);
+      walk(node.children[1], horizontal ? x + n : x, horizontal ? y : y + n,
+        horizontal ? w - n : w, horizontal ? h : h - n, [...path, 1]);
     };
-    return walk(this.tree, 0, 0, width, height, []);
+    walk(this.tree, 0, 0, width, height, []);
+    return { frames, handles };
+  }
+  frames(width: number, height: number): Frame[] {
+    return this.layout(width, height).frames;
+  }
+  /** Only projected, visible splits can capture the pointer. */
+  separator(col: number, row: number, width: number, height: number): ResizeHandle | undefined {
+    return this.layout(width, height).handles.reverse().find(handle => {
+      if (col < handle.x || col >= handle.x + handle.width || row < handle.y || row >= handle.y + handle.height) return false;
+      const horizontal = handle.node.axis === "horizontal";
+      const minimum = horizontal ? 24 : 6;
+      const size = horizontal ? handle.width : handle.height;
+      const n = Math.max(minimum, Math.min(size - minimum, Math.floor(size * handle.node.ratio)));
+      const coordinate = horizontal ? col - handle.x : row - handle.y;
+      return coordinate === n - 1 || coordinate === n;
+    });
   }
   private resizeNode(
     handle: ResizeHandle
@@ -420,8 +390,9 @@ export class WindowManager {
     this.fullscreen = false;
   }
   direction(key: string, width: number, height: number, move = false): void {
-    const frames = this.frames(width, height),
-      current = frames.find((f) => f.surface === this.focused);
+    // Logical geometry includes collapsed panes, so every leaf remains reachable.
+    const frames = this.layout(width, height, false).frames,
+      current = frames.find((f) => f.surface === this.contentFocus());
     if (!current) {
       this.focused = frames[0]?.surface ?? "input";
       return;
@@ -448,7 +419,7 @@ export class WindowManager {
     const target = candidates[0]?.f.surface;
     if (!target) return;
     if (move && this.tree) {
-      const from = this.focused;
+      const from = current.surface;
       this.tree = change(
         change(this.tree, from, () => ({ surface: "__swap" })),
         target,

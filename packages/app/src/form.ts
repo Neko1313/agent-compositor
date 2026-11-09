@@ -5,7 +5,7 @@ type Input=Extract<WireMessage,{type:'input'}>['data'];
 /** Private drafts never enter prompt history, ui.render hooks, or catalog events. */
 export class FormDialog {
   values:Record<string,string|boolean>={}; focus=0; cursor=0; scroll=0; error=''; selectAll=false;
-  private hits: Array<{row:number;index:number}>=[];
+  private hits: Array<{row:number;end:number;index:number}>=[];
   constructor(readonly request:UiForm) {
     for(const field of request.fields) this.values[field.id]=field.type==='toggle'?field.value===true:field.type==='password'?'':String(field.value??field.options?.[0]?.value??'');
     this.move(0);
@@ -25,7 +25,7 @@ export class FormDialog {
     if(this.request.description) rows.push(...textRows(this.request.description,columns,'muted'),{text:''});
     for(const [index,f] of this.request.fields.entries()) {
       markers[index]=rows.length;
-      rows.push({text:f.label,bold:true,tone:this.focus===index?'accent':'text'});
+      rows.push(...textRows(f.label+(f.required?' (required)':''),columns,this.focus===index?'accent':'text').map(row=>({...row,bold:true})));
       const value=String(this.values[f.id]);const active=this.focus===index;
       let content=f.type==='password'?'•'.repeat(value.length):value;
       if(f.type==='toggle')content=this.values[f.id]?'[x] Enabled':'[ ] Disabled';
@@ -40,18 +40,30 @@ export class FormDialog {
       rows.push({text:''});
     }
     for(const [i,action] of this.request.actions.entries()){markers[this.request.fields.length+i]=rows.length;rows.push({text:`${this.focus===this.request.fields.length+i?'›':' '} [ ${action.label} ]`,tone:'accent',selected:this.focus===this.request.fields.length+i});}
-    if(this.error)rows.push(...textRows(this.error,columns,'danger'));
-    const position=markers[this.focus];const available=Math.max(1,height-1);
+    const field=this.request.fields[this.focus];
+    const kind=field?.type;
+    const hint=kind==='toggle'?'Space toggle':kind==='select'?'←→ choose':field?'←→ edit': 'Enter activate';
+    const count=this.request.fields.length+this.request.actions.length;
+    const compact=`${this.focus+1}/${count} · ${hint} · Tab next`;
+    const help=columns<60?compact:`${this.focus+1}/${count} · ${hint} · Tab / Shift+Tab focus · Esc cancel`;
+    const feedback:Row[]=this.error
+      ?textRows(this.error,columns,'danger').slice(0,Math.max(1,height-2))
+      :[{text:Array.from(help).slice(0,columns).join(''),tone:'muted'}];
+    const available=Math.max(1,height-feedback.length);
+    const position=markers[this.focus];
+    const end=field?Math.min(rows.length,position+textRows(field.label+(field.required?' (required)':''),columns).length+1):position+1;
     if(position<this.scroll)this.scroll=position;
-    if(position+1>=this.scroll+available)this.scroll=Math.max(0,position-available+2);
-    this.hits=markers.map((row,index)=>({row:row-this.scroll,index})).filter(hit=>hit.row>=0&&hit.row<available);
-    return [...rows.slice(this.scroll,this.scroll+available),{text:this.error||'Tab / ↑↓ focus · ←→ choices · Enter next / activate · Esc cancel',tone:this.error?'danger':'muted'}];
+    if(end>=this.scroll+available)this.scroll=Math.max(0,Math.min(position,end-available));
+    this.scroll=Math.min(this.scroll,Math.max(0,rows.length-available));
+    this.hits=markers.map((row,index)=>({row:row-this.scroll,end:Math.min(available-1,(markers[index+1]??rows.length)-this.scroll-1),index})).filter(hit=>hit.end>=0&&hit.row<available);
+    return [...rows.slice(this.scroll,this.scroll+available),...feedback].slice(0,height);
   }
+
   handle(input:Input):UiFormResult|'cancel'|undefined {
     if(input.kind==='mouse') {
       if(input.button==='wheel-up'||input.button==='wheel-down'){this.move(this.focus+(input.button==='wheel-up'?-1:1));return;}
       if(input.button!=='left'||input.action==='move'||input.action==='release')return;
-      const hit=[...this.hits].reverse().find(h=>input.row>=h.row&&input.row<=h.row+1);
+      const hit=[...this.hits].reverse().find(h=>input.row>=Math.max(0,h.row)&&input.row<=h.end);
       if(!hit)return;this.move(hit.index);
       const field=this.request.fields[this.focus];
       if(field&& !['toggle','select'].includes(field.type))return;

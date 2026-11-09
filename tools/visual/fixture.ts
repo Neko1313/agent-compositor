@@ -1,3 +1,4 @@
+import {uxTool,uxReply} from "./ux-sample.js";
 import {historyReply} from "./history-sample.js";
 import {questionsSample,questionsReply} from "./questions-sample.js";
 import {markdownSample} from "./markdown-sample.js";
@@ -14,7 +15,7 @@ const proofProvider={name:"harness-proof",async *complete(req:any){
 const app = await buildApp({
   pluginDirs: [new URL('../../plugins',import.meta.url).pathname,...(process.env.VISUAL_HARNESS?[new URL('./harness-plugin',import.meta.url).pathname]:[])],
   cwd: process.argv[2], env: { HOME: process.argv[2], XDG_CONFIG_HOME: `${process.argv[2]}/xdg` },
-  provider: process.env.VISUAL_HISTORY?{name:'history-proof',async *complete(req:any){yield{type:'text_delta' as const,text:historyReply(req.messages)};yield{type:'finish' as const,reason:'stop' as const};}}:process.env.VISUAL_QUESTIONS ? {name:'questions-proof',async *complete(req:any){const reply=questionsReply(req.messages);if(reply)yield{type:'text_delta' as const,text:reply};else yield{type:'tool_call' as const,id:'questionnaire-proof',name:'ask_questions',args:questionsSample};yield{type:'finish' as const,reason:reply?'stop' as const:'tool_calls' as const};}}:process.env.VISUAL_MARKDOWN ? new ScriptedProvider([{text:markdownSample}]):process.env.VISUAL_HARNESS?proofProvider:new ScriptedProvider([
+  provider: process.env.VISUAL_UX?{name:'ux-proof',async *complete(req:any){const reply=uxReply(req.messages);if(reply)yield{type:'text_delta' as const,text:reply};else yield{type:'tool_call' as const,...uxTool};yield{type:'finish' as const,reason:reply?'stop' as const:'tool_calls' as const};}}:process.env.VISUAL_HISTORY?{name:'history-proof',async *complete(req:any){yield{type:'text_delta' as const,text:historyReply(req.messages)};yield{type:'finish' as const,reason:'stop' as const};}}:process.env.VISUAL_QUESTIONS ? {name:'questions-proof',async *complete(req:any){const reply=questionsReply(req.messages);if(reply)yield{type:'text_delta' as const,text:reply};else yield{type:'tool_call' as const,id:'questionnaire-proof',name:'ask_questions',args:questionsSample};yield{type:'finish' as const,reason:reply?'stop' as const:'tool_calls' as const};}}:process.env.VISUAL_MARKDOWN ? new ScriptedProvider([{text:markdownSample}]):process.env.VISUAL_HARNESS?proofProvider:new ScriptedProvider([
     { text: "I will update the project task list.", toolCalls: [{ name: "todo", args: { todos: [
       { content: "Inspect project", status: "completed" },
       { content: "Build interactive UI", status: "in_progress" },

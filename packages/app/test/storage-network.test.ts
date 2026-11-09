@@ -117,8 +117,12 @@ describe("plugin storage and proxy controls", () => {
     });
     await core.start();
     await core.submit("/proxy status");
+    expect(texts.join("")).toContain('Models: direct · Tools: direct');
+    expect(texts.join("")).not.toContain('"enabled": false');
+    await core.host.emit('ui.press', { site: 'plugin-network-proxy-network', key: 'show-diagnostics' });
     expect(texts.join("")).toContain('"enabled": false');
     expect(texts.join("")).not.toContain("private");
+    expect(texts.join("")).not.toContain("user@");
     await core.submit("/proxy on");
     expect(
       JSON.parse(

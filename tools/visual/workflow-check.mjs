@@ -25,6 +25,7 @@ try{
  await click('[ Resume workflow ]');await wait('Repository audit proof · completed');await click('Verify combined result · completed');await wait('Combined verification complete');await shot('03-completed.png');
  report.checks.push('Actual workflow tool dynamically expands two parallel workers; mouse pause prevents the downstream stage from starting; resume joins results and exposes detail');
  const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');await page.waitForFunction(g=>visual.generation>g&&visual.frames>0,generation);await wait('Repository audit proof · completed');await shot('04-restored.png');
+ await page.keyboard.press('Alt+s');
  await submit('Explain the current status');await wait('Main session remains responsive');await wait('ctx ');await page.waitForFunction(()=>visual.text().split('\n')[38]?.includes('Ready'));await shot('05-context.png');
  report.checks.push('Restart restores completed stages; foreground input remains usable and displays context occupancy');
  if(report.errors.length)throw Error(report.errors.join('\n'));report.ok=true;

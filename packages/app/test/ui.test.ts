@@ -233,7 +233,7 @@ describe("mouse window management", () => {
     mouse(ui, "press", 55, 8); mouse(ui, "move", 40, 8);
     expect(ui.windows.frames(80, 17)[0].width).toBe(40);
     mouse(ui, "move", 0, 8);
-    expect(ui.windows.frames(80, 17)[0].width).toBe(12);
+    expect(ui.windows.frames(80, 17)[0].width).toBe(24); // Readable projection preserves the saved ratio.
     mouse(ui, "release", 40, 8); mouse(ui, "move", 70, 8);
     expect(ui.windows.frames(80, 17)[0].width).toBe(40); ui.close();
   });

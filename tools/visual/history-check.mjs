@@ -95,7 +95,7 @@ try {
       visual.terminal.buffer.active
         .getLine(33)
         ?.translateToString(true)
-        .includes("Ctrl+J"),
+        .includes("Type search"),
     before,
   );
   await wait("Login behavior verified");

@@ -13,6 +13,7 @@ export const DEFAULT_APPEARANCE = {
     border: "#46525c",
     titleBackground: "#202b34",
     selectionBackground: "#314652",
+    selectionText: "#f3f7fa",
   },
   chrome: {
     borderStyle: "single" as "single" | "round" | "double",
@@ -71,7 +72,7 @@ export function wrap(text: string, columns: number): string[] {
       let chars = Array.from(line);
       while (chars.length > width) {
         let cut = chars.slice(0, width + 1).lastIndexOf(" ");
-        if (cut < Math.floor(width / 2)) cut = width;
+        if (cut <= 0 || !chars.slice(0, cut).join("").trim()) cut = width;
         result.push(chars.slice(0, cut).join(""));
         chars = chars.slice(cut + (chars[cut] === " " ? 1 : 0));
       }
@@ -152,22 +153,25 @@ export function transcriptRows(
 export function gridFrom(
   rows: Row[],
   theme: Appearance,
-  columns: number
+  columns: number,
+  literal = false
 ): Grid {
   return rows.map((row) => {
-    if (row.cells) return row.cells.slice(0, columns);
+    if (row.cells) return row.cells.slice(0, columns).map(cell => row.selected
+      ? { ...cell, fg: theme.colors.selectionText, bg: theme.colors.selectionBackground }
+      : cell);
     const cells: Grid[number] = [];
-    const parts = clean(row.text).split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+    const parts = literal ? [clean(row.text)] : clean(row.text).split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
     for (const part of parts) {
       const code =
-        part.startsWith("`") && part.endsWith("`") && part.length > 1;
+        !literal && part.startsWith("`") && part.endsWith("`") && part.length > 1;
       const strong =
-        part.startsWith("**") && part.endsWith("**") && part.length > 3;
+        !literal && part.startsWith("**") && part.endsWith("**") && part.length > 3;
       const text = code ? part.slice(1, -1) : strong ? part.slice(2, -2) : part;
       for (const ch of Array.from(text))
         cells.push({
           ch,
-          fg: theme.colors[code ? "accent" : row.tone ?? "text"],
+          fg: row.selected ? theme.colors.selectionText : theme.colors[code ? "accent" : row.tone ?? "text"],
           ...(row.selected ? { bg: theme.colors.selectionBackground } : {}),
           ...(row.bold || strong ? { bold: true } : {}),
         });

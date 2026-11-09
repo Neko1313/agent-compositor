@@ -16,7 +16,9 @@ describe("placement policy", () => {
     const wm = new WindowManager(); wm.focused = "input";
     wm.place("usage", { site: "sidebar", size: .2 });
     expect(wm.focused).toBe("input");
-    expect(wm.frames(100, 40).find(f => f.surface === "usage")).toMatchObject({ x: 80, width: 20, height: 40 });
+    // Keep the saved 20% rule; the visible sidebar receives a readable 24 cells.
+    expect(wm.tree).toMatchObject({ ratio: .8 });
+    expect(wm.frames(100, 40).find(f => f.surface === "usage")).toMatchObject({ x: 76, width: 24, height: 40 });
     wm.place("inspect", { site: "inspector", relativeTo: "session", size: .25 });
     const session = wm.frames(100, 40).find(f => f.surface === "session")!;
     expect(wm.frames(100, 40).find(f => f.surface === "inspect")).toMatchObject({ x: session.x, y: 30, width: session.width, height: 10 });

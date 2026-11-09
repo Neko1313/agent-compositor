@@ -158,3 +158,17 @@ Artifacts default to `dist/visual-history/`; inspect PNGs and `report.json`.
 Set `VISUAL_EXECUTABLE` to the built distribution and `VISUAL_START_HISTORY=1`
 to test the binary's bare `--resume` startup entry. The same loopback model fixture
 and isolated home storage are used. Set a fresh `VISUAL_OUTPUT` for each run.
+
+### UX interaction scenario
+
+`npm run visual:ux` checks readable window projection at 100x30, 80x24 and 60x24,
+keyboard access to a hidden pane, fullscreen while composing, and an offscreen
+provider action. It then opens a long real exec approval and checks its beginning,
+end, tool identity and all permission scopes while scrolling. The command is a
+safe print-only fixture and is always denied. The final mono history check reads
+actual xterm RGB cells, avoiding a false contrast pass from ANSI color names.
+`VISUAL_EXECUTABLE` selects the compiled distribution with a token-scoped loopback
+model fixture. Default output: `dist/visual-ux/`; inspect PNGs and `report.json`.
+
+The maintained [TUI design guide](../../docs/tui-design.md) explains the shared
+layout, navigation, literal-input, contrast and plugin-contract decisions.

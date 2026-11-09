@@ -27,6 +27,7 @@ export const uiAppearanceSchema = z
         border: color.optional(),
         titleBackground: color.optional(),
         selectionBackground: color.optional(),
+        selectionText: color.optional(),
       })
       .strict()
       .optional(),
@@ -55,7 +56,8 @@ export type UiAppearance = z.infer<typeof uiAppearanceSchema>;
 /** Portable text view for ui.render overrides; terminal escapes are never interpreted. */
 export const uiTextViewSchema = z
   .object({
-    input: z.object({id:z.string().min(1).max(64),value:z.string().max(4000),placeholder:z.string().max(200).optional()}).strict().optional(),
+    hint: z.string().max(200).optional(),
+    input: z.object({label:z.string().max(60).optional(),id:z.string().min(1).max(64),value:z.string().max(4000),placeholder:z.string().max(200).optional()}).strict().optional(),
     raster: z
       .object({
         width: z.number().int().min(1).max(512),

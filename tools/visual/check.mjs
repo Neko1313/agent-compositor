@@ -446,7 +446,7 @@ try {
   await closePane("Marketplaces");
   await submit("/proxy status");
   await waitText("Network proxy");
-  await waitText('"enabled": false');
+  await waitText('Models: direct · Tools: direct');
   await screenshot("21-network-proxy.png");
   await closePane("Network proxy");
   report.checks.push(

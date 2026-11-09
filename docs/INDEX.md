@@ -122,3 +122,7 @@ interruption propagates to the child; child tool declarations are deduplicated.
 - [Marketplace and plugin portability](marketplace.md)
 - [Project state and network proxy](state-and-network.md)
 - [Quality evals and Harness²](evals.md)
+
+- [TUI design principles and segment review](tui-design.md): readable window
+  projection, focus/action navigation, literal review input, contrast and
+  replaceable plugin view metadata (2026-11-10).

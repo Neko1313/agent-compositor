@@ -9,8 +9,8 @@ const themes: Record<string, UiAppearance | null> = {
     chrome: { borderStyle: "round" },
   },
   mono: {
-    colors: { text: "white", muted: "gray", accent: "white", success: "white", warning: "white", danger: "white",
-      border: "gray", titleBackground: "black", selectionBackground: "gray" },
+    colors: { text: "white", muted: "#b8b8b8", accent: "white", success: "white", warning: "white", danger: "white",
+      border: "gray", titleBackground: "black", selectionBackground: "#b8b8b8", selectionText: "#101010" },
     chrome: { borderStyle: "single", controls: "always" },
   },
 };

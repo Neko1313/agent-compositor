@@ -15,15 +15,19 @@ async function apply($:any){
 }
 async function show($:any){
   const status=await apply($);
+  const diagnostics=$.state?.get('diagnostics')===true;
   await $.ui.view('network','Network proxy',{lines:[
-    {text:status.enabled?'Proxy enabled':'Proxy disabled',bold:true},
+    {text:status.enabled?'Proxy enabled':'Proxy disabled',bold:true,tone:status.enabled?'success':'muted'},
     {text:status.url??'No proxy address configured',tone:'muted'},
-    {text:`Models: ${status.models?'proxied':'direct'} · Tools: ${status.tools?'proxied':'direct'}`},
+    {text:`Models: ${status.enabled&&status.models?'proxied':'direct'} · Tools: ${status.enabled&&status.tools?'proxied':'direct'}`},
+    ...(!status.enabled?[{text:`When enabled: models ${status.models?'proxied':'direct'} · tools ${status.tools?'proxied':'direct'}`,tone:'muted'}]:[]),
     {text:`Bypass: ${(status.noProxy??['localhost','127.0.0.1','::1']).join(', ')}`},
+    ...(!status.url?[{text:'Configure an HTTP(S) proxy address before enabling.',tone:'muted'}]:[]),
     {text:'[ Configure proxy ]',action:'configure',tone:'accent'},
     {text:status.enabled?'[ Disable proxy ]':'[ Enable proxy ]',action:status.enabled?'off':'on'},
-    // Preserve readable diagnostic fields without publishing authenticated URLs.
-    {text:JSON.stringify(status,null,2),tone:'muted'},
+    {text:diagnostics?'[ Hide diagnostics ]':'[ Show diagnostics ]',action:diagnostics?'hide-diagnostics':'show-diagnostics',tone:'muted'},
+    // The host status has already removed credentials from its URL.
+    ...(diagnostics?[{text:JSON.stringify(status,null,2),tone:'muted'}]:[]),
   ]},{site:'inspector',focus:true});
 }
 async function configure($:any){
@@ -58,6 +62,10 @@ async function configure($:any){
 }
 async function action(action:string,$:any){
   if(action==='configure'){await configure($);return;}
+  if(action==='show-diagnostics'||action==='hide-diagnostics'){
+    $.state.set('diagnostics',action==='show-diagnostics');
+    await show($);return;
+  }
   if(!['status','on','off'].includes(action))throw Error('/proxy [configure|status|on|off]');
   if(action!=='status'){
     const config=validate({...await $.storage.config('proxy.json'),enabled:action==='on'});

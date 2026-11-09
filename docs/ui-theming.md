@@ -46,7 +46,9 @@ does the same. Contributions are runtime state: persist choices explicitly
 if needed, as the `ui-theme` plugin does.
 
 Colors: `text`, `muted`, `accent`, `success`, `warning`, `danger`, `border`,
-`titleBackground`, `selectionBackground`.
+`titleBackground`, `selectionBackground`, `selectionText`. Use an explicit RGB
+foreground/background pair for predictable selection contrast; bold ANSI black
+may become bright black in the terminal palette.
 
 Chrome: `borderStyle` (`single`, `round`, `double`), `controls` (`focus`,
 `always`). Focus mode also shows buttons on title hover. Styles retain the
@@ -79,13 +81,18 @@ export default {
 
 Sites: `conversation`, `tools`, `help`, `status`, and
 `plugin:<plugin-name>/<local-surface-id>`, such as `plugin:todos/tasks`.
-`event.props.lines` contains the default visible rows; props also include
+`event.props.lines` contains the complete lines for semantic plugin views, with
+`scrollOffset`, `scrollable` and host-owned `fieldRows` metadata. Other sites
+provide their default visible rows. The host clips/scrolls replacement semantic
+views, preserving keyboard access to offscreen actions. Props also include
 title/status and plugin identity where applicable. `event.viewport` reports
 drawable content columns and rows, excluding window chrome.
 
 Lines accept `text`, `tone`, `bold`, `selected`. Tones are `text`, `muted`,
 `accent`, `success`, `warning`, `danger`; selected rows use the selection
-background. Output is sanitized, wrapped and clipped to the viewport.
+background and foreground. Optional view `hint` supplies the focused-panel
+shortcut line; editable input metadata can supply a `label` (default Search).
+Output is sanitized, wrapped and clipped to the viewport.
 Returning `undefined` or `$.next()` continues the chain. Invalid views or
 thrown errors preserve the default. The first valid tree returned by the
 hook chain wins, following normal tier ordering.

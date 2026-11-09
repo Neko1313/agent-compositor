@@ -38,12 +38,12 @@ export const questionsReply = (messages: any[]) => {
   if (!result) return;
   const data = JSON.parse(result);
   return (
-    "Questionnaire received\n" +
+    "Questionnaire received\n\n" +
     (data.answers ?? [])
       .map(
         (a: any) =>
-          `${a.id}:\n${[...a.selected, ...(a.text ? [a.text] : [])].join("\n")}`,
+          `**${a.id}**\n\n${[...a.selected, ...(a.text ? [a.text] : [])].map((v) => "- " + v).join("\n")}`,
       )
-      .join("\n")
+      .join("\n\n")
   );
 };

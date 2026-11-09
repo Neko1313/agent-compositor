@@ -737,3 +737,45 @@ as corrupt records for loss-tolerant replay/fork. Added these cases to the store
 checks. The existing workflow concurrency fixture now gates both workers on an
 explicit barrier rather than assuming a 5 ms sleep overlaps disk scheduling.
 Final full-suite count remains 491 passed / three optional skipped.
+
+## TUI UX/UI review and shared refinements (2026-11-10)
+
+The user requested loading UX/UI review skills and applying their principles to
+every TUI segment, explicitly authorizing subagents. Used Impeccable 4.3.1 and
+project tui-visual-check. Independent A design review scored baseline 27/40;
+independent B supplied actual PTY/detector evidence without anchoring A. A third
+controls review covered forms/question/placement editing. The archived critique
+is `.impeccable/critique/2026-11-09T13-57-20Z__packages-app-src-ui-ts.md`; the maintained
+per-segment principles are docs/tui-design.md. This was scoped refinement of the
+existing i3-like terminal identity, not a replacement visual world.
+
+Implemented shared readable split projection (24 columns/6 rows), preserved trees/
+ratios and directional access to hidden panes, correct fullscreen/composer focus;
+contextual status/titles/hints; complete semantic action navigation with unique
+IDs, scrolling and overflow cues, including ui.render overrides; literal native
+input/approval rendering; pinned/scrolled approval details and explicit scopes;
+real question text editing/reverse Tab; required/validation/form scroll guidance;
+safe placement Escape; effective proxy summary with optional redacted diagnostics;
+New chat labels and pinned literal search fields. Whole-word wrapping no longer
+splits valid task words due to a half-width heuristic.
+
+Catalog 0.17 adds optional selectionText, UiTextView.hint and input.label. Mono
+uses explicit RGB selection colors rather than black/gray ANSI names, since bold
+black may become bright black and disappear on gray. Keep all styling, semantic
+views, hints and plugin placement replaceable. Mascot assets and agent/workflow
+behavior were preserved. The web detector returned [] with no meaningful markup
+coverage; no DOM-overlay or native GNOME/screen-reader clearance is claimed.
+
+The user chose to update Impeccable to the offered 4.8.1 in the NEXT session. Do
+not update it during this review. Preserve this deferred request; the current
+skill context was loaded once and its installed files were not rewritten.
+
+Final verification for the TUI review: 513 tests passed, three optional native
+checks skipped, 62 files; line coverage 83.83%. Typecheck, generated contracts,
+26-entry marketplace validation, scripted evals 5/5 + 3/3, proxy smoke and rebuilt
+Linux x64 installation smoke passed. Current broad/settings/question/workflow/
+Markdown reports are under dist/ux-final-confirm; corrected history and compiled
+RGB/long-approval checks are under dist/ux-final-functional. Representative PNGs
+were inspected. Initial counterexamples are retained under dist/ux-final-round1
+and are not current passing evidence. The critique snapshot is closed as its
+baseline source changed. All owned visual servers/browsers were cleaned up.

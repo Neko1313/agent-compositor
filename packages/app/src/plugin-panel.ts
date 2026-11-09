@@ -43,9 +43,9 @@ export class PluginPanel {
   }
   interactiveRow(row: number): boolean { return !!this.target() && row >= 2 && row < 2 + this.visible; }
   handle(data: InputMessage["data"]): "apply" | "save" | "close" | undefined {
-    if (this.busy || data.kind === "mouse" && (data.action === "move" || data.action === "release")) return;
+    if (data.kind === "mouse" && (data.action === "move" || data.action === "release")) return;
     if (data.kind === "key" && (data.key === "escape" || data.key === "c" && data.modifiers?.includes("ctrl"))) return "close";
-    if (!this.target()) return;
+    if (this.busy || !this.target()) return;
     let change = 0, activate = false;
     if (data.kind === "mouse") {
       if (data.button !== "left") return;
@@ -55,7 +55,7 @@ export class PluginPanel {
       this.field = field; activate = true;
     } else if (data.kind === "key") {
       if (data.key === "up" || data.key === "down" || data.key === "tab") {
-        this.field = (this.field + (data.key === "up" ? -1 : 1) + 9) % 9; return;
+        this.field = (this.field + (data.key === "up" || data.key === "tab" && data.modifiers?.includes("shift") ? -1 : 1) + 9) % 9; return;
       }
       if (data.key === "left") change = -1;
       if (data.key === "right") change = 1;

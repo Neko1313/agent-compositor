@@ -1,3 +1,4 @@
+import { ApprovalDialog } from "./approval.js";
 import type { UserQuestionAnswer } from "@agent-compositor/events";
 import { FormDialog } from "./form.js";
 import type { UiForm, UiFormResult } from "@agent-compositor/events";
@@ -120,8 +121,11 @@ export class AppUI {
   private pointer?: Extract<WireMessage, { type: "pointer" }>["shape"];
   private contextIndicator = "";
   private status = "Ready";
+  private inputTitle = "Message";
+  private statusNavigationRows = 1;
+  private statusActionsVisible = true;
   private approval?: {
-    text: string;
+    dialog: ApprovalDialog;
     resolve: (
       answer: Awaited<ReturnType<NonNullable<AgentCoreOptions["onApproval"]>>>
     ) => void;
@@ -135,7 +139,7 @@ export class AppUI {
   private questionQueue: NonNullable<AppUI["question"]>[] = [];
   private unsubscribe: () => void;
   private closed = false;
-  private actionFocus = new Map<string, number>();
+  private actionFocus = new Map<string, string>();
   private form?: { dialog: FormDialog; finish: (result: UiFormResult | null) => void };
   private ready = false;
   private nativeRaster = false;
@@ -275,6 +279,7 @@ export class AppUI {
           input.surface.startsWith("plugin-agent-hub-agent-")
             ? input.surface.slice("plugin-agent-hub-agent-".length)
             : undefined;
+        this.inputTitle = input.label ? `Message → ${String(input.label)}` : "Message";
         this.sink?.({
           type: "declare",
           surfaces: [
@@ -522,6 +527,13 @@ export class AppUI {
         return;
       }
     }
+    if (this.approval && data.kind==='mouse') {
+      const start=this.rows-this.dockHeight()+2;
+      if(data.row>=start&&data.row<this.rows-2&&data.col>=2&&data.col<this.columns-2)
+        this.handleApproval({...data,row:data.row-start,col:data.col-2});
+      else this.updatePointer();
+      return;
+    }
     if (this.question && !this.approval && data.kind === "mouse") {
       const start = this.rows - this.dockHeight() + 2;
       if (data.row >= start && data.row < this.rows - 2 && data.col >= 2 && data.col < this.columns - 2)
@@ -563,18 +575,20 @@ export class AppUI {
       } // Human dialogs retain focus until answered.
       if (this.drag) this.cancelDrag();
       if (data.button === "left" && data.row >= this.rows - 2) {
+        if(data.row>=this.rows-2+this.statusNavigationRows)return;
         const wrap = this.columns - 2;
+        if(data.col<0||data.col>=wrap)return;
         const position = (data.row - (this.rows - 2)) * wrap + data.col;
         const tab = this.workspaceTabs().find(
           (tab) =>
             data.col < wrap && position >= tab.start && position < tab.end
         );
         const buttonStart = (this.workspaceTabs().at(-1)?.end ?? 0) + 3;
-        if (position >= buttonStart + 11 && position < buttonStart + 21) {
+        if (this.statusActionsVisible && buttonStart+21<=wrap && position >= buttonStart + 11 && position < buttonStart + 21) {
           this.track(this.core.host.emit('ui.press', {site:'plugin-model-selector-models',key:'settings'}).then(()=>{}));
           return;
         }
-        if (position >= buttonStart && position < buttonStart + 9) {
+        if (this.statusActionsVisible && buttonStart+9<=wrap && position >= buttonStart && position < buttonStart + 9) {
           this.openPanel();
           this.draw();
           return;
@@ -641,6 +655,7 @@ export class AppUI {
           data.col < hit.x + hit.width - 2 &&
           data.action !== "release"
         ) {
+          this.actionFocus.set(hit.surface,action);
           this.track(
             this.core.host
               .emit("ui.press", { site: hit.surface, key: action })
@@ -744,16 +759,7 @@ export class AppUI {
       return;
     }
     if (this.approval) {
-      const key = data.kind === "text" ? data.text.toLowerCase() : data.key;
-      if (["y", "a", "p", "n", "escape"].includes(key)) {
-        const approval = this.approval;
-        this.approval = this.approvalQueue.shift();
-        approval.resolve({
-          allow: ["y", "a", "p"].includes(key),
-          scope: key === "a" ? "session" : key === "p" ? "project" : "once",
-        });
-        this.draw();
-      }
+      this.handleApproval(data);
       return;
     }
     const matches = this.completions();
@@ -816,7 +822,6 @@ export class AppUI {
       else if (key === "q") this.windows.close();
       else if (key === "i") {
         this.windows.focused = "input";
-        this.windows.fullscreen = false;
       } else if (key === "=" || key === "+") this.windows.resize(0.05);
       else if (key === "-") this.windows.resize(-0.05);
       else if (["enter", "t", "s", "?", "/"].includes(key)) {
@@ -865,13 +870,22 @@ export class AppUI {
       return;
     }
     if (this.windows.focused !== 'input' && this.panes.get(this.windows.focused)?.kind === 'plugin' && data.kind === 'key' && ['up','down','enter'].includes(data.key)) {
-      const actions = (this.hitRows.get(this.windows.focused) ?? []).filter(row=>row.action);
+      const site=this.windows.focused,pane=this.panes.get(site)!;
+      const frame=this.windows.frames(this.columns,this.rows-this.dockHeight()).find(f=>f.surface===site);
+      const width=Math.max(1,(frame?.width??this.columns)-4),height=Math.max(1,(frame?.height??this.rows)-3);
+      const view=this.viewCache.get(site)?.view??pane.view;
+      const rows=view?viewRows(view,width,height):this.hitRows.get(site)??[];
+      const actions=rows.filter((r,i)=>r.action&&rows.findIndex(other=>other.action===r.action)===i);
       if (actions.length) {
-        const current = this.actionFocus.get(this.windows.focused) ?? 0;
-        const index = (current + (data.key === 'up' ? -1 : data.key === 'down' ? 1 : 0) + actions.length) % actions.length;
-        this.actionFocus.set(this.windows.focused, index);
-        if (data.key === 'enter') this.track(this.core.host.emit('ui.press',{site:this.windows.focused,key:actions[index].action!}).then(()=>{}));
-        this.draw(); return;
+        const current=actions.findIndex(r=>r.action===this.actionFocus.get(site));
+        const index=current<0?(data.key==='up'?actions.length-1:0):(current+(data.key==='up'?-1:data.key==='down'?1:0)+actions.length)%actions.length;
+        const action=actions[index].action!;this.actionFocus.set(site,action);
+        const target=rows.findIndex(r=>r.action===action),room=Math.max(1,height-(rows.length>height?1:0));
+        const offset=this.scroll.get(site)??0;
+        if(target<offset)this.scroll.set(site,target);
+        else if(target>=offset+room)this.scroll.set(site,target-room+1);
+        if(data.key==='enter')this.track(this.core.host.emit('ui.press',{site,key:action}).then(()=>{}));
+        this.draw();return;
       }
     }
     if (this.windows.focused !== "input") {
@@ -1016,9 +1030,7 @@ export class AppUI {
     return new Promise((resolve) => {
       this.cancelDrag();
       const entry = {
-        text: `${req.tool} ${JSON.stringify(req.descriptor)}\n${
-          req.reason ?? ""
-        }\nY allow once / A session / P project / N deny`,
+        dialog: new ApprovalDialog(req),
         resolve: (
           value: Awaited<
             ReturnType<NonNullable<AgentCoreOptions["onApproval"]>>
@@ -1043,6 +1055,11 @@ export class AppUI {
       this.windows.focused = "input";
       this.draw();
     });
+  }
+  private handleApproval(data:Extract<WireMessage,{type:'input'}>['data']):void {
+    const result=this.approval?.dialog.handle(data);
+    if(result){const approval=this.approval!;this.approval=this.approvalQueue.shift();approval.resolve(result);}
+    this.draw();
   }
   private installResume(): void {
     if (!this.panelOptions.resume) return;
@@ -1087,6 +1104,7 @@ export class AppUI {
         const conversation=this.panes.get('session');if(conversation)conversation.title=`Conversation · ${chatTitle}`;
         this.contextIndicator = '';
         this.activeAgentPane = undefined;
+        this.inputTitle = 'Message';
         this.offset = 0;
         this.scroll.set('session',0);
         this.tools = '';
@@ -1166,7 +1184,10 @@ export class AppUI {
     const mouse = this.lastMouse;
     this.hoveredTitle = undefined;
     let shape: Extract<WireMessage, { type: "pointer" }>["shape"] = "default";
-    if (mouse && this.question && !this.approval) {
+    if(mouse&&this.approval){
+      const row=mouse.row-(this.rows-this.dockHeight()+2);
+      shape=mouse.col>=2&&mouse.col<this.columns-2&&this.approval.dialog.interactiveRow(row)?'pointer':'default';
+    } else if (mouse && this.question && !this.approval) {
       const row = mouse.row - (this.rows - this.dockHeight() + 2);
       shape = mouse.col >= 2 && mouse.col < this.columns - 2 && this.question.dialog.interactiveRow(row)
         ? "pointer" : "default";
@@ -1194,13 +1215,13 @@ export class AppUI {
           position = (row - (this.rows - 2)) * wrap + col;
         const buttonStart = (this.workspaceTabs().at(-1)?.end ?? 0) + 3;
         if (
-          row >= this.rows - 2 &&
+          row >= this.rows - 2 && row < this.rows - 2 + this.statusNavigationRows &&
           col < wrap &&
           (this.workspaceTabs().some(
             (tab) => position >= tab.start && position < tab.end
           ) ||
-            (position >= buttonStart && position < buttonStart + 9) ||
-            (position >= buttonStart + 11 && position < buttonStart + 21))
+            (this.statusActionsVisible && buttonStart+9<=wrap && position >= buttonStart && position < buttonStart + 9) ||
+            (this.statusActionsVisible && buttonStart+21<=wrap && position >= buttonStart + 11 && position < buttonStart + 21))
         )
           shape = "pointer";
         else if (
@@ -1282,6 +1303,7 @@ export class AppUI {
     drag.edge = undefined;
     if (drag.moved) {
       if (data.row >= this.rows - 2) {
+        if(data.row>=this.rows-2+this.statusNavigationRows)return;
         const wrap = this.columns - 2,
           position = (data.row - (this.rows - 2)) * wrap + data.col;
         drag.workspace = this.workspaceTabs().find(
@@ -1458,7 +1480,8 @@ export class AppUI {
       Math.max(0, this.rows - 10),
       Math.max(0, wrap(`› ${this.draft}▏`, this.columns - 4).length - 1)
     );
-    return this.approval ? 8 : 6 + extra + this.visibleCompletions().length;
+    if(this.approval)return Math.min(this.rows-4,Math.max(14,Math.min(22,this.approval.dialog.rows(this.columns-4).length+5)));
+    return 6 + extra + this.visibleCompletions().length;
   }
   private complete(command: { name: string; usage?: string }): void {
     if (command.name.startsWith("@")) {
@@ -1528,10 +1551,9 @@ export class AppUI {
           mode: "full",
           flush: true,
           grid: gridFrom(content.slice(0, height).map((row) => {
-            const actions = content.filter(item=>item.action);
             const selected = this.actionFocus.get(surface);
-            return row.action && selected !== undefined && surface === this.windows.focused ? {...row,selected:row===actions[selected % actions.length]} : row;
-          }), this.theme, width),
+            return row.action && selected !== undefined && surface === this.windows.focused ? {...row,selected:row.action===selected} : row;
+          }), this.theme, width, surface==='input'),
           ...(this.nativeRaster && view ? { raster: rasterForView(view, width, height) } : {}),
         });
     };
@@ -1554,7 +1576,12 @@ export class AppUI {
         );
         if (!parsed.success) return; // no answer / bad answer: keep the working default
         entry.view = parsed.data;
-        entry.rows = viewRows(parsed.data, width, height).slice(0, height);
+        const full=[...((props.fieldRows??[]) as Row[]),...viewRows(parsed.data,width,height)];
+        const overflow=props.scrollable===true&&full.length>height;
+        const room=Math.max(1,height-(overflow?1:0));
+        const offset=props.scrollable===true?Math.max(0,Math.min(Number(props.scrollOffset??0),Math.max(0,full.length-room))):0;
+        entry.rows=full.slice(offset,offset+room);
+        if(overflow)entry.rows.push({text:`${offset>0?'↑ ':''}${offset+1}-${Math.min(full.length,offset+room)}/${full.length} ${offset+room<full.length?'↓ ':''}· PgUp/PgDn · Alt+f`,tone:'muted'});
         send(entry.rows, parsed.data);
       })
       .catch(() => {});
@@ -1623,11 +1650,8 @@ export class AppUI {
     const chrome = { ...this.theme.chrome, ...this.theme.colors };
     this.sink?.({
       type: "declare",
-      surfaces: [...this.panes].map(([id, pane]) => ({
-        id,
-        kind: "pane",
-        title: pane.title,
-      })),
+      surfaces: [...[...this.panes].map(([id, pane]) => ({id,kind:'pane' as const,title:pane.title})),
+        {id:'input',kind:'pane' as const,title:this.approval?'Approval required':this.question?(this.question.dialog.request.questions?'Questionnaire':'Your answer'):this.inputTitle}],
     });
     if (formActive) this.sink?.({ type: 'declare', surfaces: [{ id: 'settings-form', kind: 'pane', title: this.form!.dialog.request.title }] });
     if (panelActive)
@@ -1679,7 +1703,7 @@ export class AppUI {
       const width = Math.max(1, frame.width - 4),
         height = Math.max(1, frame.height - 3);
       if (frame.surface === 'settings-form' && this.form) {
-        this.sink?.({type:'render',surface:'settings-form',mode:'full',flush:true,grid:gridFrom(this.form.dialog.visible(width,height),this.theme,width)});
+        this.sink?.({type:'render',surface:'settings-form',mode:'full',flush:true,grid:gridFrom(this.form.dialog.visible(width,height),this.theme,width,true)});
         continue;
       }
       if (frame.surface === "plugin-placement" && this.panel) {
@@ -1721,7 +1745,7 @@ export class AppUI {
           ];
       } else {
         rows = pane?.view
-          ? viewRows(pane.view, width, height)
+          ? viewRows(this.viewCache.get(frame.surface)?.view??pane.view, width, height)
           : textRows(
               pane?.kind === "tools"
                 ? this.tools
@@ -1740,25 +1764,32 @@ export class AppUI {
               : "text",
           }));
       }
+      let fieldRows:Row[]=[];
       if (pane?.view?.input) {
         const field = this.viewInputs.get(frame.surface) ?? pane.view.input;
-        const search = textRows(
-          `Search: ${field.value || pane.view.input.placeholder || ""}${this.windows.focused === frame.surface ? "▏" : ""}`,
-          width, "accent"
-        ).slice(-1);
+        const label=`${pane.view.input.label??'Search'}: `;
+        const available=Math.max(1,width-Array.from(label).length-1);
+        const value=Array.from(field.value||pane.view.input.placeholder||'');
+        const shown=field.value?value.slice(-available).join(''):value.length>available?value.slice(0,Math.max(0,available-1)).join('')+'…':value.join('');
+        const line=label+shown+(this.windows.focused===frame.surface?'▏':'');
+        const search:Row[]=[{text:line,cells:Array.from(line).map(ch=>({ch,fg:this.theme.colors.accent}))}];
+        fieldRows=search;
         rows = [...search, ...rows];
       }
+      const overflow=!!pane?.view&&rows.length>height;
+      const room=Math.max(1,height-(overflow?1:0));
       const offset = Math.min(
         this.scroll.get(frame.surface) ?? 0,
-        Math.max(0, rows.length - height)
+        Math.max(0, rows.length - room)
       );
       const end = rows.length - offset;
       const visible =
         pane?.view
-          ? rows.slice(offset, offset + height)
+          ? rows.slice(offset, offset + room)
           : pane?.kind === "help"
           ? rows.slice(0, height)
           : rows.slice(Math.max(0, end - height), end);
+      if(overflow)visible.push({text:`${offset>0?'↑ ':''}${offset+1}-${Math.min(rows.length,offset+room)}/${rows.length} ${offset+room<rows.length?'↓ ':''}· PgUp/PgDn · Alt+f`,tone:'muted'});
       const plugin = this.pluginWindows.get(frame.surface);
       this.paint(
         frame.surface,
@@ -1775,6 +1806,7 @@ export class AppUI {
         {
           title: pane?.title,
           status: this.status,
+          ...(pane?.view?{lines:pane.view.lines,scrollable:true,scrollOffset:offset,fieldRows}:{}),
           ...(pane?.view?.raster
             ? { raster: pane.view.raster, lines: pane.view.lines }
             : {}),
@@ -1814,45 +1846,34 @@ export class AppUI {
       ];
     }
     if (this.approval)
-      inputRows = textRows(this.approval.text, inputWidth, "warning").slice(
-        -(dock - 5)
-      );
+      inputRows = this.approval.dialog.visible(inputWidth,dock-5);
     else if (this.question)
       inputRows = this.question.dialog.visible(inputWidth, dock - 5);
     if (formActive) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
     this.paint("input", "input", inputRows, inputWidth, dock - 5);
     const barWidth = this.columns - 2;
-    const bar = `${this.workspaceTabs()
-      .map((tab) => tab.label)
-      .join(" ")} | [Plugins]  [Settings]  ${this.status}${this.contextIndicator}${
-      this.windows.fullscreen ? " · FULLSCREEN" : ""
-    }`;
-    // Fixed-width splitting keeps workspace painting identical to mouse coordinates.
-    const barRows: Row[] = [];
-    for (let i = 0; i < bar.length; i += barWidth)
-      barRows.push({ text: bar.slice(i, i + barWidth), tone: "accent" });
-    const hint = this.question
-      ? this.question.dialog.review
-        ? "↑↓ edit · Enter select/submit · Esc cancel"
-        : this.columns < 70
-        ? "↑↓ choose · Space toggle · Tab · Enter next · Esc cancel"
-        : "↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel"
-      : this.drag
-      ? this.dragHint()
-      : this.status.startsWith("Working")
-      ? "Ctrl+C stop · Tab steer · Enter queue"
-      : this.columns < 70
-      ? "/ commands · Ctrl+J newline"
-      : "/ commands · Ctrl+J newline · Alt+t tools · Alt+? shortcuts";
-    if (this.theme.presentation.hints) {
-      // Keep interaction hints visible when the workspace bar wraps.
-      if (this.question) barRows.splice(1);
-      barRows.push({ text: hint, tone: "muted" });
-    }
-    this.paint("status", "status", barRows.slice(0, 2), barWidth, 2, {
-      status: this.status,
-      workspace: this.windows.workspace,
-    });
+    const waiting=this.approval?'Approval needed':this.question?'Answer needed':formActive?'Settings form':this.status;
+    const protectedInput=!!(this.approval||this.question||formActive);
+    const tabs=this.workspaceTabs().map(tab=>tab.label).join(' ');
+    const showControls=!protectedInput&&tabs.length+3+23+waiting.length<=barWidth;
+    let bar=`${tabs} | ${showControls?'[Plugins]  [Settings]  ':''}${waiting}`;
+    const hidden=Math.max(0,this.windows.ids().length-frames.filter(f=>this.windows.ids().includes(f.surface)).length);
+    for(const part of [this.contextIndicator,this.windows.fullscreen?' · FULLSCREEN':'',!protectedInput&&hidden?` · ${hidden} hidden`:''])if(bar.length+part.length<=barWidth)bar+=part;
+    const pane=this.panes.get(this.windows.focused),narrow=this.columns<70;
+    const hint=this.approval?(narrow?'Y once · N deny · PgDn details':'↑↓ scopes · Enter select · PgUp/PgDn details · Esc deny')
+      :this.question?this.question.dialog.review?'↑↓ edit · Enter select/submit · Esc cancel':narrow?'↑↓ choose · Space toggle · Tab · Enter next · Esc cancel':'↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel'
+      :formActive?'Tab / Shift+Tab fields · Enter next · Esc cancel'
+      :this.panel?'Tab / ↑↓ fields · ←→ change · Esc close'
+      :this.drag?this.dragHint()
+      :pane?.view?.hint??(pane?.view?.input?'Type search · ↑↓ select · Enter resume · Esc close'
+      :pane?.kind==='plugin'?narrow?'↑↓ actions · Enter · PgDn scroll · Esc leave':'↑↓ actions · Enter activate · PgUp/PgDn scroll · Esc leave'
+      :this.status.startsWith('Working')?'Ctrl+C stop · Tab steer · Enter queue'
+      :narrow?'/ commands · Ctrl+J newline':'/ commands · Ctrl+J newline · Alt+t tools · Alt+? shortcuts');
+    this.statusNavigationRows=tabs.length>barWidth?2:1;
+    this.statusActionsVisible=showControls&&this.statusNavigationRows===1;
+    const barRows:Row[]=this.statusNavigationRows===2?[{text:tabs.slice(0,barWidth),tone:'accent'},{text:tabs.slice(barWidth,barWidth*2),tone:'accent'}]:[{text:bar.slice(0,barWidth),tone:'accent'}];
+    if(this.statusNavigationRows===1&&this.theme.presentation.hints)barRows.push({text:hint,tone:'muted'});
+    this.paint('status','status',barRows,barWidth,2,{status:waiting,workspace:this.windows.workspace});
   }
   close(): void {
     if (this.closed) return;

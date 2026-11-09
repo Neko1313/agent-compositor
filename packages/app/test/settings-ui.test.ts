@@ -42,6 +42,26 @@ describe('native forms',()=>{
   expect(d.handle(key('escape'))).toBe('cancel');expect(d.handle(key('c',['ctrl']))).toBe('cancel');
   expect(uiFormSchema.safeParse({...form,fields:[{id:'secret',label:'Secret',type:'password',value:'leaked'}]}).success).toBe(false);
  });
+ it('keeps required-field recovery and focused controls visible at narrow widths',()=>{
+  const d=new FormDialog({...form,fields:[{...form.fields[0],label:'Connection endpoint',hint:'Use the address supplied by your provider.'},...form.fields.slice(1)]});
+  let rows=d.visible(24,7);
+  expect(rows.map(r=>r.text).join(' ')).toContain('(required)');
+  expect(rows.at(-1)?.text).toContain('1/6');
+  d.handle(key('tab',['shift']));
+  expect(d.focus).toBe(5);
+  d.handle(key('up')); d.handle(key('enter'));
+  rows=d.visible(24,7);
+  expect(rows.some(r=>r.tone==='danger'&&r.text.includes('required'))).toBe(true);
+  expect(rows.some(r=>r.selected)).toBe(true);
+  expect(rows.every(r=>Array.from(r.text).length<=24)).toBe(true);
+  d.handle(text('http://local'));
+  rows=d.visible(24,10);
+  const hintRow=rows.findIndex(r=>r.text.includes('address supplied'));
+  expect(hintRow).toBeGreaterThanOrEqual(0);
+  d.handle(key('tab')); d.visible(24,10);
+  d.handle({kind:'mouse',row:hintRow,col:1,button:'left',action:'press'});
+  expect(d.focus).toBe(0);
+ });
  it('routes a plugin form through AppUI without placing passwords in wire output or chat',async()=>{
   const root=await temp();const app=await buildApp({cwd:root,env:{HOME:root},provider:new ScriptedProvider([])});
   const ui=new AppUI(app.createCore);const wire:WireMessage[]=[];ui.connect(m=>wire.push(m));
@@ -84,6 +104,38 @@ describe('provider connection settings',()=>{
   const $:any={storage,ui:{form:async()=>({action:'save',values:{enabled:true,url:'http://127.0.0.1:7890',username:'proxy-user',password:'proxy-test-secret',clearPassword:false,models:true,tools:false,noProxy:'localhost, .internal',scope:'project'}}),view:async(_id:any,_title:any,value:any)=>{view=value;},notify:async()=>{}},emit:async(_event:any,{config}:any)=>{configured=config;const url=new URL(config.url);url.username='';url.password='';return{value:{...config,url:url.href}};}};
   await proxy['prompt.submit']({text:'/proxy configure'},$);expect(configured.url).toContain('proxy-test-secret');expect(configured.tools).toBe(false);expect(JSON.stringify(view)).not.toContain('proxy-test-secret');expect((await stat(join(storage.paths.state,'proxy.json'))).mode&0o777).toBe(0o600);
   $.ui.form=async()=>null;await proxy['prompt.submit']({text:'/proxy configure'},$);
+ });
+});
+
+describe('proxy summary disclosure',()=>{
+ it('separates effective routing from configuration and keeps diagnostics credential-free',async()=>{
+  const root=await temp(),storage=new ProjectStorage(root,{HOME:root});await storage.init();
+  await storage.configure('proxy.json',{enabled:false,url:'http://proxy-user:proxy-private@localhost:7890',models:true,tools:false});
+  const state=new Map<string,unknown>();let view:any;
+  const $:any={storage,state,ui:{view:async(_id:any,_title:any,value:any)=>{view=value;},notify:vi.fn()},emit:async(_event:any,{config}:any)=>{const url=new URL(config.url);url.username='';url.password='';return{value:{...config,url:url.href}};}};
+  await proxy['prompt.submit']({text:'/proxy status'},$);
+  expect(view.lines).toContainEqual({text:'Models: direct · Tools: direct'});
+  expect(view.lines).toContainEqual({text:'When enabled: models proxied · tools direct',tone:'muted'});
+  expect(view.lines.some((r:any)=>r.text.includes('"enabled"'))).toBe(false);
+  expect(view.lines.some((r:any)=>r.action==='show-diagnostics')).toBe(true);
+  await proxy['ui.press']({site:'plugin-network-proxy-network',key:'show-diagnostics'},$);
+  expect(view.lines.some((r:any)=>r.text.includes('"enabled": false'))).toBe(true);
+  expect(JSON.stringify(view)).not.toContain('proxy-private');expect(JSON.stringify(view)).not.toContain('proxy-user');
+  expect(view.lines.some((r:any)=>r.action==='hide-diagnostics')).toBe(true);
+  await proxy['ui.press']({site:'plugin-network-proxy-network',key:'hide-diagnostics'},$);
+  expect(view.lines.some((r:any)=>r.text.includes('"enabled"'))).toBe(false);
+  await proxy['ui.press']({site:'plugin-network-proxy-network',key:'on'},$);
+  expect(view.lines).toContainEqual({text:'Models: proxied · Tools: direct'});
+  expect(view.lines).toContainEqual({text:'Proxy enabled',bold:true,tone:'success'});
+  expect(view.lines.some((r:any)=>r.text.startsWith('When enabled:'))).toBe(false);
+ });
+ it('explains initial setup and identifies an invalid enable action as an error',async()=>{
+  const state=new Map<string,unknown>();let view:any;
+  const $:any={state,storage:{config:async()=>({enabled:false})},ui:{view:async(_id:any,_title:any,value:any)=>{view=value;},notify:vi.fn()},emit:async()=>({value:{enabled:false,models:true,tools:true}})};
+  await proxy['prompt.submit']({text:'/proxy status'},$);
+  expect(view.lines.some((r:any)=>r.text==='Configure an HTTP(S) proxy address before enabling.')).toBe(true);
+  await proxy['ui.press']({site:'plugin-network-proxy-network',key:'on'},$);
+  expect($.ui.notify).toHaveBeenCalledWith('Configure a proxy URL before enabling','error');
  });
 });
 

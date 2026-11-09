@@ -1,3 +1,4 @@
+import metadata from "../package.json" with { type: "json" };
 import { readFile } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { runHeadless } from "./headless.js";
@@ -30,6 +31,29 @@ export async function main(options: MainOptions = {}): Promise<number> {
   const argv = options.argv ?? process.argv.slice(2);
   const stdin = options.stdin ?? process.stdin;
   const stdout = options.stdout ?? process.stdout;
+
+  if (argv.length === 1 && ["--version", "-v"].includes(argv[0])) {
+    stdout.write(`compositor ${metadata.version}\n`);
+    return 0;
+  }
+  if (argv.length === 1 && ["--help", "-h"].includes(argv[0])) {
+    stdout.write(`Usage: compositor [options]
+
+  --cwd DIR               Project directory
+  --plugins DIR           Additional plugin directory (repeatable)
+  --resume ID             Resume a session
+  --plain                 Use the line-based interface
+  -p, --prompt TEXT       Run a prompt without the TUI (- reads stdin)
+  -i, --image FILE        Attach an image (repeatable)
+  --model NAME            Select a model
+  --max-steps N           Limit agent steps
+  --output-format FORMAT  text, json or stream-json
+  --output-schema FILE    Validate structured output against a JSON schema
+  -v, --version           Print the version
+  -h, --help              Print this help
+`);
+    return 0;
+  }
 
   const pluginDirs: string[] = [];
   let plain = false;

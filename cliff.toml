@@ -1,0 +1,30 @@
+[changelog]
+header = """# Changelog\n\nAll notable changes are generated from Conventional Commits with git-cliff.\n\n"""
+body = """
+{% if version %}## {{ version }} - {{ timestamp | date(format="%Y-%m-%d") }}{% else %}## Unreleased{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+{% for commit in commits %}- {% if commit.breaking %}**BREAKING:** {% endif %}{{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/Neko1313/agent-compositor/commit/{{ commit.id }}))
+{% endfor %}
+{% endfor %}
+"""
+footer = "\nInstallation, platform support and known limitations: [release guide](https://github.com/Neko1313/agent-compositor/blob/main/docs/releases.md).\n"
+trim = true
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Fixes" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^test", group = "Tests" },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^build|^ci|^chore", group = "Build and maintenance" },
+  { message = ".*", group = "Other changes" },
+]
+protect_breaking_commits = true
+tag_pattern = "v[0-9].*"
+sort_commits = "oldest"

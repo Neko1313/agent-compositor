@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
   readFile,
+  realpath,
   mkdir,
   mkdtemp,
   rm,
@@ -211,7 +212,9 @@ export async function extensionManager(
             if (await stat(join(source, part)).catch(() => undefined))
               await contained(source, part);
           await mkdir(namespace, { recursive: true });
-          const require = createRequire(import.meta.url);
+          const executableDir = dirname(await realpath(process.execPath));
+          const distribution = await stat(join(executableDir, "node_modules/@agent-compositor")).catch(() => undefined);
+          const require = createRequire(distribution ? join(executableDir, "package.json") : import.meta.url);
           for (const api of [
             "events",
             "hooks",
@@ -228,8 +231,13 @@ export async function extensionManager(
           ]) {
             const target = join(namespace, api);
             if (await stat(target).catch(() => undefined)) continue;
-            const entry = require.resolve(`@agent-compositor/${api}`),
-              packageRoot = dirname(dirname(entry));
+            const entry = require.resolve(`@agent-compositor/${api}`);
+            let packageRoot = dirname(entry);
+            while (!await stat(join(packageRoot, "package.json")).catch(() => undefined)) {
+              const parent = dirname(packageRoot);
+              if (parent === packageRoot) throw new Error(`Host package not found: ${api}`);
+              packageRoot = parent;
+            }
             await symlink(packageRoot, target, "dir");
           }
         }

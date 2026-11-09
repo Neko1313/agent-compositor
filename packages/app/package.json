@@ -30,6 +30,7 @@
     "@agent-compositor/session": "^0.1.0",
     "@agent-compositor/skills": "^0.1.0",
     "@agent-compositor/tools": "^0.1.0",
-    "ajv": "^8.20.0"
+    "ajv": "^8.20.0",
+    "react-devtools-core": "^8.0.0"
   }
 }

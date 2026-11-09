@@ -425,7 +425,9 @@ export class PluginLoader {
       this.loadedByName.set(manifest.name, { ...loaded, manifest });
       return loaded;
     }
-    const toolsPath = join(root, "tools.ts");
+    const toolsPath = (await fileExists(join(root, "tools.ts")))
+      ? join(root, "tools.ts")
+      : join(root, "tools.js");
     const hasTools = await fileExists(toolsPath);
     if (hasTools && manifest.trust === "render-only")
       throw new Error("render-only plugins may not export model-facing tools");

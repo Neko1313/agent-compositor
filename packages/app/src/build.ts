@@ -8,6 +8,7 @@ import { agentManager } from "./agents.js";
 import { quotaReader } from "./quota.js";
 import { installSessionServices, sessionControls } from "./sessions.js";
 import { approvalStore } from "./approval-store.js";
+import { realpathSync } from "node:fs";
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { modelControls } from "./models.js";
 import { projectInstructions, expandReferences } from "./project-context.js";
@@ -207,6 +208,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     path.join(storage.paths.home, "plugins"),
     ...(config.config.plugins ?? []).map((p) => resolveDir(p, options.cwd)),
     ...(options.pluginDirs ?? []),
+    // Distribution defaults come last: user/project plugins retain precedence.
+    path.join(path.dirname(realpathSync(process.execPath)), "plugins"),
   ];
   const disabled = () => [
     ...new Set([

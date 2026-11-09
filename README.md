@@ -4,6 +4,40 @@ An open runtime for LLM CLI agents: **core + swappable renderers + plugin contra
 
 A model provider integrates via plugins, not by forking: override the login with their own SSO, add a model plugin and workflow presets — and get a full-featured CLI agent. Analogous to a Wayland compositor: the protocol is stable, implementations are replaceable.
 
+## Install
+
+Linux (glibc) and macOS, x64 and arm64:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Neko1313/agent-compositor/main/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+compositor --version
+compositor
+```
+
+The installer verifies SHA-256 checksums and installs the executable, replaceable
+standard plugins and animation assets under `$HOME/.local`. It leaves settings,
+sessions and custom plugins intact. To update, run the same command again.
+
+To select a version or another installation prefix:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Neko1313/agent-compositor/main/install.sh -o install-compositor.sh
+sh install-compositor.sh --version v0.1.0 --prefix "$HOME/.local"
+```
+
+The core includes its runtime; Node.js and Bun are not required to start it.
+The optional Monty sandbox needs Node.js 22+ on `PATH` (or `AGENT_NODE_BIN`).
+Callix needs its separate native executable; set `CALLIX_BIN` to its location.
+Models run through a configured provider: the default is Ollama at
+`http://127.0.0.1:11434/v1` with `gemma4:31b-cloud`. You can select a provider
+using `AGENT_BASE_URL`, `AGENT_MODEL` and `AGENT_API_KEY`.
+
+Manual downloads are available in [GitHub Releases](https://github.com/Neko1313/agent-compositor/releases).
+Extract the entire archive and keep `compositor` beside its `plugins/` and
+`node_modules/` directories. See [release maintenance](docs/releases.md) for
+building, verification and publishing with git-cliff.
+
 ## Tech stack
 
 | Layer | Technology |

@@ -251,3 +251,25 @@ and diff checks passed. Live Ollama passed 10/10 (5 each for Gemma and DeepSeek)
 The PTY/browser scenario captured 26 screenshots with ok=true. Machine-readable
 report: dist/quality-report.json; interpretation and limits: docs/evals.md.
 Changes were still uncommitted at the time of this recorded validation.
+
+## Release distribution (2026-11-09)
+
+Release tooling uses pinned git-cliff 2.14.2 with Conventional Commit groups in
+cliff.toml. The first planned public tag is v0.1.0, matching the root and app
+versions. GitHub Actions verifies quality, builds native Linux/macOS x64/arm64
+archives, tests their installers against local model/release servers, then
+publishes all assets from a draft. A branch dispatch only builds and verifies.
+
+Distribution plugins and host API modules are external to the Bun executable;
+user/project plugins take precedence. Keep the extracted directory together.
+Monty retains its Node bridge requirement; Callix is a separate executable.
+install.sh checks SHA-256, supports version/prefix selection, switches an active
+symlink and preserves user state. README and docs/releases.md document usage.
+
+Local checks: full suite 359 passed / 1 optional test skipped before the final
+loader JS regression case; focused final changes passed 32/32, typecheck passed.
+The Linux x64 archive passed checksum rejection, versioned/latest installation,
+all default plugin loads, a mock provider turn, packaged Monty execution and
+state preservation. Remote platform/publication results must be checked in CI.
+Known pre-existing dependency issue: npm audit flags Zod 3 for
+GHSA-mrhx-c7xc-m3w5; the Zod 4 migration is outstanding (docs/releases.md).

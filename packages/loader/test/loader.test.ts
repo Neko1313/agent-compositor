@@ -39,16 +39,16 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("PluginLoader / disk discovery", () => {
-  it("loads a tools-only plugin and refreshes its executable tool code on reload", async () => {
+  it.each(["tools.ts", "tools.js"])("loads and reloads a tools-only plugin from %s", async toolsEntry => {
     const root = pluginDir(dir, "toolbox");
     writeFileSync(join(root, "plugin.json"), JSON.stringify({ name: "toolbox", version: "1.0.0", trust: "trusted" }));
     const source = (value: number) => `export const tools = [{ name:'echo', description:'echo', parameters:{}, describe:()=>({tool:'echo'}), execute:async()=>({ok:true,data:${value}}) }];`;
-    writeFileSync(join(root, "tools.ts"), source(1));
+    writeFileSync(join(root, toolsEntry), source(1));
     const loader = new PluginLoader(host, { dirs: [dir] });
     const report = await loader.loadAll();
     expect(report.failed).toEqual([]);
     expect(await report.loaded[0].tools[0].execute({}, {})).toEqual({ ok: true, data: 1 });
-    writeFileSync(join(root, "tools.ts"), source(2));
+    writeFileSync(join(root, toolsEntry), source(2));
     const reloaded = await loader.reload("toolbox");
     expect(await reloaded.tools[0].execute({}, {})).toEqual({ ok: true, data: 2 });
   });

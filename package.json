@@ -23,12 +23,18 @@
     "harness2:check": "python3 tools/evals/harness2_adapter.py --check",
     "marketplace:validate": "bun tools/marketplace/validate.ts",
     "eval:proxy": "bun tools/evals/proxy-smoke.ts",
-    "test:ci": "vitest run --coverage --reporter=default --reporter=junit --outputFile=reports/junit.xml"
+    "test:ci": "vitest run --coverage --reporter=default --reporter=junit --outputFile=reports/junit.xml",
+    "build:release": "bun tools/release/build.mjs",
+    "release:smoke": "bun tools/release/smoke.mjs",
+    "changelog": "git-cliff --output CHANGELOG.md",
+    "changelog:preview": "git-cliff --unreleased"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/upng-js": "^2.1.5",
     "@vitest/coverage-v8": "^5.1.0",
     "@xterm/xterm": "^6.0.0",
+    "git-cliff": "2.14.2",
     "playwright": "^1.65.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",

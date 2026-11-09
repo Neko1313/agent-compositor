@@ -1,8 +1,7 @@
 import { readFile, realpath } from "node:fs/promises";
 import { resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
-const UPNG = createRequire(import.meta.url)("upng-js");
+import UPNG from "upng-js";
 export const states = [
   "idle",
   "thinking",

@@ -47,6 +47,7 @@ All notable changes are generated from Conventional Commits with git-cliff.
 - AskUserQuestion dialog (numbered options, multi-select, free text); onAsk wired only for interactive TTY (headless stays fail-closed); extraTools plumbing through buildApp ([c6d7fd0](https://github.com/Neko1313/agent-compositor/commit/c6d7fd077c4fd969c3f952621b2a14659ccddec5))
 - Two default plugins — mcp (stdio MCP client, mcp_call gateway, AGENT_MCP_CONFIG/.agent-compositor/mcp.json) and workflows (deterministic multi-agent orchestration with replayable content-hash journal; Restate Dynamic Workflows pattern); 17 removable plugins total ([2aad806](https://github.com/Neko1313/agent-compositor/commit/2aad806696d8ebd944863bc051ba0cd0037d907f))
 - Add interactive agent workspace, marketplace and quality tooling ([1cbd726](https://github.com/Neko1313/agent-compositor/commit/1cbd7265cc8c3e2ca03a45564f359283d2d4039d))
+- Add binary distributions, verified installer and git-cliff notes ([67c5e20](https://github.com/Neko1313/agent-compositor/commit/67c5e20f71b5d3ee0399c037143e4b523a334dce))
 
 
 ### Fixes

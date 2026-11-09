@@ -1311,10 +1311,16 @@ export class AgentCore {
         role: "tool",
         toolCallId: call.id,
         name: call.name,
-        content: error ?? JSON.stringify(result, null, 2)?.slice(0, 20_000),
+        content: error ?? this.toolResultText(result),
       });
       void turnId;
     }
+  }
+
+  private toolResultText(value:unknown):string {
+    const text=JSON.stringify(value)??"null";
+    if(Buffer.byteLength(text,"utf8")<=128*1024)return text;
+    return JSON.stringify({truncated:true,originalBytes:Buffer.byteLength(text,"utf8"),preview:text.slice(0,16000),hint:"Tool result exceeded 128 KiB. Query a smaller page/range; this preview is not a complete edit source."});
   }
 
   private buildToolContext(): ToolContext {

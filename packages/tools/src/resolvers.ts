@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { spawnCommand, stopProcess } from "./execution.js";
 import { confinedPath } from "./project.js";
 import { spawn } from "node:child_process";
@@ -14,6 +15,8 @@ export interface ResolverBus {
   on(service: string, handler: (payload: unknown) => Promise<unknown>): void;
 }
 
+const fileMutationLocks=new Map<string,Promise<unknown>>();
+
 export function registerDefaultResolvers(
   bus: ResolverBus,
   options: {
@@ -23,6 +26,7 @@ export function registerDefaultResolvers(
     onFilesChanged?: (path: string) => Promise<void>;
   } = {}
 ): void {
+  const locks=fileMutationLocks;
   const original = bus;
   bus = {
     on: (service, handler) =>
@@ -34,7 +38,14 @@ export function registerDefaultResolvers(
           await confinedPath(options.root, value.cwd);
         if (service === "service.shell.exec" && options.env)
           (payload as any).env = { ...options.env(), ...(payload as any).env };
-        const result = await handler(payload);
+        const mutation=["service.file.write","service.file.edit"].includes(service)&&value.path;
+        let result:unknown;
+        if(mutation){
+          const key=await fs.realpath(value.path!).catch(()=>path.resolve(value.path!));
+          const prior=locks.get(key)??Promise.resolve();
+          const job=prior.catch(()=>{}).then(()=>handler(payload));locks.set(key,job);
+          try{result=await job;}finally{if(locks.get(key)===job)locks.delete(key);}
+        }else result=await handler(payload);
         if (
           ["service.file.write", "service.file.edit"].includes(service) &&
           value.path
@@ -205,15 +216,20 @@ interface ReadPayload {
 
 async function readFileRange(payload: unknown): Promise<unknown> {
   const p = payload as ReadPayload;
-  const raw = await fs.readFile(p.path, "utf8");
+  if(p.offset!==undefined&&(!Number.isInteger(p.offset)||p.offset<1)||p.limit!==undefined&&(!Number.isInteger(p.limit)||p.limit<1||p.limit>MAX_FILE_LINES))throw Error("read: invalid line range");
+  if((await fs.stat(p.path)).size>2*1024*1024)throw Error("read: file exceeds 2 MiB; use targeted search");
+  const bytes=await fs.readFile(p.path),raw=bytes.toString("utf8");
+  if(bytes.includes(0)||!Buffer.from(raw).equals(bytes))throw Error("read: file is not UTF-8 text");
   const lines = raw.split("\n");
-  const start = Math.max((p.offset ?? 1) - 1, 0);
+  const start = Math.min(lines.length,Math.max((p.offset ?? 1) - 1, 0));
   const end =
     p.limit !== undefined
       ? Math.min(start + p.limit, lines.length)
       : Math.min(lines.length, MAX_FILE_LINES);
+  const content=lines.slice(start,end).join("\n"),startOffset=start===0?0:Math.min(raw.length,lines.slice(0,start).join("\n").length+1);
   return {
-    content: lines.slice(start, end).join("\n"),
+    edit:{path:p.path,expectedHash:createHash("sha256").update(bytes).digest("hex"),range:{start:startOffset,end:startOffset+content.length},strict:true},
+    content,
     totalLines: lines.length,
     truncated: end < lines.length,
   };
@@ -241,16 +257,31 @@ interface EditPayload {
   oldText: string;
   newText: string;
   replaceAll: boolean;
+  expectedHash?:string;range?:{start:number;end:number};strict?:boolean;
 }
 
 async function editFile(payload: unknown): Promise<unknown> {
   const p = payload as EditPayload;
-  if (!p.oldText) throw new Error("edit: oldText must be non-empty");
+  if (!p.oldText && !(p.expectedHash && p.range && p.range.start===p.range.end)) throw new Error("edit: oldText must be non-empty outside a guarded insertion");
   const content = await fs.readFile(p.path, "utf8");
 
+  if(p.expectedHash!==undefined){
+    if(!/^[a-f0-9]{64}$/.test(p.expectedHash)||createHash('sha256').update(content).digest('hex')!==p.expectedHash)throw Error('edit: stale file snapshot; read the symbol/file again before editing');
+  }
+  if(p.range){
+    if(!p.expectedHash||!Number.isSafeInteger(p.range.start)||!Number.isSafeInteger(p.range.end)||p.range.start<0||p.range.end<p.range.start||p.range.end>content.length)throw Error('edit: invalid guarded range');
+    const chunk=content.slice(p.range.start,p.range.end),count=p.oldText?countOccurrences(chunk,p.oldText):1;
+    if(!p.oldText&&chunk)throw Error('edit: insertion requires an empty guarded range');
+    if(!count||(!p.replaceAll&&count!==1))throw Error('edit: text is missing or ambiguous inside the selected range');
+    const changed=!p.oldText?p.newText:p.replaceAll?chunk.split(p.oldText).join(p.newText):chunk.replace(p.oldText,()=>p.newText);
+    const next=content.slice(0,p.range.start)+changed+content.slice(p.range.end),hashAfter=createHash('sha256').update(next).digest('hex');
+    await fs.writeFile(p.path,next);
+    return{path:p.path,replacements:p.replaceAll?count:1,match:'exact',hashAfter,undo:{oldText:changed,newText:chunk,range:{start:p.range.start,end:p.range.start+changed.length},expectedHash:hashAfter,strict:true}};
+  }
   const exactCount = countOccurrences(content, p.oldText);
   if (p.replaceAll) {
     if (exactCount === 0) {
+      if(p.strict||p.expectedHash)throw Error("edit: exact oldText not found");
       const normalized = normalizedReplace(content, p.oldText, p.newText, true);
       if (normalized.count === 0)
         throw new Error(`edit: no match for oldText in ${p.path}`);
@@ -266,7 +297,7 @@ async function editFile(payload: unknown): Promise<unknown> {
   }
 
   if (exactCount === 1) {
-    await fs.writeFile(p.path, content.replace(p.oldText, p.newText));
+    await fs.writeFile(p.path, content.replace(p.oldText, () => p.newText));
     return { path: p.path, replacements: 1, match: "exact" };
   }
   if (exactCount > 1)
@@ -274,6 +305,7 @@ async function editFile(payload: unknown): Promise<unknown> {
       `edit: oldText matches ${exactCount} places — set replaceAll or narrow it`
     );
 
+  if(p.strict||p.expectedHash)throw Error("edit: exact oldText not found");
   const normalized = normalizedReplace(content, p.oldText, p.newText, false);
   if (normalized.count === 1) {
     await fs.writeFile(p.path, normalized.content);
@@ -298,20 +330,13 @@ function normalizedReplace(
   newText: string,
   all: boolean
 ): { content: string; count: number } {
-  let count = 0;
-  let result = content;
-  for (;;) {
-    const { norm, map } = normalizeWithMap(result);
-    const needle = normalizeWithMap(oldText).norm;
-    const idx = norm.indexOf(needle);
-    if (idx === -1) break;
-    const rawStart = map[idx];
-    const rawEnd = map[idx + needle.length - 1] + 1;
-    result = result.slice(0, rawStart) + newText + result.slice(rawEnd);
-    count++;
-    if (!all) break;
-  }
-  return { content: result, count };
+  const {norm,map}=normalizeWithMap(content),needle=normalizeWithMap(oldText).norm;
+  if(!needle.trim())throw Error('edit: normalized oldText must contain non-whitespace text');
+  const spans:Array<[number,number]>=[];let from=0;
+  while(true){const index=norm.indexOf(needle,from);if(index<0)break;spans.push([map[index],map[index+needle.length-1]+1]);from=index+needle.length;}
+  if(!all&&spans.length!==1)return{content,count:spans.length};
+  let result=content;for(const[start,end]of spans.reverse())result=result.slice(0,start)+newText+result.slice(end);
+  return{content:result,count:spans.length};
 }
 
 function normalizeWithMap(s: string): { norm: string; map: number[] } {

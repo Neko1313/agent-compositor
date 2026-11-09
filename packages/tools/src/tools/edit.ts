@@ -6,6 +6,9 @@ export interface EditArgs {
   oldText: string;
   newText: string;
   replaceAll?: boolean;
+  expectedHash?:string;
+  range?:{start:number;end:number};
+  strict?:boolean;
 }
 
 export interface EditOutcome {
@@ -13,6 +16,8 @@ export interface EditOutcome {
   replacements: number;
   /** how the match was found — exact or whitespace-normalized fallback */
   match: "exact" | "normalized";
+  hashAfter?:string;
+  undo?:Omit<EditArgs,"path">;
 }
 
 /**
@@ -23,7 +28,7 @@ export interface EditOutcome {
  */
 export const editTool: ToolSpec<EditArgs, EditOutcome> = {
   name: "edit",
-  description: "Replace exact text in a file. oldText must match uniquely unless replaceAll is set.",
+  description: "Replace exact text in a file. Preserve ALL edit anchor fields from read/read_symbol: path, expectedHash, range, strict. Do not discard range or hash. A stale snapshot requires re-reading. oldText must match uniquely inside the selected range unless replaceAll is set.",
   parameters: {
     type: "object",
     properties: {
@@ -31,6 +36,9 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
       oldText: { type: "string" },
       newText: { type: "string" },
       replaceAll: { type: "boolean" },
+      expectedHash:{type:"string",description:"SHA-256 of the UTF-8 file snapshot returned by code_query read_symbol; reject stale edits."},
+      range:{type:"object",properties:{start:{type:"integer",minimum:0},end:{type:"integer",minimum:0}},required:["start","end"],description:"Optional UTF-16 start/end offsets (end exclusive) returned by read_symbol. Requires expectedHash and exact matching."},
+      strict:{type:"boolean",description:"Require exact text; disable whitespace-normalized fallback."},
     },
     required: ["path", "oldText", "newText"],
   },
@@ -43,13 +51,15 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
         oldText: args.oldText,
         newText: args.newText,
         replaceAll: args.replaceAll ?? false,
+        expectedHash:args.expectedHash,range:args.range,strict:args.strict,
       });
       ctx.undo.push({
         tool: "edit",
         path: target,
-        inverse: { op: "edit", oldText: args.newText, newText: args.oldText, replaceAll: args.replaceAll },
+        inverse: outcome.undo ? {op:"edit",...outcome.undo} : { op: "edit", oldText: args.newText, newText: args.oldText, replaceAll: args.replaceAll },
       });
-      return { ok: true, data: outcome };
+      const {undo,...visible}=outcome;
+      return { ok: true, data: visible };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }

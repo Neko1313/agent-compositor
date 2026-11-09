@@ -1,9 +1,15 @@
 {
   "name": "callix",
-  "version": "1.0.0",
-  "description": "Default code navigation provider using the native Callix CLI and its JSON graph. Replace via serviceProviders or disable this plugin.",
+  "version": "1.1.0",
+  "description": "Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query.",
   "trust": "trusted",
-  "provides": ["service.project.query"],
-  "hookTimeouts": {"service.project.query": 600000},
-  "capabilities": ["tool"]
+  "provides": [
+    "service.project.query"
+  ],
+  "hookTimeouts": {
+    "service.project.query": 600000
+  },
+  "capabilities": [
+    "tool"
+  ]
 }

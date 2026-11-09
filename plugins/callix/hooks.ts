@@ -1,3 +1,4 @@
+import { budgetResult } from "./navigation.js";
 import { query, indexProject } from "./adapter.ts";
 import { queryProject } from "@agent-compositor/tools";
 import { watch, type FSWatcher } from "node:fs";
@@ -136,11 +137,14 @@ export default {
   },
   "service.project.query": async (e: any, $: any) => {
     try {
-      return {
-        value: ["glob", "grep"].includes(e.action)
-          ? await queryProject(e)
-          : await query({ ...e, ...(await options($)) }, $.signal),
-      };
+      if(["glob","grep"].includes(e.action)){
+        const result=await queryProject(e,$.signal),key=e.action==='glob'?'files':'matches';
+        const out=budgetResult({...result,provider:'project-text',metrics:{indexUsed:false}},e.maxTokens??2000,32);
+        const count=out[key].length;if(!count&&result[key].length)throw Error('One text result exceeds maxTokens; increase the budget');
+        out.truncated=out.truncated||count<result[key].length;if(out.truncated)out.nextOffset=(e.offset??0)+count;
+        return{value:budgetResult(out,e.maxTokens??2000)};
+      }
+      return {value:await query({ ...e, ...(await options($)) }, $.signal)};
     } catch (error) {
       return { deny: String(error) };
     }

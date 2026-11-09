@@ -31,7 +31,10 @@
     "visual:mascot": "node tools/visual/mascot-check.mjs",
     "visual:settings": "node tools/visual/settings-check.mjs",
     "eval:agent": "bun tools/evals/run.ts --suite tools/evals/agent-cases.json",
-    "visual:workflows": "node tools/visual/workflow-check.mjs"
+    "visual:workflows": "node tools/visual/workflow-check.mjs",
+    "test:callix": "node tools/evals/callix-test.mjs",
+    "eval:navigation": "bun tools/evals/navigation-bench.ts",
+    "eval:navigation:live": "bun tools/evals/navigation-live.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

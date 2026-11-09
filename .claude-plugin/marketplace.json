@@ -28,8 +28,8 @@
     {
       "name": "callix",
       "source": "./plugins/callix",
-      "description": "Default code navigation provider using the native Callix CLI and its JSON graph. Replace via serviceProviders or disable this plugin.",
-      "version": "1.0.0",
+      "description": "Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query.",
+      "version": "1.1.0",
       "compositor": {
         "format": "native"
       }

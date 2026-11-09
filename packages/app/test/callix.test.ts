@@ -37,7 +37,7 @@ describe('native Callix adapter', () => {
   it('queries graph directions, retains locations/quality and rejects unknown schemas', () => {
     expect(queryGraph(graph, { cwd: '.', action: 'callers', pattern: 'b' })).toMatchObject({ relations: [graph.relations[0]], nodes: graph.nodes, metadata: graph.metadata });
     expect(queryGraph(graph, { cwd: '.', action: 'callees', pattern: 'a' })).toMatchObject({ relations: [graph.relations[0]] });
-    expect(queryGraph(graph, { cwd: '.', action: 'references', pattern: 'b' })).toMatchObject({ relations: [graph.relations[1]] });
+    expect(queryGraph(graph, { cwd: '.', action: 'references', pattern: 'b' })).toMatchObject({ relations: [graph.relations[0],graph.relations[1]] });
     expect(queryGraph(graph, { cwd: '.', action: 'definition', pattern: 'app.run' })).toMatchObject({ symbols: [graph.nodes[1]] });
     expect(() => parseGraph('{"schema_version":2,"nodes":[],"relations":[]}')).toThrow(/Unsupported/);
   });

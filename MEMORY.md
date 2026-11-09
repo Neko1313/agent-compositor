@@ -468,3 +468,53 @@ queries against the existing Ollama returned 262144 context tokens for
 Gemma4:31b-cloud and 1048576 for DeepSeek-v4.1-flash:1017-cloud in this environment.
 Typed control chunks and bracketed paste use separate Ink input channels;
 form passwords remain masked. No release tag/publication was requested.
+
+## Callix navigation, guarded editing and cost comparison
+
+The user requested deep tests and better file/symbol navigation, precise edits
+and token comparisons with conventional search methods. Callix remains native
+and replaceable through service.project.query; no new Python bridge or mandatory
+backend was introduced. The plugin now supports outline/read_symbol/impact,
+exact path/name/ID disambiguation, indexed adjacency lookups, compact bounded
+results, snapshot/filter cursors and payload size estimates. UTF-8 one-based
+native spans are converted to exact UTF-16 edit ranges; truncated source never
+issues an anchor. Native aliased calls and Unicode/CRLF source slices are tested.
+
+The standard read tool also returns a guarded range anchor. Standard edit accepts
+expectedHash/range/strict, so permissions, guards and checkpoints remain intact.
+Stale or ambiguous changes fail; guarded inverses are recorded privately. File
+mutation locks are shared across cores in-process, not across external editors.
+Normalized edits now detect multiple matches correctly and cannot loop when a
+replacement re-matches the whitespace-normalized needle. Replacement strings
+are literal, including $&. Model-facing tool JSON stays valid above its limit;
+compact results are capped at 128 KiB with a structured preview for oversized data.
+
+Index builds are shared with per-consumer cancellation, checked for source
+changes during analysis, and saved with root/config/binary provenance. Extra
+ignore rules filter cached/output graph nodes (native CLI analysis still uses
+its own discovery rules). Text search handles nested ignores, symlink escape,
+deleted/binary/large files, streaming regex batches and bounded scan memory/time.
+Skipped pagination matches are not all retained. Exact-ID warm lookups are tested
+against a 10000-node graph without another node scan.
+
+Commands: npm run test:callix, eval:navigation, eval:navigation:live. Fixed-protocol
+comparison validates identical caller paths and edits for broad full-file,
+bounded range and graph approaches. Approximate result tokens: 34880 / 376 / 834.
+Callix cold path ~78 ms; warm graph requests ~2..6 ms in that fixture. Efficient
+text is cheaper for the simple known-path task; do not claim universal savings.
+Final live runs passed 4/4 guarded-edit/behavior/check episodes with actual
+provider usage, but Gemma used text even when semantic tools were available.
+DeepSeek used Callix and spent more input than its text-only run. ToolTraffic
+estimates, provider input/cache/output and method adherence are recorded separately.
+These are method/development comparisons, not branded-assistant or statistically
+representative benchmarks. Earlier failed guard/command-adherence trajectories
+remain under dist/navigation-live; final runs are dist/navigation-live-final.
+See plugins/callix/README.md and docs/evals.md for exact contracts and results.
+
+Final verification: 420 tests passed and three optional native tests skipped in
+52 files; line coverage 81.87%. The explicit native Callix suite passed all 25
+tests in four files. Typecheck, marketplace validation (26 entries), and diff
+checks passed. The rebuilt Linux x64 binary passed install/checksum/default
+plugin smoke, bundled cross-file Callix queries and guarded symbol editing with
+an empty PATH, plus the existing background workflow checks. No release was
+published for this task.

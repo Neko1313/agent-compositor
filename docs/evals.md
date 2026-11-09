@@ -130,3 +130,45 @@ This is development evidence, not an unbiased benchmark or a parity claim about
 Claude Code/Codex. More held-out tasks and repeated runs are needed for reliable
 quality comparisons. Live runs use the existing Ollama cloud models and are
 explicit, not part of credential-free CI.
+
+## Navigation method comparison
+
+The Callix benchmark commands are deliberately separate:
+
+- `npm run test:callix`: real native integration plus deterministic failure/race tests.
+- `npm run eval:navigation`: fixed navigation/edit protocols on a generated project.
+- `npm run eval:navigation:live`: model-directed work with semantic tools available
+  versus text-only tools, using the same correctness/guard checks and permissions.
+
+The mechanical report is `dist/navigation-benchmark/report.json` / `report.md`.
+In the recorded fixture, broad grep + full read returned about 34880 heuristic
+tokens, bounded text + ranged read 376, and Callix 834. All preserved the neighbor
+function and resolved the same two fixture callers. Callix made four calls vs
+five for text. Its cold navigation path took about 78 ms; warm symbol/caller
+queries took roughly 2..6 ms. These single-machine timings are illustrative.
+The repeated-input estimate also includes schema and argument cost; it excludes
+unknown model reasoning, provider framing and cache pricing. Efficient text
+navigation was cheaper on this small known-path task. Graph navigation should be
+chosen for semantic identity/relationships, not imposed on every literal edit.
+
+Live evidence is under `dist/navigation-live-final/`. All four final episodes
+passed artifact correctness, successful project checks and use of a fresh
+hash/range edit. Provider input/output/cache counters were reported for every
+request (zero estimated model calls). The separate toolTraffic field estimates
+actual model-facing tool result/argument/schema sizes; it is not billing.
+
+| Model | Available navigation | Input tokens | Cached input (subset) | Output tokens | Used graph |
+|---|---|---:|---:|---:|---|
+| Gemma4:31b-cloud | Semantic + text | 29256 | 23488 | 378 | No |
+| Gemma4:31b-cloud | Text only | 26696 | 23328 | 396 | No |
+| DeepSeek-v4.1-flash:1017-cloud | Semantic + text | 43023 | 34674 | 1771 | Yes |
+| DeepSeek-v4.1-flash:1017-cloud | Text only | 33186 | 25758 | 1918 | No |
+
+Gemma chose the same text approach despite graph availability, so its pair is
+schema/context overhead evidence, not an executed Callix-versus-text comparison.
+DeepSeek used the graph but made additional reads/queries and spent more input
+than its text-only episode. One episode per model/mode does not establish a
+statistical improvement. Initial trajectories in `dist/navigation-live/` expose
+failures to retain edit guards and execute the permitted check command. The final
+run strengthened anchor/execution guidance without weakening the guard, artifact
+or permission criteria. No Codex/Claude/Gemini CLI runtime was benchmarked.

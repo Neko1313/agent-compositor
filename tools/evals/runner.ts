@@ -1,3 +1,4 @@
+import {estimateTokens} from "../../packages/context/src/index.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
@@ -18,6 +19,8 @@ export interface EvalCase {
   rules?: any[];
   expect: any;
   script?: ScriptedStep[];
+  navigationMode?:"semantic"|"text";
+  system?:string;
 }
 export async function runCase(
   test: EvalCase,
@@ -36,6 +39,7 @@ export async function runCase(
   let app: Awaited<ReturnType<typeof buildApp>> | undefined;
   const events: any[] = [],
     checks: { name: string; ok: boolean; detail?: string }[] = [];
+  let transcript:any[]=[],schemaTokens=0;
   let requests = 0,
     error: string | undefined,
     answer = "";
@@ -65,6 +69,7 @@ export async function runCase(
         compaction: { enabled: false },
       })
     );
+    if(test.navigationMode){await mkdir(join(cwd,".agent-compositor"),{recursive:true});await writeFile(join(cwd,".agent-compositor/callix.json"),JSON.stringify({background:false,executable:process.env.CALLIX_TEST_BIN??join(root,"plugins/callix/bin/callix")}));}
     const provider =
       options.model === "scripted"
         ? new ScriptedProvider(test.script ?? [])
@@ -84,7 +89,7 @@ export async function runCase(
         AGENT_MODEL: options.model,
       },
       provider,
-      systemPrompt: system,
+      systemPrompt: [system,test.system].filter(Boolean).join("\n\n")||undefined,
       maxSteps: test.expect.grader ? 24 : 8,
       maxTokensPerTurn: test.expect.grader ? 80000 : 12000,
       agentHub: false,
@@ -98,7 +103,9 @@ export async function runCase(
       ].map((p) => join(root, "plugins", p)),
     });
     if (app.pluginErrors.length) throw Error(JSON.stringify(app.pluginErrors));
+    if(test.navigationMode==='text')for(const plugin of app.plugins)if(plugin.manifest.name==='callix')plugin.tools=plugin.tools?.filter(t=>t.name!=='code_query');
     const core = app.createCore(async () => false);
+    core.host.registerPlugin({name:"eval-measurement",version:"1.0.0",trust:"trusted"},{"service.model.stream":(e:any)=>{if(!schemaTokens)schemaTokens=estimateTokens(JSON.stringify(e.request.tools));}});
     core.subscribe((e) => events.push(e));
     const timeout = setTimeout(
       () => core.interrupt(),
@@ -123,6 +130,7 @@ export async function runCase(
       provider?.requests.length ??
       events.filter((e) => e.kind === "catalog" && e.event === "turn.step")
         .length;
+    transcript=[...core.getMessages()];
     const exp = test.expect;
     if (exp.responseIncludes)
       checks.push({
@@ -193,13 +201,16 @@ export async function runCase(
     await rm(temp, { recursive: true, force: true });
   }
   const usage = events
-    .filter((e) => e.kind === "catalog" && e.event === "turn.usage")
+    .filter((e) => e.kind === "catalog" && e.event === "model.usage")
     .reduce(
       (sum, e) => ({
         input: sum.input + Number(e.input.inputTokens ?? 0),
         output: sum.output + Number(e.input.outputTokens ?? 0),
+        cachedInput:sum.cachedInput+Number(e.input.cachedInputTokens??0),
+        estimatedCalls:sum.estimatedCalls+(e.input.estimated?1:0),
+        reportedCalls:sum.reportedCalls+(e.input.estimated?0:1),
       }),
-      { input: 0, output: 0 }
+      { input: 0, output: 0,cachedInput:0,estimatedCalls:0,reportedCalls:0 }
     );
   return {
     id: test.id,
@@ -211,6 +222,8 @@ export async function runCase(
     response: answer,
     requests,
     usage,
+    navigationMode:test.navigationMode,
+    toolTraffic:{schemaTokens,estimateMethod:"utf8-weighted-heuristic",resultTokens:transcript.filter(m=>m.role==='tool').reduce((n,m)=>n+estimateTokens(m.content),0),resultBytes:transcript.filter(m=>m.role==='tool').reduce((n,m)=>n+Buffer.byteLength(m.content),0),calls:events.filter(e=>e.kind==='catalog'&&e.event==='tool.call').map(e=>({tool:e.input.tool,argumentTokens:estimateTokens(JSON.stringify(e.input.input)),action:(e.input.input as any)?.action}))},
     durationMs: Date.now() - started,
     trajectory: events,
   };

@@ -17,7 +17,7 @@ const digest = createHash('sha256').update(archive).digest('hex');
 const expected = JSON.parse(await readFile('package.json')).version;
 const installer = resolve('install.sh');
 let corrupt = true;
-let callixResult, workflowResult;
+let callixResult, workflowResult, guardedEditResult;
 const server = createServer(async (req, res) => {
   if (req.url.endsWith('/SHA256SUMS')) { res.end(`${corrupt ? '0'.repeat(64) : digest}  ${asset}\n`); return; }
   if (req.url.endsWith(`/${asset}`)) { res.end(archive); return; }
@@ -33,6 +33,11 @@ const server = createServer(async (req, res) => {
       if(!tool)res.end(frame({tool_calls:[{index:0,id:'workflow-start',type:'function',function:{name:'workflow_run',arguments:JSON.stringify({action:'start',title:'Packaged workflow',stages:[{id:'worker',prompt:'WORKFLOW_WORKER_CHECK'}]})}}]},'tool_calls')+'data: [DONE]\n\n');
       else {const run=JSON.parse(tool.content);if(run.status==='completed'){workflowResult=run;res.end(frame({content:'WORKFLOW_DISTRIBUTION_OK'},'stop')+'data: [DONE]\n\n');}
       else res.end(frame({tool_calls:[{index:0,id:'workflow-status-'+request.messages.length,type:'function',function:{name:'workflow_run',arguments:JSON.stringify({action:'status',id:run.id,waitMs:1000})}}]},'tool_calls')+'data: [DONE]\n\n');}
+    } else if(request.messages.some(m=>m.role==='user'&&m.content==='CALLIX_SYMBOL_EDIT_CHECK')){
+      const tool=request.messages.filter(m=>m.role==='tool').at(-1);
+      if(!tool)res.end(frame({tool_calls:[{index:0,id:'symbol-read',type:'function',function:{name:'code_query',arguments:JSON.stringify({action:'read_symbol',pattern:'leaf',path:'leaf.ts'})}}]},'tool_calls')+'data: [DONE]\n\n');
+      else if(JSON.parse(tool.content).edit){const source=JSON.parse(tool.content);res.end(frame({tool_calls:[{index:0,id:'symbol-edit',type:'function',function:{name:'edit',arguments:JSON.stringify({...source.edit,oldText:'value + 1',newText:'value + 2'})}}]},'tool_calls')+'data: [DONE]\n\n');}
+      else{guardedEditResult=JSON.parse(tool.content);res.end(frame({content:'CALLIX_SYMBOL_EDIT_OK'},'stop')+'data: [DONE]\n\n');}
     } else if (request.messages.some(m => m.role === 'user' && m.content === 'CALLIX_DISTRIBUTION_CHECK')) {
       const tool = request.messages.filter(m => m.role === 'tool').at(-1);
       if (!tool) {
@@ -99,6 +104,9 @@ try {
   assert.ok(callixResult?.relations?.some(r => r.kind === 'calls'), JSON.stringify(callixResult));
   assert.ok(callixResult?.nodes?.some(n => n.name === 'start'), JSON.stringify(callixResult));
   assert.ok(callixResult?.symbols?.some(n => n.name === 'leaf'), JSON.stringify(callixResult));
+  await writeFile(join(project,'agent-compositor.json'),JSON.stringify({permissions:{rules:[{tool:'edit',path:join(project,'leaf.ts'),decision:'allow'}]}}));
+  assert.match((await exec(binary,['-p','CALLIX_SYMBOL_EDIT_CHECK'],callixOptions)).stdout,/CALLIX_SYMBOL_EDIT_OK/);
+  assert.equal(guardedEditResult?.match,'exact',JSON.stringify(guardedEditResult));assert.match(guardedEditResult?.hashAfter??'',/^[a-f0-9]{64}$/);assert.match(await readFile(join(project,'leaf.ts'),'utf8'),/value \+ 2/);
   const verify = join(temp, 'verify.mjs');
   await writeFile(verify, `import hooks from ${JSON.stringify(pathToFileURL(join(directory, 'plugins/monty/hooks.js')).href)};
 const result = await hooks['service.sandbox.run']({language:'python',code:'6 * 7'}, {signal:new AbortController().signal});
@@ -111,7 +119,7 @@ console.log('MONTY_OK');
   await writeFile(marker, 'user state');
   await exec('sh', [installer, '--prefix', prefix], options);
   assert.equal(await readFile(marker, 'utf8'), 'user state');
-  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, model response, background workflow, bundled Callix cross-file analysis without PATH, state preservation`);
+  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, model response, background workflow, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
 } finally {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   await rm(temp, { recursive: true, force: true });

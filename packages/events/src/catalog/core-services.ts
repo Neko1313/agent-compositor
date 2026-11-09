@@ -10,7 +10,7 @@ const denyValue = [
   {
     kind: "value",
     summary: "answer without executing",
-    schema: z.object({ value: z.unknown() }),
+    schema: z.object({ value: z.unknown().optional() }),
   },
 ];
 export const servicePermissionReview = defineEvent({
@@ -22,8 +22,8 @@ export const servicePermissionReview = defineEvent({
   input: z.object({
     tool: z.string(),
     callId: z.string(),
-    input: z.unknown(),
-    descriptor: z.unknown(),
+    input: z.unknown().optional(),
+    descriptor: z.unknown().optional(),
     description:z.string().optional(),
     parameters:z.unknown().optional(),
     context:z.unknown().optional(),
@@ -126,8 +126,8 @@ export const serviceSandboxRun = defineEvent({
   input: z.object({
     language: z.string(),
     code: z.string().max(100000),
-    inputs: z.record(z.unknown()).optional(),
-    functions: z.record(z.unknown()).optional(),
+    inputs: z.record(z.string(), z.unknown()).optional(),
+    functions: z.record(z.string(), z.unknown()).optional(),
     timeoutMs: z.number().int().min(100).max(300000).optional(),
     memoryBytes: z.number().int().min(1000000).max(128000000).optional(),
   }),
@@ -179,7 +179,7 @@ export const serviceModelStream = defineEvent({
   version: 1,
   summary:
     "Shared streaming provider gateway for agent turns, compaction and plugin model calls. Return an AsyncIterable of provider events.",
-  input: z.object({ plugin: z.string().optional(), request: z.unknown() }),
+  input: z.object({ plugin: z.string().optional(), request: z.unknown().optional() }),
   responses: denyValue,
   frozen: true,
 });
@@ -204,7 +204,7 @@ export const assistantMetadata = defineEvent({
   version: 1,
   summary:
     "Provider reasoning continuation metadata for faithful session replay.",
-  input: z.object({ turnId: z.string(), metadata: z.record(z.unknown()) }),
+  input: z.object({ turnId: z.string(), metadata: z.record(z.string(), z.unknown()) }),
   responses: [],
   frozen: true,
 });
@@ -256,7 +256,7 @@ export const serviceShellExec = defineEvent({
     command: z.string(),
     cwd: z.string(),
     timeoutMs: z.number().int().positive(),
-    env: z.record(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
     background: z.boolean().optional(),
   }),
   responses: denyValue,

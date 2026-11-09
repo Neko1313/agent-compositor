@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import { readFileSync } from "node:fs";
 import { byAnyName, byName, catalog, resolve } from "../src/index.js";
 import { namespaceOf } from "../src/define.js";
 
@@ -38,7 +40,32 @@ describe("event catalog", () => {
     for (const e of catalog) {
       const sample = e.input.parse(minimalSample(e.input));
       expect(sample).toBeDefined();
+      for (const response of e.responses) {
+        expect(response.schema.safeParse(minimalSample(response.schema)).success,
+          `${e.name} response ${response.kind}`).toBe(true);
+      }
     }
+  });
+
+  it("preserves omitted unknown payloads and primitive defaults without weakening typed fields", () => {
+    expect(byName.get("service.model.complete")!.input.parse({plugin:"test"})).toEqual({plugin:"test"});
+    expect(byName.get("tool.call")!.responses.find(r=>r.kind==="result")!.schema.parse({})).toEqual({});
+    expect(byName.get("service.storage.read")!.input.parse({plugin:"test",key:"item"})).toEqual({plugin:"test",key:"item",scope:"project"});
+    expect(byName.get("service.storage.read")!.input.safeParse({plugin:"test"}).success).toBe(false);
+    expect(byName.get("service.storage.read")!.input.safeParse({plugin:"test",key:"item",scope:"invalid"}).success).toBe(false);
+  });
+
+  it("publishes actual JSON Schema constraints instead of opaque placeholders", () => {
+    const generated=JSON.parse(readFileSync(new URL("../../../schema/events.json",import.meta.url),"utf8"));
+    const read=generated.events["service.storage.read"].input;
+    expect(read.type).toBe("object");
+    expect(read.required).toEqual(expect.arrayContaining(["plugin","key"]));
+    expect(read.properties.scope.default).toBe("project");
+    expect(read.properties.key.minLength).toBe(1);
+    const questionnaire=generated.events["service.ui.questionnaire"].input;
+    expect(questionnaire.properties.questions).toMatchObject({type:"array",minItems:1,maxItems:8});
+    expect(generated.events["service.ui.view"].input.properties.view.properties.input.properties.label.maxLength).toBe(60);
+    expect(JSON.stringify(generated)).not.toContain('"note":"opaque"');
   });
 
   it("every alias and every canonical name is reachable via byAnyName", () => {
@@ -46,45 +73,28 @@ describe("event catalog", () => {
   });
 });
 
-/** best-effort minimal sample for zod parse smoke test */
-function minimalSample(schema: unknown): unknown {
-  const s = schema as {
-    _def?: { typeName?: string; shape?: () => Record<string, unknown>; innerType?: unknown };
-    safeParse?: (v: unknown) => { success: boolean };
-  };
-  const def = s._def;
-  if (!def) return undefined;
-  switch (def.typeName) {
-    case "ZodObject": {
-      const shape = def.shape!();
-      return Object.fromEntries(Object.entries(shape).map(([k, v]) => [k, minimalSample(v)]));
+/** Generate structural samples through the public JSON Schema API, then let
+ * Zod validate every sample (including refinements); unsupported kinds fail. */
+function minimalSample(schema: z.ZodType): unknown {
+  let serial = 0;
+  function sample(node: z.core.JSONSchema.JSONSchema): unknown {
+    if ("default" in node) return node.default;
+    if ("const" in node) return node.const;
+    if (node.enum) return node.enum[0];
+    if (node.anyOf) return sample(node.anyOf[0]);
+    if (node.oneOf) return sample(node.oneOf[0]);
+    if (Array.isArray(node.type)) return sample({...node,type:node.type[0]});
+    switch (node.type) {
+      case "object": return Object.fromEntries((node.required ?? []).map(key =>
+        [key, sample(node.properties![key] as z.core.JSONSchema.JSONSchema)]));
+      case "string": return `sample${++serial}`.padEnd(node.minLength ?? 0,"x");
+      case "integer": case "number": return Math.max(node.minimum ?? 1, typeof node.exclusiveMinimum === "number" ? node.exclusiveMinimum + 1 : 1);
+      case "boolean": return false;
+      case "null": return null;
+      case "array": return Array.from({length:node.minItems ?? 0},()=>sample(node.items as z.core.JSONSchema.JSONSchema));
+      case undefined: return null; // unknown/any are JSON-unconstrained.
+      default: throw Error(`Add a sample generator for ${node.type}`);
     }
-    case "ZodString":
-      return "x";
-    case "ZodNumber":
-      return 1;
-    case "ZodBoolean":
-      return false;
-    case "ZodEffects":
-      return minimalSample((def as {schema:unknown}).schema);
-    case "ZodArray": {
-      const array=def as {type:unknown;minLength?:{value:number}};
-      return Array.from({length:array.minLength?.value??0},()=>minimalSample(array.type));
-    }
-    case "ZodRecord":
-      return {};
-    case "ZodOptional":
-      return undefined;
-    case "ZodNullable":
-      return null;
-    case "ZodEnum":
-      return (def as { values: string[] }).values[0];
-    case "ZodUnknown":
-    case "ZodAny":
-      return undefined;
-    case "ZodLiteral":
-      return undefined;
-    default:
-      return undefined;
   }
+  return sample(z.toJSONSchema(schema,{io:"input",unrepresentable:"any"}));
 }

@@ -143,7 +143,7 @@ export const uiRemove = defineEvent({
     {
       kind: "value",
       summary: "removed",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,
@@ -188,7 +188,7 @@ export const uiInputTarget = defineEvent({
     {
       kind: "value",
       summary: "accepted",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,
@@ -208,7 +208,7 @@ export const uiConfigure = defineEvent({
     {
       kind: "value",
       summary: "appearance accepted",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,
@@ -223,13 +223,13 @@ export const agentTool = defineEvent({
   input: z.object({
     plugin: z.string().optional(),
     name: z.string().min(1),
-    args: z.unknown(),
+    args: z.unknown().optional(),
   }),
   responses: [
     {
       kind: "value",
       summary: "tool outcome",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,
@@ -247,7 +247,7 @@ export const uiRender = defineEvent({
   input: z.object({
     site: z.string(),
     surface: z.enum(["terminal", "desktop", "web", "headless"]),
-    props: z.record(z.unknown()),
+    props: z.record(z.string(), z.unknown()),
     viewport: z.object({ columns: z.number(), rows: z.number() }).optional(),
   }),
   responses: [
@@ -332,7 +332,7 @@ export const uiView = defineEvent({
     {
       kind: "value",
       summary: "view accepted",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,
@@ -356,7 +356,7 @@ export const uiSurface = defineEvent({
     {
       kind: "value",
       summary: "surface accepted",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,
@@ -381,7 +381,7 @@ export const networkConfigure = defineEvent({
     {
       kind: "value",
       summary: "redacted configuration",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,

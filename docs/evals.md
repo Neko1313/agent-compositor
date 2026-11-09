@@ -41,8 +41,10 @@ the execution workspace.
 CI collects JUnit and Cobertura reports, enforces coverage floors (lines 80%,
 statements 70%, functions 70%, branches 60%), validates the catalog, and runs the
 deterministic eval and Bun proxy smoke checks. Reports are retained as artifacts.
-Tests use Vitest 5 and require Node >=22.12; local commands match CI. Cloud
-credentials are unnecessary for CI. The GitHub Actions workflow itself was not
+Tests use Vitest 5 and require Node >=22.19.0. CI runs typechecking and the
+coverage suite on the minimum Node 22.19.0 and primary Node 26; the deterministic
+evals, proxy smoke checks and generated-artifact checks run once on Node 26.
+Local commands match CI. Cloud credentials are unnecessary for CI. The GitHub Actions workflow itself was not
 run remotely during this work.
 
 ## Upstream Harness² integration

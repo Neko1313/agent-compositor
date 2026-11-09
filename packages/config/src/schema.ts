@@ -17,7 +17,7 @@ export const ConfigSchema = z
       sites: z.object({ split: placement.optional(), sidebar: placement.optional(), inspector: placement.optional(), "status-bar": placement.optional() }).optional(),
       rules: z.array(placement.extend({ match: z.object({ plugin: z.string().optional(), surface: z.string().optional() }) })).optional(),
     }).optional(),
-    serviceProviders: z.record(z.string()).optional(),
+    serviceProviders: z.record(z.string(), z.string()).optional(),
     disabledPlugins: z.array(z.string()).optional(),
     model: z.string().optional(),
     small_model: z.string().optional(),

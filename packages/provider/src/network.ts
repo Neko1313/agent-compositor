@@ -70,7 +70,8 @@ export class NetworkClient {
         } as RequestInit);
       let dispatcher = this.agents.get(endpoint);
       if (!dispatcher) {
-        dispatcher = new ProxyAgent(endpoint);
+        // Keep HTTP and HTTPS on the same CONNECT path across Undici versions.
+        dispatcher = new ProxyAgent({ uri: endpoint, proxyTunnel: true });
         this.agents.set(endpoint, dispatcher);
       }
       return proxyFetch(input, { ...init, dispatcher });

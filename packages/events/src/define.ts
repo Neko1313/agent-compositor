@@ -4,12 +4,14 @@ import { z } from "zod";
  * An event definition. This file is the "UAPI header" pattern from the Linux
  * kernel: the catalog is the contract, and `frozen: true` means the shape
  * must not change incompatibly — only new versions and aliases.
+ * Unknown payload properties retain explicit optionality from the Zod 3 contract;
+ * upgrading the validator must not make previously accepted missing keys fail.
  */
 export interface ResponseDef {
   /** discriminator value a hook returns, e.g. "deny" */
   kind: string;
   summary: string;
-  schema: z.ZodTypeAny;
+  schema: z.ZodType;
 }
 
 export interface EventDef {
@@ -20,7 +22,7 @@ export interface EventDef {
   /** bump when the payload changes incompatibly; additive changes stay at 1 */
   version: number;
   summary: string;
-  input: z.ZodTypeAny;
+  input: z.ZodType;
   /** response forms; the first is the "pass-through" (next(e)) form */
   responses: ResponseDef[];
   /** legacy names that resolve to this event, e.g. "classic.PreToolUse" */

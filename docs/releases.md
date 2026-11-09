@@ -2,6 +2,14 @@
 
 ## Distribution contract
 
+The workflows pin GitHub Actions to immutable commits for checkout 7.0.1,
+setup-node 7.1.0, upload-artifact 7.0.2, download-artifact 8.0.2,
+setup-bun 2.2.0 and git-cliff-action 4.9.1. The JavaScript actions use their own
+Node 24 runtime and require Actions Runner >=2.327.1; this is separate from the
+Node version used to build and test the application. Hosted runners satisfy
+that requirement. Artifact digest mismatches fail the release download step.
+Bun 1.4.4, native Callix 1.7.0 and git-cliff 2.14.2 remain explicit tool pins.
+
 Release archives support Linux glibc 2.38+ (x64/arm64) and macOS (x64/arm64).
 Windows and Linux musl are not currently supported by the installer. The shipped
 Monty native module needs glibc 2.38+; the complete Linux bundle is tested on
@@ -36,7 +44,8 @@ its configured home. The installer does not edit shell profiles or use sudo.
 
 ## Build and smoke test
 
-Run these commands on the target platform with Node.js 22+ and Bun 1.4.4:
+Run these commands on the target platform with Node.js >=22.19.0 (Node 26 in
+release CI) and Bun 1.4.4:
 
 ```sh
 npm ci
@@ -96,8 +105,10 @@ release. Never move a published version tag; fix the issue in a new version.
 
 ## v0.1.1 dependency audit
 
-The existing Zod 3 dependency is flagged by npm audit for
+The original v0.1.1 Zod 3 dependency was flagged by npm audit for
 [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5),
 a memory-exhaustion issue during validation of oversized collections. The
-published fix requires Zod 4.6.6 or later. This release does not migrate the
-public schema contracts to Zod 4; that dependency upgrade remains outstanding.
+published fix requires Zod 4.6.6 or later. The subsequent dependency refresh
+migrates the validators to Zod 4.6.7 while preserving frozen event contracts;
+the refreshed dependency tree reports zero advisories. See the
+[dependency review](dependencies.md) for versions and validation.

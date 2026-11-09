@@ -29,7 +29,7 @@ imply using a live model, real credentials, or the user's project settings.
 
 ## Start and inspect
 
-Check the prerequisites before installing anything: Node >=22, Bun, Python 3
+Check the prerequisites before installing anything: Node >=22.19.0, Bun, Python 3
 (`python3`, or `PYTHON` override), and a Linux/macOS host. Use the existing
 lockfile and installed packages. If packages or the Playwright Chromium
 binary are missing, install only what is required:

@@ -4,7 +4,7 @@ import { defineEvent } from "../define.js";
 
 const denyValue = [
   { kind: "deny", summary: "refuse the call", schema: z.object({ deny: z.string() }) },
-  { kind: "value", summary: "answer without executing", schema: z.object({ value: z.unknown() }) },
+  { kind: "value", summary: "answer without executing", schema: z.object({ value: z.unknown().optional() }) },
 ];
 
 /**
@@ -38,7 +38,7 @@ export const serviceModelComplete = defineEvent({
   since: "0.2.0",
   version: 1,
   summary: "$.model.complete(request): call the configured model provider.",
-  input: z.object({ plugin: z.string(), request: z.unknown() }),
+  input: z.object({ plugin: z.string(), request: z.unknown().optional() }),
   responses: denyValue,
   frozen: true,
 });
@@ -115,7 +115,7 @@ export const serviceTelemetryLog = defineEvent({
   input: z.object({
     plugin: z.string(),
     event: z.string(),
-    data: z.record(z.unknown()).optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
   }),
   responses: denyValue,
   frozen: true,
@@ -124,8 +124,6 @@ export const serviceTelemetryLog = defineEvent({
 export const serviceUiQuestionnaire=defineEvent({
  name:"service.ui.questionnaire",since:"0.15.0",version:1,
  summary:"Collect an atomic questionnaire with single/multiple choices and custom text; cancel or headless operation never manufactures answers.",
- input:questionnaireSchema.innerType().extend({plugin:z.string(),signal:z.unknown().optional()}).superRefine((form,ctx)=>{
-   const result=questionnaireSchema.safeParse(form);if(!result.success)for(const issue of result.error.issues)ctx.addIssue(issue);
- }),
+ input:questionnaireSchema.safeExtend({plugin:z.string(),signal:z.unknown().optional()}),
  responses:[{kind:"deny",summary:"refuse or cancel",schema:z.object({deny:z.string()})},{kind:"value",summary:"structured answers by question ID",schema:z.object({value:questionnaireResultSchema})}],frozen:true,
 });

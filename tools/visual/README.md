@@ -5,7 +5,7 @@ browser. It is not a reimplementation of the UI. Browser keyboard and mouse
 reports travel back through the PTY. The scripted provider exercises todos, delegation, questions, approvals, review
 and independent agents; no external model or real project credentials are used.
 
-Requires Node >=22, Bun, Python 3, and a POSIX host (Linux/macOS).
+Requires Node >=22.19.0, Bun, Python 3, and a POSIX host (Linux/macOS).
 
 ```sh
 npm install

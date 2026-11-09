@@ -779,3 +779,34 @@ RGB/long-approval checks are under dist/ux-final-functional. Representative PNGs
 were inspected. Initial counterexamples are retained under dist/ux-final-round1
 and are not current passing evidence. The critique snapshot is closed as its
 baseline source changed. All owned visual servers/browsers were cleaned up.
+
+## Dependency refresh (2026-11-10)
+
+The user requested review and updates of all libraries, including tooling.
+All 23 external direct npm dependencies were checked against stable registry
+dist-tags; manifests now name current stable versions, with compatible
+transitive refreshes and standalone plugin lockfiles checked. Major migrations:
+Zod 3.25.76 -> 4.6.7, TypeScript 5.9.3 -> 7.0.2, Undici 7.30.2 -> 8.12.4,
+Marked 17.0.6 -> 18.1.3, Node types 24.19.2 -> 26.6.6. Development/source runtime
+minimum is now Node 22.19.0; CI tests it and Node 26 LTS.
+
+Zod migration preserves frozen event acceptance/defaults and questionnaire
+refinements, uses explicit record key/value schemas and public JSON Schema
+conversion. Generated schemas now contain actual contracts for all 83 events.
+TypeScript 7 needs explicit ambient Node types. Undici 8 changes HTTP proxy
+defaults; preserve CONNECT with explicit proxyTunnel:true.
+
+Bun 1.4.4, Callix 1.7.0, Monty 1.5.0, git-cliff 2.14.2 and upstream Harness²
+commit 6868817518876de8fd170c6a8354daca273b6191 were already current. CI actions
+are upgraded and SHA-pinned. Harness² requires Python >=3.12,<3.14; isolated
+Python 3.13 adapter check passed, while host Python 3.14 is not supported.
+No user-global tools or installed skills were upgraded. Impeccable's previously
+accepted update remains deferred to the next session.
+
+Validation: 518 generic tests passed (3 optional skipped), 25 explicit native
+Callix tests passed, typecheck/gen/marketplace/proxy passed, scripted evals 5/5
+and tools evals 3/3 passed. Real PTY broad and Markdown presentation scenarios
+passed with visually inspected screenshots in dist/dependency-visual and
+dist/dependency-presentation. Linux x64 release build/installer smoke passed;
+no release was published. npm audit: zero advisories, npm outdated: empty.
+See docs/dependencies.md for full inventory and maintenance constraints.

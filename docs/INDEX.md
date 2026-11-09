@@ -126,3 +126,6 @@ interruption propagates to the child; child tool declarations are deduplicated.
 - [TUI design principles and segment review](tui-design.md): readable window
   projection, focus/action navigation, literal review input, contrast and
   replaceable plugin view metadata (2026-11-10).
+
+- [Dependency maintenance](dependencies.md): stable library/tool versions,
+  migration decisions and verification (2026-11-10).

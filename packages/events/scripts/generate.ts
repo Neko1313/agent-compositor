@@ -13,14 +13,11 @@ import { namespaceOf } from "../src/define.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-function zodToJsonSchema(schema: z.ZodTypeAny): unknown {
-  // zod ships a JSON-schema converter; keep to a stable subset via zodToJsonSchema
-  return (schema as unknown as { toJSONSchema?: () => unknown }).toJSONSchema?.() ?? { note: "opaque" };
-}
-
-function jsonSchema(schema: z.ZodTypeAny): unknown {
-  const json = (z as unknown as { toJSONSchema?: (s: z.ZodTypeAny) => unknown }).toJSONSchema;
-  return json ? json.call(z, schema) : { note: "opaque" };
+function jsonSchema(schema: z.ZodType): unknown {
+  // Catalog schemas describe incoming payloads: stripped object extras remain
+  // accepted inputs. Non-JSON values stay unconstrained; Zod remains the runtime
+  // authority for refinements that JSON Schema cannot express.
+  return z.toJSONSchema(schema, { io: "input", unrepresentable: "any" });
 }
 
 // ---------- markdown ----------

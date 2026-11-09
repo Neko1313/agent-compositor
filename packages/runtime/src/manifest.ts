@@ -11,7 +11,7 @@ export const manifestSchema = z.object({
   trust: z.enum(["trusted", "sandboxed", "render-only"]),
   capabilities: z.array(z.string()).optional(),
   provides: z.array(z.string()).optional(),
-  hookTimeouts: z.record(z.number().int().min(1).max(600000)).optional(),
+  hookTimeouts: z.record(z.string(), z.number().int().min(1).max(600000)).optional(),
 });
 
 export function parseManifest(input: unknown): PluginManifest {

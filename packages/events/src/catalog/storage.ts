@@ -19,7 +19,7 @@ export const storageRead = defineEvent({
     {
       kind: "value",
       summary: "stored value",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,
@@ -30,12 +30,12 @@ export const storageWrite = defineEvent({
   version: 1,
   summary:
     "Atomically persist bounded JSON in the calling plugin namespace and selected scope.",
-  input: address.extend({ value: z.unknown() }),
+  input: address.extend({ value: z.unknown().optional() }),
   responses: [
     {
       kind: "value",
       summary: "saved",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,
@@ -50,7 +50,7 @@ export const storageConfig = defineEvent({
     {
       kind: "value",
       summary: "merged configuration",
-      schema: z.object({ value: z.unknown() }),
+      schema: z.object({ value: z.unknown().optional() }),
     },
   ],
   frozen: true,

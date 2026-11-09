@@ -12,13 +12,17 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['26', '22.19.0']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.4.4"
       - name: install native search dependency
@@ -26,15 +30,19 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run test:ci
-      - run: npm run marketplace:validate
-      - run: npm run eval -- --output dist/evals-ci
-      - run: npm run eval:tools -- --output dist/evals-tools-ci
-      - run: npm run eval:proxy
+      - if: matrix.node == '26'
+        run: npm run marketplace:validate
+      - if: matrix.node == '26'
+        run: npm run eval -- --output dist/evals-ci
+      - if: matrix.node == '26'
+        run: npm run eval:tools -- --output dist/evals-tools-ci
+      - if: matrix.node == '26'
+        run: npm run eval:proxy
       - name: preserve quality reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: quality-reports
+          name: quality-reports-node-${{ matrix.node }}
           path: |
             reports/junit.xml
             reports/coverage.xml
@@ -43,8 +51,10 @@ jobs:
           if-no-files-found: warn
       # Neovim api-metadata pattern: generated artifacts are committed,
       # CI fails if docs/events.md or schema/events.json drift from source.
-      - run: npm run gen
+      - if: matrix.node == '26'
+        run: npm run gen
       - name: check generated docs are in sync
+        if: matrix.node == '26'
         run: |
           git diff --exit-code docs/events.md schema/events.json \
             || { echo "run 'npm run gen' and commit the result"; exit 1; }

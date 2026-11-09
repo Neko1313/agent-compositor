@@ -31,7 +31,7 @@
     "@agent-compositor/skills": "^0.1.0",
     "@agent-compositor/tools": "^0.1.0",
     "ajv": "^8.20.0",
-    "marked": "^17.0.6",
+    "marked": "^18.1.3",
     "react-devtools-core": "^8.0.0",
     "string-width": "^8.3.0"
   }

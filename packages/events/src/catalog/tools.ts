@@ -17,7 +17,7 @@ export const toolCall = defineEvent({
   responses: [
     { kind: "next", summary: "pass on, possibly rewritten", schema: toolRef },
     { kind: "deny", summary: "refuse the call", schema: z.object({ deny: z.string() }) },
-    { kind: "result", summary: "answer without running", schema: z.object({ result: z.unknown() }) },
+    { kind: "result", summary: "answer without running", schema: z.object({ result: z.unknown().optional() }) },
   ],
   aliases: ["classic.PreToolUse"],
   frozen: true,

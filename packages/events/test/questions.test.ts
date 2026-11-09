@@ -3,6 +3,7 @@ import {
   questionnaireSchema,
   validateQuestionnaireResult,
 } from "../src/questions.js";
+import { serviceUiQuestionnaire } from "../src/catalog/services.js";
 const form = {
   questions: [
     {
@@ -54,4 +55,13 @@ describe("questionnaire contracts", () => {
     ])
       expect(() => validateQuestionnaireResult(form, { answers })).toThrow();
   });
+});
+
+it("keeps questionnaire refinements when extending the service envelope", () => {
+  expect(serviceUiQuestionnaire.input.safeParse({plugin:"test",...form}).success).toBe(true);
+  for (const questions of [
+    [form.questions[0],form.questions[0]],
+    [{id:"a",question:"?",options:["Same",{label:"Same"}]}],
+  ]) expect(serviceUiQuestionnaire.input.safeParse({plugin:"test",questions}).success).toBe(false);
+  expect(serviceUiQuestionnaire.input.safeParse(form).success).toBe(false);
 });

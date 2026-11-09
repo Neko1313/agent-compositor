@@ -59,9 +59,11 @@ describe('effective model context', () => {
 describe('dynamic workflow scheduler', () => {
     it('fans out, joins, branches and records real results/attempts without blocking the caller', async () => {
         const cwd = await temp();
-        let active = 0, max = 0;
+        let active = 0, max = 0, workers = 0;
+        let releaseWorkers!: () => void;
+        const workerGate = new Promise<void>(resolve => { releaseWorkers = resolve; });
         const calls: string[] = [];
-        const engine = new WorkflowEngine({ cwd, request: async (_e, p: any) => { calls.push(p.agentId); expect(p.detached).toBe(true); active++; max = Math.max(max, active); await new Promise(r => setTimeout(r, 5)); active--; return { output: p.prompt.startsWith('discover') ? JSON.stringify([{ id: 'a', prompt: 'worker a' }, { id: 'b', prompt: 'worker b' }]) : 'verified', tokens: 12 } as any; } });
+        const engine = new WorkflowEngine({ cwd, request: async (_e, p: any) => { calls.push(p.agentId); expect(p.detached).toBe(true); active++; max = Math.max(max, active); if (p.prompt.startsWith('worker')) { if (++workers === 2) releaseWorkers(); await workerGate; } active--; return { output: p.prompt.startsWith('discover') ? JSON.stringify([{ id: 'a', prompt: 'worker a' }, { id: 'b', prompt: 'worker b' }]) : 'verified', tokens: 12 } as any; } });
         const run = await engine.start({ title: 'Audit', concurrency: 2, stages: [{ id: 'discover', prompt: 'discover', expand: true }, { id: 'join', prompt: 'combine', dependsOn: ['discover'] }, { id: 'skip', prompt: 'never run', dependsOn: ['join'], when: { stage: 'join', includes: 'absent' } }] });
         expect(run.status).toBe('running');
         const done = await engine.wait(run.id);

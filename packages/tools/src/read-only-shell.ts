@@ -109,7 +109,8 @@ export async function isReadOnlyShell(command: string, cwd: string, root: string
                     return p;
             } throw Error('Missing executable'); })();
             const binary = await realpath(executable);
-            if (!['/usr/bin/' + name, '/bin/' + name].includes(binary))
+            const standard = await Promise.all(['/usr/bin/' + name, '/bin/' + name].map(path=>realpath(path).catch(()=>undefined)));
+            if (!standard.includes(binary))
                 return false;
             if (name === 'rg' && env.RIPGREP_CONFIG_PATH && !args.includes('--no-config'))
                 return false;

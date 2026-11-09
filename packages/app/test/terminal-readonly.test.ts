@@ -14,10 +14,11 @@ it('allows verified local reads and pipelines without an approval model or human
     await mkdir(join(cwd, 'src'));
     await writeFile(join(cwd, 'src/a.txt'), 'needle\n');
     let asks = 0;
-    const core = new AgentCore({ cwd, provider: new ScriptedProvider([]), onApproval: async () => { asks++; return false; } });
+    const core = new AgentCore({ cwd, provider: new ScriptedProvider([]), toolEnv:()=>({PATH:'/usr/bin:/bin'}), onApproval: async () => { asks++; return false; } });
     for (const command of ['ls -la src', "grep -n 'needle' src/a.txt", 'ls src | head -1', 'pwd && wc -l src/a.txt'])
         expect((await core.invokeTool('exec', { command })).ok, command).toBe(true);
     expect(asks).toBe(0);
+    const alias=join(cwd,'ls');await symlink('/bin/ls',alias);expect(await isReadOnlyShell(alias,cwd,cwd)).toBe(true);
 });
 it('does not auto-allow write effects, substitutions, external paths, executable flags or shadow binaries', async () => {
     const cwd = await temp(), outside = await temp();

@@ -632,3 +632,9 @@ compiled screenshots/report are dist/visual-presentation-binary-final (including
 hover without OSC 22). Narrow styled rows remain readable after resize. The
 rebuilt Linux x64 installer/default-plugin/model/workflow/Callix/edit smoke passed.
 No new release tag/publication was requested.
+
+The first CI run rejected the positive ls read test. Executable pinning now
+compares canonical system targets (including symlink/multicall installations),
+not literal /usr/bin/<name> strings. The positive fixture uses a controlled
+standard PATH; a symlink to the real system ls is accepted, while a shadow shell
+script remains rejected. No generic basename-only executable trust was added.

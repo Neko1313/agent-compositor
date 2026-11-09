@@ -3,7 +3,7 @@ import type { HelloMessage, HelloAckMessage } from "./messages.js";
 
 export const PROTOCOL_NAME = "agent-compositor";
 /** bump following semver: major = breaking frame/shape change */
-export const PROTOCOL_VERSION = "0.5.0";
+export const PROTOCOL_VERSION = "0.6.0";
 
 /** Build the opening message for a peer. */
 export function hello(role: HelloMessage["role"], capabilities: HelloMessage["capabilities"]): HelloMessage {

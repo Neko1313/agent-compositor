@@ -87,9 +87,14 @@ try {
   await waitText("0/3 complete");
   await waitText("Ghost");
   await waitText("[ Pet Ghost ]");
+  if (process.env.VISUAL_GRAPHICS === 'kitty') {
+    await page.waitForFunction(() => visual.graphics.active > 0 && visual.graphics.stats.lastWidth === 228 && visual.graphics.stats.lastHeight === 228);
+    report.checks.push('Native graphics negotiated over PTY; original 228x228 RGBA is decoded by the Kitty protocol emulator');
+  }
   await screenshot("00-ghost-idle.png");
   const colors = () =>
     page.evaluate(() => {
+      if (visual.graphics.active) return `native:${visual.graphics.stats.lastImage}`;
       const t = visual.terminal,
         values = [];
       for (let y = 0; y < t.rows; y++)
@@ -102,6 +107,7 @@ try {
     });
   const initialColors = await colors();
   await page.waitForFunction((initial) => {
+    if (visual.graphics.active) return `native:${visual.graphics.stats.lastImage}` !== initial;
     const t = visual.terminal,
       values = [];
     for (let y = 0; y < t.rows; y++)
@@ -447,6 +453,8 @@ try {
     "Marketplace list and disabled proxy status opened through terminal commands with their real plugin panes"
   );
   if (report.errors.length) throw new Error(report.errors.join("\n"));
+  const graphicsErrors = await page.evaluate(() => visual.graphics.stats.errors);
+  report.errors.push(...graphicsErrors);
   report.ok = true;
 } catch (error) {
   report.ok = false;

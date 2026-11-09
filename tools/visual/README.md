@@ -63,3 +63,33 @@ connection starts the app; use a fresh server for a clean initial fixture.
 The browser and PTY retain the last viewport dimensions across restart. The
 scenario also opens marketplace/proxy panes through real terminal input after
 restoring an independent agent.
+
+## Native graphics and compiled distributions
+
+The default scenario checks the portable half-block path. Run
+`VISUAL_GRAPHICS=kitty npm run visual:check` to let the browser bench answer the
+real Kitty query and emulate emitted RGBA upload/placement/deletion commands.
+The canvas overlay consumes PTY bytes only; it does not read AppUI or plugin
+state. `visual.graphics.stats` records dimensions, uploads, placements and
+protocol errors; `visual.graphics.active` reports live placements. This verifies
+our protocol transport, not GPU rendering in a native Kitty-compatible client.
+
+For inspecting an extracted release without loading the source fixture:
+
+```sh
+VISUAL_GRAPHICS=kitty VISUAL_EXECUTABLE=/absolute/path/to/compositor npm run visual:serve
+```
+
+The executable runs in the bench's temporary project and home, with no real
+project settings. The compiled executable uses its configured provider rather
+than the fixture's scripted provider; startup, mouse placement, pause and
+workspace checks need no model requests. The full scripted scenario still uses
+the source fixture. `VISUAL_EXECUTABLE` must point to the executable inside its
+complete extracted distribution, beside `plugins/` and `node_modules/`.
+
+`npm run visual:mascot` is the focused native-graphics lifecycle check. It
+verifies source dimensions, changing frames, pause, fullscreen, dragging Ghost
+onto workspace 2, hiding/showing its placement, resizing, and removal. Combine
+it with `VISUAL_EXECUTABLE` to verify the compiled distribution through the
+same PTY, without external model requests. Evidence defaults to
+`dist/visual-ghost-lifecycle/`.

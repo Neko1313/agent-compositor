@@ -57,11 +57,11 @@ export const uiTextViewSchema = z
   .object({
     raster: z
       .object({
-        width: z.number().int().min(1).max(128),
-        height: z.number().int().min(1).max(128),
+        width: z.number().int().min(1).max(512),
+        height: z.number().int().min(1).max(512),
         rgba: z
           .string()
-          .max(87384)
+          .max(1398104)
           .regex(
             /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
           ),

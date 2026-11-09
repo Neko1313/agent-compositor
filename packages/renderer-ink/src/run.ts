@@ -1,3 +1,4 @@
+import { TerminalGraphics, type GraphicsMode } from "./graphics.js";
 import { mouseInput } from "./mouse.js";
 import { render } from "ink";
 import React from "react";
@@ -42,6 +43,7 @@ export interface InkRendererOptions {
   localHello?: HelloMessage;
   /** exit hook, mostly for tests; default calls process.exit */
   exit?: (code: number) => void;
+  graphics?: GraphicsMode;
 }
 
 export interface InkRendererHandle {
@@ -74,17 +76,19 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
   const stdin = opts.stdin ?? process.stdin;
   const stdout = opts.stdout ?? process.stdout;
   const mouseEnabled = !!(opts.hostControlsExit && (stdin as NodeJS.ReadStream).isTTY && (stdout as NodeJS.WriteStream).isTTY);
+  const graphics = new TerminalGraphics(text => stdout.write(text));
   const mouse = mouseEnabled ? mouseInput(stdin, data => {
     if (!acked || exiting) return;
     // Coordinates are terminal-global; compositor performs hit testing.
     opts.send({ type: "input", surface: store.state.focused ?? "input", data });
-  }) : undefined;
+  }, (control, payload) => graphics.response(control, payload)) : undefined;
   if (mouseEnabled) stdout.write("\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h");
   let pointer: string | undefined;
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return; cleaned = true;
     process.off("exit", cleanup);
+    graphics.dispose();
     mouse?.dispose();
     if (mouseEnabled) stdout.write("\x1b]22;\x1b\\\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1049l");
   };
@@ -95,6 +99,7 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
   const shutdown = (code: number) => {
     if (exiting) return;
     exiting = true;
+    graphics.suspended = true;
     // let any pending React commit land before the final frame is captured
     setTimeout(() => {
       app.unmount();
@@ -119,11 +124,19 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
       stdin: mouse?.input ?? stdin,
       ...(opts.stdout ? { stdout: opts.stdout } : {}),
       ...(opts.stderr ? { stderr: opts.stderr } : {}),
+      onRender: () => graphics.paint(store.state),
       exitOnCtrlC: false, // ctrl+c is protocol input, not a silent kill
     },
   ); } catch (error) { cleanup(); throw error; }
 
   const consume = (async () => {
+    const mode = opts.graphics ?? (['kitty','off'].includes(process.env.AGENT_GRAPHICS ?? '') ? process.env.AGENT_GRAPHICS as GraphicsMode : 'auto');
+    // Allow Ink to enter raw mode before the probe response arrives.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    if (await graphics.detect(mode, mouseEnabled, !!(process.env.TMUX || process.env.STY))) {
+      store.state.nativeImages = true;
+      localHello.capabilities.elements = [...new Set([...localHello.capabilities.elements, 'Raster'])];
+    }
     opts.send(localHello);
     for await (const msg of opts.source) {
       if (msg.type === "hello") {
@@ -156,12 +169,15 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     runExternal: async callback => {
       if (!store.suspend) throw new Error('Terminal suspension is unavailable');
       await store.suspend(async () => {
+        graphics.suspended = true;
+        graphics.clear();
         mouse?.pause();
         if (mouseEnabled) stdout.write('\x1b[?1000l\x1b[?1003l\x1b[?1006l\x1b[?1049l');
         try { await callback(); }
         finally {
           if (mouseEnabled) stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h');
           mouse?.resume();
+          graphics.suspended = false;
         }
       });
     },
@@ -170,6 +186,7 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
       .then(() => { cleanup(); }, error => { app.unmount(); cleanup(); throw error; }),
     stop: async () => {
       exiting = true;
+      graphics.suspended = true;
       app.unmount();
       cleanup();
       await consume.catch(() => {});

@@ -38,6 +38,15 @@ Extract the entire archive and keep `compositor` beside its `plugins/` and
 `node_modules/` directories. See [release maintenance](docs/releases.md) for
 building, verification and publishing with git-cliff.
 
+## Ghost graphics
+
+The default companion keeps the original APNG frames at 228×228. Terminals that
+answer the Kitty graphics query display pixel graphics with transparency;
+other terminals use the portable character renderer. The mechanism is shared
+with other UI plugins and remains replaceable. `AGENT_GRAPHICS=off` selects the
+portable mode. See [Ghost configuration](plugins/mascot/README.md) for animation
+packs, source-transparency repair and terminal support.
+
 ## Tech stack
 
 | Layer | Technology |

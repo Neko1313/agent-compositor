@@ -40,7 +40,7 @@ class Companion {
         : JSON.parse(await this.$.fs.read(FILE));
       if (!value || typeof value !== "object" || Array.isArray(value))
         throw Error("Expected object");
-      for (const flag of ["enabled", "paused"])
+      for (const flag of ["enabled", "paused", "restoreInk"])
         if (value[flag] !== undefined && typeof value[flag] !== "boolean")
           throw Error(`Invalid ${flag}`);
       if (value.pack !== undefined && typeof value.pack !== "string")
@@ -89,6 +89,8 @@ class Companion {
   }
   async event(name: string, event: any) {
     this.activity.accept(name, event);
+    // Repeated tool/activity events must not keep restarting the frame deadline.
+    if (this.timer && this.activity.current() === this.state) return;
     if (this.config.enabled !== false && this.attached) await this.show();
   }
   async show() {

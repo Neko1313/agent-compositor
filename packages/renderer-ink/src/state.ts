@@ -11,6 +11,8 @@ export type SurfaceDecl = DeclareMessage["surfaces"][number];
  * produce identical user-visible output.
  */
 export class RendererState {
+  constructor(public nativeImages = false) {}
+  readonly rasters = new Map<string, NonNullable<Extract<WireMessage, { type: "render" }>["raster"]>>();
   readonly surfaces = new Map<string, SurfaceDecl>();
   readonly grids = new Map<string, SurfaceGrid>();
   focused: string | undefined;
@@ -30,7 +32,12 @@ export class RendererState {
       case "render": {
         const grid = this.grids.get(msg.surface) ?? this.createImplicit(msg.surface);
         if (msg.mode === "full" && msg.grid) {
-          grid.applyFull(msg.grid);
+          if (msg.raster && this.nativeImages) {
+            this.rasters.set(msg.surface, msg.raster);
+            const image = msg.raster;
+            grid.applyFull(msg.grid.map((row, y) => row.map((cell, x) =>
+              y >= image.row && y < image.row + image.rows && x >= image.column && x < image.column + image.columns ? { ch: ' ' } : cell)));
+          } else { this.rasters.delete(msg.surface); grid.applyFull(msg.grid); }
           if (msg.focused) this.focused = msg.surface;
           return true;
         }

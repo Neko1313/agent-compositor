@@ -191,6 +191,18 @@ export function gridFrom(
   });
 }
 
+/** Allocate the same cell rectangle for graphics and the portable fallback. */
+export function rasterForView(view: UiTextView, columns: number, height: number): RenderMessage['raster'] {
+  const image = view.raster;
+  const textRows = view.lines.flatMap(row => wrap(row.text, columns));
+  const available = Math.max(0, height - textRows.length);
+  if (!image || !available || columns < 1) return;
+  const scale = Math.min(columns / image.width, available * 2 / image.height, 1);
+  const w = Math.max(1, Math.floor(image.width * scale));
+  const h = Math.max(1, Math.floor(image.height * scale));
+  return { ...image, column: Math.floor((columns - w) / 2), row: 0, columns: w, rows: Math.ceil(h / 2) };
+}
+
 /** Portable true-colour half-block raster rendering, shared by all plugins. */
 export function viewRows(
   view: UiTextView,

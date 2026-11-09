@@ -19,8 +19,11 @@ const token = crypto.randomUUID();
 let active;
 let terminalSize={cols:100,rows:30};
 async function start(ws) {
-  const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), 'bun', join(import.meta.dir, 'fixture.ts'), cwd],
-    { cwd: root, env:{...process.env,VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+  const command = process.env.VISUAL_EXECUTABLE
+    ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd]
+    : ['bun', join(import.meta.dir, 'fixture.ts'), cwd];
+  const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), ...command],
+    { cwd: root, env:{...process.env,HOME:cwd,AGENT_HOME:join(cwd, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
   active = { ws, proc };
   const sendLines = async () => {
     let pending = '';
@@ -49,7 +52,7 @@ const server = Bun.serve({
       return new Response('Upgrade required', { status: 400 });
     }
     if (url.pathname === '/favicon.ico') return new Response(null, { status: 204 });
-    const files = { '/': join(import.meta.dir, 'terminal.html'), '/xterm.js': join(root, 'node_modules/@xterm/xterm/lib/xterm.js'), '/xterm.css': join(root, 'node_modules/@xterm/xterm/css/xterm.css') };
+    const files = { '/': join(import.meta.dir, 'terminal.html'), '/xterm.js': join(root, 'node_modules/@xterm/xterm/lib/xterm.js'), '/graphics.js': join(root, 'tools/visual/graphics.js'), '/xterm.css': join(root, 'node_modules/@xterm/xterm/css/xterm.css') };
     return files[url.pathname] ? new Response(Bun.file(files[url.pathname])) : new Response('Not found', { status: 404 });
   },
   websocket: {
@@ -69,4 +72,4 @@ const server = Bun.serve({
 let closing = false;
 async function shutdown() { if (closing) return; closing = true; await stop(); server.stop(true); await rm(cwd, { recursive: true, force: true }); process.exit(0); }
 process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
-console.log(`VISUAL_URL=http://127.0.0.1:${server.port}/?token=${token}`);
+console.log(`VISUAL_URL=http://127.0.0.1:${server.port}/?token=${token}${process.env.VISUAL_GRAPHICS === "kitty" ? "&graphics=kitty" : ""}${process.env.VISUAL_EXECUTABLE ? "&mode=binary" : ""}`);

@@ -23,6 +23,8 @@ export interface Frame {
 }
 export interface Config {
   enabled?: boolean;
+  /** Repair the supplied pack's accidentally transparent dark line art. Custom packs default off. */
+  restoreInk?: boolean;
   paused?: boolean;
   pack?: string;
   animations?: Partial<Record<State, string>>;
@@ -30,7 +32,26 @@ export interface Config {
   reactions?: Record<string, State>;
 }
 export const defaultPack = fileURLToPath(new URL("./assets/", import.meta.url));
-export async function decode(file: string): Promise<Frame[]> {
+/** Recover existing line-art RGB near the visible sprite; never paint the matte. */
+export function restoreDarkInk(buffer: ArrayBuffer, width: number, height: number): Buffer {
+  const rgba = Buffer.from(buffer).subarray(0);
+  const output = Buffer.from(rgba);
+  const distance = new Uint16Array(width * height);
+  for (let p = 0; p < distance.length; p++) distance[p] = rgba[p * 4 + 3] >= 128 ? 0 : 1024;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const p = y * width + x;
+    distance[p] = Math.min(distance[p], x ? distance[p - 1] + 1 : 1024, y ? distance[p - width] + 1 : 1024);
+  }
+  for (let y = height - 1; y >= 0; y--) for (let x = width - 1; x >= 0; x--) {
+    const p = y * width + x;
+    distance[p] = Math.min(distance[p], x + 1 < width ? distance[p + 1] + 1 : 1024, y + 1 < height ? distance[p + width] + 1 : 1024);
+    const i = p * 4;
+    if (distance[p] <= 12 && rgba[i + 3] === 0 && Math.max(rgba[i], rgba[i + 1], rgba[i + 2]) <= 48) output[i + 3] = 255;
+  }
+  return output;
+}
+
+export async function decode(file: string, repairInk = false): Promise<Frame[]> {
   const bytes = await readFile(file);
   if (
     bytes.length > 2 * 1024 * 1024 ||
@@ -80,21 +101,11 @@ export async function decode(file: string): Promise<Frame[]> {
   if (data.frames[0]?.dispose === 2) data.frames[0].dispose = 1;
   const decoded: ArrayBuffer[] = UPNG.toRGBA8(data);
   return decoded.map((buffer, index) => {
-    const source = new Uint8Array(buffer),
-      scale = Math.min(1, 96 / Math.max(width, height)),
-      w = Math.max(1, Math.floor(width * scale)),
-      h = Math.max(1, Math.floor(height * scale)),
-      out = Buffer.alloc(w * h * 4);
-    for (let y = 0; y < h; y++)
-      for (let x = 0; x < w; x++) {
-        const i = (Math.floor(y / scale) * width + Math.floor(x / scale)) * 4;
-        out.set(source.subarray(i, i + 4), (y * w + x) * 4);
-      }
     return {
-      width: w,
-      height: h,
-      rgba: out.toString("base64"),
-      delay: Math.max(80, Math.min(2000, data.frames[index]?.delay || 180)),
+      width,
+      height,
+      rgba: (repairInk ? restoreDarkInk(buffer, width, height) : Buffer.from(buffer)).toString("base64"),
+      delay: Math.max(20, Math.min(10000, data.frames[index]?.delay || 180)),
     };
   });
 }
@@ -120,6 +131,6 @@ export class AnimationPack {
     const rel = relative(root, file);
     if (rel.startsWith("..") || isAbsolute(rel))
       throw Error("Animation must be inside its pack");
-    return decode(file);
+    return decode(file, this.config.restoreInk ?? !this.config.pack);
   }
 }

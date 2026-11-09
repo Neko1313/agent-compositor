@@ -61,6 +61,18 @@ export const diffOp = z.union([
   z.object({ op: z.literal("cursor"), row: z.number().int().nonnegative(), col: z.number().int().nonnegative() }),
 ]);
 
+/** Bounded native pixels plus a cell rectangle inside a surface's content grid. */
+export const rasterMessage = z.object({
+  width: z.number().int().min(1).max(512),
+  height: z.number().int().min(1).max(512),
+  rgba: z.string().max(1398104).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/),
+  alt: z.string().max(200).optional(),
+  column: z.number().int().min(0).max(10000),
+  row: z.number().int().min(0).max(10000),
+  columns: z.number().int().min(1).max(10000),
+  rows: z.number().int().min(1).max(10000),
+}).refine(image => image.rgba.length / 4 * 3 - (image.rgba.endsWith('==') ? 2 : image.rgba.endsWith('=') ? 1 : 0) === image.width * image.height * 4, 'RGBA length must match dimensions');
+
 /** Neovim-style grid semantics: either a full grid or batched diff ops ending with flush. */
 export const renderMessage = z.object({
   type: z.literal("render"),
@@ -71,6 +83,7 @@ export const renderMessage = z.object({
   ops: z.array(diffOp).optional(),
   flush: z.boolean(),
   focused: z.boolean().optional(),
+  raster: rasterMessage.optional(),
 });
 
 export const inputMessage = z.object({

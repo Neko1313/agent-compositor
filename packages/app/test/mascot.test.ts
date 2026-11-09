@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { mkdtemp, rm, writeFile, mkdir, symlink } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, symlink, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentCore, ScriptedProvider } from "@agent-compositor/core";
@@ -11,6 +11,7 @@ import {
   states,
   defaultPack,
   AnimationPack,
+  restoreDarkInk,
 } from "../../../plugins/mascot/animations.js";
 import hooks, { dispose } from "../../../plugins/mascot/hooks.js";
 import { viewRows, gridFrom, appearanceFrom } from "../src/presentation.js";
@@ -56,11 +57,47 @@ describe("replaceable mascot", () => {
       expect(frames).toHaveLength(6);
       expect(
         frames.every(
-          (f) => f.delay === 180 && f.width === 96 && f.height === 96
+          (f) => f.delay === 180 && f.width === 228 && f.height === 228
         )
       ).toBe(true);
       expect(new Set(frames.map((f) => f.rgba)).size).toBeGreaterThan(1);
     }
+  });
+  it("repairs the supplied transparent line art while retaining source RGB and custom-pack transparency", async () => {
+    const raw = await decode(join(defaultPack, 'idle.apng'));
+    const restored = await decode(join(defaultPack, 'idle.apng'), true);
+    let recovered = 0, rgbChanged = 0, invalidAlphaChange = 0;
+    for (let f = 0; f < raw.length; f++) {
+      const before = Buffer.from(raw[f].rgba, 'base64'), after = Buffer.from(restored[f].rgba, 'base64');
+      for (let p = 0; p < before.length; p += 4) {
+        if (!after.subarray(p, p + 3).equals(before.subarray(p, p + 3))) rgbChanged++;
+        if (before[p + 3] !== after[p + 3]) {
+          if (before[p + 3] !== 0 || after[p + 3] !== 255) invalidAlphaChange++;
+          recovered++;
+        }
+      }
+    }
+    expect(rgbChanged).toBe(0);
+    expect(invalidAlphaChange).toBe(0);
+    expect(recovered).toBeGreaterThan(10000);
+    tmp = await mkdtemp(join(tmpdir(), 'mascot-ink-'));
+    await mkdir(join(tmp, 'pack'));
+    await copyFile(join(defaultPack, 'idle.apng'), join(tmp, 'pack/idle.apng'));
+    expect((await new AnimationPack(tmp, { pack: 'pack' }).load('idle'))[0].rgba).toBe(raw[0].rgba);
+    expect((await new AnimationPack(tmp, { restoreInk: false }).load('idle'))[0].rgba).toBe(raw[0].rgba);
+    expect((await new AnimationPack(tmp, {}).load('idle'))[0].rgba).toBe(restored[0].rgba);
+    // Completely transparent images have no sprite to outline, even if RGB is black.
+    expect(restoreDarkInk(new ArrayBuffer(64), 4, 4)).toEqual(Buffer.alloc(64));
+  });
+  it("does not postpone animation frames on repeated activity events", async () => {
+    const { $, views } = await setup();
+    vi.useFakeTimers();
+    await hooks['ui.visibility']({ site: 'plugin:mascot/companion', attached: true, visible: true }, $);
+    const first = views.at(-1).raster.rgba;
+    await vi.advanceTimersByTimeAsync(100);
+    await hooks['tool.result']({ callId: 'unknown' }, $);
+    await vi.advanceTimersByTimeAsync(81);
+    expect(views.at(-1).raster.rgba).not.toBe(first);
   });
   it("rejects excessive PNG dimensions before invoking decoder", async () => {
     tmp = await mkdtemp(join(tmpdir(), "mascot-"));
@@ -222,7 +259,7 @@ describe("mascot extension contracts", () => {
     expect(views.at(-1).raster).toBeUndefined();
     expect(notifications.length).toBeGreaterThan(0);
   });
-  it("allows another plugin to override raster and removes surfaces from every workspace", async () => {
+  it.each([false, true])("allows raster overrides and negotiates native graphics: %s", async native => {
     const messages: WireMessage[] = [];
     const ui = new AppUI(
       (approve) =>
@@ -237,7 +274,7 @@ describe("mascot extension contracts", () => {
       hello("renderer", {
         surfaces: ["terminal"],
         sites: [],
-        elements: ["Layout", "Text"],
+        elements: ["Layout", "Text", ...(native ? ["Raster"] : [])],
         encodings: ["jsonl"],
       })
     );
@@ -273,6 +310,10 @@ describe("mascot extension contracts", () => {
           ?.flat()
           .some((cell) => cell.fg === "#ff0000" && cell.bg === "#00ff00")
     ).toBe(true);
+    if (render?.type === 'render') {
+      if (native) expect(render.raster).toMatchObject(image);
+      else expect(render.raster).toBeUndefined();
+    }
     ui.windows.switchTo(2);
     await ui.core.host.emit("service.ui.remove", {
       plugin: "example",

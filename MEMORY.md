@@ -295,3 +295,41 @@ binary printed version 0.1.1 and loaded all 25 default plugins from a fresh
 project with PATH=/nonexistent, confirming that starting the core does not
 require Node.js or Bun. Executing the Monty bridge still requires Node.js.
 The working tree was clean before recording these publication results.
+
+## Ghost: full-resolution terminal graphics
+
+Ghost now keeps the original 228x228 APNG frames and source timing instead of
+sampling to 96x96. Protocol 0.6 negotiates optional `render.raster` with the
+`Raster` capability; catalog 0.10 permits bounded 512x512 RGBA. The shared Ink
+renderer probes Kitty graphics support, strips terminal replies from keyboard
+input, transmits compressed/chunked pixels, caches frames and places them after
+Ink commits. Window/workspace changes, editor suspension and exit clean up
+placements. `AGENT_GRAPHICS=off|kitty|auto` controls selection. Auto falls back
+inside tmux/screen; no passthrough, Sixel or iTerm2 backend is implemented.
+Plugins continue to replace rasters through ui.render or supply their own views.
+
+The supplied APNGs retain dark outline/eye RGB but incorrectly set its alpha to
+zero; the supplied storyboard shows those details opaque. The mascot decoder
+optionally repairs dark pixels within 12 source pixels of the opaque sprite.
+It changes alpha only, preserving original RGB, poses and timing. Built-in
+packs enable this repair; custom packs default off; `restoreInk: false` restores
+exact source transparency. Original APNG assets remain unchanged. Repeated
+activity events no longer postpone the animation timer indefinitely.
+
+Validation: 369 tests passed and 1 optional Callix test skipped; coverage gates
+passed (lines 80.32% in that run). Typecheck, generated docs and diff checks
+passed. The complete PTY scenario passed both native-protocol emulation and
+portable fallback (26 captures each). The compiled Linux distribution passed
+installer/model/Monty smoke and the focused native-graphics lifecycle scenario:
+source-size animation, pause, fullscreen, mouse drag to workspace 2, hidden
+placement cleanup, resize and disabling the mascot. Native Kitty GPU rendering
+was not directly tested: browser captures emulate the real emitted protocol.
+
+Evidence: dist/visual-ghost-native-final/report.json,
+dist/visual-ghost-fallback/report.json, dist/visual-ghost-binary/report.json.
+The fullscreen binary capture is
+dist/visual-ghost-binary/01-native-fullscreen.png.
+New bench command: npm run visual:mascot. VISUAL_EXECUTABLE selects an extracted
+compiled executable in visual:serve/visual:mascot with isolated home/project.
+The local distribution is dist/release/linux-x64/compositor/compositor; public
+v0.1.1 still contains the earlier implementation. No new release tag was made.

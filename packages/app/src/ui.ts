@@ -1,3 +1,4 @@
+import type { UiTextView } from "@agent-compositor/events";
 import { PluginPanel, type PluginWindow } from "./plugin-panel.js";
 import {
   resolvePlacement,
@@ -24,6 +25,7 @@ import {
   appearanceFrom,
   gridFrom,
   viewRows,
+  rasterForView,
   textRows,
   transcriptRows,
   wrap,
@@ -56,7 +58,7 @@ export class AppUI {
   private transcript: TranscriptBlock[] = [];
   private appearances = new Map<string, UiAppearance>();
   private theme = appearanceFrom([]);
-  private viewCache = new Map<string, { key: string; rows?: Row[] }>();
+  private viewCache = new Map<string, { key: string; rows?: Row[]; view?: UiTextView }>();
   private hitRows = new Map<string, Row[]>();
   private savedLayout = "";
   private reportedFocus = "";
@@ -128,11 +130,12 @@ export class AppUI {
   private unsubscribe: () => void;
   private closed = false;
   private ready = false;
+  private nativeRaster = false;
   private tasks = new Set<Promise<void>>();
   private greeting = hello("core", {
     surfaces: ["terminal", "headless"],
     sites: [],
-    elements: ["Text", "Box", "Layout", "Pointer"],
+    elements: ["Text", "Box", "Layout", "Pointer", "Raster"],
     encodings: ["jsonl"],
   });
 
@@ -450,6 +453,8 @@ export class AppUI {
   receive(message: WireMessage): void {
     if (this.closed) return;
     if (message.type === "hello") {
+      this.nativeRaster = message.capabilities.elements.includes("Raster");
+      this.viewCache.clear();
       this.tiled = message.capabilities.elements.includes("Layout");
       this.pointerSupported = message.capabilities.elements.includes("Pointer");
       const ack = answerHello(this.greeting, message);
@@ -1408,9 +1413,10 @@ export class AppUI {
       },
       viewport: { columns: width, rows: height },
     };
+    const defaultView = uiTextViewSchema.safeParse({ raster: props.raster, lines: input.props.lines }).data;
     const key = JSON.stringify(input);
     let cached = this.viewCache.get(surface);
-    const send = (content: Row[]) => {
+    const send = (content: Row[], view?: UiTextView) => {
       this.hitRows.set(surface, content.slice(0, height));
       if (!this.closed)
         this.sink?.({
@@ -1419,15 +1425,16 @@ export class AppUI {
           mode: "full",
           flush: true,
           grid: gridFrom(content.slice(0, height), this.theme, width),
+          ...(this.nativeRaster && view ? { raster: rasterForView(view, width, height) } : {}),
         });
     };
     if (cached?.key === key) {
-      send(cached.rows ?? rows);
+      send(cached.rows ?? rows, cached.view ?? defaultView);
       return;
     }
     cached = { key };
     this.viewCache.set(surface, cached);
-    send(rows);
+    send(rows, defaultView);
     // Approval and text input remain host-owned. Plugins style them via configure.
     if (surface === "input") return;
     const entry = cached;
@@ -1439,8 +1446,9 @@ export class AppUI {
           (result.value as { tree?: unknown } | undefined)?.tree
         );
         if (!parsed.success) return; // no answer / bad answer: keep the working default
+        entry.view = parsed.data;
         entry.rows = viewRows(parsed.data, width, height).slice(0, height);
-        send(entry.rows);
+        send(entry.rows, parsed.data);
       })
       .catch(() => {});
     this.tasks.add(task);

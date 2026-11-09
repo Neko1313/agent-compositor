@@ -4,6 +4,7 @@ import type { InputData } from "./keys.js";
 
 /** Strip SGR mouse reports before Ink's keyboard parser, including split reports. */
 export class MouseDecoder {
+  constructor(private onResponse?: (control: string, payload: string) => void) {}
   private pending = "";
   push(text: string): { text: string; events: InputData[] } {
     this.pending += text;
@@ -13,7 +14,16 @@ export class MouseDecoder {
       const index = this.pending.indexOf("\x1b");
       if (index < 0) { output += this.pending; this.pending = ""; break; }
       output += this.pending.slice(0, index); this.pending = this.pending.slice(index);
-      if (["\x1b", "\x1b[", "\x1b[<"].includes(this.pending)) break;
+      if (this.pending.startsWith('\x1b_G')) {
+        const end = this.pending.indexOf('\x1b\\', 3);
+        if (end < 0 && this.pending.length < 4096) break;
+        if (end >= 0) {
+          const body = this.pending.slice(3, end), separator = body.indexOf(';');
+          if (separator >= 0) this.onResponse?.(body.slice(0, separator), body.slice(separator + 1));
+          this.pending = this.pending.slice(end + 2); continue;
+        }
+      }
+      if (["\x1b_", "\x1b", "\x1b[", "\x1b[<"].includes(this.pending)) break;
       if (this.pending.startsWith("\x1b[<")) {
         const match = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/.exec(this.pending);
         if (match) {
@@ -32,18 +42,18 @@ export class MouseDecoder {
   }
   flush(): string {
     const pending = this.pending; this.pending = "";
-    return pending.startsWith("\x1b[<") ? "" : pending;
+    return pending.startsWith("\x1b[<") || pending.startsWith("\x1b_") ? "" : pending;
   }
 }
 
-export function mouseInput(source: NodeJS.ReadableStream, onMouse: (data: InputData) => void) {
+export function mouseInput(source: NodeJS.ReadableStream, onMouse: (data: InputData) => void, onResponse?: (control: string, payload: string) => void) {
   const terminal = source as NodeJS.ReadStream;
   const input = new PassThrough() as PassThrough & { isTTY: boolean; setRawMode: (enabled: boolean) => void; ref: () => void; unref: () => void };
   input.isTTY = terminal.isTTY;
   input.setRawMode = enabled => { terminal.setRawMode(enabled); };
   input.ref = () => { terminal.ref?.(); };
   input.unref = () => { terminal.unref?.(); };
-  const decoder = new MouseDecoder(), utf8 = new StringDecoder("utf8");
+  const decoder = new MouseDecoder(onResponse), utf8 = new StringDecoder("utf8");
   let timer: ReturnType<typeof setTimeout> | undefined;
   const data = (chunk: Buffer | string) => {
     clearTimeout(timer);

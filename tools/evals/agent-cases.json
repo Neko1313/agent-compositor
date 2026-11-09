@@ -1,0 +1,143 @@
+[
+  {
+    "id": "multi-file-bug",
+    "split": "test",
+    "prompt": "The checkout total is wrong: two items costing 10 and 5 with a 20% discount should total 12, but it does not. Find and fix the implementation, preserve the exported API and demonstrate that the project checks pass. Do not change the tests.",
+    "files": {
+      "package.json": "{\"type\": \"module\", \"scripts\": {\"test\": \"node checks.mjs\"}}",
+      "math.mjs": "export function subtotal(items) { return items.reduce((n, p) => n + p, 0); }\nexport function discount(total, percent) { return total + total * percent / 100; }\n",
+      "checkout.mjs": "import {subtotal, discount} from './math.mjs';\nexport function checkout(items, percent=0) { return discount(subtotal(items), percent); }\n",
+      "checks.mjs": "import assert from 'node:assert/strict';import {checkout} from './checkout.mjs';assert.equal(checkout([10,5],20),12);assert.equal(checkout([4],0),4);console.log('PROJECT_CHECKS_PASSED');\n"
+    },
+    "rules": [
+      {
+        "tool": "exec",
+        "command": "npm test",
+        "decision": "allow"
+      },
+      {
+        "tool": "exec",
+        "command": "node checks.mjs",
+        "decision": "allow"
+      }
+    ],
+    "expect": {
+      "verification": "PROJECT_CHECKS_PASSED",
+      "grader": "const a=require('node:assert/strict'); const {pathToFileURL}=require('node:url'); (async()=>{const {checkout}=await import(pathToFileURL(process.argv[2]+'/checkout.mjs'));for(const [items,p,want] of [[[10,5],20,12],[[100],50,50],[[],10,0],[[3,7],10,9]])a.equal(checkout(items,p),want);})().catch(e=>{console.error(e);process.exitCode=1;});"
+    },
+    "script": [
+      {
+        "toolCalls": [
+          {
+            "name": "read",
+            "args": {
+              "path": "checkout.mjs"
+            }
+          },
+          {
+            "name": "read",
+            "args": {
+              "path": "math.mjs"
+            }
+          }
+        ]
+      },
+      {
+        "toolCalls": [
+          {
+            "name": "write",
+            "args": {
+              "path": "math.mjs",
+              "content": "export function subtotal(items) { return items.reduce((n,p)=>n+p,0); }\nexport function discount(total,percent) { return total - total * percent / 100; }\n"
+            }
+          }
+        ]
+      },
+      {
+        "toolCalls": [
+          {
+            "name": "exec",
+            "args": {
+              "command": "npm test"
+            }
+          }
+        ]
+      },
+      {
+        "text": "Fixed the discount calculation and verified the project checks."
+      }
+    ]
+  },
+  {
+    "id": "recover-and-preserve-contract",
+    "split": "test",
+    "prompt": "Our greeting formatter crashes on a missing name and handles padded names badly. Make missing/blank names return Hello, guest!, trim normal names, and retain the optional prefix argument. Investigate the repository and verify the result. Preserve the public function name and exports.",
+    "files": {
+      "package.json": "{\"type\": \"module\", \"scripts\": {\"test\": \"node checks.mjs\"}}",
+      "greeting.mjs": "export function greet(name,prefix='Hello') { return prefix + ', ' + name.trim() + '!'; }\n",
+      "checks.mjs": "import assert from 'node:assert/strict';import {greet} from './greeting.mjs';assert.equal(greet(undefined),'Hello, guest!');assert.equal(greet('  Ada  '),'Hello, Ada!');console.log('GREETING_CHECKS_PASSED');\n"
+    },
+    "rules": [
+      {
+        "tool": "exec",
+        "command": "npm test",
+        "decision": "allow"
+      },
+      {
+        "tool": "exec",
+        "command": "node checks.mjs",
+        "decision": "allow"
+      }
+    ],
+    "expect": {
+      "verification": "GREETING_CHECKS_PASSED",
+      "grader": "const a=require('node:assert/strict');const {pathToFileURL}=require('node:url');(async()=>{const {greet}=await import(pathToFileURL(process.argv[2]+'/greeting.mjs'));a.equal(greet(null),'Hello, guest!');a.equal(greet('  '),'Hello, guest!');a.equal(greet(' Ada ','Hi'),'Hi, Ada!');a.equal(greet(undefined,'Welcome'),'Welcome, guest!');})().catch(e=>{console.error(e);process.exitCode=1;});"
+    },
+    "script": [
+      {
+        "toolCalls": [
+          {
+            "name": "exec",
+            "args": {
+              "command": "npm test"
+            }
+          }
+        ]
+      },
+      {
+        "toolCalls": [
+          {
+            "name": "read",
+            "args": {
+              "path": "greeting.mjs"
+            }
+          }
+        ]
+      },
+      {
+        "toolCalls": [
+          {
+            "name": "write",
+            "args": {
+              "path": "greeting.mjs",
+              "content": "export function greet(name,prefix='Hello') { return prefix + ', ' + (name?.trim() || 'guest') + '!'; }\n"
+            }
+          }
+        ]
+      },
+      {
+        "toolCalls": [
+          {
+            "name": "exec",
+            "args": {
+              "command": "npm test"
+            }
+          }
+        ]
+      },
+      {
+        "text": "Handled missing and padded names while retaining the prefix argument. Checks pass."
+      }
+    ]
+  }
+]

@@ -43,6 +43,10 @@ export const catalog: readonly EventDef[] = [
   coreTurns.subagentComplete,
   coreContext.contextCompacted,
   coreContext.contextCompacting,
+  coreContext.contextPressure,
+  coreContext.modelCapabilities,
+  coreContext.agentInstructions,
+  coreContext.agentFinish,
   // interface
   ui.uiConfigure,
   storage.storageRead,
@@ -91,6 +95,7 @@ export const catalog: readonly EventDef[] = [
   coreServices.serviceShellExecOutput,
   coreServices.serviceShellExecKill,
   coreServices.serviceAgentSpawn,
+  coreServices.serviceWorkflowRun,
   coreServices.serviceTodoUpdate,
   coreServices.serviceFileRead,
   coreServices.serviceFileReadText,

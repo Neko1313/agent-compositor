@@ -122,3 +122,10 @@ exercise drag, resize, task updates and restart persistence with
 
 Quick checks: `npm run marketplace:validate`, `npm run eval`, `npm run eval:proxy`,
 `npm run test:ci`. Live Ollama checks: `npm run eval:ollama`.
+
+The agent harness includes replaceable behavior/completion policies, per-session
+`task_plan` progress (`/tasks`, `/continue`), automatic model-aware context
+compaction and a context-budget indicator. Dynamic background workflows support
+named dependency stages, expansion, bounded parallel agents and pause/resume/retry
+in `/workflows`. See [agent controls](docs/agent-features.md#autonomous-execution-and-context-budgets),
+[workflow contracts](plugins/workflows/README.md) and [outcome evals](docs/evals.md#agent-outcome-suite).

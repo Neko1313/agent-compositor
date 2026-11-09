@@ -213,3 +213,67 @@ See also [Monty](../plugins/monty/README.md), [Callix](../plugins/callix/README.
 [Python workflows](../plugins/workflows/README.md), and [UI themes](ui-theming.md).
 Monty isolates Python and explicit host callbacks; separate shell tools still
 execute on the host under the normal permission policy.
+
+## Autonomous execution and context budgets
+
+The default harness now supplies base instructions through
+`service.agent.instructions`: inspect project evidence, choose tools from their
+schemas, execute authorized work, verify changes and report concrete blockers.
+Project instructions and skill descriptions remain separate system context.
+Override the service in a plugin, or configure `behavior.json` with
+`{"instructions":"..."}`. `agent.baseInstructions=false` disables the default;
+`agent.instructions` supplies a configuration default.
+
+For substantial tasks, the model can call `task_plan` with a goal, tasks,
+acceptance/evidence text and next action. Plans are stored privately per session
+under `task-plans/<session-id>.json`; `/tasks` opens progress. The saved plan is
+loaded as data on the next turn. `/continue` resumes unfinished work from the
+current conversation and saved plan. Subagents inherit project instructions and
+have separate plans and fresh context budgets.
+
+Before accepting a final answer, `service.agent.finish` can request a concrete
+continuation. The default refuses to finish a current plan with pending/running
+items. For planned edits it requests a successful verification command (exit 0),
+or an explicit `[verification unavailable]` / `[checks not applicable]` report.
+`agent.verifyCompletion=true` extends that reminder to unplanned file edits;
+`false` disables the default checker. A started workflow must be inspected, or
+explicitly handed back as unfinished with `[workflow running]`. Completion
+rechecks are bounded to two continuations. Plugins can replace this policy with
+project-specific acceptance checks. Command-name recognition is a reminder,
+not a proof that a test suite establishes correctness; artifact-based evals
+provide a separate quality check.
+
+The application defaults to 64 model steps per turn (`agent.maxSteps` overrides
+it). Six consecutive failed tool calls stop the turn with preserved progress;
+a recovery reminder appears after three. Configure
+`agent.maxConsecutiveToolFailures` to change that bound. Existing token budgets,
+permission denials and manual interruption remain binding. A stopped turn does
+not claim successful completion; `/continue` starts another bounded turn.
+
+`service.model.capabilities` resolves selected-model context/output limits.
+Explicit profile `contextWindow` wins. Ollama profiles support native `/api/show`
+and `/api/ps` metadata; the default local port 11434 and the Ollama UI preset
+select that adapter. Gemini uses native model metadata. Other gateways can set
+an origin-confined `metadataUrl` returning `context_window`, `context_length` or
+`max_input_tokens`. Limits are cached for 60 seconds by endpoint/model/settings.
+A private/global `model-catalog.json` can supply exact model entries:
+
+```json
+{"models":{"my-model":{"contextWindow":65536,"maxOutputTokens":8192}}}
+```
+
+Unknown limits use a marked 32768-token fallback. Settings includes a Context
+window field for manual overrides. Switching models or stage profiles selects
+its own limits; usage/billing counters are never treated as capacity metadata.
+The status bar shows estimated occupancy and window size (`~` marks fallback).
+Schemas, instructions, images and tool calls count toward the request budget;
+output space is reserved and request output is capped accordingly.
+
+Automatic compaction runs before model requests. Hard pressure bypasses the
+cooldown. Summary requests are split into bounded segments and preserve goals,
+constraints, decisions, paths, verification and next actions. System instructions
+and recent complete tool-call/result groups survive; recent-tail size adapts to
+the available budget. Failed/empty/non-shrinking summaries retain the original
+history. A context-overflow error permits one compaction-and-retry, never a
+partial tool execution. If instructions, schemas or a single recent result
+still cannot fit, execution stops with an actionable error instead of looping.

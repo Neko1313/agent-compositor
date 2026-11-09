@@ -57,7 +57,13 @@ export interface CompletionRequest {
   maxOutputTokens?: number;
 }
 
+export interface ModelCapabilities {
+  contextWindow: number; maxOutputTokens?: number;
+  source: "configured" | "provider" | "catalog" | "fallback";
+}
+
 export interface ModelProvider {
+  capabilities?(signal: AbortSignal, profile?: string): Promise<ModelCapabilities>;
   readonly name: string;
   complete(req: CompletionRequest): AsyncIterable<ProviderEvent>;
 }

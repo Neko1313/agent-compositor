@@ -105,3 +105,14 @@ addresses, and does not contact an external model. Artifacts default to
 `report.json`. `input.jsonl` intentionally captures raw input: never use real
 credentials in this diagnostic bench. Provider discovery/authentication and
 transport behavior are also covered by package tests and `npm run eval:proxy`.
+
+### Dynamic workflow scenario
+
+`npm run visual:workflows` starts an isolated real PTY with a test-only provider
+and fixture plugin. Terminal commands launch the real workflow tool, discover
+two workers and hold them at a fixture barrier. Mouse actions pause scheduling;
+a terminal command releases the workers, then resume joins their results. The
+scenario inspects stage detail, restarts the application, verifies persisted
+completion and submits foreground input with the context indicator visible.
+It does not use live credentials. Artifacts default to `dist/visual-workflows/`.
+The fixture plugin is outside shipped plugin directories.

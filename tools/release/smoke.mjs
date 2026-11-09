@@ -17,7 +17,7 @@ const digest = createHash('sha256').update(archive).digest('hex');
 const expected = JSON.parse(await readFile('package.json')).version;
 const installer = resolve('install.sh');
 let corrupt = true;
-let callixResult;
+let callixResult, workflowResult;
 const server = createServer(async (req, res) => {
   if (req.url.endsWith('/SHA256SUMS')) { res.end(`${corrupt ? '0'.repeat(64) : digest}  ${asset}\n`); return; }
   if (req.url.endsWith(`/${asset}`)) { res.end(archive); return; }
@@ -26,7 +26,14 @@ const server = createServer(async (req, res) => {
     const request = JSON.parse(body);
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     const frame = (delta, finish_reason = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\n\n`;
-    if (request.messages.some(m => m.role === 'user' && m.content === 'CALLIX_DISTRIBUTION_CHECK')) {
+    if(request.messages.some(m=>m.role==='user'&&m.content.startsWith('WORKFLOW_WORKER_CHECK'))){
+      res.end(frame({content:'WORKFLOW_WORKER_OK'},'stop')+'data: [DONE]\n\n');
+    } else if(request.messages.some(m=>m.role==='user'&&m.content==='WORKFLOW_DISTRIBUTION_CHECK')){
+      const tool=request.messages.filter(m=>m.role==='tool').at(-1);
+      if(!tool)res.end(frame({tool_calls:[{index:0,id:'workflow-start',type:'function',function:{name:'workflow_run',arguments:JSON.stringify({action:'start',title:'Packaged workflow',stages:[{id:'worker',prompt:'WORKFLOW_WORKER_CHECK'}]})}}]},'tool_calls')+'data: [DONE]\n\n');
+      else {const run=JSON.parse(tool.content);if(run.status==='completed'){workflowResult=run;res.end(frame({content:'WORKFLOW_DISTRIBUTION_OK'},'stop')+'data: [DONE]\n\n');}
+      else res.end(frame({tool_calls:[{index:0,id:'workflow-status-'+request.messages.length,type:'function',function:{name:'workflow_run',arguments:JSON.stringify({action:'status',id:run.id,waitMs:1000})}}]},'tool_calls')+'data: [DONE]\n\n');}
+    } else if (request.messages.some(m => m.role === 'user' && m.content === 'CALLIX_DISTRIBUTION_CHECK')) {
       const tool = request.messages.filter(m => m.role === 'tool').at(-1);
       if (!tool) {
         res.end(frame({ tool_calls: [{ index: 0, id: 'callix-check', type: 'function', function: { name: 'code_query', arguments: JSON.stringify({ action: 'callers', pattern: 'leaf' }) } }] }, 'tool_calls') + 'data: [DONE]\n\n');
@@ -68,6 +75,8 @@ try {
   for (const name of ['mascot', 'monty', 'callix', 'todos', 'ui-theme', 'mcp', 'workflows']) assert.match(stdout, new RegExp(`${name}@`));
   const reply = await exec(binary, ['-p', 'Reply with the smoke marker'], options);
   assert.match(reply.stdout, /RELEASE_SMOKE_OK/);
+  assert.match((await exec(binary,['-p','WORKFLOW_DISTRIBUTION_CHECK'],options)).stdout,/WORKFLOW_DISTRIBUTION_OK/);
+  assert.equal(workflowResult?.stages?.[0]?.output,'WORKFLOW_WORKER_OK');
   // Test the packaged mascot decoder/assets and Monty bridge, not source modules.
   const [distribution] = (await readdir(join(prefix, 'share/agent-compositor'))).filter(name => name.startsWith(`v${expected}-`));
   const directory = join(prefix, 'share/agent-compositor', distribution);
@@ -102,7 +111,7 @@ console.log('MONTY_OK');
   await writeFile(marker, 'user state');
   await exec('sh', [installer, '--prefix', prefix], options);
   assert.equal(await readFile(marker, 'utf8'), 'user state');
-  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, model response, bundled Callix cross-file analysis without PATH, state preservation`);
+  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, model response, background workflow, bundled Callix cross-file analysis without PATH, state preservation`);
 } finally {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   await rm(temp, { recursive: true, force: true });

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "events": {
     "session.start": {
       "since": "0.1.0",
@@ -600,6 +600,85 @@
         "note": "opaque"
       },
       "responses": {}
+    },
+    "context.pressure": {
+      "since": "0.11.0",
+      "version": 1,
+      "summary": "Current request context budget, model limit source and estimated occupancy.",
+      "namespace": "context",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {}
+    },
+    "service.model.capabilities": {
+      "since": "0.11.0",
+      "version": 1,
+      "summary": "Resolve effective context/output limits for the selected model. Replaceable by provider plugins.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "Effective limits and provenance",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "deny": {
+          "summary": "Resolution denied",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.agent.instructions": {
+      "since": "0.11.0",
+      "version": 1,
+      "summary": "Resolve replaceable base agent behavior and tool guidance before a turn.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "Instruction text",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.agent.finish": {
+      "since": "0.11.0",
+      "version": 1,
+      "summary": "Evaluate a proposed final answer; return complete or a concrete continuation instruction.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "value": {
+          "summary": "Completion decision",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
     },
     "service.ui.configure": {
       "since": "0.7.0",
@@ -1554,6 +1633,32 @@
       "since": "0.5.0",
       "version": 1,
       "summary": "Spawn a subagent: a fresh AgentCore (shared provider/permissions/plugins, isolated transcript) runs the prompt to completion and returns its final text. Core-resolved.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.workflow.run": {
+      "since": "0.11.0",
+      "version": 1,
+      "summary": "Replaceable persistent workflow lifecycle: start, inspect, pause, resume, retry or stop. Host permissions remain in each worker.",
       "namespace": "service",
       "generator": false,
       "aliases": [],

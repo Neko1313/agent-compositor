@@ -5,6 +5,7 @@ import type { ToolCallDescriptor } from "@agent-compositor/permissions";
 export interface ToolContext {
   settings?: (name: string) => Promise<any>;
   stateDir?: string;
+  sessionId?: string;
   env?: Record<string, string>;
   fetch?: typeof fetch;
   request<T = unknown>(service: string, payload: unknown): Promise<T>;

@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join, dirname } from "node:path";
@@ -83,8 +85,8 @@ export async function runCase(
       },
       provider,
       systemPrompt: system,
-      maxSteps: 8,
-      maxTokensPerTurn: 12000,
+      maxSteps: test.expect.grader ? 24 : 8,
+      maxTokensPerTurn: test.expect.grader ? 80000 : 12000,
       agentHub: false,
       pluginDirs: [
         "todos",
@@ -92,6 +94,7 @@ export async function runCase(
         "guard-scope",
         "plan-mode",
         "network-proxy",
+        ...(test.expect.grader?["callix"]:[]),
       ].map((p) => join(root, "plugins", p)),
     });
     if (app.pluginErrors.length) throw Error(JSON.stringify(app.pluginErrors));
@@ -171,6 +174,16 @@ export async function runCase(
             e.input.ok === false
         ),
       });
+    if(exp.grader){
+      // Graders live outside the agent workspace and are never sent to the model.
+      // Run only trusted suite-authored JS, with an explicit bounded subprocess.
+      const grader=join(temp,'grader.cjs');await writeFile(grader,exp.grader);
+      try{await promisify(execFile)(process.execPath,[grader,cwd],{timeout:10000,maxBuffer:64000});checks.push({name:'held-out behavioral grader',ok:true});}
+      catch(e){checks.push({name:'held-out behavioral grader',ok:false,detail:String(e).slice(0,1000)});}
+    }
+    if(exp.verification){
+      checks.push({name:'agent executed verification successfully',ok:events.some(e=>e.kind==='catalog'&&e.event==='tool.result'&&e.input.tool==='exec'&&e.input.ok&&e.input.output?.exitCode===0&&String(e.input.output?.stdout??'').includes(exp.verification))});
+    }
     if (exp.noModelCalls)
       checks.push({ name: "blocked before model", ok: requests === 0 });
   } catch (e) {

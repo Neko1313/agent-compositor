@@ -226,8 +226,8 @@
     {
       "name": "workflows",
       "source": "./plugins/workflows",
-      "description": "Deterministic Python workflows through the selected sandbox provider. Explicit await task('...') calls run permission-gated subagents; successful steps are journaled and replayed on identical reruns. Generated code has no direct filesystem, shell or network access.",
-      "version": "1.0.0",
+      "description": "Replaceable dynamic background workflows with persistent dependency stages, bounded parallelism, expansion, conditional branches, pause/resume/retry and Python/Monty journal compatibility.",
+      "version": "1.1.0",
       "compositor": {
         "format": "native"
       }

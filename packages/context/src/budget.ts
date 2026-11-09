@@ -69,8 +69,9 @@ export interface BudgetConfig {
  * decision never strands the model without room to answer.
  */
 export class TokenBudget {
-  private readonly contextWindow: number;
-  private readonly reserve: number;
+  private contextWindow: number;
+  private reserve: number;
+  private overhead = 0;
   private readonly highWaterMark: number;
   private messages: MessageLike[] = [];
 
@@ -81,6 +82,16 @@ export class TokenBudget {
     this.highWaterMark = config.highWaterMark ?? 0.95;
   }
 
+  configure(config: BudgetConfig): void {
+    if (!Number.isSafeInteger(config.contextWindow) || config.contextWindow < 256) throw Error("Invalid model context window");
+    this.contextWindow = config.contextWindow;
+    this.reserve = Math.min(config.contextWindow - 128, (config.reserveOutput ?? Math.min(8192, Math.floor(config.contextWindow / 4))) + (config.reserveSystem ?? 1024));
+  }
+
+  get windowSize(): number { return this.contextWindow; }
+
+  setOverhead(tokens: number): void { this.overhead = Math.max(0, tokens); }
+
   setMessages(messages: MessageLike[]): void {
     this.messages = messages;
   }
@@ -90,7 +101,7 @@ export class TokenBudget {
   }
 
   get used(): number {
-    let total = 0;
+    let total = this.overhead;
     for (const m of this.messages) total += estimateMessageTokens(m);
     return total;
   }

@@ -1,7 +1,7 @@
 import React, { useEffect, useReducer } from "react";
-import { Box, Text, useInput, useStdin, useApp } from "ink";
+import { Box, Text, useInput, usePaste, useStdin, useApp } from "ink";
 import type { InputData } from "./keys.js";
-import { mapKey } from "./keys.js";
+import { mapInputs } from "./keys.js";
 import type { RendererStore } from "./run.js";
 import type { Segment } from "./grid.js";
 import type { StyledCell } from "./cell.js";
@@ -93,10 +93,9 @@ export function RendererApp({
   if (isRawModeSupported) {
     // conditional: useInput throws when stdin has no raw mode (pipes, CI)
     useInput((input, key) => {
-      const data = mapKey(input, key);
-      const surface = store.state.focused;
-      if (data && surface) onKey(surface, data);
+      for(const data of mapInputs(input,key)){const surface=store.state.focused;if(surface)onKey(surface,data);}
     });
+    usePaste(text=>{const surface=store.state.focused;if(surface)onKey(surface,{kind:"text",text});});
   }
 
   const surfaces = store.state.surfaceList();

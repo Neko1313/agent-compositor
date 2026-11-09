@@ -14,6 +14,7 @@ try{
  const click=async(text,last=false)=>{await wait(text);const p=await page.evaluate(({text,last})=>{const lines=visual.text().split('\n');const row=last?lines.findLastIndex(l=>l.includes(text)):lines.findIndex(l=>l.includes(text));const col=lines[row].indexOf(text)+1;const r=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:r.x+(col+.5)*r.width/visual.terminal.cols,y:r.y+(row+.5)*r.height/visual.terminal.rows};},{text,last});await page.mouse.click(p.x,p.y);};
  const focus=()=>page.evaluate(()=>{const lines=visual.text().split('\n'),i=lines.findIndex(l=>/^│ › /.test(l));return lines.slice(Math.max(0,i-1),i+1).join('\n');});
  const tabs=async(n)=>{for(let i=0;i<n;i++){const before=await focus();await page.keyboard.press('Tab');try{await page.waitForFunction(before=>{const lines=visual.text().split('\n'),i=lines.findIndex(l=>/^│ › /.test(l));return lines.slice(Math.max(0,i-1),i+1).join('\n')!==before;},before,{timeout:5000});}catch(e){throw Error('Tab focus stalled: '+JSON.stringify({before,after:await focus()}));}}};
+ const toggle=async()=>{const before=await focus();await page.keyboard.press('Space');await page.waitForFunction(before=>{const lines=visual.text().split('\n'),i=lines.findIndex(l=>/^│ › /.test(l));return lines.slice(Math.max(0,i-1),i+1).join('\n')!==before;},before);};
  const replace=async(value)=>{await page.keyboard.press('Control+a');await page.keyboard.type(value);await wait(value);};
  const secret=async(value)=>{await page.keyboard.type(value);await wait('•'.repeat(value.length));};
  const shot=async(name)=>{await page.screenshot({path:resolve(output,name)});report.screenshots.push(name);};
@@ -23,11 +24,11 @@ try{
  for(let i=0;i<4;i++){await page.keyboard.press('ArrowRight');await wait(['OpenAI','Anthropic','Gemini','Compatible API / gateway'][i]);}await tabs(1);await page.keyboard.press('Enter');await wait('New provider connection');
  await replace('visual-provider');await tabs(2);await replace('http://127.0.0.1:4567/v1');await tabs(1);await replace('visual-model');await tabs(1);await secret('fake-visual-api-key');
  await shot('02-masked-key.png');if((await page.evaluate(()=>visual.text())).includes('fake-visual-api-key'))throw Error('Unmasked key');
- await tabs(5);await page.keyboard.press('Enter');await wait('Active: visual-provider · visual-model');
+ await tabs(6);await page.keyboard.press('Enter');await wait('Active: visual-provider · visual-model');
  report.checks.push('Settings toolbar opens providers; native keyboard form saves a profile with masked API key');
  await click('[ Network proxy ]');await wait('Configure network proxy');
- await page.keyboard.press('Space');await tabs(1);await replace('http://127.0.0.1:7890');await tabs(1);await replace('visual-user');await tabs(1);await secret('fake-visual-proxy-password');await shot('03-proxy-password.png');
- await tabs(3);await page.keyboard.press('Space');await tabs(3);await page.keyboard.press('Enter');await wait('Proxy enabled');await wait('Tools: direct');await shot('04-proxy-saved.png');
+ await toggle();await tabs(1);await replace('http://127.0.0.1:7890');await tabs(1);await replace('visual-user');await tabs(1);await secret('fake-visual-proxy-password');await shot('03-proxy-password.png');
+ await tabs(3);await toggle();await tabs(3);await page.keyboard.press('Enter');await wait('Proxy enabled');await wait('Tools: direct');await shot('04-proxy-saved.png');
  report.checks.push('Native proxy form saves endpoint, authentication, models/tools switches and project scope');
  const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');await page.waitForFunction(g=>visual.generation>g&&visual.frames>0,generation);await wait('[Settings]');await click('[Settings]');await wait('Active: visual-provider · visual-model');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Models & providers'));
  await click('[ Edit connection ]',true);await wait('Edit provider · visual-provider');await replace('cancelled-profile');await page.keyboard.press('Escape');await wait('Active: visual-provider · visual-model');

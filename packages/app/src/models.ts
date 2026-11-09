@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { availableModels, profileId, profileSettings } from './provider-settings.js';
 const presets={
-  ollama:{label:'Ollama',type:'openai-compat',baseUrl:'http://127.0.0.1:11434/v1',model:''},
+  ollama:{label:'Ollama',metadataProvider:'ollama',type:'openai-compat',baseUrl:'http://127.0.0.1:11434/v1',model:''},
   openai:{label:'OpenAI',type:'openai-responses',baseUrl:'https://api.openai.com/v1',model:''},
   anthropic:{label:'Anthropic',type:'anthropic',baseUrl:'https://api.anthropic.com/v1',model:''},
   gemini:{label:'Gemini',type:'gemini',baseUrl:'https://generativelanguage.googleapis.com/v1beta',model:''},
@@ -54,6 +54,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
         {id:'maxOutputTokens',label:'Maximum output tokens',type:'text',value:initial.maxOutputTokens?String(initial.maxOutputTokens):'',hint:'Blank uses the provider default.'},
         {id:'timeoutMs',label:'Request timeout (milliseconds)',type:'text',value:String(initial.timeoutMs??120000)},
         {id:'scope',label:'Save connection for',type:'select',value:scope,hint:'Project settings override global defaults.',options:[{value:'project',label:'This project (private user storage)'},{value:'global',label:'All projects'}]},
+        {id:'contextWindow',label:'Context window (tokens)',type:'text',value:initial.contextWindow?String(initial.contextWindow):'',hint:'Blank detects provider limits; unknown models use a marked conservative fallback.'},
       ],actions:[{id:'save',label:'Save profile'},{id:'discover',label:'Test & discover models'},{id:'cancel',label:'Cancel'}]});
       if(!result)return;const v=result.values;id=String(v.id).trim();scope=String(v.scope);clearKey=v.clearKey===true;
       if(v.key)pendingKey=String(v.key);
@@ -71,9 +72,9 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
         }
         if(!model)throw Error('Enter or discover a model ID before saving');
         const saved=profileSettings({...initial,model});
-        await saveProfile(id,{...saved,maxOutputTokens:saved.maxOutputTokens??null,timeoutMs:saved.timeoutMs??null},scope);
+        await saveProfile(id,{...saved,maxOutputTokens:saved.maxOutputTokens??null,timeoutMs:saved.timeoutMs??null,contextWindow:saved.contextWindow??null},scope);
         const effective=scope==='global'?profileSettings((await storage.config('providers.json')).profiles[id]):saved;
-        router.profiles[id]={...router.profiles[id],...effective,maxOutputTokens:effective.maxOutputTokens,timeoutMs:effective.timeoutMs,apiKey:router.profiles[id]?.apiKey??'',fetch:fetcher};
+        router.profiles[id]={...router.profiles[id],...effective,maxOutputTokens:effective.maxOutputTokens,timeoutMs:effective.timeoutMs,contextWindow:effective.contextWindow,apiKey:router.profiles[id]?.apiKey??'',fetch:fetcher};
         if(pendingKey||clearKey||(existing&&existing!==id&&key))await auth.setKey(id,clearKey?'':pendingKey||key);
         await choose(id,$);await show($);return;
       }catch(error){message=(error as Error).message;}

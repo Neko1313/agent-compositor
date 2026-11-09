@@ -196,4 +196,18 @@ export const workflowTool = {
   },
 };
 
-export default [workflowTool];
+
+
+export const workflowRunTool = {
+  name:'workflow_run',
+  description:'Start and manage a persistent background workflow with named dependency stages. Independent ready stages run concurrently (1..8). Use expand on a discovery stage to create workers from its JSON array; downstream stages join those workers. Outputs feed dependent prompts as data. Start returns a run ID immediately; use status (optionally waitMs) to observe, pause to stop scheduling, retry a failed stage, resume or stop. Completed stages are retained after restart; interrupted work requires explicit resume and may repeat side effects.',
+  parameters:{type:'object',properties:{action:{enum:['start','list','status','pause','resume','retry','stop']},id:{type:'string'},stageId:{type:'string'},title:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:8},maxStages:{type:'integer',minimum:1,maximum:500},maxTokensPerStage:{type:'integer',minimum:100,maximum:1000000},stageTimeoutMs:{type:'integer',minimum:1000,maximum:3600000},waitMs:{type:'integer',minimum:0,maximum:30000},stages:{type:'array',items:{type:'object',properties:{id:{type:'string'},title:{type:'string'},prompt:{type:'string'},dependsOn:{type:'array',items:{type:'string'}},profile:{type:'string'},expand:{type:'boolean'},workerPrompt:{type:'string'},when:{type:'object',properties:{stage:{type:'string'},includes:{type:'string'}},required:['stage','includes']}},required:['id','prompt']}}},required:['action']},
+  describe:()=>({tool:'workflow_run'}),
+  async execute(ctx:any,args:any){
+    try{
+      return{ok:true,data:await ctx.request('service.workflow.run',args)};
+    }catch(e){return{ok:false,error:e instanceof Error?e.message:String(e)};}
+  },
+};
+
+export default [workflowTool,workflowRunTool];

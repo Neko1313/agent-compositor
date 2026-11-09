@@ -115,6 +115,7 @@ export class AppUI {
   private hoveredTitle?: string;
   private pointerSupported = false;
   private pointer?: Extract<WireMessage, { type: "pointer" }>["shape"];
+  private contextIndicator = "";
   private status = "Ready";
   private approval?: {
     text: string;
@@ -284,6 +285,7 @@ export class AppUI {
           ],
         });
       }
+      if (name === "context.pressure") this.contextIndicator = ` · ctx ${Math.round(Number(input.pressure)*100)}%/${Math.round(Number(input.contextWindow)/1024)}k${input.source==='fallback'?' ~':''}`;
       if (name === "context.restored" && Array.isArray(input.messages))
         this.transcript = input.messages
           .filter((m: any) => m.role === "user" || m.role === "assistant")
@@ -1762,7 +1764,7 @@ export class AppUI {
     const barWidth = this.columns - 2;
     const bar = `${this.workspaceTabs()
       .map((tab) => tab.label)
-      .join(" ")} | [Plugins]  [Settings]  ${this.status}${
+      .join(" ")} | [Plugins]  [Settings]  ${this.status}${this.contextIndicator}${
       this.windows.fullscreen ? " · FULLSCREEN" : ""
     }`;
     // Fixed-width splitting keeps workspace painting identical to mouse coordinates.

@@ -1,0 +1,1 @@
+{"name":"harness-proof","version":"1.0.0","trust":"trusted","commands":[{"name":"/workflow-proof","description":"Start the isolated workflow visual fixture"},{"name":"/workflow-release","description":"Release fixture workers"}]}

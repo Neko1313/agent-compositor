@@ -138,7 +138,7 @@ describe("configured app features", () => {
     const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider });
     const core = app.createCore(async () => false);
     await core.submit("use demo");
-    expect(provider.requests[0].messages[0].content).toContain("demo: Example workflow");
+    expect(provider.requests[0].messages.filter(m=>m.role==='system').map(m=>m.content).join('\n')).toContain("demo: Example workflow");
     expect(core.getMessages().find(m => m.role === "tool")?.content).toContain("Follow these steps");
   });
   it("applies config permissions and supports explicit compaction with resumable tail", async () => {
@@ -177,7 +177,7 @@ describe("command discovery", () => {
     const metadata = { name: "custom", version: "1.0.0", trust: "trusted", commands: [{ name: "/custom", description: "Custom action" }] };
     await fs.writeFile(manifest, JSON.stringify(metadata));
     const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: new ScriptedProvider([]) });
-    const builtins = ["/agents","/auth", "/login", "/logout", "/extensions", "/marketplace", "/archive", "/fork", "/model", "/models", "/providers", "/settings", "/reload", "/rename", "/resume", "/sessions", "/unarchive"];
+    const builtins = ["/tasks", "/continue", "/agents","/auth", "/login", "/logout", "/extensions", "/marketplace", "/archive", "/fork", "/model", "/models", "/providers", "/settings", "/reload", "/rename", "/resume", "/sessions", "/unarchive"];
     expect(app.commands().map(c => c.name)).toEqual([...builtins, "/custom"].sort());
     const core = app.createCore(async () => false);
     metadata.commands = [{ name: "/changed", description: "Changed action" }];

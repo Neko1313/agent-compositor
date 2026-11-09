@@ -404,3 +404,67 @@ Linux x64 release build/install/Callix/model smoke passed; no new release tag wa
 published. `npm run visual:settings` is the maintained settings check; its raw
 input.jsonl must never contain real credentials. See docs/state-and-network.md
 and tools/visual/README.md for contracts, interaction and scope details.
+
+## Agent harness, model context and dynamic workflows
+
+The user explicitly requested implementation of the audited harness gaps.
+Base agent instructions now resolve through service.agent.instructions, with
+behavior.json/config overrides; project/skill instructions remain separate.
+service.agent.finish provides a replaceable completion gate. Per-session
+private task-plans/<session>.json preserves model-authored goals, tasks,
+acceptance/evidence and next action; /tasks opens it and /continue resumes a
+bounded turn. Planned edits require recorded successful verification or explicit
+unavailable/inapplicable reporting; pending plan items request continuation.
+Background workflow hand-off must be explicit. Gates/reminders are not proofs of
+correctness; command recognition is deliberately documented as a heuristic.
+Application default is 64 steps/turn. Repeated tool failures trigger recovery
+instructions and stop after six consecutive failures without progress.
+
+service.model.capabilities supplies context/output capacity. Explicit profile
+contextWindow, native Ollama/Gemini metadata, optional same-origin metadataUrl,
+a configurable exact-ID model-catalog.json and marked 32768 fallback are
+supported. Limits update on model/profile changes with a 60-second metadata
+cache. Provider usage is not capacity. Schema/system/image/tool overhead counts,
+output is reserved/capped, hard pressure bypasses cooldown, summarization uses
+bounded segments and adjusts recent tail while retaining tool/result groups.
+Failures, empty summaries and non-shrinking summaries retain original history.
+Context overflow permits one compaction retry. Subagents inherit project rules,
+use separate budgets/plans and route optional stage profiles independently.
+The TUI shows estimated context occupancy and fallback provenance.
+
+The replaceable workflows plugin adds workflow_run: persistent background DAG
+stages, ready-stage concurrency, conditional branches, JSON expansion into workers
+and automatic downstream joins, status/wait, pause/resume/retry/stop. It keeps
+Python/Monty workflow journals compatible. UI exposes stages, worker IDs, live
+activity, outputs/errors, attempts and accounted tokens. Atomic serialized run
+snapshots and process leases prevent competing execution; interrupted runs load
+paused, with explicit resume. App reload/exit cancels workers; this is not an OS
+daemon. Cached completion is not refreshed against later repository changes,
+and interrupted external effects are not exactly-once. Stage budgets default to
+60000 tokens/10 minutes/32 steps; concurrency 2 (max 8), stages 100 (max 500), four
+active runs. Workers cannot launch nested background workflows.
+
+New npm run eval:agent exercises cross-file bug repair and failure recovery/API
+preservation with actual executed checks and independent hidden behavioral
+graders outside the model workspace. Initial live run with an incomplete eval
+search toolset passed 1/4; restoring default Callix search and bounded recovery
+produced 4/4 on gemma4:31b-cloud and deepseek-v4.1-flash:1017-cloud. This is a small
+development suite, not an unbiased capability/parity benchmark. Evidence:
+dist/evals-agent-live/report.json (diagnostic) and dist/evals-agent-final/report.json.
+The maintained real PTY check npm run visual:workflows passed dynamic fan-out,
+parallel workers, pause/join/resume, result detail, restart and foreground input.
+The standard visual scenario also passed. Bench plugins remain under tools/visual
+and are not shipped as application defaults. Contracts and limits are documented
+in docs/agent-features.md, docs/evals.md and plugins/workflows/README.md.
+
+Final local verification for this milestone: 403 tests passed, one optional
+native Callix test skipped, 50 files, line coverage 81.46%; typecheck passed.
+Source PTY workflow and settings scenarios passed, as did the standard visual
+regression. Installed Linux x64 smoke now explicitly starts/polls a background
+workflow across separately bundled hooks/tools and checks its worker output.
+Shared registry ownership lives behind service.workflow.run in the hooks entry,
+so source module sharing is not assumed by release bundles. Native metadata
+queries against the existing Ollama returned 262144 context tokens for
+Gemma4:31b-cloud and 1048576 for DeepSeek-v4.1-flash:1017-cloud in this environment.
+Typed control chunks and bracketed paste use separate Ink input channels;
+form passwords remain masked. No release tag/publication was requested.

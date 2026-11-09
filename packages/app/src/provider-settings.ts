@@ -1,6 +1,6 @@
 import type { ProviderProfile } from '@agent-compositor/provider';
 export const providerTypes = ['openai-compat','openai-responses','anthropic','gemini'] as const;
-export type SavedProfile = Pick<ProviderProfile,'baseUrl'|'model'|'type'|'timeoutMs'|'maxOutputTokens'>;
+export type SavedProfile = Pick<ProviderProfile,'baseUrl'|'model'|'type'|'timeoutMs'|'maxOutputTokens'|'contextWindow'|'metadataProvider'|'metadataUrl'>;
 export function profileId(id:string) {
   if(!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(id)||['constructor','prototype'].includes(id))throw Error('Use a profile ID starting with a letter, followed by letters, digits, _ or -');
   return id;
@@ -12,9 +12,11 @@ export function profileSettings(input:any):SavedProfile {
   const model=String(input.model??'').trim();
   if(!model||model.length>200)throw Error('Enter a model ID');
   const result:SavedProfile={type:input.type??'openai-compat',baseUrl:url.href.replace(/\/$/,''),model};
-  for(const [name,max]of [['timeoutMs',600000],['maxOutputTokens',1000000]] as const)if(input[name]!==undefined&&input[name]!==null&&input[name]!==''){
+  for(const [name,max]of [['timeoutMs',600000],['maxOutputTokens',1000000],['contextWindow',10000000]] as const)if(input[name]!==undefined&&input[name]!==null&&input[name]!==''){
     const n=Number(input[name]);if(!Number.isSafeInteger(n)||n<1||n>max)throw Error(`${name} must be a positive integer up to ${max}`);result[name]=n;
   }
+  if(input.metadataProvider==='ollama')result.metadataProvider='ollama';
+  if(typeof input.metadataUrl==='string'&&input.metadataUrl) {const endpoint=new URL(input.metadataUrl,url);if(endpoint.origin!==url.origin)throw Error('Metadata endpoint must share the provider origin');result.metadataUrl=endpoint.href;}
   return result;
 }
 /** Lists model IDs without issuing a paid completion or returning provider error bodies. */

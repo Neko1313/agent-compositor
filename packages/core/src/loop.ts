@@ -83,6 +83,7 @@ export interface AgentCoreOptions {
   sessionId?: string;
   systemPrompt?: string;
   maxStepsPerTurn?: number;
+  maxConsecutiveToolFailures?:number;
   /** replace the builtin toolset wholesale (tests, embedders) */
   tools?: ToolSpec<unknown, unknown>[];
   /** append model-facing tools (e.g. plugin-provided tools.ts) on top of the builtins */
@@ -108,6 +109,7 @@ export interface AgentCoreOptions {
     summarize: Summarizer;
     /** minimum messages between compactions (default 8) */
     cooldownMessages?: number;
+    limits?: () => Partial<import("@agent-compositor/context").BudgetConfig>;
   };
 }
 
@@ -148,6 +150,11 @@ export class AgentCore {
   private readonly undo = new UndoStore();
 
   private messages: ChatMessage[] = [];
+  private baseInstructions = "";
+  private turnToolRecords:Array<{name:string;args:unknown;ok:boolean;output?:unknown}>=[];
+  private contextSource = "fallback";
+  private contextWindow = 32768;
+  private outputLimit?:number;
   private promptQueue: string[] = [];
   private steerQueue: string[] = [];
   private abort: AbortController = new AbortController();
@@ -162,6 +169,7 @@ export class AgentCore {
       options.maxTokensPerTurn,
       options.maxTokensPerSession,
       options.maxStepsPerTurn,
+      options.maxConsecutiveToolFailures,
     ])
       if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0))
         throw new Error("Agent budgets must be positive integers");
@@ -365,6 +373,9 @@ export class AgentCore {
         value: this.provider.complete(request),
       })
     );
+    this.runtime.setResolver("service.model.capabilities", async (e:any) => ({value: await (this.provider.capabilities?.(e.signal ?? this.abort.signal) ?? Promise.resolve(null))}));
+    this.runtime.setResolver("service.agent.instructions", () => ({value:""}));
+    this.runtime.setResolver("service.agent.finish", () => ({value:{complete:true}}));
     this.runtime.setResolver("service.permission.review", () => ({
       value: { decision: "ask" },
     }));
@@ -423,6 +434,9 @@ export class AgentCore {
           systemPrompt?: string;
           agentId?: string;
           signal?: unknown;
+          detached?: boolean;
+          maxTokens?:number;maxSteps?:number;
+          profile?: string;
         };
         if (!args.prompt || typeof args.prompt !== "string")
           return { deny: "spawn: prompt is required" };
@@ -432,6 +446,9 @@ export class AgentCore {
               prompt: args.prompt,
               systemPrompt: args.systemPrompt,
               agentId: args.agentId,
+              detached: args.detached,
+              maxTokens:args.maxTokens,maxSteps:args.maxSteps,
+              profile: args.profile,
               signal:
                 args.signal instanceof AbortSignal ? args.signal : undefined,
             }),
@@ -478,6 +495,8 @@ export class AgentCore {
     if (options.systemPrompt)
       this.messages.push({ role: "system", content: options.systemPrompt });
   }
+
+  getContextWindow(): number { return this.contextWindow; }
 
   getState(): CoreState {
     return this.state;
@@ -809,6 +828,9 @@ export class AgentCore {
         images: this.options.initialImages,
       });
     }
+    const behavior = (await this.emit("service.agent.instructions", {})) as {value?:string};
+    this.baseInstructions = typeof behavior?.value === "string" ? behavior.value : "";
+    this.turnToolRecords=[];
     this.messages.push({
       role: "user",
       content: promptText,
@@ -823,6 +845,7 @@ export class AgentCore {
     let metadata: Record<string, unknown> | undefined;
     let failed: string | undefined;
 
+    let recoveryAttempted=false, finishChecks=0;
     for (let step = 0; step < this.maxSteps; step++) {
       if (this.abort.signal.aborted) break;
       // steering lands at the natural step boundary
@@ -876,12 +899,19 @@ export class AgentCore {
         }
       } catch (err) {
         if (this.interruptedByUser || this.abort.signal.aborted) break;
-        failed = err instanceof Error ? err.message : String(err);
+        const error = err instanceof Error ? err.message : String(err);
+        if(!recoveryAttempted && /context.{0,30}(length|window|limit)|too many tokens|prompt.{0,20}too (long|large)/i.test(error)){
+          recoveryAttempted=true;const before=this.messages;await this.compactNow();if(this.messages!==before){fullText="";metadata=undefined;step--;continue;}
+        }
+        failed = error;
         break;
       }
 
       if (this.interruptedByUser || this.abort.signal.aborted) break;
 
+      if(finish?.reason==="error"&&!recoveryAttempted&&/context.{0,30}(length|window|limit)|too many tokens|prompt.{0,20}too (long|large)/i.test(finish.error??"")){
+        recoveryAttempted=true;const before=this.messages;await this.compactNow();if(this.messages!==before){fullText="";metadata=undefined;step--;continue;}
+      }
       if (finish?.reason === "error" || finish?.reason === "length") {
         failed =
           finish.reason === "error"
@@ -899,13 +929,25 @@ export class AgentCore {
         fullText = "";
         metadata = undefined;
         await this.runToolBatch(turnId, batch);
+        let failures=0;for(const r of [...this.turnToolRecords].reverse()){if(r.ok)break;failures++;}
+        if(failures>=(this.options.maxConsecutiveToolFailures??6)){failed="Repeated tool failures without progress. Resolve the reported permission/configuration error before continuing; progress is saved.";break;}
+        if(failures>=3)this.messages.push({role:"user",content:"Harness recovery: repeated tool failures produced no progress. Inspect the errors and available tool schemas. Do not repeat denied actions or bypass policy. Use permitted read-only tools for authorized investigation, or report a concrete blocker."});
         if (step === this.maxSteps - 1) {
-          failed = `Step limit (${this.maxSteps}) reached`;
+          failed = `Step limit (${this.maxSteps}) reached; progress saved. Continue this session to resume.`;
           break;
         }
         continue;
       }
 
+      const tools=this.turnToolRecords;
+      const decision=await this.emit("service.agent.finish",{text:fullText,steps:step+1,tools}) as {value?:{complete?:boolean;continue?:string}};
+      if(decision?.value?.continue && finishChecks++<2){
+        if(fullText)this.messages.push({role:"assistant",content:fullText,metadata});
+        this.messages.push({role:"user",content:"Harness verification: "+decision.value.continue});fullText="";metadata=undefined;
+        if(step===this.maxSteps-1)failed=`Step limit (${this.maxSteps}) reached; progress saved. Continue this session to resume.`;
+        continue;
+      }
+      if(decision?.value?.complete===false)failed="Completion checks remain unsatisfied; progress saved. Continue this session to resolve them.";
       break; // stop
     }
 
@@ -934,11 +976,26 @@ export class AgentCore {
   private async maybeCompact(): Promise<void> {
     const compaction = this.options.compaction;
     if (!compaction) return;
+    const response = await this.emit('service.model.capabilities',{signal:this.abort.signal}) as {value?:import('./provider.js').ModelCapabilities};
+    const caps=response?.value;
+    if(compaction.limits?.().contextWindow)this.contextSource="configured";
+    if(caps && Number.isSafeInteger(caps.contextWindow) && caps.contextWindow>=256){
+      const limits=compaction.limits?.()??{};
+      this.outputLimit=limits.reserveOutput??Math.min(caps.maxOutputTokens??8192,Math.floor((limits.contextWindow??caps.contextWindow)/4));
+      compaction.budget.configure({contextWindow:caps.contextWindow,reserveOutput:this.outputLimit,...limits});
+      this.contextWindow=limits.contextWindow??caps.contextWindow;this.contextSource=limits.contextWindow?'configured':caps.source;
+    }
+    this.contextWindow=compaction.budget.windowSize;
+    compaction.budget.setMessages([...this.messages,...(this.baseInstructions?[{role:'system',content:this.baseInstructions}]:[])]);
+    compaction.budget.setOverhead(estimateTokens(JSON.stringify(this.toolSpecs.map(t=>({name:t.name,description:t.description,parameters:t.parameters})))));
+    const breakdown=compaction.budget.breakdown();
+    await this.emit('context.pressure',{...breakdown,contextWindow:this.contextWindow,source:this.contextSource,model:this.options.model?.()});
     const cooldown = compaction.cooldownMessages ?? 8;
-    if (this.messages.length - this.messagesSinceCompaction < cooldown) return;
-    compaction.budget.setMessages(this.messages);
     if (!compaction.budget.shouldCompact()) return;
+    if(breakdown.remaining>0 && this.messages.length-this.messagesSinceCompaction<cooldown)return;
     await this.compactNow();
+    compaction.budget.setMessages([...this.messages,...(this.baseInstructions?[{role:"system",content:this.baseInstructions}]:[])]);
+    if(compaction.budget.breakdown().remaining<=0)throw Error("Context remains too large after compaction. Reduce oversized tool output, tool schemas or instructions; progress is preserved.");
   }
 
   /** Force a compaction pass regardless of cooldown/budget gates (Claude's /compact). */
@@ -946,16 +1003,21 @@ export class AgentCore {
     const compaction = this.options.compaction;
     if (!compaction) return;
     await this.emit("context.compacting", { sessionId: this.sessionId });
+    const target=Math.max(64,compaction.budget.usable-estimateTokens(this.baseInstructions)-estimateTokens(JSON.stringify(this.request().tools)));
+    let tail=0,tailTokens=0;for(let i=this.messages.length-1;i>=0&&tail<6;i--){const n=estimateMessageTokens(this.messages[i]);if(tail>0&&tailTokens+n>target/2)break;tail++;tailTokens+=n;}
     const result = await compactTranscript(
       this.messages,
       compaction.summarize,
       {
         signal: this.abort.signal,
+        keepTail:Math.max(1,tail),
       }
     );
     if (result.foldedCount === 0) return;
     this.messages = [...(result.messages as ChatMessage[])];
     this.messagesSinceCompaction = this.messages.length;
+    compaction.budget.setMessages([...this.messages,...(this.baseInstructions?[{role:"system",content:this.baseInstructions}]:[])]);
+    await this.emit("context.pressure",{...compaction.budget.breakdown(),contextWindow:this.contextWindow,source:this.contextSource,model:this.options.model?.()});
     await this.emit("context.compacted", {
       foldedCount: result.foldedCount,
       tokensBefore: result.tokensBefore,
@@ -979,8 +1041,11 @@ export class AgentCore {
     prompt: string;
     systemPrompt?: string;
     agentId?: string;
+    detached?: boolean;
+    maxTokens?:number;maxSteps?:number;
+    profile?: string;
     signal?: AbortSignal;
-  }): Promise<{ agentId: string; output: string }> {
+  }): Promise<{ agentId: string; output: string; tokens:number }> {
     const depth = this.options.subagentDepth ?? 0;
     const maxDepth = this.options.maxSubagentDepth ?? 2;
     if (depth >= maxDepth)
@@ -994,29 +1059,32 @@ export class AgentCore {
     const child = new AgentCore({
       ...this.options,
       sessionId: randomUUID(),
-      tools: [...this.toolSpecs],
+      maxTokensPerTurn:args.maxTokens?Math.min(args.maxTokens,this.options.maxTokensPerTurn??Infinity):this.options.maxTokensPerTurn,
+      maxStepsPerTurn:args.maxSteps?Math.min(args.maxSteps,this.options.maxStepsPerTurn??Infinity):this.options.maxStepsPerTurn,
+      tools: this.toolSpecs.filter(t=>t.name!=="workflow_run"),
       extraTools: undefined,
       initialImages: undefined,
       sessions: undefined, // subagents are ephemeral: no session persistence
-      compaction: undefined,
+      provider: args.profile ? {name:this.provider.name,complete:(request)=>this.provider.complete({...request,profile:args.profile}),capabilities:this.provider.capabilities ? (signal)=>this.provider.capabilities!(signal,args.profile) : undefined} : this.provider,
+      compaction: this.options.compaction ? {...this.options.compaction,budget:new TokenBudget({contextWindow:this.contextWindow})} : undefined,
       systemPrompt:
         typeof args.systemPrompt === "string"
           ? args.systemPrompt
-          : SUBAGENT_SYSTEM_PROMPT,
+          : [this.options.systemPrompt,SUBAGENT_SYSTEM_PROMPT].filter(Boolean).join("\n\n"),
       subagentDepth: depth + 1,
     });
     const unsubscribeReaction = child.subscribe((event) => {
-      if (event.kind === "catalog" && event.event === "ui.reaction")
+      if (event.kind === "catalog" && ["ui.reaction","turn.step","tool.call","tool.result"].includes(event.event))
         void this.host
           .emit("agent.activity", {
             agentId,
             event: event.event,
-            data: event.input,
+            data: event.event==='ui.reaction'?event.input:{tool:typeof event.input.tool==='string'?event.input.tool:undefined,ok:typeof event.input.ok==='boolean'?event.input.ok:undefined},
           })
           .catch(() => {});
     });
     const interruptChild = () => child.interrupt();
-    const parentSignal = args.signal
+    const parentSignal = args.detached ? (args.signal ?? new AbortController().signal) : args.signal
       ? AbortSignal.any([this.abort.signal, args.signal])
       : this.abort.signal;
     parentSignal.addEventListener("abort", interruptChild, { once: true });
@@ -1035,7 +1103,7 @@ export class AgentCore {
         );
       const output = lastAssistant?.content?.trim() ?? "";
       await this.emit("subagent.complete", { agentId, ok: true, output });
-      return { agentId, output };
+      return { agentId, output, tokens:child.getBudget().spentTokens };
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       await this.emit("subagent.complete", { agentId, ok: false, error });
@@ -1060,6 +1128,7 @@ export class AgentCore {
     for (const call of batch) {
       const spec = this.toolSpecs.find((t) => t.name === call.name);
       if (!spec) {
+        this.turnToolRecords.push({name:call.name,args:call.args,ok:false});
         await this.emit("tool.result", {
           callId: call.id,
           tool: call.name,
@@ -1229,6 +1298,7 @@ export class AgentCore {
         result = interceptedResult;
       }
 
+      this.turnToolRecords.push({name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0),output:result});
       await this.emit("tool.result", {
         callId: call.id,
         tool: call.name,
@@ -1251,6 +1321,7 @@ export class AgentCore {
     return {
       cwd: this.options.cwd,
       stateDir: this.options.storage?.paths.state,
+      sessionId: this.sessionId,
       env: this.options.toolEnv?.(),
       fetch: this.options.fetch,
       settings: (name: string) =>
@@ -1280,7 +1351,7 @@ export class AgentCore {
   }
 
   private request(): CompletionRequest {
-    const messages: ChatMessage[] = [];
+    const messages: ChatMessage[] = this.baseInstructions ? [{role:"system",content:this.baseInstructions}] : [];
     let pending = new Map<string, string>();
     const close = () => {
       for (const [id, name] of pending)
@@ -1315,6 +1386,7 @@ export class AgentCore {
       })),
       signal: this.abort.signal,
       model: this.options.model?.(),
+      maxOutputTokens:this.outputLimit,
     };
   }
 

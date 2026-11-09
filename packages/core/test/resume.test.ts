@@ -126,7 +126,7 @@ describe("AgentCore.resume + compaction in the loop", () => {
 
     const provider = new ScriptedProvider([{ text: "post-compaction answer" }]);
     const core = AgentCore.resume(
-      { cwd, provider, compaction: { budget, summarize, cooldownMessages: 0 } },
+      { cwd, provider, tools:[], compaction: { budget, summarize, cooldownMessages: 0 } },
       events,
     );
     const seen: { event: string; input: Record<string, unknown> }[] = [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapKey } from "../src/keys.js";
+import { mapKey, mapInputs } from "../src/keys.js";
 
 const k = (flags: Record<string, boolean>) => flags as never;
 
@@ -37,3 +37,5 @@ describe("mapKey", () => {
     expect(mapKey("", k({}))).toBeUndefined();
   });
 });
+
+it("preserves typed text and controls coalesced in one stream chunk",()=>{expect(mapInputs("value\t\r",k({}))).toEqual([{kind:"text",text:"value"},{kind:"key",key:"tab"},{kind:"key",key:"enter"}]);expect(mapInputs("",k({tab:true}))).toEqual([{kind:"key",key:"tab",modifiers:[]}]);});

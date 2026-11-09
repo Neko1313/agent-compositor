@@ -101,3 +101,32 @@ Results from the recorded run are saved under `dist/evals-ollama-final/report.js
 `dist/harness2-smoke/report.json`, `dist/harness2-demo/demo.json`, and
 `dist/visual-marketplace-storage/report.json`. They are not committed as permanent
 quality guarantees. Code changes require rerunning the affected checks.
+
+## Agent outcome suite
+
+`npm run eval:agent` runs two multi-step repository tasks with the actual harness:
+find/fix a cross-file checkout bug, and recover from a failing greeting formatter
+while preserving its exported API. User prompts do not specify a tool sequence.
+The environment includes default Callix file search, normal tool permissions,
+and allowed project check commands. The model must execute a successful check;
+a trusted grader outside the workspace then checks additional behaviors, without
+exposing its source to the model. Reports retain trajectories and separate
+execution failure from artifact/check failures. These tests measure more than
+whether a model emits a requested tool name, but remain a small task suite.
+
+```sh
+npm run eval:agent -- --output dist/evals-agent-scripted
+npm run eval:agent -- --models gemma4:31b-cloud,deepseek-v4.1-flash:1017-cloud \
+  --timeout 180000 --output dist/evals-agent-final
+```
+
+The deterministic scripts validate runner plumbing and are not autonomy scores.
+In this change, the final live run passed 4/4 (two tasks per model). An earlier
+run with an incomplete eval toolset passed 1/4: Gemma repeatedly attempted denied
+shell listings, while DeepSeek spent its budget despite fixing the artifact.
+Restoring the normal Callix search tools and adding bounded no-progress recovery
+produced the final result; permissions and grading criteria were not relaxed.
+This is development evidence, not an unbiased benchmark or a parity claim about
+Claude Code/Codex. More held-out tasks and repeated runs are needed for reliable
+quality comparisons. Live runs use the existing Ollama cloud models and are
+explicit, not part of credential-free CI.

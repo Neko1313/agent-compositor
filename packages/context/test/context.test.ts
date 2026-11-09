@@ -80,12 +80,13 @@ describe("compactTranscript", () => {
     expect(result.messages).toEqual(tiny);
   });
 
-  it("fail-operational: summarizer failure falls back to the marker", async () => {
+  it("preserves all original messages when the summarizer fails", async () => {
     const boom = async () => {
       throw new Error("model down");
     };
     const result = await compactTranscript(transcript(), boom, { keepTail: 2 });
-    expect(result.messages[1].content).toContain("[earlier conversation compacted]");
+    expect(result.messages).toEqual(transcript());
+    expect(result.foldedCount).toBe(0);
     expect(result.messages.at(-1)).toMatchObject({ content: "current answer" });
   });
 });

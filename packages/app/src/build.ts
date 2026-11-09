@@ -1,3 +1,4 @@
+import { harnessControls } from "./harness.js";
 import { profileSettings } from "./provider-settings.js";
 import { marketplaces } from "./marketplaces.js";
 import { NetworkClient } from "@agent-compositor/provider";
@@ -13,7 +14,7 @@ import { realpathSync } from "node:fs";
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { modelControls } from "./models.js";
 import { projectInstructions, expandReferences } from "./project-context.js";
-import { TokenBudget } from "@agent-compositor/context";
+import { TokenBudget, summarizeChunks } from "@agent-compositor/context";
 import { SkillRegistry } from "@agent-compositor/skills";
 import { builtinTools, type ToolSpec } from "@agent-compositor/tools";
 import * as path from "node:path";
@@ -148,7 +149,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     string,
     Record<string, unknown>
   >;
-  const profiles: Record<string, ProviderProfile> = { default: settings };
+  const profiles: Record<string, ProviderProfile> = { default: {...settings,...(/:\/\/(localhost|127\.0\.0\.1):11434(?:\/|$)/.test(settings.baseUrl)?{metadataProvider:"ollama" as const}:{})} };
   for (const [name, entry] of Object.entries(profileConfig)) {
     if (!entry || typeof entry !== "object") continue;
     const type = entry.type as ProviderProfile["type"];
@@ -181,7 +182,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     for (const [name, entry] of Object.entries(saved.profiles ?? {})) {
       if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(name) || ['constructor','prototype'].includes(name)) continue;
       if (entry === null) { if (name !== 'default') delete profiles[name]; continue; }
-      try { profiles[name] = { ...profiles[name], ...profileSettings(entry), apiKey: profiles[name]?.apiKey ?? '', fetch: network.fetch('models') }; }
+      try { const saved=profileSettings(entry);profiles[name] = { ...profiles[name], ...saved, contextWindow:saved.contextWindow,maxOutputTokens:saved.maxOutputTokens,timeoutMs:saved.timeoutMs,apiKey: profiles[name]?.apiKey ?? '', fetch: network.fetch('models') }; }
       catch { config.warnings.push(`Saved provider profile ${name} is invalid and was skipped`); }
     }
   } catch { config.warnings.push('Saved provider connections could not be loaded'); }
@@ -359,6 +360,11 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   ): AgentCore => {
     const provider = options.provider ?? {
       name: "authenticated-router",
+      capabilities: async (signal:AbortSignal,profile?:string) => {
+        const caps=await router.capabilities(signal,profile);if(caps.source!=="fallback")return caps;
+        const catalog=await storage.config("model-catalog.json");const known=catalog.models?.[profile?router.profiles[profile]?.model:router.model];
+        return known&&Number.isSafeInteger(known.contextWindow)&&known.contextWindow>=2048?{contextWindow:known.contextWindow,maxOutputTokens:known.maxOutputTokens,source:"catalog" as const}:caps;
+      },
       async *complete(
         request: import("@agent-compositor/core").CompletionRequest
       ) {
@@ -369,6 +375,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
         yield* router.complete(request);
       },
     };
+    const harness = harnessControls(storage,config.config.agent??{},()=>core.sessionId);
     const sessionApprovals = new ApprovalSession();
     sessionApprovals.restore(approvals.session.list());
     const coreOptions: ConstructorParameters<typeof AgentCore>[0] = {
@@ -378,7 +385,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       fetch: network.fetch("tools"),
       auth: auth.provider,
       serviceProviders: config.config.serviceProviders,
-      maxStepsPerTurn: options.maxSteps,
+      maxStepsPerTurn: options.maxSteps ?? (typeof config.config.agent?.maxSteps === "number" ? config.config.agent.maxSteps : 64),
+      maxConsecutiveToolFailures:typeof config.config.agent?.maxConsecutiveToolFailures==='number'?config.config.agent.maxConsecutiveToolFailures:6,
       maxTokensPerTurn:
         options.maxTokensPerTurn ??
         (typeof config.config.agent?.maxTokensPerTurn === "number"
@@ -393,6 +401,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       model: () => router.model,
       preparePrompt: (text) => expandReferences(options.cwd, text),
       services: {
+        ...harness.services,
         "service.network.configure": async ({ config }: { config: any }) => ({
           value: network.configure(config),
         }),
@@ -418,11 +427,14 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       rules: [
         ...(config.config.permissions?.rules ?? []),
         { tool: "skills", decision: "allow" },
+        { tool: "task_plan", decision: "allow" },
+        { tool: "workflow_run", decision: "allow" },
         { tool: "extension_list", decision: "allow" },
         { tool: "agent_message", decision: "allow" },
       ],
       tools: [
         ...builtinTools,
+        harness.tool,
         skillTool,
         extensions.tool,
         market.tool,
@@ -436,26 +448,28 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
                 contextWindow: 32768,
                 ...config.config.compaction,
               }),
-              summarize: async (messages, { signal }) => {
+              limits: () => config.config.compaction ?? {},
+              summarize: async (messages, { signal }) => summarizeChunks(messages, async (segment) => {
                 let text = "";
                 for await (const event of core.streamModel({
                   signal,
                   tools: [],
+                  maxOutputTokens: Math.min(2048,Math.floor(core.getContextWindow()/8)),
                   messages: [
                     {
                       role: "system",
                       content:
                         "Summarize this agent conversation. Preserve user requirements, decisions, file paths, tool outcomes and unfinished work.",
                     },
-                    { role: "user", content: JSON.stringify(messages) },
+                    { role: "user", content: segment },
                   ],
                 })) {
                   if (event.type === "text_delta") text += event.text;
-                  if (event.type === "finish" && event.reason === "error")
+                  if (event.type === "finish" && event.reason !== "stop")
                     throw new Error(event.error);
                 }
                 return text;
-              },
+              }, Math.min(8192,Math.floor((core.getContextWindow())/2))),
             },
       onApproval,
       onAsk,
@@ -465,6 +479,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           .filter(Boolean)
           .join("\n\n") || undefined,
       plugins: [
+        harness.plugin,
         ...plugins.map((p) => ({
           manifest: p.manifest,
           hooks: p.hooks,
@@ -578,7 +593,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               ] as const,
             ]
           : []),
-        ...['/settings', '/providers', '/models'].map(name => [name, {name,description:'Manage model providers and connections',usage:name}] as const),
+        ...['/settings', '/providers', '/models', '/tasks', '/continue'].map(name => [name, {name,description:name==='/tasks'?'Show saved task progress':name==='/continue'?'Continue unfinished work':'Manage model providers and connections',usage:name}] as const),
         ...["/auth", "/login", "/logout"].map(
           (name) =>
             [

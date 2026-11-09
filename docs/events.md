@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.10.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.11.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -31,6 +31,10 @@
 | `subagent.complete` | 0.5.0 | 1 | A subagent finished: ok with its final text, or failed with an error value (fail-operational). | `next` | — |
 | `context.compacted` | 0.5.0 | 1 | The transcript was compacted: the middle was folded into a summary, system prompt and recent tail kept verbatim. | `next` | — |
 | `context.compacting` | 0.9.0 | 1 | Before context compaction, allowing observers to save state. | — | — |
+| `context.pressure` | 0.11.0 | 1 | Current request context budget, model limit source and estimated occupancy. | — | — |
+| `service.model.capabilities` | 0.11.0 | 1 | Resolve effective context/output limits for the selected model. Replaceable by provider plugins. | `value`, `deny` | — |
+| `service.agent.instructions` | 0.11.0 | 1 | Resolve replaceable base agent behavior and tool guidance before a turn. | `value` | — |
+| `service.agent.finish` | 0.11.0 | 1 | Evaluate a proposed final answer; return complete or a concrete continuation instruction. | `value` | — |
 | `service.ui.configure` | 0.7.0 | 1 | Replace this plugin's appearance contribution. Partial sections inherit defaults; null removes the contribution. User window placements remain authoritative. | `value` | — |
 | `service.storage.read` | 0.9.0 | 1 | Read JSON in the calling plugin namespace; missing values return undefined. | `value` | — |
 | `service.storage.write` | 0.9.0 | 1 | Atomically persist bounded JSON in the calling plugin namespace and selected scope. | `value` | — |
@@ -76,6 +80,7 @@
 | `service.shell.execOutput` | 0.5.0 | 1 | Read a backgrounded shell's buffered output (BashOutput analog). | `deny`, `value` | — |
 | `service.shell.execKill` | 0.5.0 | 1 | Terminate a backgrounded shell by id (KillShell analog). | `deny`, `value` | — |
 | `service.agent.spawn` | 0.5.0 | 1 | Spawn a subagent: a fresh AgentCore (shared provider/permissions/plugins, isolated transcript) runs the prompt to completion and returns its final text. Core-resolved. | `deny`, `value` | — |
+| `service.workflow.run` | 0.11.0 | 1 | Replaceable persistent workflow lifecycle: start, inspect, pause, resume, retry or stop. Host permissions remain in each worker. | `deny`, `value` | — |
 | `service.todo.update` | 0.5.0 | 1 | Core todo tool: replace (or read) the process-scoped task list. | `deny`, `value` | — |
 | `service.file.read` | 0.5.0 | 1 | Core read tool: paginated file read with truncation note. | `deny`, `value` | — |
 | `service.file.readText` | 0.5.0 | 1 | Internal: raw full-text read (undo pre-image). null when missing. | `deny`, `value` | — |
@@ -92,8 +97,8 @@
 - **agent**: `agent.offer`, `agent.spawn`, `agent.activity`
 - **assistant**: `assistant.text`, `assistant.metadata`
 - **subagent**: `subagent.start`, `subagent.complete`
-- **context**: `context.compacted`, `context.compacting`, `context.restored`, `context.prepared`
-- **service**: `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
+- **context**: `context.compacted`, `context.compacting`, `context.pressure`, `context.restored`, `context.prepared`
+- **service**: `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
 - **project**: `project.changed`
 - **ui**: `ui.visibility`, `ui.reaction`, `ui.render`, `ui.press`, `ui.focus`, `ui.invalidate`
 - **model**: `model.usage`

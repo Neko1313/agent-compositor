@@ -26,6 +26,7 @@ import {
   type UiAppearance,
 } from "@agent-compositor/events";
 import {
+  clean,
   appearanceFrom,
   gridFrom,
   viewRows,
@@ -112,6 +113,7 @@ export class AppUI {
   private viewInputs = new Map<string, {id:string;value:string}>();
   private switchingSession = false;
   private visibility = new Map<string, string>();
+  private composerViews = new Map<string, {plugin:string;surface:string;view:UiTextView}>();
   private pluginWindows = new Map<string, PluginWindow>();
   private panel?: PluginPanel;
   private drag?: Drag;
@@ -332,6 +334,9 @@ export class AppUI {
       }
       if (name === "ui.appearance" || name === "ui.pluginRemoved") {
         const plugin = String(input.plugin ?? "custom");
+        if (name === "ui.pluginRemoved") {
+          for(const [id,view] of this.composerViews)if(view.plugin===plugin)this.removeComposer(id);
+        }
         if (name === "ui.pluginRemoved")
           for (const window of [...this.pluginWindows.values()]) {
             if (window.plugin !== plugin) continue;
@@ -386,8 +391,9 @@ export class AppUI {
       if (name === "tool.result")
         this.tools += `\n${input.tool}: ${input.ok ? "done" : input.error}\n`;
       if (name === "ui.surfaceRemoved") {
-        const id = String(input.id),
-          window = this.pluginWindows.get(id);
+        const id = String(input.id);
+        this.removeComposer(id);
+        const window = this.pluginWindows.get(id);
         if (window)
           void this.core.host
             .emit("ui.visibility", {
@@ -409,6 +415,12 @@ export class AppUI {
       if (name === "ui.surface") {
         const id = String(input.id);
         const view = uiTextViewSchema.safeParse(input.view);
+        if(view.success&&view.data.attachment){
+          this.windows.forget(id); this.panes.delete(id); this.pluginWindows.delete(id);
+          this.composerViews.set(id,{plugin:String(input.plugin??"custom"),surface:String(input.surface??input.id),view:view.data});
+          this.draw(); return;
+        }
+        this.removeComposer(id);
         if(view.success&&view.data.input&&this.viewInputs.get(id)?.id!==view.data.input.id)
           this.viewInputs.set(id,{id:view.data.input.id,value:view.data.input.value});
         this.panes.set(id, {
@@ -1469,6 +1481,16 @@ export class AppUI {
     );
     return matches.slice(start, start + count);
   }
+  private removeComposer(id:string): void {
+    const contribution=this.composerViews.get(id); if(!contribution)return;
+    this.composerViews.delete(id); this.visibility.delete(id);
+    void this.core.host.emit("ui.visibility",{site:`plugin:${contribution.plugin}/${contribution.surface}`,attached:false,visible:false,columns:0,rows:0}).catch(()=>{});
+  }
+  private composer() { return [...this.composerViews].at(-1); }
+  private composerWidth(): number {
+    const view=this.composer()?.[1].view;
+    return view&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
+  }
   private dockHeight(): number {
     if (this.question && !this.approval)
       return Math.min(
@@ -1478,10 +1500,10 @@ export class AppUI {
     const extra = Math.min(
       3,
       Math.max(0, this.rows - 10),
-      Math.max(0, wrap(`› ${this.draft}▏`, this.columns - 4).length - 1)
+      Math.max(0, wrap(`› ${this.draft}▏`, this.columns - 4 - this.composerWidth()).length - 1)
     );
     if(this.approval)return Math.min(this.rows-4,Math.max(14,Math.min(22,this.approval.dialog.rows(this.columns-4).length+5)));
-    return 6 + extra + this.visibleCompletions().length;
+    return Math.max(6 + extra + this.visibleCompletions().length,this.composerWidth()?9:6);
   }
   private complete(command: { name: string; usage?: string }): void {
     if (command.name.startsWith("@")) {
@@ -1651,7 +1673,7 @@ export class AppUI {
     this.sink?.({
       type: "declare",
       surfaces: [...[...this.panes].map(([id, pane]) => ({id,kind:'pane' as const,title:pane.title})),
-        {id:'input',kind:'pane' as const,title:this.approval?'Approval required':this.question?(this.question.dialog.request.questions?'Questionnaire':'Your answer'):this.inputTitle}],
+        {id:'input',kind:'pane' as const,title:this.approval?'Approval required':this.question?(this.question.dialog.request.questions?'Questionnaire':'Your answer'):`${this.inputTitle}${this.composer()?" · "+clean(this.composer()![1].view.attachment!.label):""}`}],
     });
     if (formActive) this.sink?.({ type: 'declare', surfaces: [{ id: 'settings-form', kind: 'pane', title: this.form!.dialog.request.title }] });
     if (panelActive)
@@ -1684,6 +1706,11 @@ export class AppUI {
       type: "focus",
       surface: formActive ? "settings-form" : panelActive ? "plugin-placement" : this.windows.focused,
     });
+    for(const [id,contribution] of this.composerViews){
+      const selected=this.composer()?.[0]===id;
+      const data={site:`plugin:${contribution.plugin}/${contribution.surface}`,attached:true,visible:selected,columns:selected?(this.composerWidth()?contribution.view.attachment!.width:0):0,rows:selected?(this.composerWidth()?4:1):0};
+      const signature=JSON.stringify(data);if(this.visibility.get(id)!==signature){this.visibility.set(id,signature);void this.core.host.emit("ui.visibility",data).catch(()=>{});}
+    }
     for (const window of this.pluginWindows.values()) {
       const frame = frames.find((frame) => frame.surface === window.id);
       const data = {
@@ -1814,7 +1841,8 @@ export class AppUI {
         }
       );
     }
-    const inputWidth = Math.max(1, this.columns - 4);
+    const attachmentWidth=this.composerWidth();
+    const inputWidth = Math.max(1, this.columns - 4 - attachmentWidth);
     const prompt = `› ${this.draft.slice(0, this.cursor)}▏${this.draft.slice(
       this.cursor
     )}`;
@@ -1850,7 +1878,16 @@ export class AppUI {
     else if (this.question)
       inputRows = this.question.dialog.visible(inputWidth, dock - 5);
     if (formActive) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
-    this.paint("input", "input", inputRows, inputWidth, dock - 5);
+    if(attachmentWidth){
+      const art=this.composer()![1].view;
+      const left=gridFrom(art.lines.slice(0,4),this.theme,attachmentWidth-2,true);
+      const right=gridFrom(inputRows,this.theme,inputWidth,true);
+      inputRows=Array.from({length:Math.max(4,right.length)},(_,i)=>{
+        const cells=[...(left[i]??[])];while(cells.length<attachmentWidth)cells.push({ch:" "});
+        cells.push(...(right[i]??[]));return{text:"",cells};
+      });
+    }
+    this.paint("input", "input", inputRows, this.columns-4, dock - 5);
     const barWidth = this.columns - 2;
     const waiting=this.approval?'Approval needed':this.question?'Answer needed':formActive?'Settings form':this.status;
     const protectedInput=!!(this.approval||this.question||formActive);
@@ -1878,6 +1915,7 @@ export class AppUI {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    for(const id of this.composerViews.keys())this.removeComposer(id);
     this.form?.finish(null);
     this.core.host.setFormHandler(undefined);
     this.cancelDrag();

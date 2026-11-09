@@ -56,6 +56,7 @@ export type UiAppearance = z.infer<typeof uiAppearanceSchema>;
 /** Portable text view for ui.render overrides; terminal escapes are never interpreted. */
 export const uiTextViewSchema = z
   .object({
+    attachment: z.object({site:z.literal("composer"),width:z.number().int().min(4).max(20),label:z.string().max(60)}).strict().optional(),
     hint: z.string().max(200).optional(),
     input: z.object({label:z.string().max(60).optional(),id:z.string().min(1).max(64),value:z.string().max(4000),placeholder:z.string().max(200).optional()}).strict().optional(),
     raster: z

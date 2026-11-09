@@ -1981,6 +1981,30 @@
           "view": {
             "type": "object",
             "properties": {
+              "attachment": {
+                "type": "object",
+                "properties": {
+                  "site": {
+                    "type": "string",
+                    "const": "composer"
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 4,
+                    "maximum": 20
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "site",
+                  "width",
+                  "label"
+                ],
+                "additionalProperties": false
+              },
               "hint": {
                 "type": "string",
                 "maxLength": 200

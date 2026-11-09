@@ -835,3 +835,42 @@ source match the tag; only release.yml and smoke.mjs differences are permitted.
 Publishing checks out the immutable tag for git-cliff notes and installer, and
 validates downloaded CI artifact digests before upload. This run's code exactly
 matches the tag outside those two pipeline/fixture files.
+
+## Wisp Soul composer plugin (2026-11-10)
+
+The user supplied wisp-soul-ink.zip and requested the redesigned mascot as an
+extension of human message input rather than a separate actor/window. Adapted
+the supplied WispSoul text frames into plugins/mascot/wisp.ts; Unicode small
+fullwidth dashes in eyes use ASCII dashes to keep terminal cell geometry stable.
+No images are generated, no new library or model calls are added.
+
+The default mascot now publishes UiTextView.attachment {site:'composer',width,
+label} through the normal $.ui.view API. This is generic and replaceable; AppUI
+contains no mascot-specific rendering or event logic. A stable latest-producer
+slot lives inside the host-owned editor, never enters the tiling tree or plugin
+placement panel, and is removed on disable/unload. Existing drafts/focus/dialog
+controls stay host-owned. Protected dialogs/completions retain their full input
+space. At >=60 columns and >=24 rows the text art sits in four rows beside the
+editor; narrower screens retain status only. Existing legacy layout panes are
+not restored for a composer attachment.
+
+The activity reducer still observes tools, turns, planning, concurrent children,
+manual dialog reactions and independent-agent metadata. Text motion uses 250ms
+frames only when expanded/selected; compact, hidden, headless, paused, NO_COLOR
+and TERM=dumb stop frame advancement while activity and transient expiry work.
+/mascot on|off|pause|resume|pet|reload persist through project settings. Earlier
+APNG pack settings are legacy and yield a notice; APNG assets/decoder and generic
+raster/Kitty rendering remain available to other views and compatibility tests.
+
+Validation: typecheck/generated contracts/marketplace passed; 522 tests passed
+with 3 optional skips. Composer tests verify no separate window, stable draft,
+compact behavior, producer priority and removal. Real PTY broad regression and
+focused mascot lifecycle passed; current screenshots/report are under
+dist/wisp-regression and dist/wisp-composer-final. Wide, compact and protected
+approval screenshots were inspected. Earlier wisp-composer-proof/confirm are
+failed diagnostic captures (unsupported test shortcut and inherited NO_COLOR),
+not current evidence. The motion-only scenario explicitly omits inherited
+NO_COLOR in its isolated child; production respects it and unit regressions
+cover static preferences. Built Linux x64 distribution and installer/model/
+workflow/Monty/Callix smoke passed. Published v0.2.0 assets were not changed;
+these source changes await a future release.

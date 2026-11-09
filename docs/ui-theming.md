@@ -140,3 +140,15 @@ Other plugins can emit `ui.reaction` with `source`, `kind`, `id`, and `active`.
 Matching start/end IDs preserve simultaneous activities. Actual manual approval
 and question dialogs publish these signals too; independent agents forward only
 activity metadata through `agent.activity`, excluding prompts and tool arguments.
+
+## Composer attachments
+
+A portable text view can supply `attachment: {site:'composer', width:16,
+label:'Ready'}`. This adds bounded decorative text beside the host-owned human
+editor rather than a tiled plugin window. The host paints at most four literal
+rows, uses a compact label when space is constrained or dialogs/completions are
+active, and preserves normal editor input and approval handling. Multiple
+producers use stable registration order, with the latest contribution selected;
+normal `ui.visibility` events suspend earlier/compact animations. Unload or
+`$.ui.remove` detaches it. This is a shared contract, with no mascot-specific
+logic in the host or Ink renderer. See the [Wisp plugin](../plugins/mascot/README.md).

@@ -1,11 +1,6 @@
+import { animations, type WispState } from "./wisp.js";
 import { Activity } from "./activity.js";
-import {
-  AnimationPack,
-  states,
-  type Config,
-  type State,
-  type Frame,
-} from "./animations.js";
+import { states, type Config, type State } from "./animations.js";
 const FILE = ".agent-compositor/mascot.json";
 const instances = new Map<string, Companion>();
 const labels: Record<State, string> = {
@@ -23,8 +18,8 @@ const labels: Record<State, string> = {
 class Companion {
   config: Config = {};
   activity = new Activity();
-  pack!: AnimationPack;
   visible = false;
+  motion = true;
   attached = true;
   disposed = false;
   frame = 0;
@@ -67,11 +62,12 @@ class Companion {
         )
           throw Error(`Invalid ${name} state`);
       this.config = value;
+      if(value.pack)await this.$.ui.notify("mascot: APNG pack settings are legacy; Wisp Soul now uses text frames", "info");
     } catch (e) {
       if ((e as any).code !== "ENOENT")
         await this.$.ui.notify(`mascot: ${String(e)}`, "warn");
     }
-    this.pack = new AnimationPack(this.$.session.cwd, this.config);
+
     this.activity = new Activity(this.config);
     if (this.config.enabled !== false) await this.show();
   }
@@ -103,57 +99,15 @@ class Companion {
       this.state = state;
       this.frame = 0;
     }
-    let frames: Frame[] = [];
-    try {
-      frames = await this.pack.load(state);
-    } catch (e) {
-      if (!this.warned.has(state)) {
-        this.warned.add(state);
-        await this.$.ui.notify(`mascot: ${state}: ${String(e)}`, "warn");
-      }
-      try {
-        frames = await this.pack.load("idle");
-      } catch {}
-    }
-    if (revision !== this.revision || this.disposed) return;
-    const frame = frames[this.config.paused ? 0 : this.frame % frames.length];
-    await this.$.ui.view(
-      "companion",
-      "Ghost",
-      {
-        ...(frame
-          ? {
-              raster: {
-                width: frame.width,
-                height: frame.height,
-                rgba: frame.rgba,
-                alt: labels[state],
-              },
-            }
-          : {}),
-        lines: [
-          {
-            text: labels[state],
-            tone:
-              state === "error"
-                ? "danger"
-                : state === "done"
-                ? "success"
-                : "accent",
-          },
-          {
-            text: this.config.paused ? "[ Resume ]" : "[ Pause ]",
-            action: "pause",
-            tone: "muted",
-          },
-          { text: "[ Pet Ghost ]", action: "pet", tone: "muted" },
-        ],
-      },
-      { site: "sidebar", size: 0.24, focus: false }
-    );
+    const frames=animations[state==="waiting_subagents"?"waiting":state as WispState];
+    const frame=frames[this.config.paused?0:this.frame%frames.length];
+    await this.$.ui.view("companion","Wisp Soul",{
+      attachment:{site:"composer",width:16,label:labels[state]+(this.config.paused?" · paused":"")},
+      lines:frame.map(text=>({text,tone:state==="error"?"danger":state==="done"?"success":state==="approval"||state==="question"?"warning":"accent"})),
+    },{focus:false});
     if (revision !== this.revision || this.disposed || !this.visible) return;
     if (
-      this.config.paused &&
+      (this.config.paused || !this.motion) &&
       (!this.activity.transient || this.activity.transient.until <= Date.now())
     )
       return;
@@ -162,12 +116,12 @@ class Companion {
         this.frame++;
         void this.show().catch(() => {});
       },
-      this.config.paused
+      (this.config.paused || !this.motion)
         ? Math.max(
             80,
             (this.activity.transient?.until ?? Date.now()) - Date.now()
           )
-        : frame?.delay ?? 180
+        : 250
     );
     this.timer.unref?.();
   }
@@ -220,6 +174,7 @@ const hooks: Record<string, any> = {
     const instance = instances.get($.session.id);
     if (!instance) return;
     instance.visible = e.visible;
+    instance.motion = (e.rows === undefined || e.rows >= 4) && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
     instance.attached = e.attached;
     instance.stop();
     if (e.visible) await instance.show();

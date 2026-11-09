@@ -85,39 +85,9 @@ try {
         .findIndex((line) => line.includes("Todos"))
     );
   await waitText("0/3 complete");
-  await waitText("Ghost");
-  await waitText("[ Pet Ghost ]");
-  if (process.env.VISUAL_GRAPHICS === 'kitty') {
-    await page.waitForFunction(() => visual.graphics.active > 0 && visual.graphics.stats.lastWidth === 228 && visual.graphics.stats.lastHeight === 228);
-    report.checks.push('Native graphics negotiated over PTY; original 228x228 RGBA is decoded by the Kitty protocol emulator');
-  }
-  await screenshot("00-ghost-idle.png");
-  const colors = () =>
-    page.evaluate(() => {
-      if (visual.graphics.active) return `native:${visual.graphics.stats.lastImage}`;
-      const t = visual.terminal,
-        values = [];
-      for (let y = 0; y < t.rows; y++)
-        for (let x = 0; x < t.cols; x++) {
-          const c = t.buffer.active.getLine(y)?.getCell(x);
-          if (c?.getChars() === "▀")
-            values.push(c.getFgColor(), c.getBgColor());
-        }
-      return JSON.stringify(values);
-    });
-  const initialColors = await colors();
-  await page.waitForFunction((initial) => {
-    if (visual.graphics.active) return `native:${visual.graphics.stats.lastImage}` !== initial;
-    const t = visual.terminal,
-      values = [];
-    for (let y = 0; y < t.rows; y++)
-      for (let x = 0; x < t.cols; x++) {
-        const c = t.buffer.active.getLine(y)?.getCell(x);
-        if (c?.getChars() === "▀") values.push(c.getFgColor(), c.getBgColor());
-      }
-    return JSON.stringify(values) !== initial;
-  }, initialColors);
-  await screenshot("00-ghost-next-frame.png");
+  await waitText("Message · Ready");
+  await waitText("█••█");
+  await screenshot("00-wisp-idle.png");
   const mascotCommand = async (command) => {
     await click(5, 25);
     await page.keyboard.type(command);
@@ -132,23 +102,12 @@ try {
     );
     await page.keyboard.press("Enter");
   };
-  const pet = await page.evaluate(() => {
-    const lines = visual.text().split("\n"),
-      row = lines.findIndex((line) => line.includes("[ Pet Ghost ]"));
-    return { row, col: lines[row].indexOf("[ Pet Ghost ]") + 2 };
-  });
-  await click(pet.col, pet.row);
-  await waitText("Done!");
-  await screenshot("00-ghost-petted.png");
-  await waitText("Ready");
   await mascotCommand("/mascot pause");
-  await waitText("[ Resume ]");
-  await screenshot("00-ghost-paused.png");
+  await waitText("paused");
+  await screenshot("00-wisp-paused.png");
   await mascotCommand("/mascot off");
-  await page.waitForFunction(() => !visual.text().includes("Ghost"));
-  report.checks.push(
-    "Default mascot decoded original APNGs into changing true-colour PTY frames; pause and off work through terminal commands"
-  );
+  await page.waitForFunction(() => !visual.text().includes("Message ·"));
+  report.checks.push("Default Wisp is a text attachment in the input composer; pause/off work through terminal commands");
   await screenshot("01-start.png");
   report.checks.push(
     "Actual Ink application rendered through POSIX PTY and xterm.js"
@@ -311,7 +270,7 @@ try {
     visual.text().split("\n")[28]?.includes("Ready")
   );
   await mascotCommand("/mascot resume");
-  await waitText("Ghost");
+  await waitText("Message ·");
   await click(5, 25);
   await page.keyboard.type("Delegate the task inspection");
   await waitText("Delegate the task inspection");
@@ -328,7 +287,7 @@ try {
   );
   await screenshot("14-agent-complete.png");
   await mascotCommand("/mascot off");
-  await page.waitForFunction(() => !visual.text().includes("Ghost"));
+  await page.waitForFunction(() => !visual.text().includes("Message ·"));
   report.checks.push(
     "Real task tool spawned a child, ask_user received a keyboard answer through the TUI, and the parent completed"
   );
@@ -388,7 +347,7 @@ try {
   await waitText("Mode: manual");
   await closePane("Auto approvals");
   await submit("/mascot on");
-  await waitText("Ghost");
+  await waitText("Message ·");
   await submit("Make a reviewable change");
   await waitText("Y allow once");
   await waitText("Approval needed");
@@ -399,7 +358,7 @@ try {
     visual.text().split("\n")[38]?.includes("Ready")
   );
   await submit("/mascot off");
-  await page.waitForFunction(() => !visual.text().includes("Ghost"));
+  await page.waitForFunction(() => !visual.text().includes("Message ·"));
   await submit("/review");
   await waitText("review-demo.txt");
   await waitText("Keep change");

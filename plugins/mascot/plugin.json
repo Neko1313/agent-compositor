@@ -2,13 +2,13 @@
   "name": "mascot",
   "version": "1.0.0",
   "trust": "trusted",
-  "description": "Replaceable animated APNG companion reacting to agent, tool, dialog and planning events.",
+  "description": "Wisp Soul text companion attached to the message composer; reacts to agent, tool and dialog activity.",
   "capabilities": ["render"],
   "commands": [
     {
       "name": "/mascot",
       "description": "Show, hide or pause the animated companion",
-      "usage": "/mascot [on|off|pause|resume|reload]"
+      "usage": "/mascot [on|off|pause|resume|pet|reload]"
     }
   ]
 }

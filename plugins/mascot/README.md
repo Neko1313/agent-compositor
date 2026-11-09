@@ -1,107 +1,64 @@
-# Ghost companion
+# Wisp Soul companion
 
-Default, optional plugin using the ten original APNG animations in `assets/`.
-Frames retain their original 228×228 resolution and timing. No model calls are
-made and no permission decisions are changed.
+The default optional plugin uses the user's Wisp Soul Unicode frames. It attaches
+to the human message composer, without creating a window or participating in the
+tiling tree. It makes no model calls and changes no permission decisions.
 
-The terminal renderer probes for Kitty Graphics Protocol support. Supported
-terminals display full RGBA pixels with transparency; other terminals retain a
-true-color half-block fallback. This mechanism is available to every UI plugin,
-not just Ghost. `AGENT_GRAPHICS=off` forces fallback; `AGENT_GRAPHICS=kitty`
-forces graphics when detection cannot run. Auto mode falls back inside tmux or
-screen, whose passthrough is not implemented. Sixel/iTerm2-only terminals use
-the fallback. Native terminal support and scaling behavior depend on the client.
+On terminals at least 60 columns × 24 rows, four text rows sit beside the editor.
+At smaller sizes, during slash completion, or while a protected dialog/settings
+form is active, the host keeps the editor/dialog space and a compact state label.
+Animations run at 250 ms only when this contribution is selected and expanded;
+headless, compact, paused and hidden states do not advance frames. Transient
+results still expire, and activity changes still update the static status.
+`NO_COLOR` and `TERM=dumb` also stop motion. Colors use semantic theme tones.
 
-The supplied APNG files accidentally mark dark outlines/eyes transparent while
-retaining their RGB. For this built-in pack, `restoreInk` restores those existing
-dark pixels within 12 source pixels of the opaque sprite; the source files are
-unchanged. Set `"restoreInk": false` for exact source transparency. Custom packs
-default to no repair, and may explicitly opt in. A dark transparent matte far
-from the sprite remains transparent. This repair follows the supplied storyboard
-and does not synthesize new poses or frames. Repair needs the original hidden
-RGB; packs that clear that data should keep repair disabled.
-
-- `/mascot on|off`: show or disable, saved across sessions.
+- `/mascot on|off`: enable or remove the attachment, saved across sessions.
 - `/mascot pause|resume`: stop or resume motion, also saved.
-- `/mascot reload`: reread configuration and animation pack.
-- Click **Pause / Resume** or **Pet Ghost** in the pane. Pet plays `done` briefly.
-- Move, resize, switch workspace and save placement through the existing window
-  controls and **Plugins** panel. Closing the pane stops animation until reopened.
+- `/mascot pet`: briefly play the happy state.
+- `/mascot reload`: reread settings and reset the event observer.
 
-Reactions observe turn/tool/subagent events, actual approval and question dialogs,
-plan-mode signals, and metadata forwarded from independent background agents.
-Manual dialogs take priority, followed by tool work and waiting for agents.
-Completion and errors play briefly. Concurrent actors have separate activity IDs.
-Hidden panes and headless sessions do not run an animation timer. Unload/close
-releases timers. Pausing motion still allows static state changes.
+Settings use the shared plugin configuration scopes (`mascot.json`); commands
+save project overrides. Existing `enabled`, `paused`, `tools` and `reactions`
+settings continue to work. APNG pack settings are now legacy and produce an
+informational notice; the default no longer decodes or renders images. The old
+APNG assets/decoder remain available for compatibility and generic raster tests.
 
-## Replace the mascot
+The activity reducer observes turns, tools, concurrent subagents, actual human
+dialogs, planning signals and independent-agent metadata. Dialog reactions take
+priority, then active tools and waiting for agents. Completion/errors are brief.
+Unloading/replacing the plugin removes its contribution and timers.
 
-Disable `mascot` with the existing extension settings and load your own plugin,
-or replace its animation pack in `.agent-compositor/mascot.json`:
+## Replace or extend
 
-```json
-{
-  "enabled": true,
-  "paused": false,
-  "pack": "assets/my-companion",
-  "animations": { "idle": "rest.apng", "thinking": "work.apng" },
-  "tools": { "my_search_tool": "searching" },
-  "reactions": { "my-plugin:compiling": "editing" }
-}
-```
-
-Omit `pack` to use the bundled assets. Pack paths must stay within the project;
-animation paths must stay within that pack, including after resolving symlinks.
-Unmapped states use `<state>.apng`. Available states: `idle`, `thinking`,
-`searching`, `editing`, `planning`, `waiting_subagents`, `question`, `approval`,
-`done`, `error`. Missing/bad states fall back to idle, then a text status; a warning
-is shown once per state. Reload after changing configuration or files. PNG inputs
-are bounded to 2 MiB, 512×512, 120 frames, and 8 million total pixels. Published
-RGBA frames keep their original resolution; the renderer fits them to the viewport.
-
-## React to another plugin
-
-Publish a semantic activity signal; no mascot-specific dependency is required:
+Disable `mascot` in extension settings and load another plugin, or contribute a
+portable text view using the same generic API:
 
 ```ts
-await $.emit('ui.reaction', {
-  source: $.plugin, kind: 'searching', id: 'index-build', active: true,
+await $.ui.view('spirit', 'My companion', {
+  attachment: {site: 'composer', width: 12, label: 'Ready'},
+  lines: [{text: '  hello', tone: 'accent'}],
 });
-try {
-  // Existing operation.
-} finally {
-  await $.emit('ui.reaction', {
-    source: $.plugin, kind: 'searching', id: 'index-build', active: false,
-  });
-}
+await $.ui.remove('spirit');
 ```
 
-Omit `active` for a short reaction, for example `done`. Custom `kind` values can
-be mapped with `reactions`. Match `source` and `id` when ending an activity.
-Observers must not influence the action being observed.
+The host owns text editing, focus, submission and human dialogs. Attachments do
+not receive the draft or replace the input handler. Up to four rows of text are
+painted literally, using bounded width (4–20 cells) and the shared theme. Raster,
+actions and embedded input fields are not interactive in this decorative slot.
+A replacement registered after another contribution takes the slot; earlier
+producers receive `ui.visibility` with `visible:false` and resume when selected
+again. Existing contribution updates do not change that order. Visibility keeps
+the normal `plugin:<name>/<surface>` identity; expanded size reports four rows,
+compact size one row and zero art columns. `attached:false` ends the attachment.
+No window placement or saved workspace geometry is created for composer views.
 
-The generic UI APIs are also available to replacement plugins:
-`$.ui.view(id, title, {raster: {width, height, rgba, alt}, lines}, placement)`,
-`$.ui.remove(id)`, `ui.visibility` (site, visible, attached, columns, rows), and
-`ui.render` overrides. `rgba` is base64 RGBA8, limited to 512×512 with an exact
-byte count. Other components need not know about Ghost or APNG.
+Other plugins can still emit `ui.reaction` with `source`, `kind`, optional `id`
+and `active` to announce work. Map custom tool names/states in `tools`, and
+custom `<source>:<kind>` signals in `reactions`. Supported states are idle,
+thinking, searching, editing, planning, waiting_subagents, question, approval,
+done and error. Source artwork calls waiting_subagents `waiting`.
 
-## Graphics transport and verification
-
-Wire protocol 0.6 adds optional `render.raster`, negotiated through the `Raster`
-capability. The text grid is always present for compatible fallback renderers.
-Only the terminal renderer constructs escape sequences; plugins publish bounded
-RGBA, never raw terminal control strings. Rendering hooks can replace or remove
-the raster using the existing `ui.render` contract.
-
-Image payloads are zlib-compressed, chunked, cached (at most 64 inactive/active
-frame entries unless more are simultaneously visible), and placed after Ink
-commits a frame. Placement follows window layout, disappears on hidden
-workspaces, close or suspension, and is freed on exit. Original six-frame APNG
-motion is preserved; the implementation does not invent intermediate poses.
-
-`VISUAL_GRAPHICS=kitty npm run visual:check` validates the actual PTY commands
-with the browser bench's diagnostic protocol emulator. It verifies transmission
-and placement, not a particular terminal emulator's GPU implementation. See
-[the bench guide](../../tools/visual/README.md).
+`npm run visual:mascot` verifies the actual PTY input path, animation, pause,
+compact mode, draft preservation, disable and restart. It requires a Unicode
+terminal font; appearance of individual glyphs depends on the font. The generic
+raster/Kitty protocol remains available to other UI views.

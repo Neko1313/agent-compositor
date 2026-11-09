@@ -35,7 +35,7 @@ Ctrl+C closes only the PTY session; use Restart session to reopen it.
 
 Artifacts default to `dist/visual-proof/` (override with `VISUAL_OUTPUT`):
 
-- PNGs: animated Ghost frames, mouse pet reaction, pause and manual approval;
+- PNGs: Wisp composer attachment, pause and manual approval;
   startup, drag/resize, tasks, saved placement, restored workspace, theme,
   compact/narrow terminals, slash palette, multiline input, subagent question,
   delegation, auto mode, review, checkpoints and independent-agent restoration.
@@ -87,12 +87,14 @@ workspace checks need no model requests. The full scripted scenario still uses
 the source fixture. `VISUAL_EXECUTABLE` must point to the executable inside its
 complete extracted distribution, beside `plugins/` and `node_modules/`.
 
-`npm run visual:mascot` is the focused native-graphics lifecycle check. It
-verifies source dimensions, changing frames, pause, fullscreen, dragging Ghost
-onto workspace 2, hiding/showing its placement, resizing, and removal. Combine
-it with `VISUAL_EXECUTABLE` to verify the compiled distribution through the
-same PTY, without external model requests. Evidence defaults to
-`dist/visual-ghost-lifecycle/`.
+`npm run visual:mascot` checks the Wisp composer attachment through the real
+PTY: text animation, pause, pet reaction, compact status, draft preservation,
+disable, and settings restoration after restart. It does not create a mascot
+window or use a graphics protocol. The motion scenario deliberately omits
+inherited NO_COLOR in its isolated child; the plugin otherwise respects it.
+Combine with VISUAL_EXECUTABLE to check a complete compiled distribution.
+Evidence defaults to dist/visual-ghost-lifecycle/. Generic raster transport is
+covered separately by renderer and portable-view tests.
 
 ### Native settings scenario
 

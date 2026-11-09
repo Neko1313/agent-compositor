@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { mkdtemp, rm, writeFile, mkdir, symlink, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,9 +17,11 @@ import hooks, { dispose } from "../../../plugins/mascot/hooks.js";
 import { viewRows, gridFrom, appearanceFrom } from "../src/presentation.js";
 import { uiTextViewSchema } from "@agent-compositor/events";
 let tmp: string;
+beforeEach(()=>{vi.stubEnv("NO_COLOR",undefined);vi.stubEnv("TERM","xterm-256color");});
 afterEach(async () => {
   dispose();
   vi.useRealTimers();
+  vi.unstubAllEnvs();
   if (tmp) await rm(tmp, { recursive: true, force: true });
 });
 async function setup() {
@@ -93,11 +95,11 @@ describe("replaceable mascot", () => {
     const { $, views } = await setup();
     vi.useFakeTimers();
     await hooks['ui.visibility']({ site: 'plugin:mascot/companion', attached: true, visible: true }, $);
-    const first = views.at(-1).raster.rgba;
+    const first = JSON.stringify(views.at(-1).lines);
     await vi.advanceTimersByTimeAsync(100);
     await hooks['tool.result']({ callId: 'unknown' }, $);
-    await vi.advanceTimersByTimeAsync(81);
-    expect(views.at(-1).raster.rgba).not.toBe(first);
+    await vi.advanceTimersByTimeAsync(151);
+    expect(JSON.stringify(views.at(-1).lines)).not.toBe(first);
   });
   it("rejects excessive PNG dimensions before invoking decoder", async () => {
     tmp = await mkdtemp(join(tmpdir(), "mascot-"));
@@ -181,7 +183,8 @@ describe("replaceable mascot", () => {
   it("is static headless, animates only when visible, pauses, persists and disposes", async () => {
     const { $, views, writes } = await setup();
     expect(views).toHaveLength(1);
-    expect(views[0].raster).toBeDefined();
+    expect(views[0].attachment).toMatchObject({site:"composer",width:16,label:"Ready"});
+    expect(views[0].raster).toBeUndefined();
     vi.useFakeTimers();
     await vi.advanceTimersByTimeAsync(500);
     expect(views).toHaveLength(1);
@@ -189,9 +192,9 @@ describe("replaceable mascot", () => {
       { site: "plugin:mascot/companion", attached: true, visible: true },
       $
     );
-    const first = views.at(-1).raster.rgba;
-    await vi.advanceTimersByTimeAsync(181);
-    expect(views.at(-1).raster.rgba).not.toBe(first);
+    const first = JSON.stringify(views.at(-1).lines);
+    await vi.advanceTimersByTimeAsync(251);
+    expect(JSON.stringify(views.at(-1).lines)).not.toBe(first);
     await hooks["prompt.submit"]({ text: "/mascot pause" }, $);
     expect(writes.at(-1)[1]).toContain('"paused": true');
     const count = views.length;
@@ -211,6 +214,16 @@ describe("replaceable mascot", () => {
     expect(views).toHaveLength(hidden);
     dispose();
     expect(vi.getTimerCount()).toBe(0);
+  });
+  it.each(["compact","no-color","dumb"])("keeps %s motion static while still reporting activity",async mode=>{
+    if(mode==="no-color")vi.stubEnv("NO_COLOR","1");
+    if(mode==="dumb")vi.stubEnv("TERM","dumb");
+    const {$,views}=await setup();vi.useFakeTimers();
+    await hooks["ui.visibility"]({site:"plugin:mascot/companion",attached:true,visible:true,rows:mode==="compact"?1:4},$);
+    const count=views.length;await vi.advanceTimersByTimeAsync(1000);expect(views.length).toBe(count);
+    await hooks["tool.call"]({tool:"grep",callId:"reading"},$);
+    expect(views.at(-1).attachment.label).toBe("Searching");
+    const updated=views.length;await vi.advanceTimersByTimeAsync(1000);expect(views.length).toBe(updated);
   });
   it("closed panes stay closed until explicitly reopened; unrelated commands do nothing", async () => {
     const { $, views } = await setup();
@@ -242,7 +255,7 @@ describe("mascot extension contracts", () => {
       new AnimationPack(tmp, { pack: defaultPack }).load("idle")
     ).rejects.toThrow("inside the project");
   });
-  it("reloads saved settings and degrades missing packs to text", async () => {
+  it("reloads saved settings and reports legacy pack configuration", async () => {
     const { $, views, notifications } = await setup();
     $.fs.read.mockImplementation(async () =>
       JSON.stringify({ enabled: false, paused: true })

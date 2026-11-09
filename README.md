@@ -51,14 +51,14 @@ archived sessions. History is scoped to the current project's saved sessions.
 Start directly in the picker with `compositor --resume` or `compositor --history`.
 `compositor --resume <id>` and `/resume <id>` still open a known session directly.
 
-## Ghost graphics
+## Wisp Soul companion
 
-The default companion keeps the original APNG frames at 228×228. Terminals that
-answer the Kitty graphics query display pixel graphics with transparency;
-other terminals use the portable character renderer. The mechanism is shared
-with other UI plugins and remains replaceable. `AGENT_GRAPHICS=off` selects the
-portable mode. See [Ghost configuration](plugins/mascot/README.md) for animation
-packs, source-transparency repair and terminal support.
+The optional default mascot is a Unicode animation attached to the message
+composer. It reacts to work and dialogs without creating a separate window.
+Narrow terminals retain a compact status. Use `/mascot off`, `/mascot pause` or
+`/mascot resume`; preferences persist. Other plugins can replace it through the
+shared composer attachment contract. See [Wisp configuration](plugins/mascot/README.md).
+Generic raster graphics remain available to UI plugins that need images.
 
 ## Tech stack
 

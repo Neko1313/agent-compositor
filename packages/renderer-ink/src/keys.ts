@@ -26,6 +26,7 @@ export function mapKey(input: string, key: Key): InputData | undefined {
   if (key.meta) modifiers.push("meta");
   if (key.shift || (key.meta && /^[A-Z]$/.test(input))) modifiers.push("shift");
 
+  if(input==="\n")return {kind:"key",key:"j",modifiers:["ctrl"]};
   if (key.return) return { kind: "key", key: "enter", modifiers };
   if (key.escape) return { kind: "key", key: "escape", modifiers };
   if (key.backspace) return { kind: "key", key: "backspace", modifiers };
@@ -50,7 +51,8 @@ export function mapInputs(input:string,key:Key):InputData[] {
   if(!key.ctrl&&!key.meta&&!key.escape&&/[\t\r\n\x01\x15\x7f]/.test(input)&&input.length>1){
     return input.split(/([\t\r\n\x01\x15\x7f])/).filter(Boolean).flatMap((part):InputData[]=>{
       if(part==='\t')return[{kind:'key' as const,key:'tab'}];
-      if(part==='\r'||part==='\n')return[{kind:'key' as const,key:'enter'}];
+      if(part==='\r')return[{kind:'key' as const,key:'enter'}];
+      if(part==='\n')return[{kind:'key' as const,key:'j',modifiers:['ctrl']}];
       if(part==='\x01'||part==='\x15')return[{kind:'key' as const,key:part==='\x01'?'a':'u',modifiers:['ctrl']}];
       if(part==='\x7f')return[{kind:'key' as const,key:'backspace'}];
       return[{kind:'text' as const,text:part}];

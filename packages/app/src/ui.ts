@@ -1115,7 +1115,6 @@ export class AppUI {
     return wrap(text, columns);
   }
   private updatePointer(): void {
-    if (!this.pointerSupported) return;
     const mouse = this.lastMouse;
     this.hoveredTitle = undefined;
     let shape: Extract<WireMessage, { type: "pointer" }>["shape"] = "default";
@@ -1171,9 +1170,10 @@ export class AppUI {
             this.columns,
             this.rows - dock
           );
-          if (split)
-            shape =
-              split.node.axis === "horizontal" ? "ew-resize" : "ns-resize";
+          if (split) {
+            this.hoveredTitle=this.windows.frames(this.columns,this.rows-dock).filter(f=>col>=f.x-1&&col<=f.x+f.width&&row>=f.y-1&&row<=f.y+f.height).map(f=>f.surface).join("\0");
+            shape = split.node.axis === "horizontal" ? "ew-resize" : "ns-resize";
+          }
           else {
             const frame = this.windows
               .frames(this.columns, this.rows - dock)
@@ -1203,7 +1203,7 @@ export class AppUI {
         }
       }
     }
-    if (shape !== this.pointer) {
+    if (this.pointerSupported && shape !== this.pointer) {
       this.pointer = shape;
       this.sink?.({ type: "pointer", shape });
     }
@@ -1598,7 +1598,7 @@ export class AppUI {
           ...frame,
           chrome,
           controls: this.windows.ids().includes(frame.surface),
-          hovered: this.hoveredTitle === frame.surface,
+          hovered: this.hoveredTitle?.split("\0").includes(frame.surface) ?? false,
           ...(this.drag?.kind === "move" && this.drag.target === frame.surface
             ? { drop: this.drag.edge }
             : {}),

@@ -14,6 +14,8 @@ export interface OpenAICompatConfig extends TransportConfig {
   promptCaching?: false | "prefix" | "conversation";
   /** Optional stable routing key; sent only when explicitly configured. */
   promptCacheKey?: string;
+  promptCacheRetention?: "in_memory" | "24h";
+  promptCacheOptions?: {mode?:"implicit"|"explicit";ttl?:"30m"|"12h"};
   /** e.g. https://api.openai.com/v1 — the /chat/completions suffix is appended */
   baseUrl: string;
   apiKey: string;
@@ -42,7 +44,7 @@ interface StreamPayload {
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
-    prompt_tokens_details?: { cached_tokens?: number };
+    prompt_tokens_details?: { cached_tokens?: number; cache_write_tokens?:number };
   };
   error?: { message?: string };
 }
@@ -134,6 +136,7 @@ export class OpenAICompatProvider implements ModelProvider {
             outputTokens: payload.usage.completion_tokens ?? 0,
             cachedInputTokens:
               payload.usage.prompt_tokens_details?.cached_tokens,
+            ...(payload.usage.prompt_tokens_details?.cache_write_tokens ? {cacheWriteInputTokens:payload.usage.prompt_tokens_details.cache_write_tokens}:{}),
           };
         }
 
@@ -192,6 +195,7 @@ export class OpenAICompatProvider implements ModelProvider {
       {
         model,
         stream: true,
+        ...(this.config.promptCacheRetention && this.config.promptCaching!==false ? {prompt_cache_retention:this.config.promptCacheRetention}:{}),
         ...(this.config.promptCacheKey && this.config.promptCaching !== false ? {prompt_cache_key:this.config.promptCacheKey} : {}),
         stream_options: { include_usage: true },
         ...(req.maxOutputTokens ?? this.config.maxOutputTokens

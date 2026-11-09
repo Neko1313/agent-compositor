@@ -109,3 +109,14 @@ describe("RendererApp", () => {
     app.unmount();
   });
 });
+
+it('keeps styled spans in one constrained text row after a narrow layout',()=>{
+  const store=new RendererStore();const app=render(<RendererApp store={store} onKey={()=>{}} />);
+  act(()=>{
+    store.apply({type:'declare',surfaces:[{id:'session',kind:'pane',title:'Conversation'}]});
+    store.apply({type:'layout',width:60,height:20,frames:[{surface:'session',x:0,y:0,width:30,height:18}]});
+    store.apply({type:'render',surface:'session',mode:'full',flush:true,grid:[Array.from('Markdown verified',ch=>({ch,bold:true,fg:'#8fc7dd'})),[...Array.from('Bold text',ch=>({ch,bold:true})),...Array.from(' and italic',ch=>({ch,italic:true}))]]});
+  });
+  const frame=app.lastFrame()!.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'');
+  expect(frame).toContain('Markdown verified');expect(frame).toContain('Bold text and italic');app.unmount();
+});

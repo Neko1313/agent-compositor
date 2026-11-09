@@ -210,3 +210,24 @@ describe("cache wire contracts",()=>{
     const events=await collect(provider);expect(f.captured().body.prompt_cache_key).toBe("stable-project-prefix");expect(events).toContainEqual({type:"usage",inputTokens:100,outputTokens:1,cachedInputTokens:80});
   });
 });
+
+it('accounts Gemini implicit cache reads and thinking output without creating cache resources',async()=>{
+  const f=await fixture([{candidates:[{content:{parts:[{text:'answer'}]},finishReason:'STOP'}],usageMetadata:{promptTokenCount:1000,cachedContentTokenCount:800,candidatesTokenCount:20,thoughtsTokenCount:30}}]);
+  const events=await collect(new NativeProvider({type:'gemini',baseUrl:f.url,apiKey:'fixture',model:'gemini-fixture'}));
+  expect(events).toContainEqual({type:'usage',inputTokens:1000,outputTokens:50,cachedInputTokens:800});
+  expect(f.captured().body.cachedContent).toBeUndefined();expect(f.captured().body.systemInstruction).toBeDefined();
+});
+it('supports explicit Responses cache options and separates cache-write usage',async()=>{
+  const f=await fixture([{type:'response.completed',response:{usage:{input_tokens:1000,output_tokens:10,input_tokens_details:{cached_tokens:600,cache_write_tokens:300}}}}]);
+  const events=await collect(new NativeProvider({type:'openai-responses',baseUrl:f.url,apiKey:'fixture',model:'configured-model',promptCacheOptions:{mode:'implicit',ttl:'30m'}}));
+  expect(f.captured().body.prompt_cache_options).toEqual({mode:'implicit',ttl:'30m'});
+  expect(events).toContainEqual({type:'usage',inputTokens:1000,outputTokens:10,cachedInputTokens:600,cacheWriteInputTokens:300});
+});
+
+it('marks the stable Responses system prefix when explicit caching is configured',async()=>{
+  const f=await fixture([{type:'response.completed',response:{usage:{input_tokens:10,output_tokens:1}}}]);
+  const provider=new NativeProvider({type:'openai-responses',baseUrl:f.url,apiKey:'fixture',model:'configured-model',promptCacheOptions:{mode:'explicit',ttl:'30m'}});
+  const run=async(r:CompletionRequest)=>{for await(const _ of provider.complete(r)){}return structuredClone(f.captured().body);};
+  const first=await run(request());const secondRequest=request();secondRequest.messages[1].content='different task';const second=await run(secondRequest);
+  expect(first.input[0].content[0].prompt_cache_breakpoint).toEqual({mode:'explicit'});expect(first.input[0]).toEqual(second.input[0]);expect(second.input[1].content[0].prompt_cache_breakpoint).toBeUndefined();
+});

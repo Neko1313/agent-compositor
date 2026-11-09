@@ -1,3 +1,4 @@
+import {markdownRows} from "./markdown.js";
 import type { UiAppearance, UiTextView } from "@agent-compositor/events";
 import type { RenderMessage } from "@agent-compositor/protocol";
 
@@ -102,6 +103,8 @@ export function textRows(
     });
 }
 
+const markdownCache=new WeakMap<TranscriptBlock,{text:string;columns:number;theme:Appearance;rows:Row[]}>();
+
 export function transcriptRows(
   blocks: TranscriptBlock[],
   columns: number,
@@ -137,27 +140,9 @@ export function transcriptRows(
         tone: block.kind === "user" ? "accent" : "muted",
         bold: true,
       });
-      let code = false;
-      for (const line of clean(block.text).split("\n")) {
-        if (/^\s*```/.test(line)) {
-          code = !code;
-          rows.push({
-            text: code ? `── ${line.trim().slice(3) || "code"}` : "──",
-            tone: "muted",
-          });
-          continue;
-        }
-        const heading = !code && /^#{1,6}\s+/.test(line);
-        rows.push(
-          ...wrap(heading ? line.replace(/^#{1,6}\s+/, "") : line, columns).map(
-            (text) => ({
-              text,
-              tone: code ? ("accent" as const) : ("text" as const),
-              ...(heading ? { bold: true } : {}),
-            })
-          )
-        );
-      }
+      let cached=markdownCache.get(block);
+      if(!cached||cached.text!==block.text||cached.columns!==columns||cached.theme!==theme){cached={text:block.text,columns,theme,rows:markdownRows(clean(block.text),columns,theme)};markdownCache.set(block,cached);}
+      rows.push(...cached.rows);
     }
   }
   return rows;

@@ -16,6 +16,8 @@ export interface NativeConfig extends TransportConfig {
   headers?: Record<string, string>;
   reasoningEffort?: string;
   promptCacheKey?: string;
+  promptCacheRetention?: "in_memory" | "24h";
+  promptCacheOptions?: {mode?:"implicit"|"explicit";ttl?:"30m"|"12h"};
   promptCaching?: false | "prefix" | "conversation";
 }
 const json = (s: string): unknown => JSON.parse(s);
@@ -177,17 +179,21 @@ export class NativeProvider implements ModelProvider {
         ""
       )}/responses`;
       headers = { authorization: `Bearer ${c.apiKey}`, ...c.headers };
+      let stableSystemEnd=-1;
+      for(let i=0;i<request.messages.length&&request.messages[i].role==="system";i++)stableSystemEnd=i;
+      if(c.promptCaching!==false&&c.promptCacheOptions?.mode==="explicit"&&stableSystemEnd<0)throw Error("Explicit prompt caching requires leading stable system instructions");
       body = {
         model,
         stream: true,
         store: false,
+        ...(c.promptCaching!==false ? (c.promptCacheOptions ? {prompt_cache_options:c.promptCacheOptions} : c.promptCacheRetention ? {prompt_cache_retention:c.promptCacheRetention}:{}):{}),
         ...(c.promptCacheKey && c.promptCaching !== false ? {prompt_cache_key:c.promptCacheKey} : {}),
         include: ["reasoning.encrypted_content"],
         max_output_tokens: request.maxOutputTokens ?? c.maxOutputTokens ?? 8192,
         ...(c.reasoningEffort
           ? { reasoning: { effort: c.reasoningEffort } }
           : {}),
-        input: request.messages.flatMap((m) =>
+        input: request.messages.flatMap((m,index) =>
           m.role === "tool"
             ? [
                 {
@@ -209,6 +215,7 @@ export class NativeProvider implements ModelProvider {
                                 ? "output_text"
                                 : "input_text",
                             text: m.content,
+                            ...(c.promptCaching!==false&&c.promptCacheOptions&&index===stableSystemEnd ? {prompt_cache_breakpoint:{mode:"explicit"}}:{}),
                           },
                           ...imageParts(m, c.type),
                         ],
@@ -344,7 +351,7 @@ export class NativeProvider implements ModelProvider {
             throw new Error(`Gemini stopped: ${candidate.finishReason}`);
           if (e.usageMetadata) reportedUsage = true;
           input = e.usageMetadata?.promptTokenCount ?? input;
-          output = e.usageMetadata?.candidatesTokenCount ?? output;
+          output = e.usageMetadata ? (e.usageMetadata.candidatesTokenCount??0)+(e.usageMetadata.thoughtsTokenCount??0) : output;
           cached = e.usageMetadata?.cachedContentTokenCount ?? cached;
         } else {
           if (e.type === "response.output_text.delta")
@@ -375,6 +382,7 @@ export class NativeProvider implements ModelProvider {
             input = e.response.usage?.input_tokens ?? 0;
             output = e.response.usage?.output_tokens ?? 0;
             cached = e.response.usage?.input_tokens_details?.cached_tokens ?? 0;
+            cacheWrite=e.response.usage?.input_tokens_details?.cache_write_tokens??0;
             if (e.type === "response.incomplete") finish = "length";
           }
           if (e.type === "response.failed")
@@ -388,7 +396,7 @@ export class NativeProvider implements ModelProvider {
           inputTokens: input,
           outputTokens: output,
           cachedInputTokens: cached,
-          ...(c.type === "anthropic" ? {cacheWriteInputTokens:cacheWrite} : {}),
+          ...(c.type === "anthropic" || cacheWrite ? {cacheWriteInputTokens:cacheWrite} : {}),
         };
       if (!completed)
         throw new Error("Provider stream ended before completion");

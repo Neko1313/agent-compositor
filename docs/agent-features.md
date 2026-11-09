@@ -336,3 +336,62 @@ and dangerous command effects still require manual approval. Read-only
 Manual dialogs include the concrete review fallback reason. `/auto status`
 shows the review history; missing reviewer profiles and exhausted review budgets
 are configuration failures, not a reason to use the active expensive model.
+
+## Read/search shell permissions and terminal rendering
+
+The original builtin `exec` now classifies a deliberately limited read-only
+shell subset before permissions run. Project-local `ls`, `grep`, `rg`, `pwd`,
+`cat`, `head`, `tail`, `wc` and `stat` with supported flags can run without a
+review model or manual approval. Pipelines and chains must consist entirely of
+recognized commands. Executables must resolve to standard `/usr/bin` or `/bin`
+programs; paths/cwd are checked against the project, including symlink targets.
+Redirects, substitutions, jobs, unknown flags, executable filters (`rg --pre`),
+recursive symlink following, shadow binaries and caller environment overrides
+remain approval-requiring. Literal glob expansion is intentionally unsupported;
+use the dedicated `glob` tool instead. This classification is not an OS sandbox.
+
+Rules can match `readOnly: true`; an explicit exec ask/deny still wins over the
+builtin default allow. Custom exec implementations receive no automatic trust
+from their tool name. Plan mode accepts verified read-only exec calls and keeps
+mutations denied. Prefer narrow native search/read tools when they avoid large
+shell output, even when a shell read no longer needs confirmation.
+
+Assistant Markdown is parsed before wrapping. The default view supports inline
+strong/emphasis/code/links, headings, nested lists/tasks, quotes, GFM tables and
+fenced code, including partial streaming input. Raw HTML is not executed and
+images are not downloaded. Parsed historical blocks are cached by text, width
+and theme; code remains literal. Plugins can still replace the conversation via
+`ui.render`. Styled spans share a constrained Ink text row, avoiding independent
+layout shrink during terminal resize. Ctrl+J/LF stays a draft newline even when
+coalesced with text; Enter/CR submits, and bracketed paste stays separate.
+
+Native mouse pointers depend on terminal support for OSC 22. GNOME Terminal/VTE
+does not implement it; hover title/border highlighting and controls work without
+Pointer capability. Known compatible terminals advertise it; unknown terminals
+and multiplexers fall back. `AGENT_POINTER=on|off|x11` explicitly overrides the
+conservative auto detection (on emits CSS names; x11 uses legacy xterm names).
+Forcing on does not add support to VTE. The browser bench emulates OSC 22, which
+is why its hand/resize cursor can differ from GNOME Terminal. See
+[terminal compatibility](https://ghostty.org/docs/vt/osc/22).
+
+### OpenAI and Google cache paths
+
+Caching is provider-specific; it was not limited to Anthropic. OpenAI's automatic
+prefix cache and Gemini's implicit cache already reported cached-input usage.
+Stable tool order/instructions help both paths without creating remote objects.
+
+OpenAI Responses optionally accepts `promptCacheOptions` (mode `implicit` or
+`explicit`, TTL `30m` or `12h`) for models supporting the current API. A stable leading system-prefix breakpoint
+is included; explicit-only mode requires that prefix. Earlier
+models and compatible Chat APIs can instead use `promptCacheRetention`
+(`in_memory` or `24h`). Options are sent only when configured; unsupported models
+may reject them. `promptCacheKey` remains optional. Responses/Chat cache-write
+counters are now separate from reads when the provider reports them. Choose
+write prices for the actual model/TTL. See [OpenAI's cache documentation](https://developers.openai.com/api/docs/guides/prompt-caching).
+
+Gemini implicit caching is automatic on supported models; hit counts come from
+`usageMetadata.cachedContentTokenCount`. Output accounting includes both
+candidate and thinking tokens. This integration does not create/manage explicit
+Google cache resources or incur their storage fees automatically. That is a
+separate lifecycle API, not an Anthropic `cache_control` parameter. See
+[Google context caching](https://ai.google.dev/gemini-api/docs/caching).

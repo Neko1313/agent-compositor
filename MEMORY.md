@@ -579,3 +579,56 @@ tool evals passed 3/3; live Ollama tool episodes passed 6/6 as qualified above.
 The rebuilt Linux x64 archive passed installer/checksum/default-plugin/model,
 background workflow, bundled Callix and guarded editing smoke. Main CI now runs
 and preserves the scripted tool-use report. No release tag was published.
+
+## Local read commands, Markdown and GNOME Terminal behavior
+
+The user reported unnecessary approvals for grep/ls, absent native cursor
+changes, browser/native appearance differences, missing model Markdown, and
+asked about OpenAI/Google caching. They identified GNOME Terminal as their host.
+
+Builtin exec now classifies a restricted POSIX read/search subset using verified
+standard executables, project/cwd/symlink checks, allowed flags and tokenized
+pipelines/chains. Unsupported syntax, redirects, substitutions, executable
+filters, shadow binaries, env overrides and external paths remain approval-
+requiring. A readOnly descriptor/rule match allows the default without a reviewer;
+explicit ask/deny and custom exec implementations are preserved. Plan mode
+permits verified reads. This is a permission convenience, not an OS sandbox.
+
+Default assistant Markdown uses Marked/GFM tokens before styled wrapping:
+headings, emphasis, lists/tasks, quotes, links, tables and literal fenced code.
+Control sanitization remains; HTML is not executed and images are not fetched.
+Historical blocks cache by text/width/theme. Plugins still replace ui.render.
+A constrained single Ink Text row holds all styled spans so narrow resize does
+not independently shrink segments into clipped words. Ctrl+J/LF is distinct
+from Enter/CR even in coalesced typed input; paste keeps its separate channel.
+
+VTE/GNOME Terminal lacks OSC 22 support. Native cursor shape cannot be changed
+there by this protocol; no false Pointer capability is advertised. Title/border
+hover highlighting works independently, including separator feedback. Known
+Kitty/Ghostty/Foot environments use OSC 22; conservative unknown/multiplexer
+fallback and AGENT_POINTER=on|off|x11 overrides exist. The browser bench explicitly
+emulates OSC 22; that is not proof of native support or equal GTK font rendering.
+
+OpenAI/Gemini cached-input usage existed before this task. OpenAI Responses now
+has opt-in promptCacheOptions (mode/TTL); older APIs can use promptCacheRetention.
+Cache-write usage is accounted separately when reported, including compatible
+Chat endpoints. Gemini implicit caching remains provider-owned; thinking tokens
+now count toward output usage. No explicit Google cache objects are created or
+managed, and no external cache-storage fees are enabled automatically. See
+provider-specific contracts in docs/agent-features.md, with official sources.
+
+New npm run visual:presentation uses the real PTY and a token-scoped loopback
+model fixture, with OSC 22 disabled. It captures Markdown, styled cells, literal
+code, native-independent hover, resize and source/compiled app behavior. Actual
+GNOME Terminal/GTK is not installed in this environment; browser captures verify
+the emitted terminal output and fallback rather than native pointer support.
+
+Final checks: 447 passed and three optional native tests skipped in 55 files,
+line coverage 82.18%; explicit native Callix suite 25/25. Typecheck, catalog
+validation, generated-contract sync, scripted tool evals and diff checks passed.
+The complete real-PTY interaction scenario passed under dist/visual-terminal-verified.
+Focused source screenshots were inspected under dist/visual-presentation-width;
+compiled screenshots/report are dist/visual-presentation-binary-final (including
+hover without OSC 22). Narrow styled rows remain readable after resize. The
+rebuilt Linux x64 installer/default-plugin/model/workflow/Callix/edit smoke passed.
+No new release tag/publication was requested.

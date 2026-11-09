@@ -35,7 +35,8 @@
     "test:callix": "node tools/evals/callix-test.mjs",
     "eval:navigation": "bun tools/evals/navigation-bench.ts",
     "eval:navigation:live": "bun tools/evals/navigation-live.ts",
-    "eval:tools": "bun tools/evals/run.ts --suite tools/evals/tool-cases.json"
+    "eval:tools": "bun tools/evals/run.ts --suite tools/evals/tool-cases.json",
+    "visual:presentation": "node tools/visual/presentation-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

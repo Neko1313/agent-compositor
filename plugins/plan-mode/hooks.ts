@@ -16,8 +16,9 @@ export default {
       return { text: event.text + REMINDER };
     }
   },
-  "tool.check": (event: { tool: string; input?: unknown }, $: any) => {
+  "tool.check": (event: { tool: string; input?: unknown; isReadOnly?:boolean }, $: any) => {
     if (!$.state.get("planning")) return;
+    if(event.tool==="exec"&&event.isReadOnly)return;
     if (WRITE_TOOLS.has(event.tool)) {
       return { decision: "deny", reason: "plan mode is active — send /plan to exit planning and allow writes" };
     }

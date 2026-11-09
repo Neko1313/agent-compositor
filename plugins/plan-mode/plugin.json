@@ -1,6 +1,6 @@
 {
   "name": "plan-mode",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Plan mode (Claude Code /plan analog): toggle with /plan \u2014 the model gets a read-only reminder, every write/exec call is denied until you toggle it off. Drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [

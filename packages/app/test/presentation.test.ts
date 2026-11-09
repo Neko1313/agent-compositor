@@ -86,3 +86,16 @@ describe("pluggable presentation", () => {
     expect(transcriptRows(blocks, 80, appearanceFrom([{ presentation: { toolDetails: true } }])).map(r => r.text).join("\n")).toContain('"path"');
   });
 });
+
+it('parses Markdown before wrapping and preserves emphasis, lists, quotes, links and literal code',()=>{
+  const theme=appearanceFrom([]),render=(text:string,width=22)=>transcriptRows([{kind:'assistant',text}],width,theme);
+  const rows=render('## Heading\n\n**A long bold phrase that crosses the viewport boundary**\n\n*italic* [docs](https://example.com)\n\n- first\n- second\n\n> quoted\n\n```ts\nconst s = "**literal**";\n```');
+  const body=rows.map(r=>r.text).join('\n');expect(body).not.toContain('##');expect(body).not.toContain('**A long');expect(body).toContain('• first');expect(body).toContain('│ quoted');expect(body).toContain('**literal**');
+  expect(rows.filter(r=>r.cells?.some(c=>c.ch==='A')).some(r=>r.cells?.find(c=>c.ch==='A')?.bold)).toBe(true);
+  expect(rows.some(r=>r.cells?.some(c=>c.italic))).toBe(true);expect(rows.some(r=>r.cells?.some(c=>c.underline))).toBe(true);
+  expect(render('**partial stream').map(r=>r.text).join('')).toContain('partial stream');
+});
+it('renders tables within a narrow viewport and sanitizes control sequences in Markdown',()=>{
+  const rows=transcriptRows([{kind:'assistant',text:'| Name | Result |\n| --- | --- |\n| module | **passed** |\n\nText \x1b]22;pointer\x07 safe'}],24,appearanceFrom([]));
+  const body=rows.map(r=>r.text).join('\n');expect(body).toContain('Name');expect(body).toContain('passed');expect(body).not.toContain('**');expect(body).not.toContain('\x1b');expect(rows.every(r=>Array.from(r.text).length<=24)).toBe(true);
+});

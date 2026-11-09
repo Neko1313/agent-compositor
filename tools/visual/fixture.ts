@@ -1,3 +1,4 @@
+import {markdownSample} from "./markdown-sample.js";
 import { buildApp } from "../../packages/app/src/build.js";
 import { runTui } from "../../packages/app/src/tui.js";
 import { ScriptedProvider } from "../../packages/core/src/provider.js";
@@ -11,7 +12,7 @@ const proofProvider={name:"harness-proof",async *complete(req:any){
 const app = await buildApp({
   pluginDirs: [new URL('../../plugins',import.meta.url).pathname,...(process.env.VISUAL_HARNESS?[new URL('./harness-plugin',import.meta.url).pathname]:[])],
   cwd: process.argv[2], env: { HOME: process.argv[2], XDG_CONFIG_HOME: `${process.argv[2]}/xdg` },
-  provider: process.env.VISUAL_HARNESS?proofProvider:new ScriptedProvider([
+  provider: process.env.VISUAL_MARKDOWN ? new ScriptedProvider([{text:markdownSample}]):process.env.VISUAL_HARNESS?proofProvider:new ScriptedProvider([
     { text: "I will update the project task list.", toolCalls: [{ name: "todo", args: { todos: [
       { content: "Inspect project", status: "completed" },
       { content: "Build interactive UI", status: "in_progress" },

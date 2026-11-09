@@ -20,14 +20,14 @@ function styleProps(style: Omit<StyledCell, "ch">) {
   };
 }
 
-function SegmentRow({ segments, height }: { segments: Segment[]; height: number }) {
+function SegmentRow({ segments, height, width }: { segments: Segment[]; height: number; width?:number }) {
   return (
-    <Box flexDirection="row" height={height}>
-      {segments.map((s, i) => (
-        <Text key={i} {...styleProps(s.style)}>
-          {s.text}
-        </Text>
-      ))}
+    <Box height={height} width={width}>
+      <Text wrap="truncate-end">
+        {segments.map((s, i) => (
+          <Text key={i} {...styleProps(s.style)}>{s.text}</Text>
+        ))}
+      </Text>
     </Box>
   );
 }
@@ -52,10 +52,10 @@ function SurfaceView({
     <Box
       flexDirection="column" width={width} height={height} overflow="hidden"
       borderStyle={isBar ? undefined : chrome?.borderStyle ?? "single"}
-      borderColor={drop ? chrome?.warning ?? "yellow" : focused ? chrome?.accent ?? "cyan" : chrome?.border ?? "gray"}
+      borderColor={drop ? chrome?.warning ?? "yellow" : focused || hovered ? chrome?.accent ?? "cyan" : chrome?.border ?? "gray"}
     >
       {!isBar && decl.title ? <Box height={1} flexDirection="row">
-        <Box flexGrow={1} flexShrink={1} overflow="hidden"><Text bold={focused} color={focused ? chrome?.accent : chrome?.muted}
+        <Box flexGrow={1} flexShrink={1} overflow="hidden"><Text bold={focused || hovered} color={focused || hovered ? chrome?.accent : chrome?.muted}
           backgroundColor={chrome?.titleBackground} wrap="truncate">{` ${drop ? `Drop ${drop === "center" ? "to swap" : drop} · ${decl.title}` : decl.title}`.padEnd(Math.max(0, (width ?? 0) - (controls ? 8 : 2)))}</Text></Box>
         {controls && (width ?? 0) >= 14 ? <Text color={focused ? chrome?.accent ?? "cyan" : chrome?.muted ?? "gray"}
           backgroundColor={chrome?.titleBackground}>{focused || hovered || chrome?.controls !== "focus" ? "[F][x]" : "      "}</Text> : null}
@@ -66,6 +66,7 @@ function SurfaceView({
           key={row}
           segments={grid.segments(row, grid.cursor)}
           height={1}
+          width={width ? Math.max(1,width-(isBar?0:decl.id==="plugin-placement"?2:4)) : undefined}
         />
       ))}
       </Box>

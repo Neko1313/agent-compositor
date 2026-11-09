@@ -1,4 +1,5 @@
 import { TerminalGraphics, type GraphicsMode } from "./graphics.js";
+import {pointerControl,type PointerMode,type PointerShape} from "./pointer.js";
 import { mouseInput } from "./mouse.js";
 import { render } from "ink";
 import React from "react";
@@ -83,14 +84,15 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     opts.send({ type: "input", surface: store.state.focused ?? "input", data });
   }, (control, payload) => graphics.response(control, payload)) : undefined;
   if (mouseEnabled) stdout.write("\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h");
-  let pointer: string | undefined;
+  const pointerTerminal=pointerControl(process.env,(["on","off","x11"].includes(process.env.AGENT_POINTER??"")?process.env.AGENT_POINTER:"auto") as PointerMode);
+  let pointer: PointerShape | undefined;
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return; cleaned = true;
     process.off("exit", cleanup);
     graphics.dispose();
     mouse?.dispose();
-    if (mouseEnabled) stdout.write("\x1b]22;\x1b\\\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1049l");
+    if (mouseEnabled) stdout.write(pointerTerminal.sequence("default") + "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1049l");
   };
 
   if (mouseEnabled) process.once("exit", cleanup);
@@ -137,6 +139,7 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
       store.state.nativeImages = true;
       localHello.capabilities.elements = [...new Set([...localHello.capabilities.elements, 'Raster'])];
     }
+    if(!mouseEnabled||!pointerTerminal.supported)localHello.capabilities.elements=localHello.capabilities.elements.filter(e=>e!=="Pointer");
     opts.send(localHello);
     for await (const msg of opts.source) {
       if (msg.type === "hello") {
@@ -151,7 +154,7 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
       }
       if (msg.type === "pointer") {
         if (mouseEnabled && pointer !== msg.shape) {
-          stdout.write(`\x1b]22;${msg.shape}\x1b\\`);
+          stdout.write(pointerTerminal.sequence(msg.shape));
           pointer = msg.shape;
         }
         continue;

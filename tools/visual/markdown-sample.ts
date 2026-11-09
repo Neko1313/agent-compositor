@@ -1,0 +1,1 @@
+export const markdownSample = '# Markdown verified\n\n**Bold text stays styled across wrapping** and *italic text*.\n\n- First item\n- Second item\n\n| Component | Result |\n| --- | --- |\n| Markdown | **passed** |\n| Hover | visible |\n\n> Quoted evidence\n\n```ts\nconst value = "**literal**";\n```';

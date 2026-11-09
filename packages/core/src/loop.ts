@@ -24,6 +24,8 @@ import {
 import {
   builtinTools,
   createToolHelp,
+  execTool,
+  isReadOnlyShell,
   builtinToolRules,
   registerDefaultResolvers,
   UndoStore,
@@ -1208,13 +1210,14 @@ export class AgentCore {
         const descriptor = spec.describe(args);
         if (descriptor.path && typeof (args as any).path === "string")
           descriptor.path = resolvePath(this.options.cwd, (args as any).path);
+        if(spec===execTool)descriptor.readOnly=!(args as any).env&&!(args as any).background&&await isReadOnlyShell((args as any).command,(args as any).cwd??this.options.cwd,this.options.cwd,{...process.env,...this.options.toolEnv?.()});
         let decision = evaluate(descriptor, this.compiledRules, this.approvals);
         let overrideReason: string | undefined;
         const checkRes = await this.emit("tool.check", {
           tool: call.name,
           input: args,
           callId: call.id,
-          isReadOnly: call.name === "read",
+          isReadOnly: call.name === "read" || descriptor.readOnly === true,
         });
         if (
           checkRes &&

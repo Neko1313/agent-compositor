@@ -5,6 +5,7 @@ export type Decision = "allow" | "ask" | "deny";
 /** A tool call reduced to the dimensions rules can match on. */
 export interface ToolCallDescriptor {
   tool: string;
+  readOnly?: boolean;
   /** argv for exec-like tools */
   command?: string[];
   /** resolved absolute path for fs tools */
@@ -17,6 +18,7 @@ export interface PermissionRule {
   /** tool name or "*" (default) */
   tool?: string;
   decision: Decision;
+  readOnly?: boolean;
   reason?: string;
   /** glob over the joined command line, e.g. "git *" or "npm run *" */
   command?: string;
@@ -89,6 +91,7 @@ function specificity(rule: CompiledRule): number {
 
 function ruleMatches(rule: CompiledRule, call: ToolCallDescriptor): boolean {
   if (rule.tool !== "*" && rule.tool !== call.tool) return false;
+  if(rule.readOnly!==undefined&&rule.readOnly!==call.readOnly)return false;
 
   // an exec rule needs a command to match against
   if (rule.command !== undefined) {

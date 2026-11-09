@@ -23,7 +23,7 @@ export const ConfigSchema = z
     small_model: z.string().optional(),
     providers: z.record(z.string(), z.unknown()).optional(),
     permissions: z.object({ rules: z.array(z.object({
-      tool: z.string().optional(), decision: z.enum(["allow", "ask", "deny"]),
+      readOnly:z.boolean().optional(), tool: z.string().optional(), decision: z.enum(["allow", "ask", "deny"]),
       command: z.string().optional(), executable: z.string().optional(), path: z.string().optional(),
       url: z.string().optional(), reason: z.string().optional(),
     })).optional() }).passthrough().optional(),

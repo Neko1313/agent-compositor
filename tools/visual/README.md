@@ -116,3 +116,20 @@ scenario inspects stage detail, restarts the application, verifies persisted
 completion and submits foreground input with the context indicator visible.
 It does not use live credentials. Artifacts default to `dist/visual-workflows/`.
 The fixture plugin is outside shipped plugin directories.
+
+### Markdown and native pointer fallback
+
+`npm run visual:presentation` exercises a real PTY with a Markdown response,
+checks heading/emphasis/list/table/quote/code cells, resizes the viewport, and
+captures title hover with OSC 22 explicitly disabled (the GNOME/VTE case).
+`VISUAL_EXECUTABLE` selects the compiled distribution. This scenario supplies a
+loopback, token-scoped model fixture; it uses no external credentials or model.
+Default artifacts are `dist/visual-presentation/`; set `VISUAL_OUTPUT` separately
+for source and binary checks. Inspect the PNGs as well as `report.json`.
+
+The ordinary bench explicitly requests `AGENT_POINTER=on` because it implements
+OSC 22 in JavaScript. Set `VISUAL_POINTER=off` for manual native-fallback checks;
+the standard pointer scenario expects the emulator feature and uses `on`.
+Browser cursor emulation is not native GNOME Terminal support. Actual VTE/GTK
+font rendering is not tested by xterm.js; equal cell dimensions and the same
+built application are necessary before comparing source and installed versions.

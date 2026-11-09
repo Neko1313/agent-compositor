@@ -290,3 +290,14 @@ describe("hover pointer shapes", () => {
     ui.close();
   });
 });
+
+it('keeps hover feedback without Pointer capability (GNOME/VTE fallback)',()=>{
+  const {ui,messages}=setup();
+  ui.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Layout'],encodings:['jsonl']}));
+  const count=messages.filter(m=>m.type==='pointer').length;
+  ui.receive({type:'input',surface:'input',data:{kind:'mouse',button:'other',action:'move',col:65,row:1}});
+  const layout=messages.filter(m=>m.type==='layout').at(-1);
+  expect(layout?.type==='layout'&&layout.frames.some(f=>f.surface==='tools'&&f.hovered)).toBe(true);
+  expect(messages.filter(m=>m.type==='pointer')).toHaveLength(count);
+  expect(ui.windows.focused).toBe('input');ui.close();
+});

@@ -39,3 +39,9 @@ describe("mapKey", () => {
 });
 
 it("preserves typed text and controls coalesced in one stream chunk",()=>{expect(mapInputs("value\t\r",k({}))).toEqual([{kind:"text",text:"value"},{kind:"key",key:"tab"},{kind:"key",key:"enter"}]);expect(mapInputs("",k({tab:true}))).toEqual([{kind:"key",key:"tab",modifiers:[]}]);});
+
+it('keeps Ctrl+J distinct from Enter when LF arrives alone or coalesced with text',()=>{
+  expect(mapInputs('first\nsecond',k({}))).toEqual([{kind:'text',text:'first'},{kind:'key',key:'j',modifiers:['ctrl']},{kind:'text',text:'second'}]);
+  expect(mapKey('\n',k({return:true}))).toEqual({kind:'key',key:'j',modifiers:['ctrl']});
+  expect(mapKey('\r',k({return:true}))).toMatchObject({kind:'key',key:'enter'});
+});

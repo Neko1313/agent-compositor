@@ -724,9 +724,16 @@ reopen the view to reset it. Text edits emit ui.change, navigation/actions use
 ui.press, and generic rendering/placement contracts remain replaceable.
 
 Checks: 491 tests passed, three optional native tests skipped, 60 files; line
-coverage 83.24%. Typecheck, marketplace, generated contracts, scripted evals
+coverage 83.25%. Typecheck, marketplace, generated contracts, scripted evals
 (5+3), proxy smoke, release build and installation smoke passed. visual:history
 passed for source and compiled --resume startup with inspected screenshots;
 the full real-PTY visual:check also passed. Artifacts: dist/visual-history-fixed,
 dist/visual-history-binary-final and dist/visual-history-regression-final. These
 use isolated storage and scripted providers; no native GNOME/live-model claim.
+
+History resilience follow-up: missing rollout files no longer block searching
+other chats; non-event JSON values are ignored for previews/search and retained
+as corrupt records for loss-tolerant replay/fork. Added these cases to the store
+checks. The existing workflow concurrency fixture now gates both workers on an
+explicit barrier rather than assuming a 5 ms sleep overlaps disk scheduling.
+Final full-suite count remains 491 passed / three optional skipped.

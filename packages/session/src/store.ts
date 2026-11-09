@@ -211,11 +211,20 @@ export class SessionStore {
       for await (const line of lines) {
         signal?.throwIfAborted();
         try {
-          yield JSON.parse(line) as SessionEvent;
+          const event = JSON.parse(line);
+          if (
+            event &&
+            typeof event === "object" &&
+            typeof event.type === "string"
+          )
+            yield event as SessionEvent;
         } catch {
           /* Ignore torn legacy records. */
         }
       }
+    } catch (error) {
+      // A stale sidecar must not block finding other conversations.
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     } finally {
       lines.close();
       stream.destroy();
@@ -359,7 +368,10 @@ export class SessionStore {
     for (const line of raw.split("\n")) {
       if (!line.trim()) continue;
       try {
-        events.push(JSON.parse(line) as SessionEvent);
+        const event = JSON.parse(line);
+        if (!event || typeof event !== "object" || typeof event.type !== "string")
+          throw new Error("Invalid session event");
+        events.push(event as SessionEvent);
       } catch {
         events.push({ type: "corrupt", raw: line }); // a torn line never eats the session
       }

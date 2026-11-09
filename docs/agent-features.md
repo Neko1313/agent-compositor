@@ -277,3 +277,62 @@ the available budget. Failed/empty/non-shrinking summaries retain the original
 history. A context-overflow error permits one compaction-and-retry, never a
 partial tool execution. If instructions, schemas or a single recent result
 still cannot fit, execution stops with an actionable error instead of looping.
+
+## Prompt caching and efficient tool use
+
+Native Anthropic profiles default to `promptCaching: "conversation"`: ephemeral
+5-minute breakpoints cover the stable tool catalog and system instructions, and
+an automatic breakpoint follows the growing conversation. `"prefix"` caches
+only tools/instructions (useful for independent one-shot reviewers); `false`
+omits cache controls for gateways that do not support them. Cache hits depend
+on the provider's minimum prefix length, exact content, lifetime and routing;
+sending a breakpoint is not evidence of a hit. Writes can cost more than ordinary
+input. See the [Anthropic cache contract](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+
+OpenAI Responses and compatible profiles can optionally set `promptCacheKey` to
+a stable routing key. It is sent only when explicitly configured; generic
+compatible endpoints receive no new cache fields by default. OpenAI's automatic
+prefix caching remains provider-controlled; no response-result cache substitutes
+for a model call. See [OpenAI prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching).
+Tool declarations have a stable name order; timestamps and per-stage task text
+are not inserted into the shared instructions.
+
+`model.usage` separates `cachedInputTokens` from `cacheWriteInputTokens`, both
+subsets of total input. Anthropic streaming counters are reconciled at the end
+of the stream. Pricing configuration accepts `cacheWriteInputPerMillion` as well
+as ordinary input/output and cached-read rates. A request with cache writes but
+no write price is marked unpriced rather than silently billing writes as normal
+input. Global/project `pricing.json` settings merge through plugin storage.
+These are configured-price estimates, not a provider invoice.
+
+Ephemeral `task`/workflow children forward usage once into the parent's counters
+and check the remaining ancestor allowance before each new request.
+An explicit stage profile also owns its context compaction calls; it no longer
+silently uses the parent's possibly more expensive model. Input estimates are
+reserved before sending a budgeted request, and requested output is bounded by
+the remainder. Estimates/provider overhead and concurrent independent sessions
+mean these token budgets are not a hard dollar cap. Persistent `agent_control`
+sessions retain their own usage and budgets.
+
+`tool_help` retrieves an available tool's usage, pitfalls, schema and argument
+examples on demand; omitting `name` lists available tools. Every default tool has
+schema-checked examples. Templates contain illustrative paths/IDs/anchors; the
+model must substitute real returned values. Plugins can override guidance with
+`ToolSpec.usage: {when, avoid?, examples: [{purpose, args}]}`. Guidance is not
+copied into every repeated declaration. Existing `service.agent.instructions`
+and materialized Harness² `toolguide.md` remain ways to tune general behavior.
+The default policy favors narrow read/search, guarded edits, bounded delegation,
+minimal polling and stopping equivalent retries after a permission denial.
+
+Auto review remains opt-in (`/auto on`) with a dedicated profile in `auto.json`.
+Ephemeral children inherit the parent's enabled mode and shared review budget;
+turning it off stops subsequent inherited approvals. Review responses may be a
+single JSON object or a single fenced JSON object, as some Anthropic profiles
+return. Invalid/mixed prose, failures, explicit denies and unknown tools retain
+manual fallback. Write/edit policy checks canonical paths rather than scanning
+code for words such as `token` or documentation URLs. Sensitive/external paths
+and dangerous command effects still require manual approval. Read-only
+`workflow_run list/status` can be audited automatically without a paid reviewer.
+Manual dialogs include the concrete review fallback reason. `/auto status`
+shows the review history; missing reviewer profiles and exhausted review budgets
+are configuration failures, not a reason to use the active expensive model.

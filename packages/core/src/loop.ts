@@ -23,6 +23,7 @@ import {
 } from "@agent-compositor/context";
 import {
   builtinTools,
+  createToolHelp,
   builtinToolRules,
   registerDefaultResolvers,
   UndoStore,
@@ -47,6 +48,10 @@ export interface CorePlugin {
 }
 
 export interface AgentCoreOptions {
+  /** Internal host fallback, inherited by ephemeral children. */
+  permissionReview?: (input:Record<string,unknown>)=>Promise<unknown>;
+  /** Ancestor budget guard for ephemeral/background children. */
+  remainingTokens?: ()=>number;
   maxTokensPerTurn?: number;
   maxTokensPerSession?: number;
   auth?: ConstructorParameters<typeof HooksHost>[1]["auth"];
@@ -56,6 +61,7 @@ export interface AgentCoreOptions {
   ) => Promise<string | { text: string; images?: ChatMessage["images"] }>;
   initialImages?: ChatMessage["images"];
   model?: () => string;
+  modelProfile?: string;
   /** Host service resolvers are inherited by children (e.g. the skill registry). */
   services?: Record<string, (payload: any) => unknown | Promise<unknown>>;
   storage?: ConstructorParameters<typeof HooksHost>[1]["storage"];
@@ -107,6 +113,8 @@ export interface AgentCoreOptions {
   compaction?: {
     budget: TokenBudget;
     summarize: Summarizer;
+    /** Rebind auxiliary model calls when creating an isolated child. */
+    fork?: (stream:(request:CompletionRequest)=>AsyncIterable<ProviderEvent>,window:()=>number)=>Summarizer;
     /** minimum messages between compactions (default 8) */
     cooldownMessages?: number;
     limits?: () => Partial<import("@agent-compositor/context").BudgetConfig>;
@@ -376,9 +384,8 @@ export class AgentCore {
     this.runtime.setResolver("service.model.capabilities", async (e:any) => ({value: await (this.provider.capabilities?.(e.signal ?? this.abort.signal) ?? Promise.resolve(null))}));
     this.runtime.setResolver("service.agent.instructions", () => ({value:""}));
     this.runtime.setResolver("service.agent.finish", () => ({value:{complete:true}}));
-    this.runtime.setResolver("service.permission.review", () => ({
-      value: { decision: "ask" },
-    }));
+    this.runtime.setResolver("service.permission.review", async (input:Record<string,unknown>) =>
+      options.permissionReview ? await options.permissionReview(input) : {value:{decision:"ask"}});
     this.runtime.setResolver(
       "service.context.control",
       async (input: {
@@ -520,19 +527,24 @@ export class AgentCore {
     return this.state !== "running" || this.inPromptHook;
   }
   async *streamModel(request: CompletionRequest): AsyncIterable<ProviderEvent> {
+    if(!request.profile && this.options.modelProfile) request={...request,profile:this.options.modelProfile};
     const remaining = Math.min(
       (this.options.maxTokensPerSession ?? Infinity) - this.spentTokens,
-      (this.options.maxTokensPerTurn ?? Infinity) - this.turnTokens
+      (this.options.maxTokensPerTurn ?? Infinity) - this.turnTokens,
+      this.options.remainingTokens?.() ?? Infinity
     );
     if (remaining <= 0) throw new Error("Token budget exhausted");
-    if (Number.isFinite(remaining))
+    if (Number.isFinite(remaining)) {
+      const inputEstimate=request.messages.reduce((n,m)=>n+estimateMessageTokens(m),0)+estimateTokens(JSON.stringify(request.tools));
+      if(inputEstimate >= remaining) throw new Error("Token budget insufficient for estimated request input; no model request sent");
       request = {
         ...request,
         maxOutputTokens: Math.max(
           1,
-          Math.floor(Math.min(request.maxOutputTokens ?? 8192, remaining))
+          Math.floor(Math.min(request.maxOutputTokens ?? 8192, remaining - inputEstimate))
         ),
       };
+    }
     const result = (await this.host.emit("service.model.stream", { request }))
       .value as { value?: AsyncIterable<ProviderEvent>; deny?: string };
     if (result?.deny) throw new Error(result.deny);
@@ -556,6 +568,7 @@ export class AgentCore {
         inputTokens: event.inputTokens,
         outputTokens: event.outputTokens,
         cachedInputTokens: event.cachedInputTokens,
+        cacheWriteInputTokens: event.cacheWriteInputTokens,
         estimated: event.estimated,
       });
     };
@@ -658,7 +671,8 @@ export class AgentCore {
     extraTools: ToolSpec<unknown, unknown>[]
   ): ToolSpec<unknown, unknown>[] {
     const tools = [
-      ...(this.options.tools ?? builtinTools),
+      ...(this.options.tools ?? builtinTools).filter(t=>t.name!=="tool_help"),
+      createToolHelp(()=>this.toolSpecs),
       taskTool,
       askTool,
       ...extraTools,
@@ -1056,24 +1070,37 @@ export class AgentCore {
         : randomUUID();
     await this.emit("subagent.start", { agentId, prompt: args.prompt, depth });
 
-    const child = new AgentCore({
+    const child: AgentCore = new AgentCore({
       ...this.options,
       sessionId: randomUUID(),
+      permissionReview: async input => await this.emit("service.permission.review", input),
+      remainingTokens:()=>Math.min((this.options.maxTokensPerSession??Infinity)-this.spentTokens,this.state==="running"?(this.options.maxTokensPerTurn??Infinity)-this.turnTokens:Infinity,this.options.remainingTokens?.()??Infinity),
+      modelProfile: args.profile ?? this.options.modelProfile,
+      model: args.profile ? undefined : this.options.model,
       maxTokensPerTurn:args.maxTokens?Math.min(args.maxTokens,this.options.maxTokensPerTurn??Infinity):this.options.maxTokensPerTurn,
       maxStepsPerTurn:args.maxSteps?Math.min(args.maxSteps,this.options.maxStepsPerTurn??Infinity):this.options.maxStepsPerTurn,
       tools: this.toolSpecs.filter(t=>t.name!=="workflow_run"),
       extraTools: undefined,
       initialImages: undefined,
       sessions: undefined, // subagents are ephemeral: no session persistence
-      provider: args.profile ? {name:this.provider.name,complete:(request)=>this.provider.complete({...request,profile:args.profile}),capabilities:this.provider.capabilities ? (signal)=>this.provider.capabilities!(signal,args.profile) : undefined} : this.provider,
-      compaction: this.options.compaction ? {...this.options.compaction,budget:new TokenBudget({contextWindow:this.contextWindow})} : undefined,
+      provider: args.profile ? {name:this.provider.name,complete:(request)=>this.provider.complete({...request,profile:request.profile??args.profile}),capabilities:this.provider.capabilities ? (signal,profile)=>this.provider.capabilities!(signal,profile??args.profile) : undefined} : this.provider,
+      compaction: this.options.compaction ? {...this.options.compaction,budget:new TokenBudget({contextWindow:this.contextWindow}),summarize:this.options.compaction.fork ? ((...args)=>this.options.compaction!.fork!(request=>child.streamModel(request),()=>child.getContextWindow())(...args)) : this.options.compaction.summarize} : undefined,
       systemPrompt:
         typeof args.systemPrompt === "string"
           ? args.systemPrompt
           : [this.options.systemPrompt,SUBAGENT_SYSTEM_PROMPT].filter(Boolean).join("\n\n"),
       subagentDepth: depth + 1,
     });
+    const usageWrites: Promise<unknown>[]=[];
     const unsubscribeReaction = child.subscribe((event) => {
+      if(event.kind==="catalog" && event.event==="model.usage"){
+        const tokens=Number(event.input.inputTokens??0)+Number(event.input.outputTokens??0);
+        this.spentTokens+=tokens;
+        if(this.state==="running")this.turnTokens+=tokens;
+        const write=this.emit("model.usage", event.input);
+        void write.catch(()=>{});
+        usageWrites.push(write);
+      }
       if (event.kind === "catalog" && ["ui.reaction","turn.step","tool.call","tool.result"].includes(event.event))
         void this.host
           .emit("agent.activity", {
@@ -1110,6 +1137,7 @@ export class AgentCore {
       throw new Error(`subagent failed: ${error}`);
     } finally {
       unsubscribeReaction();
+      await Promise.all(usageWrites);
       parentSignal.removeEventListener("abort", interruptChild);
     }
   }
@@ -1214,6 +1242,7 @@ export class AgentCore {
           }`;
         } else if (decision.decision === "ask") {
           let automatic = false;
+          let reviewReason: string | undefined;
           try {
             const review = await this.emit("service.permission.review", {
               tool: call.name,
@@ -1226,6 +1255,7 @@ export class AgentCore {
                 value?: { decision?: string; risk?: string; reason?: string };
               }
             )?.value;
+            reviewReason=typeof verdict?.reason === "string" ? verdict.reason : undefined;
             automatic =
               verdict?.decision === "allow" &&
               verdict.risk === "low" &&
@@ -1248,7 +1278,7 @@ export class AgentCore {
                   return await this.onApproval!({
                     tool: call.name,
                     descriptor,
-                    reason: decision.rule?.reason,
+                    reason: reviewReason ?? decision.rule?.reason,
                     signal: this.abort.signal,
                   });
                 } finally {
@@ -1311,7 +1341,7 @@ export class AgentCore {
         role: "tool",
         toolCallId: call.id,
         name: call.name,
-        content: error ?? this.toolResultText(result),
+        content: error ? error + (denied ? "\nPermission denied: do not retry equivalent effects through another tool. Report the blocker or continue unrelated authorized work." : "") : this.toolResultText(result),
       });
       void turnId;
     }
@@ -1385,7 +1415,7 @@ export class AgentCore {
     close();
     return {
       messages,
-      tools: this.toolSpecs.map((t) => ({
+      tools: [...this.toolSpecs].sort((a,b)=>a.name < b.name ? -1 : a.name > b.name ? 1 : 0).map((t) => ({
         name: t.name,
         description: t.description,
         parameters: t.parameters,

@@ -47,7 +47,7 @@ describe("native provider protocols", () => {
     const f = await fixture([
       {
         type: "message_start",
-        message: { usage: { input_tokens: 10, cache_read_input_tokens: 3 } },
+        message: { usage: { input_tokens: 10, cache_read_input_tokens: 3, cache_creation_input_tokens:7 } },
       },
       {
         type: "content_block_start",
@@ -83,12 +83,15 @@ describe("native provider protocols", () => {
     });
     expect(events).toContainEqual({
       type: "usage",
-      inputTokens: 13,
+      inputTokens: 20,
       outputTokens: 4,
       cachedInputTokens: 3,
+      cacheWriteInputTokens:7,
     });
     expect(f.captured().headers["x-api-key"]).toBe("key");
-    expect(f.captured().body.system).toBe("instructions");
+    expect(f.captured().body.system).toEqual([{type:"text",text:"instructions",cache_control:{type:"ephemeral"}}]);
+    expect(f.captured().body.cache_control).toEqual({type:"ephemeral"});
+    expect(f.captured().body.tools[0].cache_control).toEqual({type:"ephemeral"});
   });
   it("preserves Gemini thought signatures for replay", async () => {
     const f = await fixture([
@@ -184,5 +187,26 @@ describe("native provider protocols", () => {
       reason: "error",
       error: expect.stringContaining("before completion"),
     });
+  });
+});
+
+describe("cache wire contracts",()=>{
+  it("keeps shared tool/system prefixes stable across changing task suffixes and supports opt-out",async()=>{
+    const f=await fixture([{type:"message_stop"}]);
+    const provider=new NativeProvider({type:"anthropic",baseUrl:f.url,apiKey:"fixture",model:"claude"});
+    const run=async(p:NativeProvider,r:CompletionRequest)=>{for await(const _ of p.complete(r)){}return structuredClone(f.captured().body);};
+    const first=await run(provider,request());const next=request();next.messages.push({role:"assistant",content:"inspect result"},{role:"user",content:"a different task"});
+    const second=await run(provider,next);
+    expect(second.system).toEqual(first.system);expect(second.tools).toEqual(first.tools);expect(second.messages.slice(0,1)).toEqual(first.messages);
+    expect(next.messages.some(m=>(m as any).cache_control)).toBe(false);
+    const prefix=await run(new NativeProvider({type:"anthropic",baseUrl:f.url,apiKey:"fixture",model:"claude",promptCaching:"prefix"}),request());
+    expect(prefix.cache_control).toBeUndefined();expect(prefix.system[0].cache_control).toBeDefined();
+    const off=await run(new NativeProvider({type:"anthropic",baseUrl:f.url,apiKey:"fixture",model:"claude",promptCaching:false}),request());
+    expect(off.system).toBe("instructions");expect(JSON.stringify(off)).not.toContain('cache_control');
+  });
+  it("routes Responses cache keys only when explicitly configured",async()=>{
+    const f=await fixture([{type:"response.completed",response:{usage:{input_tokens:100,output_tokens:1,input_tokens_details:{cached_tokens:80}}}}]);
+    const provider=new NativeProvider({type:"openai-responses",baseUrl:f.url,apiKey:"fixture",model:"test",promptCacheKey:"stable-project-prefix"});
+    const events=await collect(provider);expect(f.captured().body.prompt_cache_key).toBe("stable-project-prefix");expect(events).toContainEqual({type:"usage",inputTokens:100,outputTokens:1,cachedInputTokens:80});
   });
 });

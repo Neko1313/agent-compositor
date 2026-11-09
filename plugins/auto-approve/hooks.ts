@@ -1,5 +1,14 @@
-const dangerous =
-  /\b(rm|sudo|chmod|chown|mkfs|dd|ssh|scp|curl|wget|eval)\b|git\s+(push|reset|clean)|\b(password|secret|token|credential)\b|https?:\/\//i;
+import {isAbsolute, relative, resolve, dirname, basename} from "node:path";
+import {realpath} from "node:fs/promises";
+const dangerousCommand = /\b(rm|sudo|chmod|chown|mkfs|dd|ssh|scp|curl|wget|eval)\b|git\s+(push|reset|clean)|https?:\/\//i;
+const sensitivePath = /(?:^|[\\/])(?:\.git|\.agent-compositor|\.env(?:\.[^/\\]*)?|credentials?(?:\.[^/\\]*)?|AGENTS\.md|CLAUDE\.md|GEMINI\.md)(?:$|[\\/])/i;
+function confined(path:string,cwd:string){const r=relative(cwd,resolve(cwd,path));return !isAbsolute(r)&&r!==".."&&!r.startsWith("../")&&!r.startsWith("..\\");}
+export function reviewPolicy(e:any,cwd:string):string|undefined {
+  if(!["exec","write","edit"].includes(e.tool))return "Tool requires manual approval by policy";
+  if(e.tool==="exec")return typeof e.input?.command!=="string" || dangerousCommand.test(e.input.command) ? "Command requires manual approval by policy" : undefined;
+  const path=e.descriptor?.path??e.input?.path;
+  if(typeof path!=="string"||!confined(path,cwd)||sensitivePath.test(path))return "Sensitive or external path requires manual approval";
+}
 const configFile = ".agent-compositor/auto.json";
 async function show($: any) {
   const history = $.state.get("history") ?? [];
@@ -64,6 +73,9 @@ export default {
       reason: "Risk review unavailable",
     };
     try {
+      if(e.tool==="workflow_run" && ["list","status"].includes(e.input?.action)){
+        verdict={decision:"allow",risk:"low",reason:"Read-only workflow inspection"};
+      } else {
       const config = $.storage?.config
         ? await $.storage.config("auto.json")
         : JSON.parse(await $.fs.read(configFile));
@@ -84,11 +96,14 @@ export default {
         throw new Error(
           "Set a dedicated profile in .agent-compositor/auto.json"
         );
-      if (
-        !["exec", "write", "edit"].includes(e.tool) ||
-        dangerous.test(payload)
-      )
-        throw new Error("Action requires manual approval by policy");
+      let candidate=e;
+      if(["write","edit"].includes(e.tool)){
+        const path=resolve($.session.cwd,e.descriptor?.path??e.input?.path??"");
+        const canonical=await realpath(path).catch(async(error:any)=>{if(error.code!=="ENOENT")throw error;return resolve(await realpath(dirname(path)),basename(path));});
+        candidate={...e,descriptor:{...e.descriptor,path:canonical}};
+      }
+      const policyReason=reviewPolicy(candidate,$.session.cwd);
+      if(policyReason)throw new Error(policyReason);
       if (payload.length > 12000 || count >= maxReviews)
         throw new Error("Review input or session budget exceeded");
       $.state.set("reviews", count + 1);
@@ -122,7 +137,9 @@ export default {
           );
         }),
       ]);
-      const parsed = JSON.parse(String(response));
+      const text=String(response).trim();
+      const fenced=/^```(?:json)?\s*\n([\s\S]*?)\n```$/.exec(text);
+      const parsed = JSON.parse(fenced ? fenced[1] : text);
       if (
         !["allow", "ask"].includes(parsed.decision) ||
         !["low", "medium", "high", "unknown"].includes(parsed.risk) ||
@@ -139,6 +156,7 @@ export default {
         risk: parsed.risk,
         reason: parsed.reason,
       };
+      }
     } catch (error) {
       verdict.reason = error instanceof Error ? error.message : String(error);
     }

@@ -81,7 +81,7 @@ describe('dynamic workflow scheduler', () => {
         const cwd = await temp(), calls: string[] = [];
         let fail = true;
         const engine = new WorkflowEngine({ cwd, request: async (_e, p: any) => { calls.push(p.agentId); if (p.agentId.endsWith('-b') && fail)
-                throw Error('temporary failure'); return { output: 'ok' } as any; } });
+                throw Error('temporary failure'); return { output: 'ok', tokens:12 } as any; } });
         await expect(engine.start({ stages: [{ id: 'a', prompt: 'a', dependsOn: ['b'] }, { id: 'b', prompt: 'b', dependsOn: ['a'] }] })).rejects.toThrow('cycle');
         const run = await engine.start({ stages: [{ id: 'a', prompt: 'a' }, { id: 'b', prompt: 'b', dependsOn: ['a'] }] });
         expect((await engine.wait(run.id))?.status).toBe('failed');
@@ -97,7 +97,7 @@ describe('dynamic workflow scheduler', () => {
         const cwd = await temp();
         let release!: () => void;
         const started = vi.fn();
-        const engine = new WorkflowEngine({ cwd, request: async (_e, p: any) => { started(); await Promise.race([new Promise<void>(r => { release = r; }), new Promise<void>(r => p.signal.addEventListener('abort', () => r(), { once: true }))]); p.signal.throwIfAborted(); return { output: 'ok' } as any; } });
+        const engine = new WorkflowEngine({ cwd, request: async (_e, p: any) => { started(); await Promise.race([new Promise<void>(r => { release = r; }), new Promise<void>(r => p.signal.addEventListener('abort', () => r(), { once: true }))]); p.signal.throwIfAborted(); return { output: 'ok', tokens:12 } as any; } });
         const run = await engine.start({ concurrency: 1, stages: [{ id: 'a', prompt: 'a' }, { id: 'b', prompt: 'b', dependsOn: ['a'] }] });
         await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
         await engine.control(run.id, 'pause');

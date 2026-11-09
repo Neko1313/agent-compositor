@@ -35,6 +35,7 @@ export interface LoadedPlugin {
 export interface PluginTool {
   name: string;
   description: string;
+  usage?: {when:string;avoid?:string;examples:{purpose:string;args:Record<string,unknown>}[]};
   parameters: Record<string, unknown>;
   describe(args: unknown): unknown;
   execute(ctx: unknown, args: unknown): Promise<unknown>;

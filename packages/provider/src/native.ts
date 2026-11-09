@@ -15,6 +15,8 @@ export interface NativeConfig extends TransportConfig {
   timeoutMs?: number;
   headers?: Record<string, string>;
   reasoningEffort?: string;
+  promptCacheKey?: string;
+  promptCaching?: false | "prefix" | "conversation";
 }
 const json = (s: string): unknown => JSON.parse(s);
 function imageParts(m: ChatMessage, vendor: NativeConfig["type"]): unknown[] {
@@ -90,19 +92,20 @@ export class NativeProvider implements ModelProvider {
         if (last?.role === message.role) last.content.push(...message.content);
         else merged.push(message);
       }
+      const caching = c.promptCaching ?? "conversation";
+      const system = request.messages.filter(m => m.role === "system").map(m => m.content).join("\n\n");
       body = {
         model,
         stream: true,
         max_tokens: request.maxOutputTokens ?? c.maxOutputTokens ?? 8192,
-        system: request.messages
-          .filter((m) => m.role === "system")
-          .map((m) => m.content)
-          .join("\n\n"),
+        ...(caching === "conversation" ? { cache_control: { type: "ephemeral" } } : {}),
+        system: caching && system ? [{type:"text",text:system,cache_control:{type:"ephemeral"}}] : system,
         messages: merged,
-        tools: request.tools.map((t) => ({
+        tools: request.tools.map((t, i) => ({
           name: t.name,
           description: t.description,
           input_schema: t.parameters,
+          ...(caching && i === request.tools.length - 1 ? {cache_control:{type:"ephemeral"}} : {}),
         })),
         ...(c.reasoningEffort
           ? { output_config: { effort: c.reasoningEffort } }
@@ -178,6 +181,7 @@ export class NativeProvider implements ModelProvider {
         model,
         stream: true,
         store: false,
+        ...(c.promptCacheKey && c.promptCaching !== false ? {prompt_cache_key:c.promptCacheKey} : {}),
         include: ["reasoning.encrypted_content"],
         max_output_tokens: request.maxOutputTokens ?? c.maxOutputTokens ?? 8192,
         ...(c.reasoningEffort
@@ -235,6 +239,7 @@ export class NativeProvider implements ModelProvider {
           `HTTP ${response.status}: ${(await response.text()).slice(0, 1000)}`
         );
       if (!response.body) throw new Error("Empty model response");
+      let cacheWrite = 0, uncachedInput = 0;
       let input = 0,
         output = 0,
         cached = 0,
@@ -256,10 +261,9 @@ export class NativeProvider implements ModelProvider {
           if (e.type === "message_start") {
             reportedUsage = !!e.message.usage;
             cached = e.message.usage?.cache_read_input_tokens ?? 0;
-            input =
-              (e.message.usage?.input_tokens ?? 0) +
-              cached +
-              (e.message.usage?.cache_creation_input_tokens ?? 0);
+            cacheWrite = e.message.usage?.cache_creation_input_tokens ?? 0;
+            uncachedInput=e.message.usage?.input_tokens ?? 0;
+            input=uncachedInput+cached+cacheWrite;
           }
           if (
             e.type === "content_block_start" &&
@@ -295,6 +299,13 @@ export class NativeProvider implements ModelProvider {
           }
           if (e.type === "message_stop") completed = true;
           if (e.type === "message_delta") {
+            if(e.usage){
+              reportedUsage=true;
+              uncachedInput=e.usage.input_tokens??uncachedInput;
+              cached=e.usage.cache_read_input_tokens??cached;
+              cacheWrite=e.usage.cache_creation_input_tokens??cacheWrite;
+              input=uncachedInput+cached+cacheWrite;
+            }
             output = e.usage?.output_tokens ?? output;
             if (e.delta?.stop_reason === "max_tokens") finish = "length";
           }
@@ -377,6 +388,7 @@ export class NativeProvider implements ModelProvider {
           inputTokens: input,
           outputTokens: output,
           cachedInputTokens: cached,
+          ...(c.type === "anthropic" ? {cacheWriteInputTokens:cacheWrite} : {}),
         };
       if (!completed)
         throw new Error("Provider stream ended before completion");

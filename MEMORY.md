@@ -522,3 +522,60 @@ published for this task.
 The first CI run exposed missing ripgrep on the hosted runner (regex pagination
 test failed with spawn rg ENOENT). CI explicitly installs ripgrep before tests;
 the regex test remains mandatory rather than skipped when the dependency is absent.
+
+## Token efficiency, workflow profiles and auto-review inheritance
+
+The user requested provider-cache optimization, fewer unnecessary auto-approval
+prompts (particularly with Anthropic), and tool-use guidance/evals. Anthropic
+now defaults to ephemeral stable tools/system breakpoints plus automatic growing
+conversation caching; profiles can select prefix-only caching or opt out.
+Responses/compatible adapters support an explicitly configured promptCacheKey.
+Cache reads and writes are separate model.usage counters; missing write prices
+mark the request unpriced. Declarations have deterministic name ordering.
+
+Ephemeral workflow/task usage forwards once to the parent. New children check
+the remaining ancestor allowance rather than resetting the parent session cap. Stage model profiles
+now survive both the actual request model field (the parent model no longer
+wins over a selected stage profile) and context compaction. App summarizers use
+an optional fork factory to bind child streams; custom embedders without a fork
+retain their existing summarizer. Native wire tests check the selected model,
+not just profile labels. Input estimates are checked before charged requests,
+with output limited to the estimated remainder. These remain token estimates,
+not hard billing caps across independent sessions/providers.
+
+Workflow runs reserve a shared maxTokensTotal allowance (default 120000) across
+parallel stages. Failed/unreported/interrupted allocations are conservatively
+charged; retries preserve the persisted tokensCharged ledger. This ledger may
+exceed reported usage and is not a provider invoice. Reviewer calls retain the
+parent's separate review budget. Persistent agent_control sessions remain
+independent, rather than silently folding their usage into another session.
+
+Auto review stays opt-in with a dedicated reviewer. Ephemeral children inherit
+the root session's enabled state/review budget. Source code vocabulary and URLs
+no longer trigger the command danger filter during writes/edits; canonical
+sensitive/external paths still require manual approval. Single fenced JSON is
+accepted; malformed responses/errors/explicit denies remain manual. Read-only
+workflow status/list can be reviewed locally without a model call. Manual
+fallback reasons reach approval dialogs. Unknown tools are not auto-allowed.
+
+New tool_help retrieves examples/pitfalls/schema on demand. Every default tool
+has parameter-shaped examples; plugins can supply ToolSpec.usage without adding
+examples to every repeated schema. Default instructions discourage shell-based
+file inspection, repeated reads, unbounded delegation and equivalent retries
+after a denied action. eval:tools adds allowed-tool/call-count/result-size
+checks, usable with existing --harness and Harness² materialization.
+
+Recorded live development evidence: initial 4/6 and final 6/6 episodes across
+Gemma4:31b-cloud and DeepSeek-v4.1-flash:1017-cloud. General policy and denial
+feedback changed; the final denial prompt also explicitly requests write, so
+these are diagnostic iterations, not an unbiased improvement score. Reports:
+dist/evals-tools-live and dist/evals-tools-final. Provider cache contracts use
+HTTP fixtures; no paid Anthropic/OpenAI cache-hit or dollar-saving claim is made.
+
+Final local checks: 434 passed, three optional native tests skipped, 53 files;
+line coverage 82.17%. The explicit native Callix suite passed 25/25. Typecheck,
+marketplace validation, generated-contract sync and diff checks passed. Scripted
+tool evals passed 3/3; live Ollama tool episodes passed 6/6 as qualified above.
+The rebuilt Linux x64 archive passed installer/checksum/default-plugin/model,
+background workflow, bundled Callix and guarded editing smoke. Main CI now runs
+and preserves the scripted tool-use report. No release tag was published.

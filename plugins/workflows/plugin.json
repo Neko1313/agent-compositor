@@ -1,6 +1,6 @@
 {
   "name": "workflows",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Replaceable dynamic background workflows with persistent dependency stages, bounded parallelism, expansion, conditional branches, pause/resume/retry and Python/Monty journal compatibility.",
   "trust": "trusted",
   "capabilities": [

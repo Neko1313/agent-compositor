@@ -39,6 +39,8 @@ export class UndoStore {
 export interface ToolSpec<Args = unknown, Result = unknown> {
   name: string;
   description: string;
+  /** On-demand guidance, not part of the repeated model schema. */
+  usage?: import("./guidance.js").ToolUsage;
   /** JSON-schema-ish shape for the model; loose by design (renderers display it) */
   parameters: Record<string, unknown>;
   /** reduce a call to what permission rules match on */

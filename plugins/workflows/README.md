@@ -77,3 +77,22 @@ but are not executed. A Python-specific code hash prevents mixing languages.
 `/workflows` opens the run list. Replay uses the saved Python source and the same
 normal tool/permission flow. Install Monty as described in
 [the provider setup](../monty/README.md), or select another compatible provider.
+
+### Aggregate token budget
+
+`workflow_run start` also accepts `maxTokensTotal` (default 120000; range
+100..10000000). Parallel stages reserve disjoint portions of this allowance;
+each receives at most `maxTokensPerStage` and the unreserved remainder. Reported
+stage usage releases unused reservation. Failed/interrupted attempts without
+complete usage conservatively consume their allocation, including on recovery;
+retries do not reset the counter. `tokensCharged` is the persisted budget ledger,
+not a provider bill. Exhaustion prevents another stage from starting. Start a
+new run with an explicitly chosen budget after inspecting completed effects;
+completed results are not silently revalidated or replayed as new work.
+
+Choose configured cheaper stage profiles for bounded investigation where useful.
+Their normal requests and context summaries keep the selected profile. Child
+usage is included in the parent session's usage. Reviewer calls belong to the
+parent reviewer budget; independent persisted agent sessions have separate
+budgets. Provider caching is configured per profile (see
+[agent features](../../docs/agent-features.md#prompt-caching-and-efficient-tool-use)).

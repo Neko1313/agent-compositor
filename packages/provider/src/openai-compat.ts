@@ -11,6 +11,9 @@ import type {
 export interface OpenAICompatConfig extends TransportConfig {
   maxOutputTokens?: number;
   reasoningEffort?: string;
+  promptCaching?: false | "prefix" | "conversation";
+  /** Optional stable routing key; sent only when explicitly configured. */
+  promptCacheKey?: string;
   /** e.g. https://api.openai.com/v1 — the /chat/completions suffix is appended */
   baseUrl: string;
   apiKey: string;
@@ -189,6 +192,7 @@ export class OpenAICompatProvider implements ModelProvider {
       {
         model,
         stream: true,
+        ...(this.config.promptCacheKey && this.config.promptCaching !== false ? {prompt_cache_key:this.config.promptCacheKey} : {}),
         stream_options: { include_usage: true },
         ...(req.maxOutputTokens ?? this.config.maxOutputTokens
           ? { max_tokens: req.maxOutputTokens ?? this.config.maxOutputTokens }

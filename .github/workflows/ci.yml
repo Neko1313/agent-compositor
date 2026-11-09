@@ -28,6 +28,7 @@ jobs:
       - run: npm run test:ci
       - run: npm run marketplace:validate
       - run: npm run eval -- --output dist/evals-ci
+      - run: npm run eval:tools -- --output dist/evals-tools-ci
       - run: npm run eval:proxy
       - name: preserve quality reports
         if: always()
@@ -38,6 +39,7 @@ jobs:
             reports/junit.xml
             reports/coverage.xml
             dist/evals-ci/
+            dist/evals-tools-ci/
           if-no-files-found: warn
       # Neovim api-metadata pattern: generated artifacts are committed,
       # CI fails if docs/events.md or schema/events.json drift from source.

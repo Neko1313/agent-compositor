@@ -1,3 +1,4 @@
+import {createSummarizer} from "./summarizer.js";
 import { harnessControls } from "./harness.js";
 import { profileSettings } from "./provider-settings.js";
 import { marketplaces } from "./marketplaces.js";
@@ -14,7 +15,7 @@ import { realpathSync } from "node:fs";
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { modelControls } from "./models.js";
 import { projectInstructions, expandReferences } from "./project-context.js";
-import { TokenBudget, summarizeChunks } from "@agent-compositor/context";
+import { TokenBudget } from "@agent-compositor/context";
 import { SkillRegistry } from "@agent-compositor/skills";
 import { builtinTools, type ToolSpec } from "@agent-compositor/tools";
 import * as path from "node:path";
@@ -449,27 +450,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
                 ...config.config.compaction,
               }),
               limits: () => config.config.compaction ?? {},
-              summarize: async (messages, { signal }) => summarizeChunks(messages, async (segment) => {
-                let text = "";
-                for await (const event of core.streamModel({
-                  signal,
-                  tools: [],
-                  maxOutputTokens: Math.min(2048,Math.floor(core.getContextWindow()/8)),
-                  messages: [
-                    {
-                      role: "system",
-                      content:
-                        "Summarize this agent conversation. Preserve user requirements, decisions, file paths, tool outcomes and unfinished work.",
-                    },
-                    { role: "user", content: segment },
-                  ],
-                })) {
-                  if (event.type === "text_delta") text += event.text;
-                  if (event.type === "finish" && event.reason !== "stop")
-                    throw new Error(event.error);
-                }
-                return text;
-              }, Math.min(8192,Math.floor((core.getContextWindow())/2))),
+              summarize: createSummarizer(request=>core.streamModel(request),()=>core.getContextWindow()),
+              fork: createSummarizer,
             },
       onApproval,
       onAsk,

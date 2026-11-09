@@ -172,3 +172,31 @@ statistical improvement. Initial trajectories in `dist/navigation-live/` expose
 failures to retain edit guards and execute the permitted check command. The final
 run strengthened anchor/execution guidance without weakening the guard, artifact
 or permission criteria. No Codex/Claude/Gemini CLI runtime was benchmarked.
+
+## Tool selection and cache/budget regression checks
+
+`npm run eval:tools` exercises known-path bounded evidence retrieval, on-demand
+shell-tool guidance, and stopping after a denied mutation. It supports the same
+`--models`, `--repeat`, `--harness` and report flags as other evals. Cases can
+assert `allowedTools`, `maxToolCalls` and `maxResultTokens` alongside artifact and
+permission checks. These are explicit scenario constraints, not universal tool
+rankings. Reports separate cached reads, cache writes, output, estimated usage,
+and actual provider usage; tool payload estimates are not provider billing.
+
+The recorded development run passed 6/6 episodes on gemma4:31b-cloud and
+deepseek-v4.1-flash:1017-cloud (`dist/evals-tools-final/report.json`). Initial
+runs passed 4/6: shell-based inspection was denied, and one model continued
+reading after a denied edit until its input budget was exhausted. General tool
+instructions and denial feedback were clarified; the final denial prompt also
+explicitly requests the write tool. This is not an unbiased before/after score.
+Diagnostic trajectories remain in `dist/evals-tools-live/`. Scripted 3/3 checks
+validate runner plumbing, not model judgment. More tasks/repetitions are needed
+for a robust efficiency or reliability claim.
+
+Provider HTTP fixtures verify Anthropic cache modes and stable shared prefixes,
+cache read/write accounting, and optional Responses routing keys without paid
+calls. Core integration tests verify inherited auto-review budgets, fenced JSON,
+input preflight, aggregate parallel-stage allocations, charged failures, child
+usage/profile forwarding and child-owned compaction. Default tool examples are
+checked against their parameter shapes; they are not blindly executed. No live
+Anthropic/OpenAI cache-hit or dollar-savings claim is made from these fixtures.

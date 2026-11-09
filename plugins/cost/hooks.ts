@@ -3,6 +3,7 @@ type Totals = {
   in: number;
   out: number;
   cached: number;
+  cacheWrite: number;
   turns: number;
   cost: number;
   unpriced: number;
@@ -16,6 +17,7 @@ const empty = (): Totals => ({
   in: 0,
   out: 0,
   cached: 0,
+  cacheWrite: 0,
   turns: 0,
   cost: 0,
   unpriced: 0,
@@ -95,15 +97,18 @@ export default {
     const model = e.profile ?? e.model ?? "unknown";
     const row = t.byModel[model] ?? { input: 0, output: 0, cached: 0, cost: 0 };
     const cached = Math.min(e.cachedInputTokens ?? 0, e.inputTokens);
+    const cacheWrite = Math.min(e.cacheWriteInputTokens ?? 0, Math.max(0,e.inputTokens-cached));
+    t.cacheWrite = (t.cacheWrite ?? 0) + cacheWrite;
     t.in += e.inputTokens;
     t.out += e.outputTokens;
     t.cached += cached;
     row.input += e.inputTokens;
     row.output += e.outputTokens;
     row.cached += cached;
+    $.state.set("totals", t);
     let rates: any;
     try {
-      const prices = JSON.parse(
+      const prices = $.storage?.config ? await $.storage.config("pricing.json") : JSON.parse(
         await $.fs.read(".agent-compositor/pricing.json")
       );
       rates = prices[model] ?? prices.default;
@@ -113,12 +118,14 @@ export default {
     if (
       !e.estimated &&
       rates &&
+      (!cacheWrite || (Number.isFinite(rates.cacheWriteInputPerMillion) && rates.cacheWriteInputPerMillion >= 0)) &&
       ["inputPerMillion", "outputPerMillion"].every(
         (key) => Number.isFinite(rates[key]) && rates[key] >= 0
       )
     ) {
       const cost =
-        ((e.inputTokens - cached) * rates.inputPerMillion +
+        ((e.inputTokens - cached - cacheWrite) * rates.inputPerMillion +
+          cacheWrite * (rates.cacheWriteInputPerMillion ?? 0) +
           cached *
             (Number.isFinite(rates.cachedInputPerMillion) &&
             rates.cachedInputPerMillion >= 0

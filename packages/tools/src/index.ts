@@ -35,6 +35,7 @@ export const builtinTools: ToolSpec<unknown, unknown>[] = [
 export { projectFiles, confinedPath, glob, queryProject } from "./project.js";
 
 export const builtinToolRules: Parameters<typeof compileRules>[0] = [
+  { decision: "allow", tool: "tool_help", reason: "read-only tool guidance" },
   { decision: "allow", tool: "glob" },
   { decision: "allow", tool: "grep" },
   { decision: "allow", tool: "code_query", reason: "read-only project graph navigation" },
@@ -50,3 +51,5 @@ export const builtinToolRules: Parameters<typeof compileRules>[0] = [
 ];
 
 export { spawnCommand, stopProcess } from "./execution.js";
+
+export {createToolHelp,toolUsage,type ToolUsage} from "./guidance.js";

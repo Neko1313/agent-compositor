@@ -40,6 +40,7 @@ export type ProviderEvent =
       inputTokens: number;
       outputTokens: number;
       cachedInputTokens?: number;
+      cacheWriteInputTokens?: number;
       estimated?: boolean;
     }
   | {

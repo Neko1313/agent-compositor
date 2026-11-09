@@ -45,7 +45,7 @@ describe("budgets, pricing and OAuth", () => {
       await core.submit("go");
       expect(core.failure).toMatch(budget ? /budget/ : /truncated/);
       await expect(readFile(join(cwd, "unsafe.txt"))).rejects.toThrow();
-      if (budget) expect(provider.requests[0].maxOutputTokens).toBe(5);
+      if (budget) expect(provider.requests).toHaveLength(0);
     }
   });
   it("prices cached usage once and preserves actual usage across a resumed session", async () => {

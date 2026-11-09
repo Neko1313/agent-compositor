@@ -99,7 +99,7 @@ export async function runCase(
         "guard-scope",
         "plan-mode",
         "network-proxy",
-        ...(test.expect.grader?["callix"]:[]),
+        ...(test.expect.grader||test.navigationMode?["callix"]:[]),
       ].map((p) => join(root, "plugins", p)),
     });
     if (app.pluginErrors.length) throw Error(JSON.stringify(app.pluginErrors));
@@ -147,6 +147,10 @@ export async function runCase(
             e.input.tool === tool
         ),
       });
+    const toolCalls=events.filter(e=>e.kind==="catalog"&&e.event==="tool.call");
+    if(exp.allowedTools) checks.push({name:"only appropriate tools used",ok:toolCalls.every(e=>exp.allowedTools.includes(e.input.tool))});
+    if(exp.maxToolCalls!==undefined) checks.push({name:"bounded tool calls",ok:toolCalls.length<=exp.maxToolCalls});
+    if(exp.maxResultTokens!==undefined) checks.push({name:"bounded result tokens",ok:transcript.filter(m=>m.role==="tool").reduce((n,m)=>n+estimateTokens(m.content),0)<=exp.maxResultTokens});
     if (exp.file) {
       const contents = await readFile(join(cwd, exp.file), "utf8").catch(
         () => undefined
@@ -206,11 +210,12 @@ export async function runCase(
       (sum, e) => ({
         input: sum.input + Number(e.input.inputTokens ?? 0),
         output: sum.output + Number(e.input.outputTokens ?? 0),
+        cacheWriteInput:sum.cacheWriteInput+Number(e.input.cacheWriteInputTokens??0),
         cachedInput:sum.cachedInput+Number(e.input.cachedInputTokens??0),
         estimatedCalls:sum.estimatedCalls+(e.input.estimated?1:0),
         reportedCalls:sum.reportedCalls+(e.input.estimated?0:1),
       }),
-      { input: 0, output: 0,cachedInput:0,estimatedCalls:0,reportedCalls:0 }
+      { input: 0, output: 0,cacheWriteInput:0,cachedInput:0,estimatedCalls:0,reportedCalls:0 }
     );
   return {
     id: test.id,

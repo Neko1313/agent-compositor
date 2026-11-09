@@ -110,13 +110,13 @@ describe("AgentCore.resume + compaction in the loop", () => {
   });
 
   it("compaction fires when the budget trips: context.compacted emitted, model sees the summary", async () => {
-    // tiny window: a resumed long history trips immediately at step 0
-    const budget = new TokenBudget({ contextWindow: 600, reserveOutput: 100, reserveSystem: 0, highWaterMark: 0.5 });
+    // Keep room for built-in schemas while a long replay trips at step 0.
+    const budget = new TokenBudget({ contextWindow: 4000, reserveOutput: 100, reserveSystem: 0, highWaterMark: 0.5 });
     const summarize = async (messages: { content: string }[]) =>
       `SUMMARY(${messages.length}): ${messages[0]?.content?.slice(0, 20) ?? ""}`;
 
-    // craft a long replayed history: 6 rounds of user+assistant, each ~400 chars
-    const filler = "lorem ipsum dolor sit amet ".repeat(15); // ~390 chars ≈ 98 tokens
+    // craft a long replayed history: 6 rounds of user+assistant, each ~3900 chars
+    const filler = "lorem ipsum dolor sit amet ".repeat(150); // ~3900 chars ≈ 975 tokens
     const events: SessionEvent[] = [];
     for (let i = 0; i < 6; i++) {
       events.push({ type: "prompt.submit", text: `question ${i} ${filler}` });

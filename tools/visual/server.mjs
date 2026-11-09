@@ -1,3 +1,4 @@
+import {questionsSample,questionsReply} from './questions-sample.ts';
 import {markdownSample} from './markdown-sample.ts';
 import { mkdtemp, mkdir, writeFile, cp, rm } from 'node:fs/promises';
 import { appendFileSync } from 'node:fs';
@@ -24,7 +25,7 @@ async function start(ws) {
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd]
     : ['bun', join(import.meta.dir, 'fixture.ts'), cwd];
   const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), ...command],
-    { cwd: root, env:{...process.env,...(process.env.VISUAL_MARKDOWN?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off"}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:cwd,AGENT_HOME:join(cwd, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+    { cwd: root, env:{...process.env,...((process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off"}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:cwd,AGENT_HOME:join(cwd, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
   active = { ws, proc };
   const sendLines = async () => {
     let pending = '';
@@ -47,6 +48,10 @@ const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(process.env.PORT ?? 0),
   async fetch(request, server) {
     const url = new URL(request.url);
+    if(process.env.VISUAL_QUESTIONS&&url.pathname===`/model/${token}/v1/chat/completions`&&request.method==='POST'){
+      const body=await request.json();const reply=questionsReply(body.messages);const delta=reply?{content:reply}:{tool_calls:[{index:0,id:'questionnaire-proof',type:'function',function:{name:'ask_questions',arguments:JSON.stringify(questionsSample)}}]};
+      return new Response(`data: ${JSON.stringify({choices:[{delta,finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{delta:{},finish_reason:reply?'stop':'tool_calls'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
+    }
     if(process.env.VISUAL_MARKDOWN&&url.pathname===`/model/${token}/v1/chat/completions`&&request.method==='POST'){
       await request.json();
       return new Response(`data: ${JSON.stringify({choices:[{delta:{content:markdownSample},finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{delta:{},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50}})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});

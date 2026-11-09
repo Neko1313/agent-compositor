@@ -19,6 +19,7 @@ shared service events and tool.call let other handlers replace them.
 | Login and keys | `/auth`, `/login <profile> [ENV_VAR]`, `/logout <profile>` |
 | Models | `/model`, `/model <profile-or-model>` |
 | Usage and cost | `/usage`, `/cost` |
+| Human decisions | `ask_user`, `ask_questions` |
 | Web | `web_fetch`, `web_search` |
 | Code | `glob`, `grep`, `code_query` through Callix |
 | Isolated Python | `run_python`, `workflow` through Monty |
@@ -399,3 +400,63 @@ candidate and thinking tokens. This integration does not create/manage explicit
 Google cache resources or incur their storage fees automatically. That is a
 separate lifecycle API, not an Anthropic `cache_control` parameter. See
 [Google context caching](https://ai.google.dev/gemini-api/docs/caching).
+
+## Human choices and questionnaires
+
+The model can call `ask_user` for one question or `ask_questions` for 1–8 related
+questions. This is a human input channel; execution permissions use the approval
+channel. The instructions recommend asking only for decisions missing from the
+conversation and repository, rather than repeatedly interrupting routine work.
+
+Both tools accept string choices or objects with `label`, `description` and
+`recommended`. A recommendation is displayed without selecting an answer.
+`multi: true` enables compatible multiple choices. Custom text is available by
+default; `allowOther: false` closes the choice set. Questions without options
+accept free text. Labels must be unique within a question (up to 12 choices).
+
+```json
+{
+  "title": "Project setup",
+  "questions": [
+    {
+      "id": "target",
+      "header": "Deploy target",
+      "question": "Where should this application run?",
+      "options": [
+        {"label": "Staging", "description": "Preview first", "recommended": true},
+        {"label": "Production", "description": "Public deployment"}
+      ]
+    },
+    {
+      "id": "checks",
+      "question": "Which checks should run?",
+      "options": ["Unit tests", "Browser tests"],
+      "multi": true
+    }
+  ]
+}
+```
+
+Use arrows to focus an option, Space to toggle it, Tab to reach custom text or
+navigation, and Enter to continue. The previous numeric input (`2` or `1,3`)
+continues to work. Choices, descriptions, Back/Next and review entries are
+clickable. Page Up/Down or the wheel scroll long questions. Escape cancels the
+whole interaction. Drafts survive Back and editing from the review screen.
+
+A questionnaire returns only after explicit submission of the review screen:
+`{"answers":[{"id":"target","selected":["Staging"]},{"id":"checks","selected":["Unit tests"],"text":"Load tests"}]}`.
+IDs must be unique and start with a letter; the result is validated for complete,
+unique answers, allowed choices and single/multiple cardinality. Custom text is
+returned separately from selected labels. No partial result is sent to the model.
+`ask_user` keeps its existing `{answer: string | string[]}` result. Embedders
+implementing `onAsk` should inspect `request.questions` for the new questionnaire
+shape; legacy calls retain `request.question`, string `options` and `multi`.
+
+Plugins use `await $.ui.ask({...})` or `await $.ui.questionnaire({...})` through the
+replaceable `service.ui.ask` and `service.ui.questionnaire` contracts. A trusted
+plugin that waits for human input inside a hook must configure a suitable
+`hookTimeouts` entry in its manifest; the default hook budget is two seconds.
+Do not request input during `ui.render`. Cancellation and headless operation
+fail rather than manufacture answers. The TUI queues concurrent questions;
+unrelated approval requests do not consume keys while an active question owns
+the input. Answers never become user prompts, and the unsent prompt is preserved.

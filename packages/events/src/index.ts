@@ -23,6 +23,8 @@ export function resolve(name: string): EventDef | undefined {
 export type InputOf<E extends EventDef> = z.infer<E["input"]>;
 
 /** Catalog version. Bump per semver; events carry `since`. */
-export const CATALOG_VERSION = "0.14.0";
+export const CATALOG_VERSION = "0.15.0";
 
 export * from "./forms.js";
+
+export * from "./questions.js";

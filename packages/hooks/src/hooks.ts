@@ -1,3 +1,4 @@
+import type { QuestionOption, Questionnaire, QuestionnaireResult } from "@agent-compositor/events";
 import { uiFormSchema, type UiForm, type UiFormResult, type UiFormHandler } from "@agent-compositor/events";
 import type {
   SurfacePlacement,
@@ -72,6 +73,8 @@ export interface HooksApi {
     status(): { loggedIn: boolean; provider?: string };
   };
   ui: {
+    ask(request:{question:string;options?:QuestionOption[];multi?:boolean;allowOther?:boolean}):Promise<string|string[]>;
+    questionnaire(request:Questionnaire):Promise<QuestionnaireResult>;
     /** Local human input, returned directly to the requesting plugin; never a catalog payload. */
     form(request: UiForm): Promise<UiFormResult | null>;
     remove(id: string): Promise<void>;
@@ -209,6 +212,8 @@ export class HooksHost {
           "service.ui.view",
           "service.ui.inputTarget",
           "service.ui.remove",
+          "service.ui.ask",
+          "service.ui.questionnaire",
           "ui.reaction",
         ].includes(event)
       )
@@ -298,6 +303,13 @@ export class HooksHost {
         status: () => this.config.auth?.status() ?? { loggedIn: false },
       },
       ui: {
+        ask: async request => {
+          const result = await callService("service.ui.ask", { ...request, signal: ctx.signal }) as { answer: string | string[] };
+          return result.answer;
+        },
+        questionnaire: request => callService("service.ui.questionnaire", {
+          ...request, signal: ctx.signal,
+        }) as Promise<QuestionnaireResult>,
         form: async request => {
           stateGuard("ui.form");
           if (this.pluginTrust.get(plugin) !== "trusted") throw new Error("Only trusted plugins may request local forms");

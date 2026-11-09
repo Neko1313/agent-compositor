@@ -1,3 +1,4 @@
+import {questionOptionSchema,questionnaireSchema,questionnaireResultSchema} from "../questions.js";
 import { z } from "zod";
 import { defineEvent } from "../define.js";
 
@@ -90,8 +91,10 @@ export const serviceUiAsk = defineEvent({
   input: z.object({
     plugin: z.string(),
     question: z.string(),
-    options: z.array(z.string()).optional(),
+    options: z.array(questionOptionSchema).max(12).optional(),
     multi: z.boolean().optional(),
+    allowOther:z.boolean().optional(),
+    signal:z.unknown().optional(),
   }),
   responses: [
     { kind: "deny", summary: "refuse the call", schema: z.object({ deny: z.string() }) },
@@ -116,4 +119,13 @@ export const serviceTelemetryLog = defineEvent({
   }),
   responses: denyValue,
   frozen: true,
+});
+
+export const serviceUiQuestionnaire=defineEvent({
+ name:"service.ui.questionnaire",since:"0.15.0",version:1,
+ summary:"Collect an atomic questionnaire with single/multiple choices and custom text; cancel or headless operation never manufactures answers.",
+ input:questionnaireSchema.innerType().extend({plugin:z.string(),signal:z.unknown().optional()}).superRefine((form,ctx)=>{
+   const result=questionnaireSchema.safeParse(form);if(!result.success)for(const issue of result.error.issues)ctx.addIssue(issue);
+ }),
+ responses:[{kind:"deny",summary:"refuse or cancel",schema:z.object({deny:z.string()})},{kind:"value",summary:"structured answers by question ID",schema:z.object({value:questionnaireResultSchema})}],frozen:true,
 });

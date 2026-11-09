@@ -73,6 +73,7 @@ export const catalog: readonly EventDef[] = [
   services.serviceModelComplete,
   services.serviceAuthLogin,
   services.serviceUiAsk,
+  services.serviceUiQuestionnaire,
   services.serviceUiNotify,
   services.serviceTelemetryLog,
   // core-tool services (model-facing tools; same interception story as $ API)

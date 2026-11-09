@@ -1,5 +1,5 @@
 export { taskTool, type TaskArgs } from "./task.js";
-export { askTool, type AskArgs } from "./ask.js";
+export { askTool, askQuestionsTool, type AskArgs } from "./ask.js";
 
 /** System prompt for subagents spawned without an explicit override. The
  *  last assistant message is all the orchestrator receives back. */

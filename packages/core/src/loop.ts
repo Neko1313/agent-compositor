@@ -1,3 +1,7 @@
+import {
+  optionLabel, questionSchema, questionnaireSchema, validateQuestionnaireResult,
+  type UserQuestionRequest, type UserQuestionAnswer,
+} from "@agent-compositor/events";
 import { resolve as resolvePath } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
@@ -33,7 +37,7 @@ import {
   type ToolSpec,
 } from "@agent-compositor/tools";
 import { replayTranscript } from "./resume.js";
-import { askTool, taskTool, SUBAGENT_SYSTEM_PROMPT } from "./tools/index.js";
+import { askTool, askQuestionsTool, taskTool, SUBAGENT_SYSTEM_PROMPT } from "./tools/index.js";
 import type {
   ChatMessage,
   ChatToolCall,
@@ -97,12 +101,7 @@ export interface AgentCoreOptions {
   /** append model-facing tools (e.g. plugin-provided tools.ts) on top of the builtins */
   extraTools?: ToolSpec<unknown, unknown>[];
   /** AskUserQuestion channel; undefined = headless, questions are denied (fail closed) */
-  onAsk?: (req: {
-    question: string;
-    options?: string[];
-    multi?: boolean;
-    signal?: AbortSignal;
-  }) => Promise<string | string[]>;
+  onAsk?: (req:UserQuestionRequest)=>Promise<UserQuestionAnswer>;
   /** recursion guard for the task tool / service.agent.spawn (default 2 deep) */
   subagentDepth?: number;
   maxSubagentDepth?: number;
@@ -203,6 +202,7 @@ export class AgentCore {
           tool: "ask_user",
           reason: "asking the user is not a side effect",
         },
+        {decision:"allow",tool:"ask_questions",reason:"human questionnaire is not an execution approval"},
         ...(options.rules ?? []),
       ],
       "config"
@@ -470,13 +470,10 @@ export class AgentCore {
     this.runtime.setResolver("service.ui.ask", async (payload: unknown) => {
       const onAsk = this.options.onAsk;
       if (!onAsk) return { deny: "headless: no user channel for questions" };
-      const args = payload as {
-        question?: string;
-        options?: string[];
-        multi?: boolean;
-      };
-      if (!args.question || typeof args.question !== "string")
-        return { deny: "ask: question is required" };
+      const parsed=questionSchema.safeParse({...(payload as object),id:"answer"});
+      if(!parsed.success)return {deny:"ask: invalid question or options"};
+      const args=parsed.data;
+      const callerSignal=(payload as any).signal;
       const reaction = {
         source: "questions",
         kind: "question",
@@ -486,15 +483,39 @@ export class AgentCore {
       let answer: Awaited<ReturnType<typeof onAsk>>;
       try {
         answer = await onAsk({
-          signal: this.state === "running" ? this.abort.signal : undefined,
+          signal: callerSignal instanceof AbortSignal ? AbortSignal.any([callerSignal,...(this.state==="running"?[this.abort.signal]:[])]) : this.state === "running" ? this.abort.signal : undefined,
           question: args.question,
-          options: Array.isArray(args.options) ? args.options : undefined,
+          options:args.options?.map(optionLabel),
+          ...(args.options?.some(o=>typeof o!=="string")?{optionDetails:args.options.map(o=>typeof o==="string"?{label:o}:o)}:{}),
+          ...(args.allowOther!==undefined?{allowOther:args.allowOther}:{}),
           multi: args.multi === true,
         });
       } finally {
         await this.emit("ui.reaction", { ...reaction, active: false });
       }
+      if(typeof answer!=="string"&&!Array.isArray(answer))throw Error("Single question requires a text/choice answer");
       return { value: { answer } };
+    });
+
+    this.runtime.setResolver("service.ui.questionnaire", async (payload: any) => {
+      if (!this.options.onAsk) return { deny: "headless: no user channel for questions" };
+      const form = questionnaireSchema.parse(payload);
+      const reaction = { source: "questions", kind: "question", id: randomUUID() };
+      const signals = [
+        ...(this.state === "running" ? [this.abort.signal] : []),
+        ...(payload.signal instanceof AbortSignal ? [payload.signal] : []),
+      ];
+      await this.emit("ui.reaction", { ...reaction, active: true });
+      try {
+        const result = await this.options.onAsk({
+          question: form.title ?? "Questionnaire",
+          questions: form.questions,
+          ...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
+        });
+        return { value: validateQuestionnaireResult(form, result) };
+      } finally {
+        await this.emit("ui.reaction", { ...reaction, active: false });
+      }
     });
 
     for (const plugin of options.plugins ?? []) {
@@ -682,6 +703,7 @@ export class AgentCore {
       createToolHelp(()=>this.toolSpecs),
       taskTool,
       askTool,
+      askQuestionsTool,
       ...extraTools,
     ];
     // Children inherit the effective toolset; do not advertise task/ask twice.

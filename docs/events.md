@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.14.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.15.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -59,6 +59,7 @@
 | `service.model.complete` | 0.2.0 | 1 | $.model.complete(request): call the configured model provider. | `deny`, `value` | — |
 | `service.auth.login` | 0.2.0 | 1 | $.auth.login(provider?): run the auth flow of the configured auth capability. | `deny`, `value` | — |
 | `service.ui.ask` | 0.5.0 | 1 | $.ui.ask / the ask_user tool: ask the human a question (optionally with choices). Headless sessions deny (fail closed). | `deny`, `answer` | — |
+| `service.ui.questionnaire` | 0.15.0 | 1 | Collect an atomic questionnaire with single/multiple choices and custom text; cancel or headless operation never manufactures answers. | `deny`, `value` | — |
 | `service.ui.notify` | 0.2.0 | 1 | $.ui.notify(message, level?): post a transient status message. | `deny`, `value` | — |
 | `service.telemetry.log` | 0.2.0 | 1 | $.telemetry.log(event, data?): structured log line. | `deny`, `value` | — |
 | `service.skills.load` | 0.5.0 | 1 | Load a skill by name from the configured registry. | `deny`, `value` | — |
@@ -98,7 +99,7 @@
 - **assistant**: `assistant.text`, `assistant.metadata`
 - **subagent**: `subagent.start`, `subagent.complete`
 - **context**: `context.compacted`, `context.compacting`, `context.pressure`, `context.restored`, `context.prepared`
-- **service**: `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
+- **service**: `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.questionnaire`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
 - **project**: `project.changed`
 - **ui**: `ui.visibility`, `ui.reaction`, `ui.render`, `ui.press`, `ui.focus`, `ui.invalidate`
 - **model**: `model.usage`

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "events": {
     "session.start": {
       "since": "0.1.0",
@@ -1155,6 +1155,32 @@
         },
         "answer": {
           "summary": "the user's answer",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "service.ui.questionnaire": {
+      "since": "0.15.0",
+      "version": 1,
+      "summary": "Collect an atomic questionnaire with single/multiple choices and custom text; cancel or headless operation never manufactures answers.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse or cancel",
+          "schema": {
+            "note": "opaque"
+          }
+        },
+        "value": {
+          "summary": "structured answers by question ID",
           "schema": {
             "note": "opaque"
           }

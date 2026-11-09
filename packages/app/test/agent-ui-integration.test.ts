@@ -38,6 +38,38 @@ describe("main agent work integrated with the compositor", () => {
     expect(messages.get("session")).toContain("Answer received"); ui.close();
   });
 
+  it("collects a questionnaire atomically through the model tool loop", async () => {
+    const provider=new ScriptedProvider([{toolCalls:[{name:'ask_questions',args:{title:'Setup',questions:[{id:'target',question:'Where?',options:[{label:'Stage',recommended:true},{label:'Prod',description:'Public'}]},{id:'checks',question:'Which checks?',multi:true,options:['Unit','Browser']}]}}]},{text:'All answers received'}]);
+    const {ui,messages,text,key}=setup(provider);text('start');key('enter');
+    await vi.waitFor(()=>expect(messages.get('input')).toContain('Where?'));
+    key('down');key('enter');key('space');key('down');key('space');key('enter');
+    expect(messages.get('input')).toContain('Review 2 answers');
+    expect(ui.core.getMessages().filter(m=>m.role==='tool')).toHaveLength(0);
+    key('enter');await ui.settled();
+    expect(JSON.parse(ui.core.getMessages().find(m=>m.role==='tool')!.content)).toEqual({answers:[{id:'target',selected:['Prod']},{id:'checks',selected:['Unit','Browser']}]});
+    expect(ui.core.getMessages().filter(m=>m.role==='user').map(m=>m.content)).toEqual(['start']);ui.close();
+  });
+  it("keeps queued approval keys out of a questionnaire draft and preserves the normal prompt",async()=>{
+    const {ui,messages,text,key}=setup(new ScriptedProvider([]));text('Unsent prompt');
+    const signal=new AbortController();
+    const answer=ui.core.host.emit('service.ui.questionnaire',{plugin:'test',title:'Setup',questions:[{id:'note',question:'Instructions?'}],signal:signal.signal});
+    await vi.waitFor(()=>expect(messages.get('input')).toContain('Instructions?'));
+    // Simulate an unrelated concurrent permission request without running a command.
+    const approval=(ui as any).requestApproval({tool:'exec',descriptor:{command:'example'},reason:'Concurrent action'});
+    text('y');expect(messages.get('input')).toContain('Your answer: y');
+    key('enter');key('enter');await answer;
+    expect(messages.get('input')).toContain('Y allow once');text('n');expect(await approval).toMatchObject({allow:false});
+    expect(messages.get('input')).toContain('Unsent prompt');ui.close();
+  });
+  it("aborts a queued questionnaire without cancelling the active question",async()=>{
+    const {ui,messages,text,key}=setup(new ScriptedProvider([]));
+    const active=ui.core.host.emit('service.ui.ask',{plugin:'test',question:'Active?'});
+    const abort=new AbortController();
+    const queued=ui.core.host.emit('service.ui.questionnaire',{plugin:'test',questions:[{id:'q',question:'Queued?'}],signal:abort.signal});
+    await vi.waitFor(()=>expect(messages.get('input')).toContain('Active?'));const cancelled=expect(queued).rejects.toThrow('Question cancelled');abort.abort();await cancelled;
+    expect(messages.get('input')).toContain('Active?');text('Keep');key('enter');expect((await active).value).toEqual({value:{answer:'Keep'}});ui.close();
+  });
+
   it("cancels a pending question and lets the agent recover", async () => {
     const provider = new ScriptedProvider([{ toolCalls: [{ name: "ask_user", args: { question: "Continue?" } }] }, { text: "Cancelled safely" }]);
     const { ui, messages, text, key } = setup(provider);

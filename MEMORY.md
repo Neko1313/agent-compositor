@@ -668,3 +668,29 @@ requires /auto on and a dedicated reviewer profile; defaults remain manual.
 Verification: 461 tests passed, three optional native tests skipped, 56 files;
 line coverage 82.29%. Typecheck passed. Catalog 0.14 adds optional review metadata;
 marketplace metadata and generated docs/schema are synchronized.
+
+## Human choices and questionnaires (2026-11-09)
+
+Extended ask_user with rich options (label/description/recommended), single or
+multiple choice, and default custom text (allowOther:false closes the set).
+Preserved numeric input and the legacy answer result/callback string options.
+Added ask_questions for atomic 1–8 question interactions, stable question IDs,
+Back, editable review and explicit submission. Shared events schemas validate
+unique IDs/labels, answer completeness, choices and cardinality; results include
+selected labels plus optional custom text. Headless/cancel does not invent answers.
+
+The real TUI supports arrows, Space, Tab, mouse choice/description/button hits,
+scrolling and narrow layouts. Question drafts preserve unsent prompts; queued
+approvals cannot consume keys during an active question. Plugins use $.ui.ask
+and $.ui.questionnaire through replaceable service contracts (catalog 0.15).
+Human waits in plugin hooks require an appropriate trusted hookTimeouts entry;
+render hooks cannot request input. Core guidance recommends essential questions
+only, after inspecting available context, independently of execution permissions.
+
+Verification: 479 tests passed, three optional native tests skipped, 59 files;
+line coverage 82.55%. Typecheck, marketplace validation, scripted evals (5+3),
+proxy smoke, release build and installation smoke passed. visual:questions passed
+for source and compiled binary, with screenshots inspected; visual:check passed
+including legacy child ask_user. The maintained bench now has a questionnaire
+scenario; native GNOME pointer/font support and live provider behavior are not
+established by the scripted xterm.js fixture.

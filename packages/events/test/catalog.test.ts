@@ -65,8 +65,12 @@ function minimalSample(schema: unknown): unknown {
       return 1;
     case "ZodBoolean":
       return false;
-    case "ZodArray":
-      return [];
+    case "ZodEffects":
+      return minimalSample((def as {schema:unknown}).schema);
+    case "ZodArray": {
+      const array=def as {type:unknown;minLength?:{value:number}};
+      return Array.from({length:array.minLength?.value??0},()=>minimalSample(array.type));
+    }
     case "ZodRecord":
       return {};
     case "ZodOptional":

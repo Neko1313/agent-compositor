@@ -1,3 +1,4 @@
+import type { UserQuestionAnswer } from "@agent-compositor/events";
 import { FormDialog } from "./form.js";
 import type { UiForm, UiFormResult } from "@agent-compositor/events";
 import type { UiTextView } from "@agent-compositor/events";
@@ -126,7 +127,7 @@ export class AppUI {
   private approvalQueue: NonNullable<AppUI["approval"]>[] = [];
   private question?: {
     dialog: QuestionDialog;
-    resolve: (answer: string | string[]) => void;
+    resolve: (answer: UserQuestionAnswer) => void;
     reject: (error: Error) => void;
   };
   private questionQueue: NonNullable<AppUI["question"]>[] = [];
@@ -515,6 +516,13 @@ export class AppUI {
         return;
       }
     }
+    if (this.question && !this.approval && data.kind === "mouse") {
+      const start = this.rows - this.dockHeight() + 2;
+      if (data.row >= start && data.row < this.rows - 2 && data.col >= 2 && data.col < this.columns - 2)
+        this.handleQuestion({ ...data, row: data.row - start, col: data.col - 2 });
+      else this.updatePointer();
+      return;
+    }
     if (
       data.kind === "mouse" &&
       (data.action === "move" || data.action === "release")
@@ -710,16 +718,7 @@ export class AppUI {
       return;
     }
     if (this.question && !this.approval) {
-      const result = this.question.dialog.handle(data);
-      if (result) {
-        const question = this.question;
-        this.question = undefined;
-        if (result === "cancel")
-          question.reject(new Error("Question cancelled by user"));
-        else question.resolve(result.answer);
-        this.question = this.questionQueue.shift();
-      }
-      this.draw();
+      this.handleQuestion(data);
       return;
     }
     if (
@@ -1015,7 +1014,7 @@ export class AppUI {
         this.draw();
       };
       req.signal?.addEventListener("abort", abort, { once: true });
-      if (this.approval) this.approvalQueue.push(entry);
+      if (this.approval || this.question) this.approvalQueue.push(entry);
       else this.approval = entry;
       this.windows.focused = "input";
       this.draw();
@@ -1063,9 +1062,21 @@ export class AppUI {
       return { value: true };
     };
   }
+  private handleQuestion(data: Extract<WireMessage, { type: "input" }>["data"]): void {
+    const result = this.question?.dialog.handle(data);
+    if (result) {
+      const current = this.question!;
+      this.question = undefined;
+      if (result === "cancel") current.reject(new Error("Question cancelled by user"));
+      else current.resolve(result.answer);
+      this.question = this.questionQueue.shift();
+      if (!this.question) this.approval ??= this.approvalQueue.shift();
+    }
+    this.draw();
+  }
   private askUser(
     request: QuestionRequest & { signal?: AbortSignal }
-  ): Promise<string | string[]> {
+  ): Promise<UserQuestionAnswer> {
     return new Promise((resolve, reject) => {
       if (this.closed || request.signal?.aborted) {
         reject(new Error("UI closed or question cancelled"));
@@ -1074,7 +1085,7 @@ export class AppUI {
       const cleanup = () => request.signal?.removeEventListener("abort", abort);
       const entry = {
         dialog: new QuestionDialog(request),
-        resolve: (value: string | string[]) => {
+        resolve: (value: UserQuestionAnswer) => {
           cleanup();
           resolve(value);
         },
@@ -1084,11 +1095,13 @@ export class AppUI {
         },
       };
       const abort = () => {
-        if (this.question === entry) this.question = this.questionQueue.shift();
+        const active = this.question === entry;
+        if (active) this.question = this.questionQueue.shift();
         else
           this.questionQueue = this.questionQueue.filter(
             (item) => item !== entry
           );
+        if (active && !this.question) this.approval ??= this.approvalQueue.shift();
         entry.reject(new Error("Question cancelled"));
         this.draw();
       };
@@ -1118,7 +1131,11 @@ export class AppUI {
     const mouse = this.lastMouse;
     this.hoveredTitle = undefined;
     let shape: Extract<WireMessage, { type: "pointer" }>["shape"] = "default";
-    if (mouse && !this.approval && !this.question) {
+    if (mouse && this.question && !this.approval) {
+      const row = mouse.row - (this.rows - this.dockHeight() + 2);
+      shape = mouse.col >= 2 && mouse.col < this.columns - 2 && this.question.dialog.interactiveRow(row)
+        ? "pointer" : "default";
+    } else if (mouse && !this.approval && !this.question) {
       if (this.drag?.kind === "resize")
         shape =
           this.drag.handle.node.axis === "horizontal"
@@ -1772,7 +1789,11 @@ export class AppUI {
     for (let i = 0; i < bar.length; i += barWidth)
       barRows.push({ text: bar.slice(i, i + barWidth), tone: "accent" });
     const hint = this.question
-      ? "Enter answer · Esc cancel · PgUp/PgDn question details"
+      ? this.question.dialog.review
+        ? "↑↓ edit · Enter select/submit · Esc cancel"
+        : this.columns < 70
+        ? "↑↓ choose · Space toggle · Tab · Enter next · Esc cancel"
+        : "↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel"
       : this.drag
       ? this.dragHint()
       : this.status.startsWith("Working")
@@ -1780,8 +1801,11 @@ export class AppUI {
       : this.columns < 70
       ? "/ commands · Ctrl+J newline"
       : "/ commands · Ctrl+J newline · Alt+t tools · Alt+? shortcuts";
-    if (this.theme.presentation.hints)
+    if (this.theme.presentation.hints) {
+      // Keep interaction hints visible when the workspace bar wraps.
+      if (this.question) barRows.splice(1);
       barRows.push({ text: hint, tone: "muted" });
+    }
     this.paint("status", "status", barRows.slice(0, 2), barWidth, 2, {
       status: this.status,
       workspace: this.windows.workspace,

@@ -38,6 +38,19 @@ describe("HooksHost / $ API", () => {
     expect(res.value).toMatchObject({ callId: "c" });
   });
 
+  it("exposes plugin questions through interceptable services and guards rendering",async()=>{
+    runtime.setResolver('service.ui.ask',async args=>({value:{answer:(args as any).options[0].label}}));
+    runtime.setResolver('service.ui.questionnaire',async()=>({value:{answers:[{id:'target',selected:['Stage']}]}}));
+    const seen:unknown[]=[];
+    host.registerPlugin(manifest('questions'),{
+      'session.start':async(_e,$)=>{seen.push(await $.ui.ask({question:'Target?',options:[{label:'Stage',recommended:true}]}));seen.push(await $.ui.questionnaire({questions:[{id:'target',question:'Target?',options:['Stage']}]}));},
+      'ui.render':async(_e,$)=>$.ui.questionnaire({questions:[{id:'target',question:'Target?'}]}),
+    });
+    expect((await host.emit('session.start',{sessionId:'s',cwd:dir,plugins:[]})).faults).toEqual([]);
+    expect(seen).toEqual(['Stage',{answers:[{id:'target',selected:['Stage']}]}]);
+    expect((await host.emit('ui.render',{site:'s',surface:'terminal',props:{}})).faults).toMatchObject([{message:expect.stringContaining('during ui.render')}]);
+  });
+
   it("$.state is per-plugin isolated and survives between emissions", async () => {
     host.registerPlugin(manifest("counter"), {
       "session.start": (_e: unknown, $: HooksApi) => {

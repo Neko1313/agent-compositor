@@ -317,10 +317,10 @@ try {
   await waitText("Delegate the task inspection");
   await page.keyboard.press("Enter");
   await waitText("Choose report detail");
-  await waitText("Your answer?");
+  await waitText("[ Answer ]");
   await screenshot("13-agent-question.png");
   await page.keyboard.type("2");
-  await page.waitForFunction(() => visual.text().includes("› 2"));
+  await page.waitForFunction(() => visual.text().includes("Numbers: 2"));
   await page.keyboard.press("Enter");
   await waitText("Delegation complete.");
   await page.waitForFunction(() =>

@@ -133,3 +133,14 @@ the standard pointer scenario expects the emulator feature and uses `on`.
 Browser cursor emulation is not native GNOME Terminal support. Actual VTE/GTK
 font rendering is not tested by xterm.js; equal cell dimensions and the same
 built application are necessary before comparing source and installed versions.
+
+### Human questionnaire scenario
+
+`npm run visual:questions` runs a three-question form through the actual agent
+loop and PTY. It selects rich radio/checkbox choices with the mouse, enters a
+custom multiple-choice answer, returns with Back, resizes to 60 columns, fills
+free text, edits an earlier answer from review and explicitly submits. The
+scripted provider reads the structured tool result and displays the returned
+values. Captures default to `dist/visual-questions/`; inspect the PNGs and
+`report.json`. `VISUAL_EXECUTABLE` selects the compiled distribution via the same
+loopback, token-scoped model fixture. No external models or credentials are used.

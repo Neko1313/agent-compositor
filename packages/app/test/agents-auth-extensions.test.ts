@@ -39,62 +39,71 @@ describe("independent agents, authentication and extensions", () => {
       provider,
       pluginDirs: dirs,
     });
-    const core = app.createCore(async () => true);
-    await core.start();
-    const one = await core.invokeTool("agent_control", {
-      action: "create",
-      name: "one",
-      worktree: false,
-      maxTokens: 10000,
-    });
-    const id1 = (one.output as any).id;
-    const two = await core.invokeTool("agent_control", {
-      action: "create",
-      name: "two",
-      worktree: false,
-      maxTokens: 10000,
-    });
-    const id2 = (two.output as any).id;
-    expect(one.ok && two.ok).toBe(true);
-    expect(id1).not.toBe(id2);
-    await core.invokeTool("agent_control", {
-      action: "send",
-      id: id1,
-      prompt: "first task",
-    });
-    await vi.waitFor(async () => {
-      const rows: any = (
-        await core.host.emit("service.agent.control", { action: "list" })
-      ).value;
-      expect(rows.value.find((r: any) => r.id === id1).state).toBe("idle");
-    });
-    await core.invokeTool("agent_control", {
-      action: "send",
-      id: id2,
-      prompt: "second task",
-    });
-    await vi.waitFor(() => expect(provider.requests).toHaveLength(2));
-    await app.close();
-    expect(
-      provider.requests[1].messages.some((m) => m.content === "first task")
-    ).toBe(false);
-    const restart = await buildApp({
-      cwd,
-      env: { HOME: cwd },
-      provider: new ScriptedProvider([]),
-      pluginDirs: dirs,
-    });
-    const next = restart.createCore(async () => true);
-    const views: string[] = [];
-    next.subscribe((e) => {
-      if (e.kind === "catalog" && e.event === "ui.surface")
-        views.push(String(e.input.text));
-    });
-    await next.start();
-    expect(views.join("\n")).toContain("first agent result");
-    expect(views.join("\n")).toContain("second agent result");
-    await restart.close();
-  });
+    let initialClosed = false;
+    try {
+      const core = app.createCore(async () => true);
+      await core.start();
+      const one = await core.invokeTool("agent_control", {
+        action: "create",
+        name: "one",
+        worktree: false,
+        maxTokens: 10000,
+      });
+      const id1 = (one.output as any).id;
+      const two = await core.invokeTool("agent_control", {
+        action: "create",
+        name: "two",
+        worktree: false,
+        maxTokens: 10000,
+      });
+      const id2 = (two.output as any).id;
+      expect(one.ok && two.ok).toBe(true);
+      expect(id1).not.toBe(id2);
+      await core.invokeTool("agent_control", {
+        action: "send",
+        id: id1,
+        prompt: "first task",
+      });
+      await vi.waitFor(async () => {
+        const rows: any = (
+          await core.host.emit("service.agent.control", { action: "list" })
+        ).value;
+        expect(rows.value.find((r: any) => r.id === id1).state).toBe("idle");
+      }, { timeout: 10000 });
+      await core.invokeTool("agent_control", {
+        action: "send",
+        id: id2,
+        prompt: "second task",
+      });
+      await vi.waitFor(() => expect(provider.requests).toHaveLength(2), { timeout: 10000 });
+      await app.close();
+      initialClosed = true;
+      expect(
+        provider.requests[1].messages.some((m) => m.content === "first task")
+      ).toBe(false);
+      const restart = await buildApp({
+        cwd,
+        env: { HOME: cwd },
+        provider: new ScriptedProvider([]),
+        pluginDirs: dirs,
+      });
+      try {
+        const next = restart.createCore(async () => true);
+        const views: string[] = [];
+        next.subscribe((e) => {
+          if (e.kind === "catalog" && e.event === "ui.surface")
+            views.push(String(e.input.text));
+        });
+        await next.start();
+        expect(views.join("\n")).toContain("first agent result");
+        expect(views.join("\n")).toContain("second agent result");
+      } finally {
+        await restart.close();
+      }
+    } finally {
+      if (!initialClosed) await app.close();
+    }
+  }, 30000);
   it("creates a real isolated Git worktree and preserves it on archive", async () => {
     const cwd = await temp();
     await exec("git", ["init", "-b", "main"], { cwd });

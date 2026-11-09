@@ -35,6 +35,12 @@ await mkdir(project); await mkdir(home);
 const env = { ...process.env, HOME: home, AGENT_HOME: join(home, '.agent-compositor'), AGENT_BASE_URL: `${base}/v1`, AGENT_MODEL: 'release-smoke', AGENT_API_KEY: '', COMPOSITOR_RELEASE_BASE_URL: `${base}/releases` };
 try {
   const options = { env, cwd: project, timeout: 60000, maxBuffer: 2_000_000 };
+  if (process.platform === 'linux') {
+    const oldLibc = join(temp, 'old-libc');
+    await mkdir(oldLibc);
+    await writeFile(join(oldLibc, 'getconf'), "#!/bin/sh\nprintf 'glibc 2.35\\n'\n", { mode: 0o755 });
+    await assert.rejects(exec('sh', [installer, '--prefix', prefix], { ...options, env: { ...env, PATH: `${oldLibc}:${env.PATH}` } }), /requires glibc 2.38/);
+  }
   await assert.rejects(exec('sh', [installer, '--prefix', prefix], options), /Checksum mismatch/);
   await assert.rejects(access(join(prefix, 'bin/compositor')));
   corrupt = false;

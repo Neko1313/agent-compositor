@@ -16,6 +16,10 @@ case "$version" in latest|v[0-9]*) ;; *) fail 'Expected a release tag such as v0
 case "$version" in *[!a-zA-Z0-9._-]*) fail 'Invalid version';; esac
 case "$prefix" in /*) ;; *) fail '--prefix must be absolute';; esac
 case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) fail 'Supported systems: Linux and macOS';; esac
+if [ "$os" = linux ]; then
+  libc=$(getconf GNU_LIBC_VERSION 2>/dev/null) || fail 'Linux requires glibc 2.38+; musl is unsupported'
+  printf '%s\n' "$libc" | awk '{ split($2, v, "."); exit !(v[1] > 2 || (v[1] == 2 && v[2] >= 38)) }' || fail 'The bundled Monty worker requires glibc 2.38+ (for example Ubuntu 24.04)'
+fi
 case "$(uname -m)" in x86_64|amd64) arch=x64 ;; aarch64|arm64) arch=arm64 ;; *) fail 'Supported architectures: x64 and arm64';; esac
 for command in curl tar awk mktemp; do command -v "$command" >/dev/null 2>&1 || fail "Missing command: $command"; done
 if command -v sha256sum >/dev/null 2>&1; then checksum() { sha256sum "$1" | awk '{print $1}'; }

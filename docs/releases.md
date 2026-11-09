@@ -2,8 +2,10 @@
 
 ## Distribution contract
 
-Release archives support Linux glibc (x64/arm64) and macOS (x64/arm64).
-Windows and Linux musl are not currently supported by the installer.
+Release archives support Linux glibc 2.38+ (x64/arm64) and macOS (x64/arm64).
+Windows and Linux musl are not currently supported by the installer. The shipped
+Monty native module needs glibc 2.38+; the complete Linux bundle is tested on
+Ubuntu 24.04. Ubuntu 22.04 is not a supported full-bundle target.
 Each archive contains `compositor/compositor`, external standard plugins,
 mascot APNG assets, public host API modules and Monty's platform-specific worker.
 The Bun runtime is compiled into the executable. Keep the archive's directories
@@ -77,7 +79,7 @@ If publication fails after creating a draft, inspect the failed run and draft
 before retrying. The workflow intentionally refuses to overwrite an existing
 release. Never move a published version tag; fix the issue in a new version.
 
-## v0.1.0 dependency audit
+## v0.1.1 dependency audit
 
 The existing Zod 3 dependency is flagged by npm audit for
 [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5),

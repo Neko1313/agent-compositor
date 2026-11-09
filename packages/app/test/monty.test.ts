@@ -16,13 +16,19 @@ describe('Monty sandbox', () => {
     const app = await buildApp({ cwd: root, env: { HOME: root }, provider, pluginDirs: [join(process.cwd(), 'plugins')] });
     const core = app.createCore(async () => true);
     const running = core.submit('run workflow');
-    await vi.waitFor(() => expect(provider.requests).toHaveLength(2));
-    core.interrupt(); await running;
-    expect(core.getState()).toBe('interrupted');
-    const { readdir } = await import('node:fs/promises');
-    const [run] = await readdir(join(app.storage.paths.state, 'workflows'));
-    expect(await readdir(join(app.storage.paths.state, 'workflows', run))).toEqual(['code.py']);
-  });
+    try {
+      await vi.waitFor(() => expect(provider.requests).toHaveLength(2), { timeout: 10000 });
+      core.interrupt(); await running;
+      expect(core.getState()).toBe('interrupted');
+      const { readdir } = await import('node:fs/promises');
+      const [run] = await readdir(join(app.storage.paths.state, 'workflows'));
+      expect(await readdir(join(app.storage.paths.state, 'workflows', run))).toEqual(['code.py']);
+    } finally {
+      core.interrupt();
+      await running;
+      await app.close();
+    }
+  }, 30000);
 
   it('returns Python values, bounded print output and explicitly supplied async callbacks', async () => {
     const result = await runSandbox({ language: 'python', code: 'value = await double(number)\nprint("computed")\n{"value": value}', inputs: { number: 21 }, functions: { double: async (args: unknown[]) => Number(args[0]) * 2 } });

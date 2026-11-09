@@ -6,7 +6,7 @@ A model provider integrates via plugins, not by forking: override the login with
 
 ## Install
 
-Linux (glibc) and macOS, x64 and arm64:
+Linux (glibc 2.38+) and macOS, x64 and arm64:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Neko1313/agent-compositor/main/install.sh | sh
@@ -23,7 +23,7 @@ To select a version or another installation prefix:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Neko1313/agent-compositor/main/install.sh -o install-compositor.sh
-sh install-compositor.sh --version v0.1.0 --prefix "$HOME/.local"
+sh install-compositor.sh --version v0.1.1 --prefix "$HOME/.local"
 ```
 
 The core includes its runtime; Node.js and Bun are not required to start it.

@@ -273,3 +273,11 @@ all default plugin loads, a mock provider turn, packaged Monty execution and
 state preservation. Remote platform/publication results must be checked in CI.
 Known pre-existing dependency issue: npm audit flags Zod 3 for
 GHSA-mrhx-c7xc-m3w5; the Zod 4 migration is outstanding (docs/releases.md).
+
+The v0.1.0 candidate tag was not published: Ubuntu 22.04 failed the packaged
+Monty check because the upstream native module requires __isoc23_sscanf
+(glibc 2.38+). All other platform archive checks passed. Keep that candidate tag
+as history; publish the corrected distribution as v0.1.1, with Linux x64 on
+Ubuntu 24.04 and an explicit glibc 2.38+ support floor. Two existing integration
+tests also needed bounded 10-second waits and reliable cleanup under CI load;
+the focused tests pass locally. No published tags were moved.

@@ -2,6 +2,11 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.1.1 - 2026-11-09
+
+### Fixes
+- Declare Monty libc requirement and stabilize integration checks ([65d9364](https://github.com/Neko1313/agent-compositor/commit/65d93640f6a1f0c544b80544f0d800aa730121e0))
+
 ## v0.1.0 - 2026-11-09
 
 ### Build and maintenance

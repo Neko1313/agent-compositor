@@ -1,37 +1,37 @@
-# Агентные функции: настройка и ограничения
+# Agent features: configuration and limits
 
-Этот документ описывает реализованный план из MEMORY.md. Расширения остаются
-заменяемыми: Monty, Callix, web, auto review и checkpoints подключаются плагинами;
-общие service-события и tool.call позволяют заменять обработчики.
+This document covers the implemented plan recorded in MEMORY.md. Extensions
+remain replaceable: Monty, Callix, web, auto review, and checkpoints are plugins;
+shared service events and tool.call let other handlers replace them.
 
-## Быстрый доступ
+## Quick access
 
-| Возможность | Команда / инструмент |
+| Feature | Command / tool |
 |---|---|
-| Автооценка подтверждений | `/auto on`, `/auto off`, `/auto status` |
-| История кода и разговора | `/checkpoints`, `/restore <id> code\|conversation\|both`, `/rewind` |
-| Review изменений | `/review [id]`, кнопки Keep change / Revert file |
-| Независимые агенты | `/agents`, `/agents create <name>`, `/agents create-shared <name>` |
-| Сообщение агенту | `/agents send <id> <prompt>` или клик в окно и ввод |
-| Управление агентом | `/agents stop <id>`, `/agents archive <id>`, `/agents merge <id>` |
-| Основной разговор | клик по Conversation или `/agents parent` |
-| Расширения | `/extensions list\|install\|update\|enable\|disable\|remove [name] [ref]` |
-| Вход и ключи | `/auth`, `/login <profile> [ENV_VAR]`, `/logout <profile>` |
-| Модели | `/model`, `/model <profile-or-model>` |
-| Usage и стоимость | `/usage`, `/cost` |
+| Automatic approval review | `/auto on`, `/auto off`, `/auto status` |
+| Code and conversation history | `/checkpoints`, `/restore <id> code\|conversation\|both`, `/rewind` |
+| Change review | `/review [id]`, Keep change / Revert file buttons |
+| Independent agents | `/agents`, `/agents create <name>`, `/agents create-shared <name>` |
+| Message an agent | `/agents send <id> <prompt>` or click its pane and type |
+| Agent controls | `/agents stop <id>`, `/agents archive <id>`, `/agents merge <id>` |
+| Main conversation | Click Conversation or use `/agents parent` |
+| Extensions | `/extensions list\|install\|update\|enable\|disable\|remove [name] [ref]` |
+| Login and keys | `/auth`, `/login <profile> [ENV_VAR]`, `/logout <profile>` |
+| Models | `/model`, `/model <profile-or-model>` |
+| Usage and cost | `/usage`, `/cost` |
 | Web | `web_fetch`, `web_search` |
-| Код | `glob`, `grep`, `code_query` через Callix |
-| Изолированный Python | `run_python`, `workflow` через Monty |
+| Code | `glob`, `grep`, `code_query` through Callix |
+| Isolated Python | `run_python`, `workflow` through Monty |
 | MCP / workflows | `/mcp`, `/workflows` |
-| Сессии | `/sessions`, `/resume`, `/fork`, `/rename`, `/archive`, `/unarchive` |
+| Sessions | `/sessions`, `/resume`, `/fork`, `/rename`, `/archive`, `/unarchive` |
 
 ## Auto review
 
-Режим включается явно для текущей сессии. После перезапуска подтверждения снова
-ручные. Выключение через кнопку действует и на уже выполняющуюся проверку:
-результат устаревшей проверки не подтверждает действие.
+Enable the mode explicitly for the current session. Approvals return to manual
+after restart. Disabling it with the button also invalidates a review already in
+progress: a stale review result cannot approve an action.
 
-В `agent-compositor.json` настройте отдельный профиль малой модели:
+Configure a separate small-model profile in `agent-compositor.json`:
 
 ```json
 {
@@ -47,164 +47,169 @@
 }
 ```
 
-Для той же платформы можно задать `small_model`: приложение создаст профиль
-`small` с настройками основного провайдера. `.agent-compositor/auto.json`:
+For the same platform, set `small_model` to create a `small` profile using the
+main provider's settings. `.agent-compositor/auto.json`:
 
 ```json
 {"profile":"small","maxReviews":50,"timeoutMs":8000}
 ```
 
-Проверяются только действия, для которых обычная цепочка запросила подтверждение.
-Плагин рассматривает точный инструмент, аргументы и descriptor. Он автоматически
-подтверждает только явно низкий риск для exec/write/edit; опасные категории,
-другие инструменты, слишком большой ввод, исчерпанный бюджет, ошибки, timeout
-и невалидный JSON возвращают ручное подтверждение. У review-модели нет инструментов;
-данные действия передаются как недоверенное содержимое. Явный deny остаётся
-обязательным даже при попытке tool.check его переопределить. Решения не становятся
-широкими разрешениями на будущие команды.
+Only actions that require approval through the normal chain are reviewed.
+The plugin examines the exact tool, arguments, and descriptor. It automatically
+approves only clearly low-risk exec/write/edit actions. Dangerous categories,
+other tools, oversized input, exhausted budgets, errors, timeouts, and invalid
+JSON fall back to manual approval. The reviewer has no tools and receives action
+data as untrusted content. Explicit deny remains binding even if tool.check
+tries to override it. Decisions never become broad permissions for future
+commands.
 
-Панель показывает причину и риск. Последние 100 решений сохраняются в
-`.agent-compositor/approval-audit-<session>.json`. Замена обработчика:
+The panel shows the reason and risk. The last 100 decisions are saved in
+`.agent-compositor/approval-audit-<session>.json`. To replace the handler, use
 `serviceProviders: {"service.permission.review":"other-reviewer"}`.
-Оценка модели помогает выбирать подтверждения; исполнение по-прежнему проходит
-через permissions и ограничения выбранного sandbox.
+Model review helps select approvals; execution still passes through permissions
+and the selected sandbox's restrictions.
 
-## Checkpoints и review
+## Checkpoints and review
 
-`checkpoint-history` сохраняет перед обычным ходом код и разговор, затем фиксирует
-состояние файлов после завершения, ошибки или остановки. История раздельная для
-каждой сессии: `.agent-compositor/turn-checkpoints/<session>/`.
+`checkpoint-history` captures code and conversation before a normal turn, then
+records file state after completion, failure, or interruption. Each session has
+separate history at `.agent-compositor/turn-checkpoints/<session>/`.
 
-- Code восстанавливает изменённые файлы, включая создание и удаление.
-- Conversation восстанавливает только контекст; Code его не меняет.
-- Both восстанавливает оба состояния. Возобновление сессии учитывает восстановление.
-- Если файл изменился после снимка, восстановление отказывается перезаписывать его.
-- `/review` показывает Before/After. Keep оставляет уже внесённое изменение;
-  Revert file восстанавливает выбранный файл через обычное подтверждение.
+- Code restores changed files, including creation and deletion.
+- Conversation restores only context; Code leaves it unchanged.
+- Both restores both states. Session resumption respects these restorations.
+- Restoration refuses to overwrite a file changed since the snapshot.
+- `/review` shows Before/After. Keep retains an existing change; Revert file
+  restores the selected file through the normal approval flow.
 
-Восстановление выполняется из интерактивных контролов после текущего хода;
-модель не может перемотать собственный активный ход. Поле `paths` инструмента
-`checkpoint` позволяет выбирать файлы в режиме code. Старый однофайловый
-`checkpoints` остаётся совместимым fallback для `/rewind`, когда истории ходов нет.
+Restoration is available through interactive controls after the current turn;
+the model cannot rewind its own active turn. The `checkpoint` tool's `paths`
+field selects files in code mode. The older single-file `checkpoints` plugin
+remains a compatible `/rewind` fallback when no turn history exists.
 
-Снимок охватывает файлы проекта по Git/agent ignore, максимум 10000 файлов,
-8 MB на файл и 64 MB исходного содержимого. При превышении снимок не создаётся,
-пользователь получает сообщение. Игнорируемые runtime/dependency-файлы, внешние
-системы и операции за пределами репозитория не восстанавливаются. UI показывает
-последние 100 снимков; review-превью ограничено 10 файлами и 30 строками на сторону.
-Старые снимки автоматически не удаляются.
+Snapshots cover project files selected by Git/agent ignore rules, up to 10000
+files, 8 MB per file, and 64 MB of original content. Exceeding a limit skips the
+snapshot and notifies the user. Ignored runtime/dependency files, external systems,
+and operations outside the repository cannot be restored. The UI shows the last
+100 snapshots; review previews are limited to 10 files and 30 lines per side.
+Old snapshots are not deleted automatically.
 
-## Независимые агенты и worktrees
+## Independent agents and worktrees
 
-У каждого агента отдельный AgentCore, transcript, session ID, permissions state,
-лимиты и окно. Родитель может отправлять запросы асинхронно и читать результаты
-через `agent_control` с `action=list` и `id`; без id возвращается краткий список.
-Обычный `task` остаётся ожидаемым подагентом и возвращает результат родителю.
+Each agent has its own AgentCore, transcript, session ID, permission state,
+budgets, and pane. The parent can send requests asynchronously and read results
+through `agent_control` with `action=list` and `id`; omitting id returns a short
+list. The ordinary `task` tool remains an awaited subagent whose result returns
+to the parent.
 
-Create создаёт ветку `agent/<uuid>` и worktree от HEAD в
-`.agent-compositor/worktrees/<uuid>`. Create-shared использует текущее дерево:
-разговоры разделены, файлы в этом режиме общие. Незакоммиченные изменения основного
-дерева не копируются в новый worktree.
+Create makes an `agent/<uuid>` branch and worktree from HEAD under
+`.agent-compositor/worktrees/<uuid>`. Create-shared uses the current working tree:
+conversations are separate, but files are shared. Uncommitted changes in the main
+working tree are not copied to a new worktree.
 
-Клик по окну выбирает получателя ввода; заголовок Message показывает его имя.
-Ctrl+C в выбранном окне останавливает агента. Stop отменяет текущий запрос и очередь.
-Подтверждения и вопросы нескольких агентов стоят в очереди; отмена удаляет
-ожидающий диалог. После перезапуска окна и разговоры восстанавливаются; незавершённые
-действия автоматически не повторяются. Archive сохраняет worktree и файлы.
-Merge требует завершённого агента и закоммиченных изменений; Git сообщает конфликты.
+Click a pane to select the input recipient; the Message title shows its name.
+Ctrl+C in the selected pane stops that agent. Stop cancels the current request
+and queued work. Approvals and questions from multiple agents are queued;
+cancellation removes a waiting dialog. Panes and conversations are restored
+after restart; unfinished actions are not replayed automatically. Archive retains
+the worktree and files. Merge requires a finished agent and committed changes;
+Git reports any conflicts.
 
-По умолчанию доступно 8 активных агентов, до 12 модельных шагов и 50000 токенов
-на ход у нового агента, 200000 на его сессию. `agent_control` принимает maxSteps
-и maxTokens, `agent.maxAgents` ограничивает количество (не более 16).
+Defaults allow 8 active agents, with up to 12 model steps and 50000 tokens per
+turn for a new agent, and 200000 tokens per session. `agent_control` accepts
+maxSteps and maxTokens; `agent.maxAgents` limits the count to at most 16.
 
-## Usage, цены и квоты
+## Usage, pricing, and quotas
 
-`model.usage` учитывает основные запросы, compaction и малую review-модель.
-Сохраняются input/output/cache, группировка по модели и счётчики сессии.
-Если провайдер не сообщает usage, используется явно помеченная оценка для
-бюджетов. Она не выдаётся за точный счёт провайдера и не превращается в стоимость.
-Оценка контекста учитывает UTF-8 для не-ASCII текста и вложения.
+`model.usage` accounts for main requests, compaction, and the small review model.
+It records input/output/cache usage, per-model totals, and session counters.
+If a provider omits usage, an explicitly marked estimate is used for budgets;
+it is not presented as the provider's exact bill or converted into a cost.
+Context estimation accounts for UTF-8 in non-ASCII text and attachments.
 
-В `.agent-compositor/pricing.json` задаются ваши тарифы за миллион токенов.
-Числа ниже демонстрационные, замените их тарифами своего провайдера:
+Set your prices per million tokens in `.agent-compositor/pricing.json`.
+These numbers are illustrative; replace them with your provider's rates:
 
 ```json
 {"default":{"inputPerMillion":1,"outputPerMillion":2,"cachedInputPerMillion":0.1}}
 ```
 
-Без тарифа запрос остаётся unpriced, цена не выдумывается. Настройки бюджетов:
+Requests without a configured rate remain unpriced. Budget settings:
 
 ```json
 {"agent":{"maxTokensPerTurn":50000,"maxTokensPerSession":200000,"maxAgents":8}}
 ```
 
-Ядро ограничивает запрашиваемый output и останавливает дальнейшее исполнение при
-достижении лимита. Это локальные бюджеты по сообщённым/оценённым токенам: уже
-сгенерированные провайдером токены могут превысить остаток, особенно input.
+The core bounds requested output and stops further execution when a limit is
+reached. These are local budgets based on reported/estimated tokens. Tokens
+already generated by the provider may exceed the remaining budget, particularly
+input tokens.
 
-У провайдеров нет единого API квот. Для совместимого endpoint задайте в профиле:
+Providers do not share a universal quota API. For a compatible endpoint, set
+these profile fields:
 
 ```json
 {"quota":{"url":"https://api.example.org/quota","remainingPath":"account.remaining","limitPath":"account.limit","resetPath":"account.reset","unit":"tokens"}}
 ```
 
-Endpoint должен находиться на origin провайдера. Используется ключ профиля,
-результат кешируется 30 секунд. Без endpoint или при ошибке UI сообщает, что квота
-недоступна. Баланс аккаунта не вычисляется из локального счётчика.
+The endpoint must share the provider's origin. It uses the profile key and caches
+results for 30 seconds. Without an endpoint, or on error, the UI reports that
+quota information is unavailable. Account balance is not inferred from a local
+counter.
 
-## Расширения
+## Extensions
 
-Каталог `.agent-compositor/extensions.json` — массив записей:
+The `.agent-compositor/extensions.json` catalog is an array of entries:
 
 ```json
 [{"name":"my-plugin","repository":"https://example.org/my-plugin.git","ref":"v1.0.0"}]
 ```
 
-Репозиторий должен содержать plugin.json в корне. Установка идёт в
-`$HOME/.agent-compositor/plugins`; обязательна явно выбранная Git ref, результат
-содержит фактический commit. Обновление повторяет установку выбранной ref.
-Предыдущая версия/удалённое расширение сохраняются в extension-backups.
-Исходники ещё не выполняются при install; для активации нужен `/reload`.
+The repository must contain plugin.json at its root. Installation targets
+`$HOME/.agent-compositor/plugins` and requires an explicit Git ref; the result
+includes the actual commit. Update repeats installation at the selected ref.
+Previous versions and removed extensions are retained in extension-backups.
+Source code does not execute during install; activation requires `/reload`.
 
-Для `extension_control` поле dependencies=true разрешает `npm ci` по lockfile
-с выключенными package scripts. Без этого зависимости не устанавливаются.
-HTTPS-репозитории не могут содержать credentials в URL; локальные абсолютные
-пути подходят для собственной разработки. Git hooks и рекурсивные submodules
-при установке выключены. Disabled-плагин не импортируется даже если его код
-ломается при импорте. Модули могут экспортировать dispose для освобождения ресурсов
-при reload/unload/закрытии; MCP пользуется этим для остановки серверов.
+Setting dependencies=true in `extension_control` permits lockfile-based `npm ci`
+with package scripts disabled. Otherwise, dependencies are not installed.
+HTTPS repository URLs cannot contain credentials; absolute local paths support
+local development. Git hooks and recursive submodules are disabled during
+installation. Disabled plugins are not imported even if their code would fail on
+import. Modules can export dispose to release resources on reload/unload/close;
+MCP uses this to stop its servers.
 
-## Вход в провайдеры
+## Provider login
 
-`/login <profile> <ENV_VAR>` сохраняет значение переменной окружения. Сам ключ
-не вводится в командную строку чата и не попадает в transcript. Credentials хранятся
-в `$HOME/.agent-compositor/credentials.json`, права файла 0600. Это защищённый
-файл, а не системный keychain. `/logout` удаляет сохранённое значение; отдельно
-заданный ключ из окружения/config продолжает действовать.
+`/login <profile> <ENV_VAR>` saves the environment variable's value. The key itself
+is not entered into the chat command line or included in the transcript.
+Credentials live in `$HOME/.agent-compositor/credentials.json` with file mode
+0600. This is a protected file, not a system keychain. `/logout` removes the saved
+value; a separately configured environment/config key remains effective.
 
-Для OAuth device flow в профиле задаются oauth.clientId,
-deviceAuthorizationEndpoint, tokenEndpoint и необязательный scope. `/login <profile>`
-показывает verification URL/code, ожидает подтверждение и сохраняет token/refresh
-token. Перед модельным запросом истёкший token обновляется. Нужен ваш
-зарегистрированный OAuth-клиент и поддержка grant со стороны сервера; внутренние
-схемы входа отдельных vendor CLI не имитируются. HTTPS обязателен, локальный HTTP
-разрешается только явно через oauth.allowLocalhost для разработки.
+For OAuth device flow, configure oauth.clientId, deviceAuthorizationEndpoint,
+tokenEndpoint, and optional scope in the profile. `/login <profile>` displays a
+verification URL/code, waits for confirmation, and saves access/refresh tokens.
+Expired tokens are refreshed before a model request. You need a registered OAuth
+client and a server supporting that grant; private vendor CLI login protocols are
+not emulated. HTTPS is required; local HTTP is permitted only when explicitly
+selected with oauth.allowLocalhost for development.
 
-Device flow следует [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628).
+Device flow follows [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628).
 
-## Web и базовые интеграции
+## Web and default integrations
 
-`web_fetch` читает HTTP(S) текст/HTML/JSON с deadline 15 секунд и пределом 1 MB;
-в модель возвращается до 50000 символов. Redirect требует отдельного fetch и
-его разрешения. Web-контент помечен недоверенным.
+`web_fetch` reads HTTP(S) text/HTML/JSON with a 15-second deadline and 1 MB limit;
+up to 50000 characters are returned to the model. Redirects require a separate
+fetch and approval. Web content is marked untrusted.
 
-`web_search` использует BRAVE_SEARCH_API_KEY или SearXNG endpoint из
+`web_search` uses BRAVE_SEARCH_API_KEY or a SearXNG endpoint from
 `.agent-compositor/web.json`: `{"searchUrl":"https://search.example.org/search"}`.
-У SearXNG должен быть разрешён JSON format. До 10 результатов, bounded snippets.
-Протоколы: [Brave Search](https://api-dashboard.search.brave.com/api-reference/web/search/get),
+SearXNG must enable JSON format. Results are limited to 10 with bounded snippets.
+Protocols: [Brave Search](https://api-dashboard.search.brave.com/api-reference/web/search/get),
 [SearXNG Search API](https://docs.searxng.org/dev/search_api.html).
 
-См. также [Monty](../plugins/monty/README.md), [Callix](../plugins/callix/README.md),
-[Python workflows](../plugins/workflows/README.md) и [UI-темы](ui-theming.md).
-Monty изолирует Python и явные host callbacks; отдельные shell tools по-прежнему
-исполняются на хосте через обычные permissions.
+See also [Monty](../plugins/monty/README.md), [Callix](../plugins/callix/README.md),
+[Python workflows](../plugins/workflows/README.md), and [UI themes](ui-theming.md).
+Monty isolates Python and explicit host callbacks; separate shell tools still
+execute on the host under the normal permission policy.

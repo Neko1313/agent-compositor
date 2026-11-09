@@ -148,6 +148,6 @@ export function splitFrontmatter(raw: string): { frontmatter: Record<string, str
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
-    .split(/[^a-z0-9а-яё]+/u)
+    .split(/[^a-z0-9\u0430-\u044f\u0451]+/u)
     .filter((t) => t.length > 1);
 }

@@ -1,60 +1,61 @@
-# Хранилище проектов и сеть
+# Project storage and networking
 
-## Данные пользователя
+## User data
 
-Приложение по умолчанию разделяет shared configuration и runtime state:
+By default, the application separates shared configuration from runtime state:
 
 ```text
 ~/.agent-compositor/
-  agent-compositor.json        # глобальные настройки приложения
-  mcp.json, proxy.json, ...    # глобальные настройки компонентов
-  plugins/                    # пользовательские расширения
-  marketplaces.json          # пользовательские каталоги
+  agent-compositor.json        # global application settings
+  mcp.json, proxy.json, ...    # global component settings
+  plugins/                    # user extensions
+  marketplaces.json          # user marketplace registrations
   credentials.json           # private credentials
-  approvals/                 # сохранённые project approvals
-  plugin-state/<plugin>/      # память плагинов scope=global
+  approvals/                 # saved project approvals
+  plugin-state/<plugin>/      # plugin memory with scope=global
   projects/<directory>-<hash>/
-    project.json              # canonical cwd и версия миграции
-    sessions/                 # JSONL сессий и metadata
-    agents.json, worktrees/   # независимые агенты
-    todos.json                # задачи
-    workflows/                # код и replay journals
-    turn-checkpoints/         # состояние кода/разговора
-    layout.json, model.json   # локальные предпочтения
-    memory.md                 # private memory текущего проекта
-    plugin-state/<plugin>/    # JSON state scope=project
+    project.json              # canonical cwd and migration version
+    sessions/                 # session JSONL and metadata
+    agents.json, worktrees/   # independent agents
+    todos.json                # tasks
+    workflows/                # code and replay journals
+    turn-checkpoints/         # code/conversation snapshots
+    layout.json, model.json   # local preferences
+    memory.md                 # private memory for this project
+    plugin-state/<plugin>/    # JSON state with scope=project
     session-state/<id>/<plugin>/
-    cache/<plugin>/           # восстановимые индексы
+    cache/<plugin>/           # rebuildable indexes
 <project>/.agent-compositor/
-  agent-compositor.json      # настройки проекта
+  agent-compositor.json      # project settings
   mcp.json, proxy.json, ...   # shared project overrides
-  plugins/, skills/          # проектные расширения/инструкции
-  marketplaces.json         # проектные регистрации каталогов
+  plugins/, skills/          # project extensions/instructions
+  marketplaces.json         # project marketplace registrations
 ```
 
-Идентификатор включает canonical path и hash: одноимённые каталоги не смешивают
-сессии; Git worktrees имеют отдельные cwd/state. Независимый агент наследует
-app profiles и component settings родителя; его локальные настройки имеют
-приоритет, а runtime task/memory state остаётся отдельным. При переносе checkout в другой
-путь это новый проект. `AGENT_HOME` задаёт альтернативный пользовательский root;
-`AGENT_STORAGE_MODE=project` явно включает прежний portable mode.
-XDG global config также поддерживается. Для app config порядок:
-пользовательский root → XDG → project walk; для настроек компонентов:
-global → project → private local preferences. JSON-объекты merge, массивы заменяются.
+The identifier includes the canonical path and its hash, so directories with the
+same name do not share sessions. Git worktrees have separate cwd/state.
+Independent agents inherit application profiles and component settings from their
+parent; local settings take precedence while runtime task/memory state remains
+separate. Moving a checkout to a different path creates a new project identity.
+`AGENT_HOME` selects an alternative user root; `AGENT_STORAGE_MODE=project`
+explicitly enables the previous portable mode. XDG global configuration is also
+supported. Application configuration precedence is user root → XDG → project
+walk; component settings use global → project → private local preferences.
+JSON objects are merged; arrays are replaced.
 
-При первом старте runtime-файлы старого `<cwd>/.agent-compositor` копируются в
-новое хранилище; оригиналы не удаляются. Marker предотвращает повторный импорт
-устаревшего состояния. Мигрируются sessions, agents, Todos, layout/model,
-checkpoints, workflows и legacy extension metadata. COMPOSITOR.md копируется
-в private memory.md. Старые каталоги остаются для ручной проверки/резервной копии.
+On first startup, runtime files from the old `<cwd>/.agent-compositor` directory
+are copied into the new store without deleting the originals. A marker prevents
+reimporting stale state. Migration covers sessions, agents, Todos, layout/model,
+checkpoints, workflows, and legacy extension metadata. COMPOSITOR.md is copied to
+private memory.md. Old directories remain available for inspection or backup.
 
-Глобальные AGENTS.md/CLAUDE.md/GEMINI.md в пользовательском root, файлы в root
-проекта и его `.agent-compositor` попадают в инструкции. Skills поддерживают
-глобальные и проектные каталоги. `# заметка` сохраняет private project memory;
-`#global заметка` — глобальную память memory-плагина. Общие COMPOSITOR.md остаются
-в проекте; новые заметки их не переписывают.
+Global AGENTS.md/CLAUDE.md/GEMINI.md in the user root, files in the project root,
+and its `.agent-compositor` directory contribute instructions. Skills support
+global and project directories. `# note` saves private project memory;
+`#global note` saves global memory owned by the memory plugin. Shared COMPOSITOR.md
+files remain in the project; new notes do not overwrite them.
 
-## API плагина
+## Plugin API
 
 ```ts
 const config = await $.storage.config('my-plugin.json');
@@ -65,43 +66,46 @@ await $.storage.set('cursor', { row: 4 }, 'session');
 await $.storage.set('symbols', { items: [] }, 'cache');
 ```
 
-Значения JSON хранятся атомарно, ограничены host write budget и разделены по
-имени плагина. `get` возвращает undefined для отсутствующего ключа. Операции
-проходят `service.storage.config/read/write`; их можно перехватывать через hooks.
-Write запрещён во время `ui.render`. Traversal и symlink escape отклоняются.
-`$.storage.paths` сообщает home/state/project. `$.state` остаётся временным
-in-memory состоянием; для сохранения между сессиями используйте storage.
+JSON values are written atomically, bounded by the host write budget, and
+namespaced by plugin. `get` returns undefined for missing keys. Operations pass
+through `service.storage.config/read/write` and can be intercepted by hooks.
+Writes during `ui.render` are forbidden. Traversal and symlink escapes are
+rejected. `$.storage.paths` exposes home/state/project. `$.state` remains temporary
+in-memory state; use storage to persist values across sessions.
 
-Legacy `$.fs.read/write('.agent-compositor/...')` перенаправляет runtime-записи
-в private state, с чтением старых/project/global файлов для совместимости.
-Произвольный Node fs не переписывается автоматически: ToolContext передаёт
-`stateDir`, `settings(name)` и `fetch`; native-плагин должен использовать их.
+Legacy `$.fs.read/write('.agent-compositor/...')` redirects runtime writes to
+private state, with reads falling back to old/project/global files for
+compatibility. Arbitrary Node fs calls are not rewritten automatically:
+ToolContext provides `stateDir`, `settings(name)`, and `fetch` for native plugins
+to use explicitly.
 
-## Актуальность Callix
+## Keeping Callix current
 
-Callix сохраняет JSON graph и fingerprint в `cache/callix/index.json`.
-Fingerprint проверяется перед чтением graph; пригодный cache переиспользуется
-после перезапуска. В активной сессии есть debounce/background refresh по внешним
-изменениям source-файлов, Git HEAD/index/refs в рабочем дереве и `project.changed`
-после write/edit. `.git`, state, node_modules, build/dist не индексируются как
-исходный код. На системах без recursive watch доступны tool hooks и проверка
-fingerprint при запросе. Индексация не превращается в непрерывный опрос.
+Callix saves its JSON graph and fingerprint in `cache/callix/index.json`.
+The fingerprint is checked before reading the graph; a valid cache is reused after
+restart. An active session debounces background refreshes after external source
+edits, Git HEAD/index/refs changes in the working tree, and `project.changed`
+events after write/edit. `.git`, state, node_modules, and build/dist directories
+are excluded from source indexing. Systems without recursive watch still have
+tool hooks and fingerprint checks on query. Indexing does not run as a continuous
+polling loop.
 
 ```json
 { "background": true, "debounceMs": 750 }
 ```
 
-Это настройки callix.json. `background: false` оставляет только refresh on query.
-Процесс/таймер/watchers освобождаются при unload/close; ошибки фоновой индексации
-попадают в telemetry. При постоянных правках индекс может отставать до завершения
-перестроения; запрос проверяет fingerprint, а не считает старый graph актуальным.
+These are callix.json settings. `background: false` leaves only refresh on query.
+Processes, timers, and watchers are released on unload/close; background indexing
+errors go to telemetry. During continuous edits, the index may lag until a
+rebuild finishes; queries check the fingerprint rather than assuming an old graph
+is current.
 
-## Прокси
+## Proxy routing
 
-Заменяемый дефолтный плагин `network-proxy` читает proxy.json и настраивает общий
-клиент через `service.network.configure`. По умолчанию routing выключен.
-Конфигурация проверяется перед модельными запросами и сетевыми инструментами;
-ошибка не должна незаметно переводить включённый proxy на direct.
+The replaceable default `network-proxy` plugin reads proxy.json and configures
+the shared client through `service.network.configure`. Routing defaults to off.
+Configuration is validated before model requests and network tools; an invalid
+enabled proxy must not silently fall back to a direct connection.
 
 ```json
 {
@@ -113,20 +117,21 @@ fingerprint при запросе. Индексация не превращае�
 }
 ```
 
-Укажите свой endpoint, затем `/proxy on`; `/proxy status` и `/proxy off` показывают
-и меняют режим. Пароль в URL скрывается в status. Локальные предпочтения хранятся
-в private state; endpoint не включается автоматически по примеру.
+Set your endpoint, then use `/proxy on`; `/proxy status` and `/proxy off` display
+and change the mode. Status hides the password in the URL. Local preferences are
+stored in private state; the example endpoint is not enabled automatically.
 
-Node использует Undici ProxyAgent/CONNECT, Bun — native fetch proxy. Нативные
-OpenAI/Anthropic/Gemini/OpenAI-compatible протоколы и streaming сохраняются.
-Тем же маршрутом идут provider OAuth/refresh/quota, web tools, а shell/MCP
-получают HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/NO_PROXY для клиентов, которые их
-поддерживают. Global process.env не меняется. Явный env MCP-сервера/команды может
-переопределить значения; произвольный HTTP-код стороннего плагина не перехватывается
-магически — используйте ToolContext.fetch или соответствующие настройки клиента.
-Socks и OpenAI-to-Anthropic protocol translation не добавляются.
+Node uses Undici ProxyAgent/CONNECT; Bun uses its native fetch proxy support.
+Native OpenAI/Anthropic/Gemini/OpenAI-compatible protocols and streaming are
+preserved. Provider OAuth/refresh/quota and web tools use the same route.
+Shell/MCP receive HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/NO_PROXY for clients that support
+those variables. Global process.env is unchanged. An explicit MCP server/command
+env can override them. Arbitrary HTTP code in third-party plugins is not
+intercepted automatically: use ToolContext.fetch or the client's own settings.
+Socks and OpenAI-to-Anthropic protocol translation are outside this implementation.
 
-Ollama остаётся доступен по `http://127.0.0.1:11434/v1`. В этой среде проверены
-`gemma4:31b-cloud` и `deepseek-v4.1-flash:1017-cloud`: API обслуживает локальный
-Ollama, исполнение этих моделей cloud. OpenAI/Anthropic можно настроить позже
-через существующие provider profiles и credentials, сохранив этот transport.
+Ollama remains available at `http://127.0.0.1:11434/v1`. This environment was tested
+with `gemma4:31b-cloud` and `deepseek-v4.1-flash:1017-cloud`: the local Ollama
+serves the API while inference runs in the cloud. OpenAI/Anthropic can be
+configured later through the existing provider profiles and credentials using
+the same transport.

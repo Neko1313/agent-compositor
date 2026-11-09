@@ -30,8 +30,8 @@ Delete any folder = the feature is gone. Nothing here is load-bearing.
 | `callix` | Native binary code graph navigation (`code_query`) plus `glob`/`grep`; replaceable `service.project.query` provider | [Callix](callix/README.md) |
 | `monty` | `run_python` and Python workflow execution through replaceable `service.sandbox.run`; bounded resources and explicit host capabilities | [Monty](monty/README.md) |
 | `auto-approve` | Opt-in `/auto` risk review using a small model, manual fallback and audit | [Setup](../docs/agent-features.md#auto-review) |
-| `checkpoint-history` | Code/conversation turn snapshots, `/checkpoints`, `/restore`, `/review`, file-by-file Keep/Revert | [Setup](../docs/agent-features.md#checkpoints-и-review) |
-| `web` | Bounded `web_fetch` and Brave/SearXNG `web_search` through tool permissions | [Setup](../docs/agent-features.md#web-и-базовые-интеграции) |
+| `checkpoint-history` | Code/conversation turn snapshots, `/checkpoints`, `/restore`, `/review`, file-by-file Keep/Revert | [Setup](../docs/agent-features.md#checkpoints-and-review) |
+| `web` | Bounded `web_fetch` and Brave/SearXNG `web_search` through tool permissions | [Setup](../docs/agent-features.md#web-and-default-integrations) |
 
 
 ## Install

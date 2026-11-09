@@ -1,151 +1,159 @@
-# Память проекта
+# Project memory
 
-## Реализовано: режим auto для подтверждений
+## Implemented: auto approval review
 
-Пользователь попросил добавить в план автоматическое подтверждение действий
-по оценке риска небольшой/недорогой моделью. Реализовано как заменяемый плагин поверх общей цепочки разрешений,
-с отдельно настраиваемым профилем модели. По умолчанию выключено.
+The user requested automatic action approval based on risk assessments by a
+small/inexpensive model. This is implemented as a replaceable plugin on top of
+the shared permission chain, with a separately configured reviewer profile.
+It defaults to off.
 
-- Режимы: ручной и явно включаемый `auto`.
-- Оценивать конкретный инструмент и аргументы: команду, пути, сеть, область
-  изменений, обратимость, доступ к секретам и влияние на внешние системы.
-- Ответ проверяющей модели — структурированный: уровень риска, решение,
-  краткая причина. Низкий риск можно подтверждать в пределах политики;
-  опасные, неоднозначные и неизвестные действия передавать пользователю.
-- Явный deny и ограничения sandbox остаются обязательными. Ошибка, тайм-аут
-  или невалидный ответ проверяющей модели возвращают ручное подтверждение.
-- Показывать решения и причины в UI/журнале; предусмотреть пороги, бюджет
-  проверок и мгновенное выключение auto. Текст команд и вывод инструментов
-  считать данными, не инструкциями для проверяющей модели.
+- Modes: manual and explicitly enabled `auto`.
+- Assess the concrete tool and arguments: command, paths, network access, scope,
+  reversibility, secret access, and effects on external systems.
+- Reviewer output is structured: risk level, decision, and brief reason. Low-risk
+  actions may be approved within policy; dangerous, ambiguous, or unknown actions
+  go to the user.
+- Explicit deny and sandbox restrictions remain binding. Errors, timeouts, and
+  invalid reviewer output fall back to manual approval.
+- Show decisions and reasons in the UI/log; provide thresholds, a review budget,
+  and immediate auto disable. Treat commands and tool output as data, not as
+  instructions to the reviewer.
 
-Настройка: `.agent-compositor/auto.json`, команда `/auto on|off|status`.
-Полная инструкция по новому функционалу: [docs/agent-features.md](docs/agent-features.md).
+Configuration: `.agent-compositor/auto.json`, command `/auto on|off|status`.
+Full feature instructions: [docs/agent-features.md](docs/agent-features.md).
 
-## Выбор базовых плагинов
+## Default plugin choices
 
-Пользователь выбрал Monty для изолированного исполнения кода, Callix
-(https://github.com/Callix-Tools/callix) для анализа и навигации по репозиторию.
-Это заменяемые базовые плагины, а не обязательные зависимости ядра.
-Для Callix использовать нативный бинарник и JSON-граф (`callix analyze`),
-без Python API/venv-прослойки. Плагин `callix` реализует
-`service.project.query`; выбор альтернативы — через `serviceProviders`.
-Monty изолирует Python-код и явно предоставленные функции хоста; он сам по
-себе не обеспечивает OS-изоляцию произвольного shell-процесса.
+The user selected Monty for isolated code execution and Callix
+(https://github.com/Callix-Tools/callix) for repository analysis/navigation.
+These are replaceable default plugins, not mandatory core dependencies.
+Use Callix's native binary and JSON graph (`callix analyze`), without a Python
+API/venv intermediary. The `callix` plugin provides `service.project.query`;
+select alternatives through `serviceProviders`. Monty isolates Python code and
+explicit host callbacks; it does not provide OS isolation for arbitrary shell
+processes.
 
-Ниже сохранён исходный снимок пробелов на дату анализа. Пользователь позже
-поручил их реализовать; перед продолжением сверять его с текущим кодом.
+The original gap analysis below is a historical snapshot. The user subsequently
+requested its implementation; compare it with current code before acting on it.
 
-### Статус выполнения плана — 2026-11-09
+### Plan implementation status — 2026-11-09
 
-Пользователь явно поручил реализовать все запланированные функции. Код находится
-в рабочем дереве, без коммита/публикации. Исходный анализ ниже — исторический
-снимок; его список «отсутствует» больше не описывает текущее состояние.
+The user explicitly requested all planned features. At this milestone, the code
+was in the working tree without a commit/publication. The original analysis
+below is historical: its list of missing features no longer describes the
+current implementation.
 
-Реализованы:
-- Общие модельные и инструментальные контракты, смена моделей и reload tools/hooks.
-- Anthropic, Gemini, Responses и OpenAI-compatible; retry, replay metadata,
-  изображения, обнаружение оборванного stream до исполнения tool calls.
-- Инструкции AGENTS/CLAUDE/GEMINI, skills, @files/@images, ignore, редактор и history.
-- Headless text/JSON/JSONL, JSON schema validation, resume/fork/archive/rename UI.
-- Permissions once/session/project и auto-review малой моделью с audit и fallback.
-- Callix через нативный binary/JSON graph; Monty для Python/workflows, replay/cancel.
-- MCP/workflows панели; MCP timeout, cancellation, cwd-aware connection cache,
-  освобождение процессов через dispose при reload/закрытии.
-- Web fetch и Brave/SearXNG search с ограничениями объёма и отдельными permissions.
-- Checkpoints всего доступного проектного дерева и разговора; code/conversation/both,
-  защита поздних правок, review Before/After и Keep/Revert выбранного файла.
-- Установка/обновление/enable/disable/remove расширений из настроенного Git-каталога;
-  lockfile dependencies без scripts, backup предыдущей версии, disable до импорта.
-- Ключи в приватном файле, OAuth device flow/refresh для настроенного клиента,
-  выбор профиля и logout. Внутренние vendor CLI login-протоколы не имитируются.
-- Usage всех модельных вызовов, cache, цены из конфигурации, явно помеченные
-  оценки при отсутствии usage, лимиты токенов/шагов и configurable account quota.
-- Независимые агенты с отдельными сессиями, окнами, бюджетами и Git worktrees;
-  асинхронные сообщения/результаты, stop/queue cancellation, archive/merge,
-  выбор адресата мышью и восстановление разговоров/окон после перезапуска.
-- Очередь approval/question диалогов нескольких агентов и отмена ожидающего диалога.
+Implemented:
+- Shared model/tool contracts, model switching, and tools/hooks reload.
+- Anthropic, Gemini, Responses, and OpenAI-compatible providers; retry, replay
+  metadata, images, and truncated-stream detection before tool execution.
+- AGENTS/CLAUDE/GEMINI instructions, skills, @files/@images, ignore rules,
+  an editor, and history.
+- Headless text/JSON/JSONL, JSON schema validation, and resume/fork/archive/rename UI.
+- Once/session/project permissions and small-model auto review with audit/fallback.
+- Native Callix binary/JSON graph and Monty Python/workflows with replay/cancel.
+- MCP/workflow panels; MCP timeout, cancellation, cwd-aware connection caching,
+  and process disposal on reload/close.
+- Web fetch and Brave/SearXNG search with size limits and separate permissions.
+- Checkpoints of available project files and conversation; code/conversation/both
+  restore, protection against later edits, Before/After review, and per-file
+  Keep/Revert controls.
+- Install/update/enable/disable/remove extensions from a configured Git catalog;
+  lockfile dependencies without scripts, previous-version backups, and disable
+  before import.
+- Keys in a private file, OAuth device flow/refresh for a configured client,
+  profile selection, and logout. Private vendor CLI login protocols are not
+  imitated.
+- Usage for all model calls, cache, configured pricing, marked estimates when
+  providers omit usage, token/step budgets, and configurable account quotas.
+- Independent agents with separate sessions, panes, budgets, and Git worktrees;
+  asynchronous messages/results, stop/queue cancellation, archive/merge, mouse
+  recipient selection, and conversation/pane restoration after restart.
+- Queued approval/question dialogs for multiple agents and waiting-dialog cancellation.
 
-Настройка и границы реализации описаны в docs/agent-features.md. Внешние search,
-quota и OAuth требуют endpoint/ключей/зарегистрированного клиента пользователя.
-Live-проверки реальных облачных аккаунтов без credentials не выполнялись;
-проверены HTTP fixtures и локальные процессы. Monty не изолирует host shell;
-checkpoints не отменяют внешние side effects и ограничены проектными ignore/size.
-UI проверяется реальным PTY/browser сценарием; результаты под dist/visual-verified.
+Configuration and limits are documented in docs/agent-features.md. External
+search, quota, and OAuth integrations require the user's endpoints, keys, or
+registered client. At this milestone, live cloud accounts were not tested without
+credentials; HTTP fixtures and local processes were checked. Monty does not
+isolate the host shell. Checkpoints cannot undo external side effects and are
+bounded by project ignore/size rules. The real PTY/browser UI scenario stores its
+results under dist/visual-verified.
 
-## Агент фичи
+## Agent features
 
-Дата: 2026-11-09. Пользователь попросил сохранить результаты сравнения с
-Codex CLI, Gemini CLI и Claude Code и вернуться к ним позже. Это список
-направлений для обсуждения, а не поручение немедленно реализовать всё.
+Date: 2026-11-09. The user requested saving the comparison with Codex CLI,
+Gemini CLI, and Claude Code for later discussion. This section records discussion
+topics, not authorization to implement the roadmap immediately. Statements below
+describe the original analysis, before the implementation status recorded above.
 
-### Основной вывод
+### Main finding
 
-У проекта есть работающий агентный цикл и оконный TUI. Основные пробелы
-находятся в инструментах, интеграциях и управлении выполнением.
-Перспективное отличие — оконная среда для нескольких независимых агентов
-и инструментов. Сейчас несколько conversation-представлений используют
-один AgentCore: несколько окон ещё не означают несколько агентов.
+The project had a working agent loop and windowed TUI. Most gaps concerned tools,
+integrations, and execution management. A promising distinction was a windowed
+workspace for multiple independent agents and tools. At the time, multiple
+conversation views shared one AgentCore: multiple windows did not yet mean
+multiple agents.
 
-### Уже работает
+### Already working at the time
 
-- Потоковые ответы, чтение и изменение файлов, shell и фоновые процессы.
-- Остановка и корректировка задачи, очередь запросов.
-- Возобновление сессии, сжатие контекста, skills и hooks.
-- Todos с UI и сохранением, локальные плагины с UI.
-- Оконный TUI: workspaces, фокус мышью, drag/resize, размещение плагинов.
+- Streaming answers, file reading/editing, shell, and background processes.
+- Interruption, task steering, and queued requests.
+- Session resumption, context compaction, skills, and hooks.
+- Todos with UI/persistence and local plugins with UI.
+- Windowed TUI: workspaces, mouse focus, drag/resize, and plugin placement.
 
-### Отсутствующие возможности
+### Missing capabilities at the time
 
-- MCP-клиент: подключение серверов, обнаружение и выполнение инструментов.
-- Подагенты: отдельные циклы и контексты, жизненный цикл, обмен результатами,
-  бюджеты и изоляция через worktrees. agent.offer/agent.spawn пока декларации.
-- OS-песочница для shell/файлов/сети; permissions и guard-плагины её не заменяют.
-- Специализированные glob/grep, навигация по символам и LSP. Поиск через shell
-  возможен, но отдельного слоя работы с кодом нет.
-- Встроенные web_search/web_fetch.
-- Изображения, вложения и мультимодальные сообщения провайдерам.
-- Полноценный headless-запуск: одноразовый prompt, JSON/JSONL, коды завершения.
-- Встроенные diff/review и пользовательский процесс выбора изменений.
-- Установка и обновление расширений, каталог, управление зависимостями.
+- An MCP client for server connections, tool discovery, and execution.
+- Subagents with separate loops/contexts, lifecycle, result exchange, budgets,
+  and worktree isolation. agent.offer/agent.spawn were declarations only.
+- OS sandboxing for shell/files/network; permissions and guard plugins did not
+  replace it.
+- Dedicated glob/grep, symbol navigation, and LSP. Shell search was possible,
+  but there was no dedicated code-navigation layer.
+- Built-in web_search/web_fetch.
+- Images, attachments, and multimodal provider messages.
+- Full headless operation: one-shot prompts, JSON/JSONL, and exit codes.
+- Built-in diff/review and an interactive change-selection workflow.
+- Extension installation/updates, a catalog, and dependency management.
 
-### Частично реализовано
+### Partially implemented at the time
 
-- Провайдеры: OpenAI-compatible Chat Completions; нет нативных Anthropic,
-  Gemini, Responses API, входа через аккаунт, выбора модели в UI и полноценного
-  восстановления после ошибок провайдера.
-- Контекст: память COMPOSITOR.md и загрузчик skills; нет автоматического чтения
-  AGENTS.md/CLAUDE.md/GEMINI.md, @files и общей политики исключений контекста.
-- Сессии: resume подключён; fork/archive есть в хранилище, но нет UI поиска,
-  выбора, именования и ветвления сессий.
-- Rewind: последнее сохранённое состояние отдельного файла; нет checkpoint
-  всего хода с независимым восстановлением кода и разговора.
-- Разрешения: правила и разовое подтверждение; запоминание разрешений на
-  сессию/проект не доведено до пользовательского сценария.
-- Контекст/usage: приблизительная оценка токенов и сжатие; нет полноценного
-  расчёта стоимости, учёта кеша и квот.
-- Ввод: slash-подсказки есть; нужны многострочный редактор, история запросов,
-  внешний редактор и вложения.
-- Сохранение размещения плагинов есть; полного дерева окон с восстановлением
-  независимых задач/агентов нет.
+- Providers: OpenAI-compatible Chat Completions only; no native Anthropic, Gemini,
+  Responses API, account login, UI model selection, or complete provider recovery.
+- Context: COMPOSITOR.md memory and a skill loader; no automatic
+  AGENTS.md/CLAUDE.md/GEMINI.md loading, @files, or shared context exclusion policy.
+- Sessions: resume was connected; fork/archive existed in storage, but lacked UI
+  search, naming, selection, and branching.
+- Rewind: the last saved state of one file; no turn-wide checkpoint with separate
+  code/conversation restoration.
+- Permissions: rules and one-off approval; session/project approval persistence
+  was not complete as a user workflow.
+- Context/usage: estimated tokens and compaction; no full cost, cache, or quota
+  accounting.
+- Input: slash suggestions existed; multiline editing, prompt history, an
+  external editor, and attachments were missing.
+- Plugin placement persisted, but the complete window tree and independent
+  agent/task state did not.
 
-### Архитектурные ограничения
+### Architectural limits at the time
 
-- Список доступных модели инструментов фиксируется при создании AgentCore.
-  Нужна штатная регистрация инструментов плагинами: схема и обработчик.
-- Основной запрос к модели идёт напрямую через provider.complete, поэтому
-  переопределение service.model.complete не охватывает весь агентный цикл.
-- Проверять актуальное состояние перед реализацией: выводы описывают код
-  на дату анализа, а не гарантируют отсутствие будущих изменений.
+- Model-facing tools were fixed when AgentCore was created. Plugins needed a
+  standard schema/handler registration mechanism.
+- Main requests called provider.complete directly, so replacing
+  service.model.complete did not cover the whole agent loop.
+- Check the current implementation before acting: these findings describe the
+  analysis date, not guaranteed future gaps.
 
-### Предложенная последовательность (ещё не утверждена)
+### Proposed sequence (not yet approved at that point)
 
-1. Расширяемое ядро: регистрация инструментов, единая точка обращения к моделям.
-2. Работа с репозиторием: инструкции проекта, поиск, @files, редактор ввода, diff.
-3. MCP и провайдеры: внешние инструменты, нативные адаптеры, выбор модели.
-4. Надёжное выполнение: sandbox, запоминаемые разрешения, checkpoints, headless JSON.
-5. Многозадачность: подагенты, независимые сессии, worktrees, отображение в окнах.
+1. Extensible core: tool registration and a shared model-request path.
+2. Repository work: project instructions, search, @files, input editor, diff.
+3. MCP and providers: external tools, native adapters, model selection.
+4. Reliable execution: sandbox, persistent approvals, checkpoints, headless JSON.
+5. Multitasking: subagents, independent sessions, worktrees, and pane presentation.
 
-### Источники сравнения
+### Comparison sources
 
 - Codex CLI: https://learn.chatgpt.com/docs/codex/cli
 - Claude Code extensions: https://code.claude.com/docs/en/features-overview
@@ -155,82 +163,91 @@ Codex CLI, Gemini CLI и Claude Code и вернуться к ним позже.
 - Gemini headless: https://geminicli.com/docs/cli/headless/
 - Gemini extensions: https://geminicli.com/docs/extensions/
 
-Возможности конкурентов различаются; список не утверждает полный паритет
-между ними. Перед новым сравнением перепроверять официальные документы.
+Competitor capabilities differ; this list does not claim complete parity.
+Recheck official documentation before making a new comparison.
 
-## Маскот Ghost — заменяемый дефолтный плагин
+## Ghost mascot — replaceable default plugin
 
-Пользователь предоставил 10 APNG-анимаций и попросил интерактивный маскот,
-реагирующий на hooks компонентов. `plugins/mascot` хранит оригиналы без изменений,
-декодирует кадры и подписывается на turn/tool/subagent, ui.reaction и agent.activity.
-В ядре нет логики Ghost: общие UiTextView.raster, ui.visibility и $.ui.remove
-позволяют заменить плагин. Ink показывает RGBA через цветные полублоки; native
-Kitty/Sixel не требуется. Скрытые окна/headless не запускают animation timer.
-`/mascot on|off|pause|resume|reload`, кнопки Pause/Resume и Pet Ghost;
-конфигурация `.agent-compositor/mascot.json`, сменные project-local APNG packs,
-переопределяемые tool/reaction mappings. Подробности plugins/mascot/README.md.
+The user supplied 10 APNG animations and requested an interactive mascot reacting
+to component hooks. `plugins/mascot` preserves the originals, decodes frames, and
+subscribes to turn/tool/subagent, ui.reaction, and agent.activity events.
+The core has no Ghost-specific logic: shared UiTextView.raster, ui.visibility,
+and $.ui.remove allow replacement. Ink displays RGBA through colored half blocks;
+native Kitty/Sixel support is unnecessary. Hidden/headless surfaces do not run
+animation timers. Controls: `/mascot on|off|pause|resume|reload`, Pause/Resume,
+and Pet Ghost. Configuration: `.agent-compositor/mascot.json`, replaceable
+project-local APNG packs, and configurable tool/reaction mappings. Details:
+plugins/mascot/README.md.
 
-Проверка маскота: 336 tests passed, 1 optional Callix test skipped; typecheck
-прошёл. Реальный PTY/browser сценарий — 24 скриншота, report.ok=true
-в dist/visual-mascot; проверены смена кадров, клик Pet, пауза, вопрос
-подагента, ручное approval и существующие оконные сценарии. Исходные 10 APNG
-побайтно совпадают с архивом пользователя.
+Mascot checks at that milestone: 336 tests passed, 1 optional Callix test skipped,
+and typecheck passed. The real PTY/browser scenario captured 24 screenshots with
+report.ok=true under dist/visual-mascot. It covered frame changes, Pet, pause,
+a subagent question, manual approval, and existing window interactions. All 10
+APNG files matched the user's archive byte for byte.
 
+## Marketplace, home storage, proxy, and quality evals — 2026-11-09
 
-## Marketplace, home storage, proxy и quality eval — 2026-11-09
-
-По запросу пользователя реализованы в рабочем дереве:
-- `.claude-plugin/marketplace.json`, регистрация Git/local marketplaces, explicit
-  update/pinned commit, установка name@marketplace в user/project scope, backups.
-  Поддержаны relative sources и GitHub/HTTPS Git source objects; собственный каталог
-  на 26 записей и переносимый пример commands Markdown. Native host API imports
-  работают у установленных вне monorepo плагинов через host package bindings.
-- Claude compatibility adapter: namespaced commands/skills, `$ARGUMENTS`/позиционные
-  args, MCP maps, синхронные command hooks, matcher/stdin/timeout/cancel,
-  deny/ask. Это ограниченный subset: agents/LSP/mods/async/prompt/http hooks и
-  userConfig не реализуются молча; unsupported components дают ошибку загрузки.
-  Native TS/Ink UI не становится переносимым в Claude автоматически.
-- Runtime data по умолчанию в `~/.agent-compositor/projects/<name>-<canonical hash>`:
-  sessions, agents/worktrees, Todos, workflows, checkpoints, UI prefs, memory,
-  plugin state/cache. Non-destructive one-shot migration старых project-local
-  данных. `AGENT_STORAGE_MODE=project` оставляет portable mode.
-- `$.storage.config/get/set` + service.storage.*; scopes global/project/session/cache,
-  atomically written JSON, plugin namespaces, path/symlink confinement, render guard.
-  Legacy relative $.fs .agent-compositor paths remapped. Global/project/component
-  configs merge; independent agent roots inherit parent profiles/MCP/proxy while
-  keeping separate runtime state and local overrides. `#global note` stores global
-  memory; `# note` private project memory. COMPOSITOR.md migrated without deletion.
-- Replaceable network-proxy plugin: `/proxy status|on|off`, proxy.json, before-model
+Implemented in the working tree at this milestone, following the user's request:
+- `.claude-plugin/marketplace.json`, Git/local marketplace registration, explicit
+  updates/pinned commits, name@marketplace installation in user/project scope,
+  and backups. Relative sources and GitHub/HTTPS Git source objects are supported.
+  The repository has a 26-entry catalog and portable Markdown command example.
+  Installed native plugins outside the monorepo resolve host API imports through
+  host package bindings.
+- Claude compatibility adapter: namespaced commands/skills, `$ARGUMENTS`/positional
+  arguments, MCP maps, synchronous command hooks, matcher/stdin/timeout/cancel,
+  and deny/ask. This is an explicit subset: agents/LSP/mods/async/prompt/http hooks
+  and userConfig are not silently emulated; unsupported components cause loader
+  errors. Native TS/Ink UI does not automatically become portable to Claude.
+- Runtime data defaults to `~/.agent-compositor/projects/<name>-<canonical hash>`:
+  sessions, agents/worktrees, Todos, workflows, checkpoints, UI preferences,
+  memory, and plugin state/cache. Old project-local data receives a nondestructive,
+  one-time migration. `AGENT_STORAGE_MODE=project` retains portable mode.
+- `$.storage.config/get/set` and service.storage.* with global/project/session/cache
+  scopes, atomic JSON writes, plugin namespaces, path/symlink confinement, and a
+  render guard. Legacy relative $.fs .agent-compositor paths are remapped.
+  Global/project/component configuration merges; independent agent roots inherit
+  parent profiles/MCP/proxy while retaining separate runtime state and local
+  overrides. `#global note` saves global memory; `# note` saves private project
+  memory. COMPOSITOR.md is migrated without deletion.
+- Replaceable network-proxy plugin: `/proxy status|on|off`, proxy.json, pre-request
   validation, native Node Undici and Bun fetch proxy routing, model streams,
-  OAuth/quota/web, shell/MCP proxy environment without global process.env mutation.
-  Invalid enabled routing blocks model calls. Actual endpoint remains user-configured,
-  disabled by default. API keys OpenAI/Anthropic not supplied or requested now.
-- Persistent/background Callix graph, cache fingerprint, source/Git/tool change hooks,
-  debounce and cleanup. Queries verify freshness; external edits and restart reuse
-  checked through a real CLI subprocess, native Callix adapter also checked.
-- Reproducible isolated eval fixtures/rubrics, repetitions/splits/baseline reports,
-  explicit live Ollama runs; Gemma4 and DeepSeek model tags preserved exactly.
-  DeepSeek cloud tag installed in existing Ollama. No claim of local model inference.
-- Real Harness² Substrate + BenchSpec-compatible workspace_config materialisation,
-  headless compositor trajectories, process-group timeout. Upstream deterministic
-  demo and Compositor/Gemma rollout checked; not a full JobBench/LAB/WorkBuddy result
-  or measured recursive model-based optimization gain. Upstream commit
-  6868817518876de8fd170c6a8354daca273b6191, Python 3.13 isolated under /tmp.
-- Vitest 5/coverage, JUnit/Cobertura and deterministic eval/proxy/catalog CI steps.
-  Node >=22.12. Removed vulnerable older Vitest/tinypool toolchain; pre-existing
-  Zod 3 major migration is not included. Existing worktree changes preserved;
-  no commit/push/publication was requested or performed.
+  OAuth/quota/web, and shell/MCP proxy environment without changing global
+  process.env. Invalid enabled routing blocks model requests. The real endpoint
+  remains user-configured and routing defaults to off. OpenAI/Anthropic API keys
+  were not supplied or requested at this milestone.
+- Persistent/background Callix graph, cache fingerprint, source/Git/tool change
+  hooks, debounce, and cleanup. Queries verify freshness. External edits and disk
+  reuse after restart were checked with a real CLI subprocess; the native Callix
+  adapter was also checked.
+- Reproducible isolated eval fixtures/rubrics, repetition/split/baseline reports,
+  and explicit live Ollama runs. Gemma4/DeepSeek model tags were preserved exactly.
+  The DeepSeek cloud tag was installed in the existing Ollama instance; no local
+  inference claim was made.
+- Real Harness² Substrate and BenchSpec-compatible workspace_config
+  materialisation, headless compositor trajectories, and process-group timeouts.
+  The upstream deterministic demo and a Compositor/Gemma rollout were checked.
+  These are not full JobBench/LAB/WorkBuddy results or measurements of recursive
+  optimization gains with live models. Upstream commit:
+  6868817518876de8fd170c6a8354daca273b6191; Python 3.13 isolated under /tmp.
+- Vitest 5/coverage, JUnit/Cobertura, and deterministic eval/proxy/catalog CI steps.
+  Node >=22.12. The vulnerable older Vitest/tinypool toolchain was removed; the
+  pre-existing Zod 3 major migration was outside this change. Existing worktree
+  edits were preserved. No commit/push/publication had been requested or performed
+  at this milestone.
 
-Usage/limits: docs/marketplace.md, docs/state-and-network.md, docs/evals.md.
-Current reports: dist/quality-report.json, dist/evals-ollama-final/report.json,
-dist/harness2-smoke/report.json, dist/harness2-demo/demo.json,
-dist/visual-marketplace-storage/report.json. These are run evidence, not timeless
-quality claims. Keep shared catalogs free of machine-local cache paths; Git project
-registrations retain pinned provenance and reconstruct cache in the user's home.
+Usage and limits: docs/marketplace.md, docs/state-and-network.md, docs/evals.md.
+Run evidence: dist/quality-report.json, dist/evals-ollama-final/report.json,
+dist/harness2-smoke/report.json, dist/harness2-demo/demo.json, and
+dist/visual-marketplace-storage/report.json. These are run-specific evidence,
+not permanent quality guarantees. Keep shared catalogs free of machine-local
+cache paths; Git project registrations retain pinned provenance and reconstruct
+the cache in the user's home directory.
 
-Финальная проверка этого этапа: 355 passed + 1 optional Callix skipped (отдельно
-нативный Callix 5/5), 45 test files. Coverage lines 80.16%, statements 76.45%,
-functions 76.06%, branches 66.02%; gates прошли. Typecheck и diff-check прошли.
-Live Ollama 10/10 (по 5 на Gemma и DeepSeek), PTY/browser 26 screenshots, ok=true.
-Итоговый машиночитаемый отчёт dist/quality-report.json; выводы/ограничения
-в docs/evals.md. Все изменения остаются без commit/push.
+Final checks for this milestone: 355 passed and 1 optional Callix test skipped
+(native Callix separately passed 5/5), across 45 test files. Coverage: lines 80.16%,
+statements 76.45%, functions 76.06%, branches 66.02%; all gates passed. Typecheck
+and diff checks passed. Live Ollama passed 10/10 (5 each for Gemma and DeepSeek).
+The PTY/browser scenario captured 26 screenshots with ok=true. Machine-readable
+report: dist/quality-report.json; interpretation and limits: docs/evals.md.
+Changes were still uncommitted at the time of this recorded validation.

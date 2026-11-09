@@ -3,7 +3,7 @@
 ## Project memory
 
 Read [MEMORY.md](MEMORY.md) for saved project decisions and deferred topics.
-The section «Агент фичи» records the feature-gap analysis versus Codex CLI,
+The section "Agent features" records the feature-gap analysis versus Codex CLI,
 Gemini CLI and Claude Code; it is a deferred discussion, not an instruction
 to implement the roadmap without a user request.
 
@@ -21,3 +21,9 @@ The skill can also be invoked as `$tui-visual-check`. Its entry points are
 there is also a UI behavior to verify.
 
 The maintained bench documentation is [tools/visual/README.md](tools/visual/README.md).
+
+## Repository language
+
+Write repository documentation, comments, and project memory in English. Keep
+chat replies in the user's language. Preserve intentional language support in
+code and fixtures when translating repository text.

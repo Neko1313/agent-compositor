@@ -2,6 +2,40 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.2.0 - 2026-11-09
+
+### Build and maintenance
+- Update libraries and migrate schema tooling ([1b10905](https://github.com/Neko1313/agent-compositor/commit/1b10905822c2278a38da68378f2283f15db54b44))
+
+
+### Documentation
+- Record verified v0.1.1 publication ([b7cb093](https://github.com/Neko1313/agent-compositor/commit/b7cb09303d4f1b977321a8a64b6ba2c466c2f3c7))
+- Record native Callix distribution verification ([096827f](https://github.com/Neko1313/agent-compositor/commit/096827f17b9d603db102f8d347a91d8f27394c26))
+
+
+### Features
+- Render full-resolution Ghost with native terminal graphics ([ad27162](https://github.com/Neko1313/agent-compositor/commit/ad2716294adc2dec98a01e444e5438d818e4d998))
+- Bundle verified native Callix with its plugin ([99f6b52](https://github.com/Neko1313/agent-compositor/commit/99f6b52e95765d2858ea61937de5642e1521cb1a))
+- Add native provider model and proxy settings ([31b8c45](https://github.com/Neko1313/agent-compositor/commit/31b8c45c78dffdce9e1fb7149d37ea4c910b8e69))
+- Add model-aware context and dynamic background workflows ([5b01308](https://github.com/Neko1313/agent-compositor/commit/5b0130893c02f275a921d9ac64e402ecdea6ad58))
+- Add guarded symbol editing and navigation evaluations ([ecbe996](https://github.com/Neko1313/agent-compositor/commit/ecbe996ef5dfaaabad3d080a81dd834cbef2a139))
+- Cache prompts and bound workflow model costs ([53512bc](https://github.com/Neko1313/agent-compositor/commit/53512bc3d69806facf9f67f266d12c0744d7edf6))
+- Review arbitrary commands and plugin tools ([d8f3317](https://github.com/Neko1313/agent-compositor/commit/d8f331746d7126c3591dc4ad7b7f690398c913e1))
+- Add rich choices and reviewed questionnaires ([e7f1c1d](https://github.com/Neko1313/agent-compositor/commit/e7f1c1d5da8450d63c70e3d4407a8ff95552da3b))
+- Add searchable interactive chat history ([0c72441](https://github.com/Neko1313/agent-compositor/commit/0c7244159df3c49511b7c6cf65703622baca180a))
+- Improve readable layouts and contextual controls ([2c39527](https://github.com/Neko1313/agent-compositor/commit/2c39527e1fe21ca47e4a31fdfd71217c81b422b3))
+
+
+### Fixes
+- Install ripgrep for native search tests ([8f65a72](https://github.com/Neko1313/agent-compositor/commit/8f65a72eecc5360a4bc195f24682b1e01d4e10e3))
+- Render markdown and support native terminal fallbacks ([d3ea6a8](https://github.com/Neko1313/agent-compositor/commit/d3ea6a80b3272b5f04f0396efd2a1074635a2581))
+- Resolve canonical system command targets ([bd5454d](https://github.com/Neko1313/agent-compositor/commit/bd5454dfc78fbce41477765664171a38b1375fd1))
+- Tolerate missing and invalid history records ([f40f64b](https://github.com/Neko1313/agent-compositor/commit/f40f64ba32e668ceeec2d1fde379a147db5d1a71))
+
+
+### Tests
+- Synchronize parallel workers deterministically ([3113f84](https://github.com/Neko1313/agent-compositor/commit/3113f84ae343ab703015626be7e309724c5b31a7))
+
 ## v0.1.1 - 2026-11-09
 
 ### Fixes

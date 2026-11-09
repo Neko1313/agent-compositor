@@ -23,7 +23,7 @@ To select a version or another installation prefix:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Neko1313/agent-compositor/main/install.sh -o install-compositor.sh
-sh install-compositor.sh --version v0.1.1 --prefix "$HOME/.local"
+sh install-compositor.sh --version v0.2.0 --prefix "$HOME/.local"
 ```
 
 The core includes its runtime; Node.js and Bun are not required to start it.

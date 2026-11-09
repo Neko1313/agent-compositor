@@ -96,8 +96,14 @@ The release workflow runs the quality suite before building on four native
 runners. Every archive passes the installer/model/Monty smoke test on its own
 platform. Only then does git-cliff generate the tagged release notes. CI creates
 a draft, uploads all four archives, `install.sh` and `SHA256SUMS`, and publishes
-it once uploads finish. A manually dispatched workflow builds and verifies
-without publishing when run against a branch.
+it once uploads finish. A manually dispatched workflow with a blank
+`release_tag` builds and verifies without publishing. To rebuild an existing
+unpublished tag through a repaired pipeline, dispatch the branch with
+`release_tag=vX.Y.Z`. Publication requires the package version to match that
+tag and every source file to match its commit, except this release workflow
+and `tools/release/smoke.mjs`. The publish job checks out the immutable tag for
+release notes and installer content. All four native build and smoke gates
+still apply; downloaded CI artifact digests are verified before publication.
 
 If publication fails after creating a draft, inspect the failed run and draft
 before retrying. The workflow intentionally refuses to overwrite an existing

@@ -810,3 +810,28 @@ passed with visually inspected screenshots in dist/dependency-visual and
 dist/dependency-presentation. Linux x64 release build/installer smoke passed;
 no release was published. npm audit: zero advisories, npm outdated: empty.
 See docs/dependencies.md for full inventory and maintenance constraints.
+
+## Published v0.2.0 (2026-11-10 local time)
+
+The user explicitly requested publication. Released v0.2.0 as Latest:
+https://github.com/Neko1313/agent-compositor/releases/tag/v0.2.0
+Immutable annotated tag: 212d549e64cc374678d9e8e45a6c8230bdfa0154.
+Successful publishing run: 42638064053 (workflow_dispatch from f9ea46e).
+All 518 generic tests, marketplace validation and four native release build/
+installer/model/workflow/Monty/Callix guarded-edit smoke jobs passed. Six public
+assets exist: Linux/macOS x64/arm64 archives, install.sh and SHA256SUMS. Latest
+API points to v0.2.0; checksum entries match GitHub asset digest metadata.
+
+Initial tag run lacked ripgrep in the verification runner. A later build exposed
+a macOS smoke fixture issue: /var and /private/var temporary directory aliases
+caused an exact edit permission rule to miss the canonical tool path. Fixed
+release dependency provisioning and realpath of the smoke root, then verified
+the fixture under an aliased TMPDIR locally and on both macOS native runners.
+Application guards were not relaxed. No release was published from failed runs.
+
+The tag was not moved. The repaired workflow can publish an existing unpublished
+tag via explicit release_tag input only if its package version and application
+source match the tag; only release.yml and smoke.mjs differences are permitted.
+Publishing checks out the immutable tag for git-cliff notes and installer, and
+validates downloaded CI artifact digests before upload. This run's code exactly
+matches the tag outside those two pipeline/fixture files.

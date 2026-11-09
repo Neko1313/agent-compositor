@@ -108,6 +108,8 @@ export class AppUI {
     ["session", { title: "Conversation", kind: "session" }],
     ["tools", { title: "Tools", kind: "tools" }],
   ]);
+  private viewInputs = new Map<string, {id:string;value:string}>();
+  private switchingSession = false;
   private visibility = new Map<string, string>();
   private pluginWindows = new Map<string, PluginWindow>();
   private panel?: PluginPanel;
@@ -392,14 +394,18 @@ export class AppUI {
             })
             .catch(() => {});
         this.visibility.delete(id);
+        if(this.windows.focused===id&&this.panes.get(id)?.view?.input)this.windows.focused="input";
         this.windows.forget(id);
         this.panes.delete(id);
         this.pluginWindows.delete(id);
         this.viewCache.delete(id);
+        this.viewInputs.delete(id);
       }
       if (name === "ui.surface") {
         const id = String(input.id);
         const view = uiTextViewSchema.safeParse(input.view);
+        if(view.success&&view.data.input&&this.viewInputs.get(id)?.id!==view.data.input.id)
+          this.viewInputs.set(id,{id:view.data.input.id,value:view.data.input.value});
         this.panes.set(id, {
           title: String(input.title),
           kind: "plugin",
@@ -835,6 +841,24 @@ export class AppUI {
       this.draw();
       return;
     }
+    const editable = this.panes.get(this.windows.focused)?.view?.input;
+    if (this.windows.focused !== "input" && editable) {
+      const site = this.windows.focused;
+      const field = this.viewInputs.get(site) ?? { id: editable.id, value: editable.value };
+      const clear = data.kind === "key" && data.key === "u" && data.modifiers?.includes("ctrl");
+      if (clear || data.kind === "text" || (data.kind === "key" && ["backspace", "delete"].includes(data.key))) {
+        field.value = clear ? "" : data.kind === "text"
+          ? (field.value + data.text.replace(/[\x00-\x1f\x7f]/g, " ")).slice(0, 4000)
+          : Array.from(field.value).slice(0, -1).join("");
+        this.viewInputs.set(site, field);
+        this.scroll.set(site, 0);
+        this.track(this.core.host.emit("ui.change", { site, id: field.id, value: field.value }).then(() => {}));
+      } else if (data.kind === "key") {
+        this.track(this.core.host.emit("ui.press", { site, key: data.key }).then(() => {}));
+      }
+      this.draw();
+      return;
+    }
     if (data.kind === "key" && data.key === "escape") {
       this.windows.focused = this.windows.ids()[0] ?? "input";
       this.draw();
@@ -1033,33 +1057,44 @@ export class AppUI {
     return async (args) => {
       if (args.action !== "resume")
         return (await this.core.host.emit("service.session.store", args)).value;
-      if (!this.core.controlsReady)
+      if (!this.core.controlsReady || this.switchingSession)
         return { deny: "Wait until the current turn finishes" };
-      const next = await this.panelOptions.resume!(
-        args.id ?? this.core.sessionId,
-        (req) => this.requestApproval(req),
-        (req) => this.askUser(req)
-      );
-      this.unsubscribe();
-      this.core.host.setFormHandler(undefined);
-      this.core = next;
-      this.bindForms();
-      this.unsubscribe = next.subscribe((event) => this.event(event));
-      this.installResume();
-      this.transcript = next
-        .getMessages()
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => ({
-          kind: m.role === "user" ? "user" : "assistant",
-          text: m.content,
-        }));
-      this.appearances.clear();
-      this.theme = appearanceFrom([]);
-      this.viewCache.clear();
-      this.status = "Ready";
-      await next.start();
-      this.draw();
-      return { value: true };
+      this.switchingSession = true;
+      try {
+        const next = await this.panelOptions.resume!(
+          args.id ?? this.core.sessionId,
+          (req) => this.requestApproval(req),
+          (req) => this.askUser(req)
+        );
+        this.unsubscribe();
+        this.core.host.setFormHandler(undefined);
+        this.core = next;
+        this.bindForms();
+        this.unsubscribe = next.subscribe((event) => this.event(event));
+        this.installResume();
+        this.transcript = next
+          .getMessages()
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({
+            kind: m.role === "user" ? "user" : "assistant",
+            text: m.content,
+          }));
+        this.appearances.clear();
+        this.theme = appearanceFrom([]);
+        this.viewCache.clear();
+        this.status = "Ready";
+        const chatTitle=String(args.name??next.sessionId.slice(0,8)).replace(/[\x00-\x1f\x7f]/g,' ').slice(0,80);
+        const conversation=this.panes.get('session');if(conversation)conversation.title=`Conversation · ${chatTitle}`;
+        this.contextIndicator = '';
+        this.activeAgentPane = undefined;
+        this.offset = 0;
+        this.scroll.set('session',0);
+        this.tools = '';
+        this.windows.focused = 'input';
+        await next.start();
+        this.draw();
+        return { value: true };
+      } finally { this.switchingSession = false; }
     };
   }
   private handleQuestion(data: Extract<WireMessage, { type: "input" }>["data"]): void {
@@ -1704,6 +1739,14 @@ export class AppUI {
               ? "accent"
               : "text",
           }));
+      }
+      if (pane?.view?.input) {
+        const field = this.viewInputs.get(frame.surface) ?? pane.view.input;
+        const search = textRows(
+          `Search: ${field.value || pane.view.input.placeholder || ""}${this.windows.focused === frame.surface ? "▏" : ""}`,
+          width, "accent"
+        ).slice(-1);
+        rows = [...search, ...rows];
       }
       const offset = Math.min(
         this.scroll.get(frame.surface) ?? 0,

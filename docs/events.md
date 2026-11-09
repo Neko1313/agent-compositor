@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.15.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.16.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -51,6 +51,7 @@
 | `service.ui.surface` | 0.6.0 | 1 | Publish or update a plugin window with optional split/sidebar/inspector/status-bar placement hints; user rules control workspace, size and focus. | `value` | — |
 | `ui.render` | 0.1.0 | 1 | A render site is about to be drawn. Return an element tree. Writing plugin state during render is forbidden. | `tree` | — |
 | `ui.press` | 0.1.0 | 1 | A Button the plugin drew was pressed. | `next` | — |
+| `ui.change` | 0.16.0 | 1 | An editable semantic plugin view field changed; never submits a model prompt. | `next` | — |
 | `ui.focus` | 0.1.0 | 1 | Focus is about to move to another pane/control. | `next` | — |
 | `ui.invalidate` | 0.1.0 | 1 | Damage tracking: the plugin marks changed regions of its pane. | — | — |
 | `service.fs.read` | 0.2.0 | 1 | $.fs.read(path): read a workspace-confined file (max 1 MB). | `deny`, `value` | — |
@@ -101,5 +102,5 @@
 - **context**: `context.compacted`, `context.compacting`, `context.pressure`, `context.restored`, `context.prepared`
 - **service**: `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.questionnaire`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
 - **project**: `project.changed`
-- **ui**: `ui.visibility`, `ui.reaction`, `ui.render`, `ui.press`, `ui.focus`, `ui.invalidate`
+- **ui**: `ui.visibility`, `ui.reaction`, `ui.render`, `ui.press`, `ui.change`, `ui.focus`, `ui.invalidate`
 - **model**: `model.usage`

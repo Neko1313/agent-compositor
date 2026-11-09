@@ -22,12 +22,14 @@ npm run build:binary -w @agent-compositor/app
 ## Flags
 
 ```
-compositor [--plugins dir ...] [--resume sessionId] [--cwd dir] [--plain]
+compositor [--plugins dir ...] [--resume [ID]] [--history] [--cwd dir] [--plain]
 ```
 
 - `--plugins dir` — extra plugin directory (repeatable). Convention dirs
   (`~/.agent-compositor/plugins`, `./plugins`) are always scanned.
 - `--resume id` — replay a persisted session's event roll and continue it.
+- `--resume` / `--history` — open interactive chat history at startup.
+- `/history`, `/sessions`, bare `/resume` — search saved chats by title, ID or conversation text; preview, rename and resume with keyboard or mouse.
 - `--cwd dir` — project root for config discovery and session storage.
 
 ## Provider

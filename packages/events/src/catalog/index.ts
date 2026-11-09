@@ -64,6 +64,7 @@ export const catalog: readonly EventDef[] = [
   ui.uiSurface,
   ui.uiRender,
   ui.uiPress,
+  ui.uiChange,
   ui.uiFocus,
   ui.uiInvalidate,
   // $ API surface: each method is itself an event

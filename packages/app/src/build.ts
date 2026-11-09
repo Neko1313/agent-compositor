@@ -589,6 +589,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
         ),
         ...[
           "/sessions",
+          "/history",
           "/resume",
           "/fork",
           "/rename",
@@ -600,7 +601,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               name,
               {
                 name,
-                description: "Manage local sessions",
+                description: ["/history", "/sessions", "/resume"].includes(name) ? "Search and resume saved chats" : "Manage local sessions",
                 usage: `${name} [name, id or search]`,
               },
             ] as const

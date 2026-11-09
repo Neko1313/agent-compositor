@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "events": {
     "session.start": {
       "since": "0.1.0",
@@ -956,6 +956,26 @@
       "since": "0.1.0",
       "version": 1,
       "summary": "A Button the plugin drew was pressed.",
+      "namespace": "ui",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "note": "opaque"
+      },
+      "responses": {
+        "next": {
+          "summary": "proceed",
+          "schema": {
+            "note": "opaque"
+          }
+        }
+      }
+    },
+    "ui.change": {
+      "since": "0.16.0",
+      "version": 1,
+      "summary": "An editable semantic plugin view field changed; never submits a model prompt.",
       "namespace": "ui",
       "generator": false,
       "aliases": [],

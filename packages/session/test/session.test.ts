@@ -90,3 +90,26 @@ describe("session store", () => {
     expect(session.events.map((e) => e.type)).toEqual(["good", "corrupt", "good2"]);
   });
 });
+
+describe('conversation discovery',()=>{
+  it('keeps a generated title, explicit names, dates and bounded previews in sidecars',async()=>{
+    const chat=await store.create(cwd);await store.append(chat.id,[{type:'prompt.submit',text:'/history'},{type:'prompt.submit',text:'Investigate\n\tlogin regression'},{type:'assistant.text',text:'fragment'},{type:'turn.complete',text:'Fixed authentication.'},{type:'prompt.submit',text:'Add tests'}]);
+    const meta=(await store.list(cwd))[0];expect(meta).toMatchObject({firstPrompt:'Investigate login regression',lastPrompt:'Add tests',lastResponse:'Fixed authentication.',messageCount:3});expect(meta.updatedAt).toBeGreaterThan(meta.createdAt);
+    await store.rename(chat.id,' Auth repair ',cwd);await store.append(chat.id,[{type:'prompt.submit',text:'x'.repeat(1000)}]);
+    expect((await store.list(cwd))[0]).toMatchObject({name:'Auth repair',firstPrompt:'Investigate login regression'});expect((await store.list(cwd))[0].lastPrompt).toHaveLength(300);
+  });
+  it('searches names, IDs and earlier conversation text, excluding tools and respecting archives',async()=>{
+    const chat=await store.create(cwd,{name:'Auth repair'});await store.append(chat.id,[{type:'prompt.submit',text:'Find the middle regression'},{type:'turn.complete',text:'Earlier response needle'},{type:'prompt.submit',text:'Latest request'},{type:'turn.complete',text:'Latest response'},{type:'tool.result',text:'private-tool-output'}]);
+    for(const query of ['AUTH repair',chat.id.slice(0,8),'earlier response needle'])expect((await store.search(cwd,query)).map(m=>m.id)).toEqual([chat.id]);
+    expect(await store.search(cwd,'private-tool-output')).toEqual([]);await store.archive(chat.id);expect(await store.search(cwd,'Auth')).toEqual([]);expect(await store.search(cwd,'Auth',{includeArchived:true})).toHaveLength(1);
+    const abort=new AbortController();abort.abort();await expect(store.search(cwd,'Auth',{includeArchived:true,signal:abort.signal})).rejects.toThrow();
+  });
+  it('enriches legacy sessions read-only and preserves the first title on append and fork',async()=>{
+    const chat=await store.create(cwd);const file=path.join(store.root(cwd),chat.id+'.meta.json');
+    await fs.writeFile(path.join(store.root(cwd),chat.id+'.jsonl'),'{"type":"prompt.submit","text":"Old discussion"}\n{"type":"torn"\n{"type":"turn.complete","text":"Old answer"}\n');
+    const meta=JSON.parse(await fs.readFile(file,'utf8'));delete meta.summaryVersion;delete meta.messageCount;meta.eventCount=3;await fs.writeFile(file,JSON.stringify(meta));const before=await fs.readFile(file,'utf8');
+    expect((await store.list(cwd))[0]).toMatchObject({firstPrompt:'Old discussion',lastResponse:'Old answer',messageCount:2});expect(await fs.readFile(file,'utf8')).toBe(before);
+    await store.append(chat.id,[{type:'prompt.submit',text:'New question'}]);expect((await store.list(cwd))[0]).toMatchObject({firstPrompt:'Old discussion',lastPrompt:'New question',messageCount:3,summaryVersion:1});
+    const fork=await store.fork(chat.id,{},cwd);expect((await store.list(cwd)).find(m=>m.id===fork.id)?.firstPrompt).toBe('Old discussion');
+  });
+});

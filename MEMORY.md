@@ -694,3 +694,39 @@ for source and compiled binary, with screenshots inspected; visual:check passed
 including legacy child ask_user. The maintained bench now has a questionnaire
 scenario; native GNOME pointer/font support and live provider behavior are not
 established by the scripted xterm.js fixture.
+
+## Interactive chat history (2026-11-09)
+
+/history, /sessions and bare /resume open the replaceable session-manager browser.
+The pane supports live literal search by name/ID/conversation text, local activity
+dates, message counts, current/archive markers, paged keyboard/mouse selection,
+first-prompt/latest-reply preview, native rename, archive visibility and resume.
+Default labels come from the first ordinary prompt without an extra model call.
+The search field is independent of the unsent prompt; Escape/Close preserves it.
+Pending filters cannot resume stale results, and active turns reject switching.
+Resuming identifies the selected chat in the conversation title and resets stale
+recipient/context/tool/scroll display state. Known ID/prefix resumption remains.
+
+compositor --resume (without an ID) and --history open history at startup; they
+require a TTY. Explicit --resume ID still works in headless/plain modes. Session
+history stays scoped to the project's existing home-storage root. Sidecars now
+hold bounded first/last prompts, last completed response and message counts.
+Legacy metadata is enriched read-only with a bounded process cache; appends
+persist it. Body search streams conversation records and excludes tools/system
+instructions. Search cancels stale work and is debounced; no paid model is used.
+Handled commands now persist as prompt.dropped, so newly recorded UI commands
+cannot reappear as user messages when replaying a conversation. Older unmarked
+records are preserved rather than guessed away.
+
+Catalog 0.16 adds optional UiTextView.input and ui.change for reusable editable
+plugin views. The host owns the active local draft; change its ID or remove/
+reopen the view to reset it. Text edits emit ui.change, navigation/actions use
+ui.press, and generic rendering/placement contracts remain replaceable.
+
+Checks: 491 tests passed, three optional native tests skipped, 60 files; line
+coverage 83.24%. Typecheck, marketplace, generated contracts, scripted evals
+(5+3), proxy smoke, release build and installation smoke passed. visual:history
+passed for source and compiled --resume startup with inspected screenshots;
+the full real-PTY visual:check also passed. Artifacts: dist/visual-history-fixed,
+dist/visual-history-binary-final and dist/visual-history-regression-final. These
+use isolated storage and scripted providers; no native GNOME/live-model claim.

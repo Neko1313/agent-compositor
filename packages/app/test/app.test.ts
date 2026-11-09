@@ -177,7 +177,7 @@ describe("command discovery", () => {
     const metadata = { name: "custom", version: "1.0.0", trust: "trusted", commands: [{ name: "/custom", description: "Custom action" }] };
     await fs.writeFile(manifest, JSON.stringify(metadata));
     const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: new ScriptedProvider([]) });
-    const builtins = ["/tasks", "/continue", "/agents","/auth", "/login", "/logout", "/extensions", "/marketplace", "/archive", "/fork", "/model", "/models", "/providers", "/settings", "/reload", "/rename", "/resume", "/sessions", "/unarchive"];
+    const builtins = ["/history", "/tasks", "/continue", "/agents","/auth", "/login", "/logout", "/extensions", "/marketplace", "/archive", "/fork", "/model", "/models", "/providers", "/settings", "/reload", "/rename", "/resume", "/sessions", "/unarchive"];
     expect(app.commands().map(c => c.name)).toEqual([...builtins, "/custom"].sort());
     const core = app.createCore(async () => false);
     metadata.commands = [{ name: "/changed", description: "Changed action" }];
@@ -195,4 +195,12 @@ describe("placement panel persistence bridge", () => {
     const next = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: new ScriptedProvider([]) });
     expect(next.config.config.ui?.rules).toEqual([{ match: { plugin: "cost", surface: "usage" }, site: "sidebar", workspace: 2 }]);
   });
+});
+
+
+describe('interactive history CLI entry points',()=>{
+ it.each(['--history','--resume'])('requires a terminal for %s without an ID',async flag=>{
+  let text='';const stdout=new Writable({write(chunk,_encoding,callback){text+=chunk;callback();}}) as NodeJS.WriteStream;
+  expect(await main({argv:[flag],stdout})).toBe(2);expect(text).toContain('Interactive history requires a terminal');
+ });
 });

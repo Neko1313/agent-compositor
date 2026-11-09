@@ -40,6 +40,17 @@ Extract the entire archive and keep `compositor` beside its `plugins/` and
 `node_modules/` directories. See [release maintenance](docs/releases.md) for
 building, verification and publishing with git-cliff.
 
+## Chat history
+
+Use `/history`, `/sessions` or `/resume` without an ID to open searchable chat
+history. Type a title, ID or conversation phrase; use arrows to preview a chat,
+Enter to resume, or the mouse to select it and press Resume. Escape returns to
+the prompt. Names default to the first task; the panel can rename chats and show
+archived sessions. History is scoped to the current project's saved sessions.
+
+Start directly in the picker with `compositor --resume` or `compositor --history`.
+`compositor --resume <id>` and `/resume <id>` still open a known session directly.
+
 ## Ghost graphics
 
 The default companion keeps the original APNG frames at 228×228. Terminals that

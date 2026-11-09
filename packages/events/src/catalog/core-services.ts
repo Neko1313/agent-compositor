@@ -227,6 +227,7 @@ export const serviceSessionControl = defineEvent({
     name: z.string().max(200).optional(),
     search: z.string().optional(),
     includeArchived: z.boolean().optional(),
+    signal:z.unknown().optional(),
   }),
   responses: denyValue,
   frozen: true,

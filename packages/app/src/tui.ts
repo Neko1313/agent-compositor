@@ -5,7 +5,7 @@ import type { WireMessage } from "@agent-compositor/protocol";
 import { AppUI } from "./ui.js";
 import type { BuiltApp } from "./build.js";
 
-export async function runTui(app: BuiltApp, stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream): Promise<void> {
+export async function runTui(app: BuiltApp, stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream, startupCommand?:string): Promise<void> {
   const queue: WireMessage[] = [];
   let wake: (() => void) | undefined;
   let ended = false;
@@ -22,6 +22,7 @@ export async function runTui(app: BuiltApp, stdin: NodeJS.ReadStream, stdout: No
   ui.connect(message => { queue.push(message); if (message.type === "bye") ended = true; wake?.(); wake = undefined; });
   await ui.core.start();
   try { ui.restoreLayout(await app.loadLayout()); } catch (error) { await ui.core.host.emit("service.ui.notify", { plugin: "layout", message: `Could not restore windows: ${String(error)}`, level: "warn" }); }
+  if(startupCommand)await ui.core.submit(startupCommand);
   const resize = () => ui.resize(stdout.columns ?? 80, stdout.rows ?? 24);
   resize(); stdout.on("resize", resize);
   try {

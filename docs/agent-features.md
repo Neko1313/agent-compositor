@@ -24,7 +24,7 @@ shared service events and tool.call let other handlers replace them.
 | Code | `glob`, `grep`, `code_query` through Callix |
 | Isolated Python | `run_python`, `workflow` through Monty |
 | MCP / workflows | `/mcp`, `/workflows` |
-| Sessions | `/sessions`, `/resume`, `/fork`, `/rename`, `/archive`, `/unarchive` |
+| Sessions | `/history`, `/sessions`, `/resume`, `/fork`, `/rename`, `/archive`, `/unarchive` |
 
 ## Auto review
 
@@ -460,3 +460,38 @@ Do not request input during `ui.render`. Cancellation and headless operation
 fail rather than manufacture answers. The TUI queues concurrent questions;
 unrelated approval requests do not consume keys while an active question owns
 the input. Answers never become user prompts, and the unsent prompt is preserved.
+
+
+## Interactive chat history
+
+`/history [search]`, `/sessions [search]` and bare `/resume` open the same
+replaceable session-manager view. Each entry includes a user name or the first
+ordinary prompt, local last-activity date/time, and user/completed-assistant
+message count. The current chat and archived chats are marked. Arrow/Page keys
+page through the results; clicking selects a preview of the first prompt and
+latest completed reply. Enter or Resume restores the selected conversation.
+The conversation title identifies the resumed chat. Rename opens the native
+local form. Archive visibility defaults to hidden, with an explicit toggle.
+Escape/Close leaves the current session and unsent prompt intact.
+
+Search is case-insensitive literal text over names/IDs/previews, with streaming
+conversation-body fallback. Tool output and instructions are excluded. Metadata
+previews are bounded, not model-generated; no model requests or extra tokens are
+needed for history. Legacy roll files are enriched read-only with a bounded
+in-memory summary cache; their sidecars receive the new fields on the next
+append. Rapid input is debounced/cancelled, and pending results cannot be resumed.
+Switching during an active turn is rejected; read-only history listing remains
+available. Session files remain in the existing project-scoped home storage.
+
+`compositor --resume` and `compositor --history` open the picker at startup and
+require an interactive terminal. Explicit `--resume <id>` keeps working for TUI
+and headless runs. Ambiguous/missing IDs report an error instead of switching.
+
+Catalog 0.16 adds a reusable optional `UiTextView.input` field (`id`, `value`,
+`placeholder`) and `ui.change {site,id,value}` for editable plugin views. Text
+and Backspace/Delete/Ctrl+U edit the local field; keys such as Enter, arrows and
+Escape arrive as `ui.press`. The field value initializes the local draft; change its ID or remove/reopen the
+view to reset it. Input never enters the model prompt. Handled UI commands are
+recorded as `prompt.dropped`, so new command records cannot become user messages
+after resume. Session list,
+search and mutations still use `service.session.control`/`service.session.store`.

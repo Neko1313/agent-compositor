@@ -20,7 +20,7 @@ export interface MainOptions {
 /**
  * The `compositor` binary: flags → buildApp → REPL.
  *
- *   compositor [--plugins dir ...] [--resume sessionId] [--cwd dir] [--plain]
+ *   compositor [--plugins dir ...] [--resume [ID]] [--history] [--cwd dir] [--plain]
  *
  * Provider comes from env (AGENT_BASE_URL / AGENT_API_KEY / AGENT_MODEL) or
  * config (`providers.default`, `model`). Exits 2 on unknown flags.
@@ -41,7 +41,8 @@ export async function main(options: MainOptions = {}): Promise<number> {
 
   --cwd DIR               Project directory
   --plugins DIR           Additional plugin directory (repeatable)
-  --resume ID             Resume a session
+  --resume [ID]           Resume a session or open interactive history
+  --history               Open interactive chat history
   --plain                 Use the line-based interface
   -p, --prompt TEXT       Run a prompt without the TUI (- reads stdin)
   -i, --image FILE        Attach an image (repeatable)
@@ -57,6 +58,7 @@ export async function main(options: MainOptions = {}): Promise<number> {
 
   const pluginDirs: string[] = [];
   let plain = false;
+  let historyPicker = false;
   let prompt: string | undefined, schemaFile: string | undefined;
   let format: 'text' | 'json' | 'stream-json' = 'text';
   let maxSteps: number | undefined;
@@ -77,8 +79,10 @@ export async function main(options: MainOptions = {}): Promise<number> {
       if (!dir) return fail(stdout, "--plugins needs a directory");
       pluginDirs.push(dir);
     } else if (arg === "--resume") {
-      resumeSessionId = argv[++i];
-      if (!resumeSessionId) return fail(stdout, "--resume needs a session id");
+      if(argv[i+1]&&!argv[i+1].startsWith('-'))resumeSessionId=argv[++i];
+      else historyPicker=true;
+    } else if(arg==='--history') {
+      historyPicker=true;
     } else if (arg === "--cwd") {
       const dir = argv[++i];
       if (!dir) return fail(stdout, "--cwd needs a directory");
@@ -90,6 +94,7 @@ export async function main(options: MainOptions = {}): Promise<number> {
 
   if (prompt === '-') { prompt = ''; for await (const chunk of stdin) prompt += String(chunk); }
   if ((schemaFile || format !== 'text') && prompt === undefined) return fail(stdout, 'Structured output requires --prompt');
+  if(historyPicker&&(plain||prompt!==undefined||!stdin.isTTY||!stdout.isTTY))return fail(stdout,'Interactive history requires a terminal; use --resume ID for noninteractive runs');
   const images = await Promise.all(imageFiles.map(async file => {
     const path = resolve(cwd, file), mimeType = ({ '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' } as Record<string,string>)[extname(path).toLowerCase()];
     if (!mimeType) throw new Error('Unsupported image type');
@@ -100,7 +105,7 @@ export async function main(options: MainOptions = {}): Promise<number> {
   if (prompt !== undefined) { try { return await runHeadless(app, prompt, format, text => { stdout.write(text); }, schemaFile); } finally { await app.close(); } }
 
   if (!plain && stdin.isTTY && stdout.isTTY) {
-    await runTui(app, stdin, stdout);
+    await runTui(app, stdin, stdout, historyPicker ? "/history" : undefined);
     return 0;
   }
   if (app.pluginErrors.length > 0) {
@@ -119,6 +124,6 @@ export async function main(options: MainOptions = {}): Promise<number> {
 }
 
 function fail(stdout: NodeJS.WriteStream, message: string): number {
-  stdout.write(`compositor: ${message}\nusage: compositor [--plugins dir ...] [--resume sessionId] [--cwd dir] [--plain] [-p prompt] [--output-format text|json|stream-json]\n`);
+  stdout.write(`compositor: ${message}\nusage: compositor [--plugins dir ...] [--resume [ID]] [--history] [--cwd dir] [--plain] [-p prompt] [--output-format text|json|stream-json]\n`);
   return 2;
 }

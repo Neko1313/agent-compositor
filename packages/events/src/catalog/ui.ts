@@ -55,6 +55,7 @@ export type UiAppearance = z.infer<typeof uiAppearanceSchema>;
 /** Portable text view for ui.render overrides; terminal escapes are never interpreted. */
 export const uiTextViewSchema = z
   .object({
+    input: z.object({id:z.string().min(1).max(64),value:z.string().max(4000),placeholder:z.string().max(200).optional()}).strict().optional(),
     raster: z
       .object({
         width: z.number().int().min(1).max(512),
@@ -261,6 +262,13 @@ export const uiPress = defineEvent({
   input: z.object({ site: z.string(), key: z.string() }),
   responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
   frozen: true,
+});
+
+export const uiChange = defineEvent({
+  name:'ui.change',since:'0.16.0',version:1,
+  summary:'An editable semantic plugin view field changed; never submits a model prompt.',
+  input:z.object({site:z.string(),id:z.string(),value:z.string().max(4000)}),
+  responses:[{kind:'next',summary:'proceed',schema:z.unknown()}],frozen:true,
 });
 
 export const uiFocus = defineEvent({

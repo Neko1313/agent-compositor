@@ -1469,8 +1469,11 @@ export class AgentCore {
     let step = await gen.next();
     while (!step.done) step = await gen.next();
     const result = step.value as { value?: unknown } | undefined;
-    await this.persist(event, input);
-    return result?.value;
+    const value=result?.value;
+    // Handled UI commands are audit records, not user messages on replay.
+    const dropped=event==='prompt.submit'&&value&&typeof value==='object'&&'drop' in value;
+    await this.persist(dropped?'prompt.dropped':event,input);
+    return value;
   }
 
   private broadcast(ev: LoopEvent): void {

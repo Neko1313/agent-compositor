@@ -144,3 +144,17 @@ scripted provider reads the structured tool result and displays the returned
 values. Captures default to `dist/visual-questions/`; inspect the PNGs and
 `report.json`. `VISUAL_EXECUTABLE` selects the compiled distribution via the same
 loopback, token-scoped model fixture. No external models or credentials are used.
+
+### Chat history scenario
+
+`npm run visual:history` seeds named, archived and multi-turn sessions in the
+isolated project and opens the actual history pane. Real keyboard/mouse input
+pages the list, searches a phrase found only in an earlier response, resizes to
+60 columns, renames the selected chat, shows archives, resumes its transcript and
+sends a follow-up through the provider. Bare `/resume` and Escape are also checked.
+The provider echoes earlier conversation context; no live credentials are used.
+Artifacts default to `dist/visual-history/`; inspect PNGs and `report.json`.
+
+Set `VISUAL_EXECUTABLE` to the built distribution and `VISUAL_START_HISTORY=1`
+to test the binary's bare `--resume` startup entry. The same loopback model fixture
+and isolated home storage are used. Set a fresh `VISUAL_OUTPUT` for each run.

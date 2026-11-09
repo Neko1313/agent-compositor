@@ -183,7 +183,7 @@ describe("replaceable mascot", () => {
   it("is static headless, animates only when visible, pauses, persists and disposes", async () => {
     const { $, views, writes } = await setup();
     expect(views).toHaveLength(1);
-    expect(views[0].attachment).toMatchObject({site:"composer",width:16,label:"Ready"});
+    expect(views[0].attachment).toMatchObject({site:"composer",width:18,rows:6,label:"Ready"});
     expect(views[0].raster).toBeUndefined();
     vi.useFakeTimers();
     await vi.advanceTimersByTimeAsync(500);
@@ -219,7 +219,7 @@ describe("replaceable mascot", () => {
     if(mode==="no-color")vi.stubEnv("NO_COLOR","1");
     if(mode==="dumb")vi.stubEnv("TERM","dumb");
     const {$,views}=await setup();vi.useFakeTimers();
-    await hooks["ui.visibility"]({site:"plugin:mascot/companion",attached:true,visible:true,rows:mode==="compact"?1:4},$);
+    await hooks["ui.visibility"]({site:"plugin:mascot/companion",attached:true,visible:true,rows:mode==="compact"?1:6},$);
     const count=views.length;await vi.advanceTimersByTimeAsync(1000);expect(views.length).toBe(count);
     await hooks["tool.call"]({tool:"grep",callId:"reading"},$);
     expect(views.at(-1).attachment.label).toBe("Searching");

@@ -1993,6 +1993,11 @@
                     "minimum": 4,
                     "maximum": 20
                   },
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8
+                  },
                   "label": {
                     "type": "string",
                     "maxLength": 60

@@ -25,12 +25,12 @@ try {
  async function clickText(text){const p=await locate(text);return click(p.col+1,p.row);}
  async function shot(name){await page.screenshot({path:resolve(output,name)});report.screenshots.push(name);}
  async function command(text){await clickText('›');await page.keyboard.type(text);await waitText(`› ${text}`);await page.keyboard.press('Enter');}
- const art=()=>page.evaluate(()=>{const lines=visual.text().split('\n'),start=lines.findIndex(l=>l.includes('Message ·'));return lines.slice(start+1,start+5).map(l=>l.slice(0,20)).join('\n');});
- await waitText('Message · Ready');await waitText('█••█');
+ const art=()=>page.evaluate(()=>{const lines=visual.text().split('\n'),start=lines.findIndex(l=>l.includes('Message ·'));return lines.slice(start+1,start+7).map(l=>l.slice(0,20)).join('\n');});
+ await waitText('Message · Ready');await waitText('▄');
  if(await page.evaluate(()=>visual.text().includes('Ghost')||visual.graphics.active!==0))throw Error('Mascot created a separate pane or raster');
  await shot('00-composer-wisp.png');
- const first=await art();await page.waitForFunction(first=>{const lines=visual.text().split('\n'),start=lines.findIndex(l=>l.includes('Message ·'));return lines.slice(start+1,start+5).map(l=>l.slice(0,20)).join('\n')!==first;},first);
- report.checks.push('Supplied Unicode frames animate inside Message without a mascot window or graphics protocol');
+ const first=await art();await page.waitForFunction(first=>{const lines=visual.text().split('\n'),start=lines.findIndex(l=>l.includes('Message ·'));return lines.slice(start+1,start+7).map(l=>l.slice(0,20)).join('\n')!==first;},first);
+ report.checks.push('Storyboard pixel silhouettes animate inside Message without a mascot window or graphics protocol');
  await command('/mascot pause');await waitText('paused');
  const paused=await art();await page.waitForTimeout(600);
  if(await art()!==paused)throw Error('Paused frame advanced');
@@ -39,13 +39,13 @@ try {
  await waitText('Message · Ready');
  await clickText('›');await page.keyboard.type('Keep this draft while resizing');await waitText('Keep this draft while resizing');
  await page.evaluate(()=>visual.terminal.resize(48,18));await waitText('Keep this draft while resizing');
- await page.waitForFunction(()=>!visual.text().includes('█••█')&&visual.text().includes('Message · Ready'));
+ await page.waitForFunction(()=>!visual.text().split('\n').slice(-8).some(l=>l.includes('▄'))&&visual.text().includes('Message · Ready'));
  await shot('03-compact-status.png');
- await page.evaluate(()=>visual.terminal.resize(100,30));await waitText('█••█');await waitText('Keep this draft while resizing');
+ await page.evaluate(()=>visual.terminal.resize(100,30));await waitText('▄');await waitText('Keep this draft while resizing');
  for(const _ of 'Keep this draft while resizing')await page.keyboard.press('Backspace');await page.waitForFunction(()=>!visual.text().includes('Keep this draft while resizing'));
  await command('/mascot off');await page.waitForFunction(()=>!visual.text().includes('Message ·'));
  await shot('04-disabled.png');
- await command('/mascot on');await waitText('█••█');
+ await command('/mascot on');await waitText('▄');
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(g=>visual.generation>g,generation);await waitText('Message · Ready');await waitText('paused');
  await command('/mascot resume');await page.waitForFunction(()=>!visual.text().includes('paused'));
  await shot('05-restored.png');

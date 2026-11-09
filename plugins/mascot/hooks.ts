@@ -1,4 +1,4 @@
-import { animations, type WispState } from "./wisp.js";
+import { animations, WISP_WIDTH, WISP_ROWS, type WispState } from "./wisp.js";
 import { Activity } from "./activity.js";
 import { states, type Config, type State } from "./animations.js";
 const FILE = ".agent-compositor/mascot.json";
@@ -102,8 +102,8 @@ class Companion {
     const frames=animations[state==="waiting_subagents"?"waiting":state as WispState];
     const frame=frames[this.config.paused?0:this.frame%frames.length];
     await this.$.ui.view("companion","Wisp Soul",{
-      attachment:{site:"composer",width:16,label:labels[state]+(this.config.paused?" · paused":"")},
-      lines:frame.map(text=>({text,tone:state==="error"?"danger":state==="done"?"success":state==="approval"||state==="question"?"warning":"accent"})),
+      attachment:{site:"composer",width:WISP_WIDTH,rows:WISP_ROWS,label:labels[state]+(this.config.paused?" · paused":"")},
+      lines:frame.map(text=>({text,tone:"accent"})),
     },{focus:false});
     if (revision !== this.revision || this.disposed || !this.visible) return;
     if (
@@ -174,7 +174,7 @@ const hooks: Record<string, any> = {
     const instance = instances.get($.session.id);
     if (!instance) return;
     instance.visible = e.visible;
-    instance.motion = (e.rows === undefined || e.rows >= 4) && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
+    instance.motion = (e.rows === undefined || e.rows >= WISP_ROWS) && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
     instance.attached = e.attached;
     instance.stop();
     if (e.visible) await instance.show();

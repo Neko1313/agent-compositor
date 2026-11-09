@@ -874,3 +874,26 @@ NO_COLOR in its isolated child; production respects it and unit regressions
 cover static preferences. Built Linux x64 distribution and installer/model/
 workflow/Monty/Callix smoke passed. Published v0.2.0 assets were not changed;
 these source changes await a future release.
+
+## Wisp storyboard correction (2026-11-10)
+
+The user supplied 1670.jpg as the intended visual reference. The four-row
+WispSoul.tsx archive was a simplified diamond-like placeholder, not a faithful
+representation of the curled pixel flame in the storyboard. The initial
+integration incorrectly treated it as final artwork. Reference appearance now
+wins: the plugin builds bounded 18x12 monochrome pixel silhouettes with a bent
+flame tip, rounded body, negative-space eyes and state-specific decorations.
+Half-block glyphs encode pairs of pixels into six terminal rows. Solid blocks
+use background-filled cells in composer art to avoid font baseline seams.
+
+UiTextView.attachment adds optional rows (1..8, default4) so other plugins can
+choose bounded art height too; the host remains mascot-agnostic and the human
+editor/compact/protected-dialog behavior is preserved. Wisp requests width18,
+rows6; semantic theme accent keeps the character monochrome. This supersedes
+the archive-based four-row visual while retaining the composer plugin model.
+
+Verified: 522 tests passed, 3 optional skipped; typecheck/gen passed, focused
+real PTY lifecycle and broad regression passed. Current captures are in
+ dist/wisp-storyboard-confirm and dist/wisp-storyboard-regression; idle and
+happy silhouettes were visually inspected. Linux x64 build and distribution
+smoke passed. No published release assets or tags were changed.

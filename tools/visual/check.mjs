@@ -86,7 +86,7 @@ try {
     );
   await waitText("0/3 complete");
   await waitText("Message · Ready");
-  await waitText("█••█");
+  await waitText("▄");
   await screenshot("00-wisp-idle.png");
   const mascotCommand = async (command) => {
     await click(5, 25);

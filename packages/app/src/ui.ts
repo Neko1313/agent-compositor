@@ -1487,6 +1487,7 @@ export class AppUI {
     void this.core.host.emit("ui.visibility",{site:`plugin:${contribution.plugin}/${contribution.surface}`,attached:false,visible:false,columns:0,rows:0}).catch(()=>{});
   }
   private composer() { return [...this.composerViews].at(-1); }
+  private composerRows(): number { return this.composer()?.[1].view.attachment?.rows ?? 4; }
   private composerWidth(): number {
     const view=this.composer()?.[1].view;
     return view&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
@@ -1503,7 +1504,7 @@ export class AppUI {
       Math.max(0, wrap(`› ${this.draft}▏`, this.columns - 4 - this.composerWidth()).length - 1)
     );
     if(this.approval)return Math.min(this.rows-4,Math.max(14,Math.min(22,this.approval.dialog.rows(this.columns-4).length+5)));
-    return Math.max(6 + extra + this.visibleCompletions().length,this.composerWidth()?9:6);
+    return Math.max(6 + extra + this.visibleCompletions().length,this.composerWidth()?this.composerRows()+5:6);
   }
   private complete(command: { name: string; usage?: string }): void {
     if (command.name.startsWith("@")) {
@@ -1708,7 +1709,7 @@ export class AppUI {
     });
     for(const [id,contribution] of this.composerViews){
       const selected=this.composer()?.[0]===id;
-      const data={site:`plugin:${contribution.plugin}/${contribution.surface}`,attached:true,visible:selected,columns:selected?(this.composerWidth()?contribution.view.attachment!.width:0):0,rows:selected?(this.composerWidth()?4:1):0};
+      const data={site:`plugin:${contribution.plugin}/${contribution.surface}`,attached:true,visible:selected,columns:selected?(this.composerWidth()?contribution.view.attachment!.width:0):0,rows:selected?(this.composerWidth()?this.composerRows():1):0};
       const signature=JSON.stringify(data);if(this.visibility.get(id)!==signature){this.visibility.set(id,signature);void this.core.host.emit("ui.visibility",data).catch(()=>{});}
     }
     for (const window of this.pluginWindows.values()) {
@@ -1880,9 +1881,11 @@ export class AppUI {
     if (formActive) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
     if(attachmentWidth){
       const art=this.composer()![1].view;
-      const left=gridFrom(art.lines.slice(0,4),this.theme,attachmentWidth-2,true);
+      const left=gridFrom(art.lines.slice(0,this.composerRows()),this.theme,attachmentWidth-2,true);
+      // Solid blocks use cell backgrounds so font baselines cannot stripe the art.
+      for(const row of left)for(const cell of row)if(cell.ch==="█"){cell.ch=" ";cell.bg=cell.fg;}
       const right=gridFrom(inputRows,this.theme,inputWidth,true);
-      inputRows=Array.from({length:Math.max(4,right.length)},(_,i)=>{
+      inputRows=Array.from({length:Math.max(this.composerRows(),right.length)},(_,i)=>{
         const cells=[...(left[i]??[])];while(cells.length<attachmentWidth)cells.push({ch:" "});
         cells.push(...(right[i]??[]));return{text:"",cells};
       });

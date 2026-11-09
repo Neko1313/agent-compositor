@@ -1,10 +1,10 @@
 # Wisp Soul companion
 
-The default optional plugin uses the user's Wisp Soul Unicode frames. It attaches
+The default optional plugin uses pixel silhouettes redrawn from the user's Wisp Soul storyboard. It attaches
 to the human message composer, without creating a window or participating in the
 tiling tree. It makes no model calls and changes no permission decisions.
 
-On terminals at least 60 columns × 24 rows, four text rows sit beside the editor.
+On terminals at least 60 columns × 24 rows, six text rows sit beside the editor.
 At smaller sizes, during slash completion, or while a protected dialog/settings
 form is active, the host keeps the editor/dialog space and a compact state label.
 Animations run at 250 ms only when this contribution is selected and expanded;
@@ -42,8 +42,10 @@ await $.ui.remove('spirit');
 ```
 
 The host owns text editing, focus, submission and human dialogs. Attachments do
-not receive the draft or replace the input handler. Up to four rows of text are
-painted literally, using bounded width (4–20 cells) and the shared theme. Raster,
+not receive the draft or replace the input handler. Up to eight rows of text (four by default, or attachment.rows) are painted
+literally, using bounded width (4–20 cells) and the shared theme. Wisp uses
+18×12 monochrome pixels packed into 18×6 terminal cells with half-block glyphs,
+including cutout eyes, a bent flame tip and state-specific decorations. Raster,
 actions and embedded input fields are not interactive in this decorative slot.
 A replacement registered after another contribution takes the slot; earlier
 producers receive `ui.visibility` with `visible:false` and resume when selected

@@ -281,3 +281,17 @@ as history; publish the corrected distribution as v0.1.1, with Linux x64 on
 Ubuntu 24.04 and an explicit glibc 2.38+ support floor. Two existing integration
 tests also needed bounded 10-second waits and reliable cleanup under CI load;
 the focused tests pass locally. No published tags were moved.
+
+v0.1.1 was published successfully:
+https://github.com/Neko1313/agent-compositor/releases/tag/v0.1.1
+Release workflow: https://github.com/Neko1313/agent-compositor/actions/runs/42553673828
+All four native archive jobs, quality verification and publication passed.
+The release quality suite passed 360 tests with 1 optional Callix test skipped.
+Main CI also passed (run 42553665436).
+
+The public Linux x64 asset was downloaded through install.sh with checksum
+verification and installed under /tmp/compositor-live-v0.1.1. The installed
+binary printed version 0.1.1 and loaded all 25 default plugins from a fresh
+project with PATH=/nonexistent, confirming that starting the core does not
+require Node.js or Bun. Executing the Monty bridge still requires Node.js.
+The working tree was clean before recording these publication results.

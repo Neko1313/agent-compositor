@@ -357,5 +357,10 @@ passed. The rebuilt Linux x64 release passed install/checksum/model/Monty smoke.
 Its installed compositor invoked the real code_query tool and returned a
 resolved cross-file TypeScript call with CALLIX_BIN cleared and PATH empty.
 The smoke also checks packaged license/provenance and Callix --version.
-Native four-platform branch builds should be checked through release.yml's
-workflow_dispatch (which builds/tests and does not publish on a branch).
+All four native platform builds and installed Callix cross-file checks passed
+in workflow_dispatch run 42578297780 (Linux x64/arm64, macOS x64/arm64):
+https://github.com/Neko1313/agent-compositor/actions/runs/42578297780
+Publishing was skipped because this was a branch run. Main CI also passed:
+https://github.com/Neko1313/agent-compositor/actions/runs/42578290036
+Implementation commit: 99f6b52. The local Linux archive was rebuilt with the
+updated documentation at dist/release/compositor-linux-x64.tar.gz.

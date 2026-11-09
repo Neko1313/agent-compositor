@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
+import { GifWriter } from 'omggif';
 import assert from 'node:assert/strict';
 import { callixRelease } from '../../plugins/callix/distribution.mjs';
 const exec = promisify(execFile);
@@ -87,6 +88,16 @@ try {
   // Test the packaged mascot decoder/assets and Monty bridge, not source modules.
   const [distribution] = (await readdir(join(prefix, 'share/agent-compositor'))).filter(name => name.startsWith(`v${expected}-`));
   const directory = join(prefix, 'share/agent-compositor', distribution);
+  assert.match(await readFile(join(directory,'licenses/omggif/README'),'utf8'),/Permission is hereby granted/);
+  const gifDirectory=join(project,'gif-assets');await mkdir(gifDirectory);
+  const gifBytes=Buffer.alloc(1024),gif=new GifWriter(gifBytes,2,1,{palette:[0,0xff0000],loop:0});
+  gif.addFrame(0,0,2,1,[1,1],{delay:2});gif.addFrame(0,0,2,1,[0,1],{delay:3,transparent:0});
+  await writeFile(join(gifDirectory,'idle.gif'),gifBytes.subarray(0,gif.end()));
+  const ghostVerify=join(temp,'verify-ghost.mjs');
+  await writeFile(ghostVerify,`import hooks,{dispose}from ${JSON.stringify(pathToFileURL(join(directory,'plugins/mascot/hooks.js')).href)};
+let image;const api={session:{id:'gif-release-check',cwd:${JSON.stringify(project)}},storage:{config:async()=>({pack:'gif-assets',animations:{idle:'idle.gif'}})},ui:{view:async(_id,_title,view)=>{image=view.raster;},notify:async(message,level)=>{if(level==='warn')throw Error(message);}}};
+await hooks['session.start']({},api);dispose();if(image?.width!==2||image?.height!==1||Buffer.from(image.rgba,'base64')[0]!==255)throw Error('Packaged GIF decoder failed');console.log('GHOST_GIF_OK');`);
+  assert.match((await exec(process.execPath,[ghostVerify],options)).stdout,/GHOST_GIF_OK/);
   const callixDirectory = join(directory, 'plugins/callix/bin');
   const provenance = JSON.parse(await readFile(join(callixDirectory, 'release.json'), 'utf8'));
   for (const [key, value] of Object.entries(callixRelease())) assert.equal(provenance[key], value);
@@ -121,7 +132,7 @@ console.log('MONTY_OK');
   await writeFile(marker, 'user state');
   await exec('sh', [installer, '--prefix', prefix], options);
   assert.equal(await readFile(marker, 'utf8'), 'user state');
-  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, model response, background workflow, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
+  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, packaged GIF decoder/license, model response, background workflow, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
 } finally {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   await rm(temp, { recursive: true, force: true });

@@ -1,7 +1,7 @@
 # Dependency maintenance
 
 Reviewed on 2026-11-10 against npm stable dist-tags and official upstream
-releases. Prereleases are excluded. All 23 external direct dependencies are
+releases. Prereleases are excluded. All 25 external direct dependencies are
 listed below; internal workspace package versions are unchanged. Root and
 standalone Monty/mascot lockfiles were refreshed, including compatible
 transitive updates. `npm outdated --json` is empty after the refresh.
@@ -29,6 +29,8 @@ transitive updates. `npm outdated --json` is empty after the refresh.
 | @types/react | 19.3.0 | 19.3.0 | React development types |
 | ink-testing-library | 4.0.0 | 4.0.0 | Renderer tests |
 | ignore | 7.0.14 | 7.0.14 | Ignore-aware search |
+| omggif | — | 1.0.10 | Bounded GIF89a frame decoder |
+| @types/omggif | — | 1.0.5 | GIF decoder development types |
 | upng-js | 2.1.0 | 2.1.0 | Original APNG mascot decoding |
 | @pydantic/monty | 1.5.0 | 1.5.0 | Replaceable native sandbox |
 
@@ -94,3 +96,8 @@ See [release maintenance](releases.md) for native platform constraints.
 Upgrades should refresh all manifests and lockfiles together, inspect upstream
 migration notes, run these checks and review generated contracts. Keep exact
 native pins/checksums and do not use forced peer resolutions to hide conflicts.
+
+The subsequent Ghost media integration adds omggif 1.0.10 and its types 1.0.5
+(verified npm stable tags). Decoding is pure JavaScript and requires no FFmpeg
+binary in releases. See the [media plugin](../plugins/mascot/README.md) for
+GIF compositing, decoder budgets, source-clock playback and SIXEL support.

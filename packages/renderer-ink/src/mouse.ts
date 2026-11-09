@@ -14,6 +14,18 @@ export class MouseDecoder {
       const index = this.pending.indexOf("\x1b");
       if (index < 0) { output += this.pending; this.pending = ""; break; }
       output += this.pending.slice(0, index); this.pending = this.pending.slice(index);
+      if(this.pending.startsWith('\x1b]11;')){
+        const match=/^\x1b\]11;([^\x07\x1b]*)(?:\x07|\x1b\\)/.exec(this.pending);
+        if(match){this.onResponse?.('background',match[1]);this.pending=this.pending.slice(match[0].length);continue;}
+        if(this.pending.length<4096)break;
+      }
+      const da=/^\x1b\[\?([0-9;]+)c/.exec(this.pending);
+      if(da){this.onResponse?.('da1',da[1]);this.pending=this.pending.slice(da[0].length);continue;}
+      const cell=/^\x1b\[6;([0-9]+);([0-9]+)t/.exec(this.pending);
+      if(cell){this.onResponse?.('cell',`${cell[1]};${cell[2]}`);this.pending=this.pending.slice(cell[0].length);continue;}
+      const area=/^\x1b\[([48]);([0-9]+);([0-9]+)t/.exec(this.pending);
+      if(area){this.onResponse?.(area[1]==='4'?'areaPixels':'areaCells',`${area[2]};${area[3]}`);this.pending=this.pending.slice(area[0].length);continue;}
+      if(/^\x1b\[\?[0-9;]*$/.test(this.pending)||/^\x1b\[[468];[0-9;]*$/.test(this.pending)||'\x1b]11;'.startsWith(this.pending))break;
       if (this.pending.startsWith('\x1b_G')) {
         const end = this.pending.indexOf('\x1b\\', 3);
         if (end < 0 && this.pending.length < 4096) break;
@@ -42,7 +54,7 @@ export class MouseDecoder {
   }
   flush(): string {
     const pending = this.pending; this.pending = "";
-    return pending.startsWith("\x1b[<") || pending.startsWith("\x1b_") ? "" : pending;
+    return pending.startsWith("\x1b[<") || pending.startsWith("\x1b_") || pending.startsWith("\x1b]11;") || /^\x1b\[\?[0-9;]*$/.test(pending) || /^\x1b\[[468];[0-9;]*$/.test(pending) ? "" : pending;
   }
 }
 

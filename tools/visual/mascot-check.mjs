@@ -10,7 +10,7 @@ const report={executable:process.env.VISUAL_EXECUTABLE??'source fixture',ok:fals
 let server,browser,page;
 try {
  const {NO_COLOR,...visualEnv}=process.env; // This scenario explicitly verifies motion.
- server=spawn('bun',['tools/visual/server.mjs'],{cwd:root,env:{...visualEnv,VISUAL_OUTPUT:output,VISUAL_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
+ server=spawn('bun',['tools/visual/server.mjs'],{cwd:root,env:{...visualEnv,VISUAL_OUTPUT:output,VISUAL_GRAPHICS:'kitty'},stdio:['ignore','pipe','inherit']});
  const url=await new Promise((resolve,reject)=>{
   const timer=setTimeout(()=>reject(Error('PTY server startup timed out')),15000);let text='';
   server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);resolve(match[1]);}});
@@ -25,31 +25,41 @@ try {
  async function clickText(text){const p=await locate(text);return click(p.col+1,p.row);}
  async function shot(name){await page.screenshot({path:resolve(output,name)});report.screenshots.push(name);}
  async function command(text){await clickText('›');await page.keyboard.type(text);await waitText(`› ${text}`);await page.keyboard.press('Enter');}
- const art=()=>page.evaluate(()=>{const lines=visual.text().split('\n'),start=lines.findIndex(l=>l.includes('Message ·'));return lines.slice(start+1,start+7).map(l=>l.slice(0,20)).join('\n');});
- await waitText('Message · Ready');await waitText('▄');
- if(await page.evaluate(()=>visual.text().includes('Ghost')||visual.graphics.active!==0))throw Error('Mascot created a separate pane or raster');
- await shot('00-composer-wisp.png');
- const first=await art();await page.waitForFunction(first=>{const lines=visual.text().split('\n'),start=lines.findIndex(l=>l.includes('Message ·'));return lines.slice(start+1,start+7).map(l=>l.slice(0,20)).join('\n')!==first;},first);
- report.checks.push('Storyboard pixel silhouettes animate inside Message without a mascot window or graphics protocol');
+ await waitText('Message · Ready');
+ await page.waitForFunction(()=>visual.graphics.active===1&&visual.graphics.stats.lastWidth>0);
+ if(await page.evaluate(()=>visual.text().includes('Ghost')&&visual.text().split('\n').some(l=>l.includes('Ghost')&&l.includes('[F]'))))throw Error('Mascot created a separate pane');
+ report.sourcePixels=await page.evaluate(()=>({width:visual.graphics.stats.lastWidth,height:visual.graphics.stats.lastHeight}));
+ await shot('00-composer-ghost.png');
+ const first=await page.evaluate(()=>visual.graphics.stats.lastImage);
+ await page.waitForFunction(first=>visual.graphics.stats.lastImage!==first,first);
+ report.checks.push('Full-resolution source frames reach the composer via actual PTY graphics; no block sprite or separate window');
+ if(process.env.VISUAL_MASCOT_GIF){
+  report.playback=await page.evaluate(()=>new Promise(resolve=>{
+   const start=performance.now();let last=visual.graphics.stats.lastImage,changes=0;
+   const sample=()=>{const image=visual.graphics.stats.lastImage;if(image!==last){changes++;last=image;}const elapsed=performance.now()-start;if(elapsed>=2000)resolve({changes,elapsedMs:elapsed,observedFrameChangesPerSecond:changes*1000/elapsed});else requestAnimationFrame(sample);};requestAnimationFrame(sample);
+  }));
+  if(process.env.VISUAL_EXPECT_MIN_FPS&&report.playback.observedFrameChangesPerSecond<Number(process.env.VISUAL_EXPECT_MIN_FPS))throw Error('Native GIF playback below the explicit test threshold');
+ }
+
  await command('/mascot pause');await waitText('paused');
- const paused=await art();await page.waitForTimeout(600);
- if(await art()!==paused)throw Error('Paused frame advanced');
+ const paused=await page.evaluate(()=>visual.graphics.stats.lastImage);await page.waitForTimeout(600);
+ if(await page.evaluate(()=>visual.graphics.stats.lastImage)!==paused)throw Error('Paused frame advanced');
  await shot('01-composer-paused.png');
  await command('/mascot pet');await waitText('Done!');await shot('02-composer-done.png');
  await waitText('Message · Ready');
  await clickText('›');await page.keyboard.type('Keep this draft while resizing');await waitText('Keep this draft while resizing');
  await page.evaluate(()=>visual.terminal.resize(48,18));await waitText('Keep this draft while resizing');
- await page.waitForFunction(()=>!visual.text().split('\n').slice(-8).some(l=>l.includes('▄'))&&visual.text().includes('Message · Ready'));
+ await page.waitForFunction(()=>visual.graphics.active===0&&visual.text().includes('Message · Ready'));
  await shot('03-compact-status.png');
- await page.evaluate(()=>visual.terminal.resize(100,30));await waitText('▄');await waitText('Keep this draft while resizing');
+ await page.evaluate(()=>visual.terminal.resize(100,30));await page.waitForFunction(()=>visual.graphics.active===1);await waitText('Keep this draft while resizing');
  for(const _ of 'Keep this draft while resizing')await page.keyboard.press('Backspace');await page.waitForFunction(()=>!visual.text().includes('Keep this draft while resizing'));
  await command('/mascot off');await page.waitForFunction(()=>!visual.text().includes('Message ·'));
  await shot('04-disabled.png');
- await command('/mascot on');await waitText('▄');
+ await command('/mascot on');await page.waitForFunction(()=>visual.graphics.active===1);
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(g=>visual.generation>g,generation);await waitText('Message · Ready');await waitText('paused');
  await command('/mascot resume');await page.waitForFunction(()=>!visual.text().includes('paused'));
  await shot('05-restored.png');
- report.checks.push('Pause freezes frames, pet flashes done, narrow mode retains status and draft, off restores input space, preferences survive restart');
+ report.checks.push('Pause freezes source time, pet selects done, narrow mode removes native images and preserves draft, off restores input space, preferences survive restart');
  report.ok=true;
 } catch(error){report.errors.push(String(error));process.exitCode=1;await page?.screenshot({path:resolve(output,'failure.png')}).catch(()=>{});}
 finally{await browser?.close();if(server&&server.exitCode===null){const end=new Promise(resolve=>server.once('exit',resolve));server.kill('SIGTERM');await end;}await writeFile(resolve(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));}

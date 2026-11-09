@@ -143,12 +143,18 @@ activity metadata through `agent.activity`, excluding prompts and tool arguments
 
 ## Composer attachments
 
-A portable text view can supply `attachment: {site:'composer', width:16,
-rows:6, label:'Ready'}`. This adds bounded decorative text beside the host-owned human
-editor rather than a tiled plugin window. The host paints bounded literal rows (four by default, or an optional
-`attachment.rows` from one to eight), uses a compact label when space is constrained or dialogs/completions are
-active, and preserves normal editor input and approval handling. Multiple
-producers use stable registration order, with the latest contribution selected;
+A portable view can supply `attachment: {site:'composer', width:18, rows:6,
+label:'Ready'}`. This adds bounded art beside the host-owned human editor rather
+than a tiled plugin window. Optional rows is 1–8 (default4). Text is literal;
+a raster uses negotiated native pixels and is masked out of the editable grid.
+Unsupported image terminals and constrained viewports retain a compact status.
+Protected dialogs/completions keep their input space. The draft and input
+handler are never replaced by decorative content.
+
+Multiple producers use stable registration order with the latest selected;
 normal `ui.visibility` events suspend earlier/compact animations. Unload or
-`$.ui.remove` detaches it. This is a shared contract, with no mascot-specific
-logic in the host or Ink renderer. See the [Wisp plugin](../plugins/mascot/README.md).
+`$.ui.remove` detaches the contribution. The contract has no mascot-specific
+logic. Native image changes can repaint independently of unchanged text/layout.
+The renderer owns all graphics control sequences. See the
+[Ghost plugin](../plugins/mascot/README.md) for GIF/APNG packs and Kitty/SIXEL
+capabilities and limitations.

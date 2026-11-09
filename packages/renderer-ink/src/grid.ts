@@ -34,6 +34,12 @@ export class SurfaceGrid {
     return this.rows.length;
   }
 
+  equals(grid:Cell[][]):boolean {
+    if(this.rows.length!==grid.length)return false;
+    const keys=['ch','fg','bg','bold','dim','italic','underline'] as const;
+    return this.rows.every((row,y)=>row.length===grid[y].length&&row.every((cell,x)=>keys.every(key=>cell[key]===grid[y][x][key])));
+  }
+
   applyFull(grid: Cell[][]): void {
     this.rows = grid.map((row) => row.map((c) => ({ ...c })));
   }

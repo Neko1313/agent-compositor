@@ -95,11 +95,11 @@ describe("replaceable mascot", () => {
     const { $, views } = await setup();
     vi.useFakeTimers();
     await hooks['ui.visibility']({ site: 'plugin:mascot/companion', attached: true, visible: true }, $);
-    const first = JSON.stringify(views.at(-1).lines);
+    const first = views.at(-1).raster?.rgba;
     await vi.advanceTimersByTimeAsync(100);
     await hooks['tool.result']({ callId: 'unknown' }, $);
     await vi.advanceTimersByTimeAsync(151);
-    expect(JSON.stringify(views.at(-1).lines)).not.toBe(first);
+    expect(views.at(-1).raster?.rgba).not.toBe(first);
   });
   it("rejects excessive PNG dimensions before invoking decoder", async () => {
     tmp = await mkdtemp(join(tmpdir(), "mascot-"));
@@ -184,7 +184,7 @@ describe("replaceable mascot", () => {
     const { $, views, writes } = await setup();
     expect(views).toHaveLength(1);
     expect(views[0].attachment).toMatchObject({site:"composer",width:18,rows:6,label:"Ready"});
-    expect(views[0].raster).toBeUndefined();
+    expect(views[0].raster).toBeDefined();
     vi.useFakeTimers();
     await vi.advanceTimersByTimeAsync(500);
     expect(views).toHaveLength(1);
@@ -192,9 +192,9 @@ describe("replaceable mascot", () => {
       { site: "plugin:mascot/companion", attached: true, visible: true },
       $
     );
-    const first = JSON.stringify(views.at(-1).lines);
+    const first = views.at(-1).raster?.rgba;
     await vi.advanceTimersByTimeAsync(251);
-    expect(JSON.stringify(views.at(-1).lines)).not.toBe(first);
+    expect(views.at(-1).raster?.rgba).not.toBe(first);
     await hooks["prompt.submit"]({ text: "/mascot pause" }, $);
     expect(writes.at(-1)[1]).toContain('"paused": true');
     const count = views.length;
@@ -224,6 +224,17 @@ describe("replaceable mascot", () => {
     await hooks["tool.call"]({tool:"grep",callId:"reading"},$);
     expect(views.at(-1).attachment.label).toBe("Searching");
     const updated=views.length;await vi.advanceTimersByTimeAsync(1000);expect(views.length).toBe(updated);
+  });
+  it("freezes source time while hidden instead of jumping when the composer returns",async()=>{
+    const {$,views}=await setup();vi.useFakeTimers();
+    await hooks["ui.visibility"]({site:"plugin:mascot/companion",attached:true,visible:true,columns:18,rows:6},$);
+    const frame=views.at(-1).raster.rgba;
+    await hooks["ui.visibility"]({site:"plugin:mascot/companion",attached:true,visible:false,columns:0,rows:0},$);
+    await vi.advanceTimersByTimeAsync(900);
+    await hooks["ui.visibility"]({site:"plugin:mascot/companion",attached:true,visible:true,columns:18,rows:6},$);
+    expect(views.at(-1).raster.rgba).toBe(frame);
+    await hooks["prompt.submit"]({text:"/mascot status"},$);
+    expect($.ui.notify).toHaveBeenCalledWith(expect.stringContaining("6 source frames, 5.6 fps average"),"info");
   });
   it("closed panes stay closed until explicitly reopened; unrelated commands do nothing", async () => {
     const { $, views } = await setup();
@@ -255,7 +266,7 @@ describe("mascot extension contracts", () => {
       new AnimationPack(tmp, { pack: defaultPack }).load("idle")
     ).rejects.toThrow("inside the project");
   });
-  it("reloads saved settings and reports legacy pack configuration", async () => {
+  it("reloads saved settings and reports missing packs", async () => {
     const { $, views, notifications } = await setup();
     $.fs.read.mockImplementation(async () =>
       JSON.stringify({ enabled: false, paused: true })

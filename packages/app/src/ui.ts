@@ -1490,7 +1490,7 @@ export class AppUI {
   private composerRows(): number { return this.composer()?.[1].view.attachment?.rows ?? 4; }
   private composerWidth(): number {
     const view=this.composer()?.[1].view;
-    return view&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
+    return view&&(view.lines.length>0||!!view.raster)&&(!view.raster||this.nativeRaster)&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
   }
   private dockHeight(): number {
     if (this.question && !this.approval)
@@ -1577,7 +1577,7 @@ export class AppUI {
             const selected = this.actionFocus.get(surface);
             return row.action && selected !== undefined && surface === this.windows.focused ? {...row,selected:row.action===selected} : row;
           }), this.theme, width, surface==='input'),
-          ...(this.nativeRaster && view ? { raster: rasterForView(view, width, height) } : {}),
+          ...(this.nativeRaster && props.attachmentRaster ? {raster:props.attachmentRaster as NonNullable<Extract<WireMessage,{type:"render"}>["raster"]>} : this.nativeRaster && view ? { raster: rasterForView(view, width, height) } : {}),
         });
     };
     if (cached?.key === key) {
@@ -1674,7 +1674,7 @@ export class AppUI {
     this.sink?.({
       type: "declare",
       surfaces: [...[...this.panes].map(([id, pane]) => ({id,kind:'pane' as const,title:pane.title})),
-        {id:'input',kind:'pane' as const,title:this.approval?'Approval required':this.question?(this.question.dialog.request.questions?'Questionnaire':'Your answer'):`${this.inputTitle}${this.composer()?" · "+clean(this.composer()![1].view.attachment!.label):""}`}],
+        {id:'input',kind:'pane' as const,title:this.approval?'Approval required':this.question?(this.question.dialog.request.questions?'Questionnaire':'Your answer'):`${this.inputTitle}${this.composer()?" · "+clean(this.composer()![1].view.attachment!.label)+(this.composer()![1].view.raster&&!this.nativeRaster?" · images unavailable":""):""}`}],
     });
     if (formActive) this.sink?.({ type: 'declare', surfaces: [{ id: 'settings-form', kind: 'pane', title: this.form!.dialog.request.title }] });
     if (panelActive)
@@ -1881,7 +1881,7 @@ export class AppUI {
     if (formActive) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
     if(attachmentWidth){
       const art=this.composer()![1].view;
-      const left=gridFrom(art.lines.slice(0,this.composerRows()),this.theme,attachmentWidth-2,true);
+      const left=gridFrom(viewRows(art,attachmentWidth-2,this.composerRows()),this.theme,attachmentWidth-2,true);
       // Solid blocks use cell backgrounds so font baselines cannot stripe the art.
       for(const row of left)for(const cell of row)if(cell.ch==="█"){cell.ch=" ";cell.bg=cell.fg;}
       const right=gridFrom(inputRows,this.theme,inputWidth,true);
@@ -1890,7 +1890,8 @@ export class AppUI {
         cells.push(...(right[i]??[]));return{text:"",cells};
       });
     }
-    this.paint("input", "input", inputRows, this.columns-4, dock - 5);
+    const art=this.composer()?.[1].view;
+    this.paint("input", "input", inputRows, this.columns-4, dock - 5,attachmentWidth&&art?.raster?{attachmentRaster:rasterForView(art,attachmentWidth-2,this.composerRows())}:{});
     const barWidth = this.columns - 2;
     const waiting=this.approval?'Approval needed':this.question?'Answer needed':formActive?'Settings form':this.status;
     const protectedInput=!!(this.approval||this.question||formActive);

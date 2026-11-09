@@ -897,3 +897,49 @@ real PTY lifecycle and broad regression passed. Current captures are in
  dist/wisp-storyboard-confirm and dist/wisp-storyboard-regression; idle and
 happy silhouettes were visually inspected. Linux x64 build and distribution
 smoke passed. No published release assets or tags were changed.
+
+
+## Ghost source media and native composer graphics (2026-11-10)
+
+The user rejected the Wisp text/pixel replacements and chose to return to the
+original Ghost. They offered new APNG assets; no replacement archive has arrived
+yet. Do not redraw the character or synthesize intermediate poses. Preserve
+source pixels, alpha and timing. The old bundled APNGs remain available and are
+228x228, six frames at 180ms each (~5.6 fps); a renderer cannot manufacture smooth
+source motion. Ghost remains a replaceable plugin attached to the human editor,
+never a separate actor/window. This supersedes both Wisp sections above.
+
+Mascot now decodes GIF (bundled MIT omggif 1.0.10) and PNG/APNG, including finite
+loops, GIF disposal/background/transparency, and original positive frame delays.
+Limits are 2 MiB input, 512x512 canvas, 600 frames and 8 million total decoded
+pixels per state. Timeline follows monotonic elapsed source time, skips late
+frames, freezes while paused/hidden, and stops finite animations. Transient state
+expiry remains independent of long source holds. Automatic dark-ink repair is
+restricted to SHA256 fingerprints of the ten historical bundled APNG files;
+new artwork keeps its alpha untouched unless restoreInk is explicitly requested.
+
+Renderer auto-negotiates Kitty or SIXEL. SIXEL requires DA1 code 4, measured
+physical cell size (CSI16t or VTE-compatible CSI14t+CSI18t), and terminal
+background (OSC11); otherwise the composer keeps compact semantic status with
+images unavailable. It does not silently replace source artwork with block art.
+Forced SIXEL still needs size/background replies. SIXEL composites alpha,
+letterboxes aspect ratio, quantizes with a bounded weighted median-cut palette,
+and clears old cells before geometry changes. Native-only frame changes bypass
+React/Ink text repaint through separate text/raster dirty channels; public
+RendererState.apply still reports all visual changes. Other text plugins retain
+normal composer attachment behavior. No application-specific mascot code in host.
+
+Validation: typecheck, generated contracts, marketplace validation and 536 tests
+passed (3 optional native skips). Linux x64 build and extracted distribution
+smoke passed, including packaged GIF decoding and license notices. Real PTY
+compiled Ghost lifecycle and broad regression passed; final evidence is in
+ dist/ghost-media-shipping-final and dist/ghost-media-regression-shipping.
+Inspected the full-resolution Ghost and compact draft screenshots. Independent
+ImageMagick SIXEL decode verified all 4096 checkerboard pixels; separate 4096
+colour gradient check had maximum RGB error 7 (mean 2.67). Diagnostic Kitty
+emulator observed ~35.8 distinct changes/s for a synthetic 50 fps GIF in a two
+second run (dist/ghost-media-gif-smooth), not a native terminal-wide guarantee.
+Native GNOME Terminal/VTE SIXEL rendering is not verified on the user's terminal;
+the local VTE build lacks SIXEL. Do not claim pixel-perfect GIF in every terminal.
+Release builder includes omggif README MIT notice; no FFmpeg runtime dependency.
+No published v0.2.0 assets/tags were modified and no new release was requested.

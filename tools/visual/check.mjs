@@ -86,8 +86,7 @@ try {
     );
   await waitText("0/3 complete");
   await waitText("Message · Ready");
-  await waitText("▄");
-  await screenshot("00-wisp-idle.png");
+  await screenshot("00-ghost-idle.png");
   const mascotCommand = async (command) => {
     await click(5, 25);
     await page.keyboard.type(command);
@@ -104,10 +103,10 @@ try {
   };
   await mascotCommand("/mascot pause");
   await waitText("paused");
-  await screenshot("00-wisp-paused.png");
+  await screenshot("00-ghost-paused.png");
   await mascotCommand("/mascot off");
   await page.waitForFunction(() => !visual.text().includes("Message ·"));
-  report.checks.push("Default Wisp is a text attachment in the input composer; pause/off work through terminal commands");
+  report.checks.push("Ghost is a composer image contribution with compact status fallback; pause/off work through terminal commands");
   await screenshot("01-start.png");
   report.checks.push(
     "Actual Ink application rendered through POSIX PTY and xterm.js"

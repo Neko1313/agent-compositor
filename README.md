@@ -51,14 +51,14 @@ archived sessions. History is scoped to the current project's saved sessions.
 Start directly in the picker with `compositor --resume` or `compositor --history`.
 `compositor --resume <id>` and `/resume <id>` still open a known session directly.
 
-## Wisp Soul companion
+## Ghost companion
 
-The optional default mascot is a Unicode animation attached to the message
-composer. It reacts to work and dialogs without creating a separate window.
-Narrow terminals retain a compact status. Use `/mascot off`, `/mascot pause` or
-`/mascot resume`; preferences persist. Other plugins can replace it through the
-shared composer attachment contract. See [Wisp configuration](plugins/mascot/README.md).
-Generic raster graphics remain available to UI plugins that need images.
+The optional default Ghost plays GIF/APNG frames inside the message composer.
+The renderer detects Kitty graphics or SIXEL; other terminals retain a compact
+status instead of a block-art imitation. Use `/mascot off`, `/mascot pause`,
+`/mascot resume` or `/mascot status`. Settings persist, and other plugins can
+replace the companion. See [Ghost media configuration](plugins/mascot/README.md)
+for terminal support, animation packs, source timing and verification limits.
 
 ## Tech stack
 

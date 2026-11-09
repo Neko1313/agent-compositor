@@ -68,3 +68,17 @@ describe("RendererState", () => {
     ).toBe(false);
   });
 });
+
+it('changes native pixels without marking unchanged text, layout or declarations dirty',()=>{
+ const state=new RendererState(true);
+ const layout={type:'layout' as const,width:30,height:15,frames:[{surface:'image',x:0,y:0,width:20,height:10}]};
+ expect(state.apply(layout)).toBe(true);expect(state.apply(structuredClone(layout))).toBe(false);
+ const declare={type:'declare' as const,surfaces:[{id:'image',kind:'pane' as const,title:'Image'}]};
+ expect(state.apply(declare)).toBe(true);expect(state.apply(structuredClone(declare))).toBe(false);
+ const raster={width:1,height:1,rgba:Buffer.from([255,0,0,255]).toString('base64'),column:0,row:0,columns:1,rows:1};
+ const render={type:'render' as const,surface:'image',mode:'full' as const,flush:true,grid:[[{ch:' '}]],raster};
+ expect(state.apply(render)).toBe(true);
+ const next={...raster,rgba:Buffer.from([0,255,0,255]).toString('base64')};
+ expect(state.apply({...render,raster:next})).toBe(true);expect(state.textChanged).toBe(false);expect(state.rasterChanged).toBe(true);expect(state.rasters.get('image')).toEqual(next);
+ expect(state.apply({...render,raster:undefined})).toBe(true);expect(state.textChanged).toBe(false);expect(state.rasterChanged).toBe(true);expect(state.rasters.has('image')).toBe(false);
+});

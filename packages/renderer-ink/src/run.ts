@@ -14,8 +14,11 @@ export class RendererStore {
   readonly state = new RendererState();
   private readonly listeners = new Set<() => void>();
 
-  apply(msg: WireMessage): void {
-    if (this.state.apply(msg)) this.notify();
+  apply(msg: WireMessage): boolean {
+    this.state.apply(msg);
+    const changed=this.state.textChanged;
+    if(changed)this.notify();
+    return changed;
   }
 
   subscribe(fn: () => void): () => void {
@@ -82,7 +85,13 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     if (!acked || exiting) return;
     // Coordinates are terminal-global; compositor performs hit testing.
     opts.send({ type: "input", surface: store.state.focused ?? "input", data });
-  }, (control, payload) => graphics.response(control, payload)) : undefined;
+  }, (control, payload) => {
+    const before=`${graphics.cell.width}:${graphics.cell.height}:${graphics.background}`;
+    graphics.response(control,payload);
+    if(graphics.enabled&&graphics.backend==='sixel'&&before!==`${graphics.cell.width}:${graphics.cell.height}:${graphics.background}`){graphics.beforeUpdate();graphics.paint(store.state);}
+  }) : undefined;
+  const measure=()=>{if(graphics.enabled&&graphics.backend==='sixel')graphics.measure();};
+  stdout.on('resize',measure);
   if (mouseEnabled) stdout.write("\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h");
   const pointerTerminal=pointerControl(process.env,(["on","off","x11"].includes(process.env.AGENT_POINTER??"")?process.env.AGENT_POINTER:"auto") as PointerMode);
   let pointer: PointerShape | undefined;
@@ -90,6 +99,7 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
   const cleanup = () => {
     if (cleaned) return; cleaned = true;
     process.off("exit", cleanup);
+    stdout.off('resize',measure);
     graphics.dispose();
     mouse?.dispose();
     if (mouseEnabled) stdout.write(pointerTerminal.sequence("default") + "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1049l");
@@ -109,6 +119,7 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     }, 10);
   };
 
+  let pendingTextPaint:boolean=false;
   let app: ReturnType<typeof render>;
   try { app = render(
     React.createElement(RendererApp, {
@@ -126,13 +137,14 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
       stdin: mouse?.input ?? stdin,
       ...(opts.stdout ? { stdout: opts.stdout } : {}),
       ...(opts.stderr ? { stderr: opts.stderr } : {}),
-      onRender: () => graphics.paint(store.state),
+      onRender: () => {graphics.paint(store.state);pendingTextPaint=false;},
+      maxFps: 60,
       exitOnCtrlC: false, // ctrl+c is protocol input, not a silent kill
     },
   ); } catch (error) { cleanup(); throw error; }
 
   const consume = (async () => {
-    const mode = opts.graphics ?? (['kitty','off'].includes(process.env.AGENT_GRAPHICS ?? '') ? process.env.AGENT_GRAPHICS as GraphicsMode : 'auto');
+    const mode = opts.graphics ?? (['kitty','sixel','off'].includes(process.env.AGENT_GRAPHICS ?? '') ? process.env.AGENT_GRAPHICS as GraphicsMode : 'auto');
     // Allow Ink to enter raw mode before the probe response arrives.
     await new Promise(resolve => setTimeout(resolve, 0));
     if (await graphics.detect(mode, mouseEnabled, !!(process.env.TMUX || process.env.STY))) {
@@ -159,7 +171,13 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
         }
         continue;
       }
-      store.apply(msg);
+      if(msg.type==='layout'||msg.type==='render'||msg.type==='bye')graphics.beforeUpdate(msg,store.state);
+      const wasPending:boolean=pendingTextPaint;pendingTextPaint=true;
+      const changed=store.apply(msg);
+      if(!changed)pendingTextPaint=wasPending;
+      // Native frame changes do not need Yoga/React or an Ink text repaint.
+      // Geometry/text changes still wait for the post-commit image placement.
+      if(!changed&&!pendingTextPaint&&msg.type==='render'&&store.state.rasterChanged)graphics.paint(store.state);
       if (msg.type === "bye" && opts.exitOnBye !== false && !exiting) {
         shutdown(0);
         break;

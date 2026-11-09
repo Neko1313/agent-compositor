@@ -1,6 +1,6 @@
-import { animations, WISP_WIDTH, WISP_ROWS, type WispState } from "./wisp.js";
+import { Timeline } from "./timeline.js";
 import { Activity } from "./activity.js";
-import { states, type Config, type State } from "./animations.js";
+import { AnimationPack, states, type Config, type State, type AnimationFrames } from "./animations.js";
 const FILE = ".agent-compositor/mascot.json";
 const instances = new Map<string, Companion>();
 const labels: Record<State, string> = {
@@ -20,9 +20,11 @@ class Companion {
   activity = new Activity();
   visible = false;
   motion = true;
+  imageVisible=false;
   attached = true;
   disposed = false;
-  frame = 0;
+  pack!:AnimationPack;
+  timeline=new Timeline();
   state: State = "idle";
   revision = 0;
   timer?: ReturnType<typeof setTimeout>;
@@ -62,12 +64,14 @@ class Companion {
         )
           throw Error(`Invalid ${name} state`);
       this.config = value;
-      if(value.pack)await this.$.ui.notify("mascot: APNG pack settings are legacy; Wisp Soul now uses text frames", "info");
+
     } catch (e) {
       if ((e as any).code !== "ENOENT")
         await this.$.ui.notify(`mascot: ${String(e)}`, "warn");
     }
 
+    this.pack = new AnimationPack(this.$.session.cwd,this.config);
+    this.timeline = new Timeline();
     this.activity = new Activity(this.config);
     if (this.config.enabled !== false) await this.show();
   }
@@ -97,37 +101,42 @@ class Companion {
       state = this.activity.current();
     if (state !== this.state) {
       this.state = state;
-      this.frame = 0;
     }
-    const frames=animations[state==="waiting_subagents"?"waiting":state as WispState];
-    const frame=frames[this.config.paused?0:this.frame%frames.length];
-    await this.$.ui.view("companion","Wisp Soul",{
-      attachment:{site:"composer",width:WISP_WIDTH,rows:WISP_ROWS,label:labels[state]+(this.config.paused?" · paused":"")},
-      lines:frame.map(text=>({text,tone:"accent"})),
+    let frames:AnimationFrames;
+    try{frames=await this.pack.load(state);}catch(error){
+      if(!this.warned.has(state)){this.warned.add(state);await this.$.ui.notify(`mascot: ${state}: ${String(error)}`,"warn");}
+      try{frames=await this.pack.load("idle");}catch{frames=[];}
+    }
+    if(revision!==this.revision||this.disposed)return;
+    this.timeline.select(frames);
+    this.timeline.play(this.visible&&this.motion&&!this.config.paused);
+    const sample=this.timeline.sample(frames,frames.plays);
+    const frame=frames[sample.index];
+    await this.$.ui.view("companion","Ghost",{
+      attachment:{site:"composer",width:18,rows:6,label:labels[state]+(this.config.paused?" · paused":"")},
+      ...(frame?{raster:{width:frame.width,height:frame.height,rgba:frame.rgba,alt:labels[state]}}:{}),
+      lines:[],
     },{focus:false});
-    if (revision !== this.revision || this.disposed || !this.visible) return;
-    if (
-      (this.config.paused || !this.motion) &&
-      (!this.activity.transient || this.activity.transient.until <= Date.now())
-    )
-      return;
-    this.timer = setTimeout(
-      () => {
-        this.frame++;
-        void this.show().catch(() => {});
-      },
-      (this.config.paused || !this.motion)
-        ? Math.max(
-            80,
-            (this.activity.transient?.until ?? Date.now()) - Date.now()
-          )
-        : 250
-    );
+    if(revision!==this.revision||this.disposed||!this.visible)return;
+    const remaining=(this.activity.transient?.until??0)-Date.now();
+    const active=this.motion&&!this.config.paused&&!sample.done;
+    if(!active&&remaining<=0)return;
+    const delay=active?Math.min(this.timeline.sample(frames,frames.plays).wait,remaining>0?remaining:Infinity):Math.max(1,remaining);
+    this.timer=setTimeout(()=>{void this.show().catch(()=>{});},Math.max(1,delay));
     this.timer.unref?.();
   }
   async command(command: string) {
+    if(command==="status"){
+      try{
+      const frames=await this.pack.load(this.activity.current());
+      const duration=frames.reduce((sum,frame)=>sum+frame.delay,0);
+      await this.$.ui.notify(`Ghost: ${frames.length} source frames, ${(frames.length*1000/duration).toFixed(1)} fps average; ${this.imageVisible?"image slot visible":"compact status only"}; ${this.config.paused?"pause: on":"pause: off"}`,"info");
+      }catch(error){await this.$.ui.notify(`Ghost: ${String(error)}`,"warn");}
+      return;
+    }
     if (command === "off") {
       this.config.enabled = false;
+      this.timeline.play(false);
       this.stop();
       await this.$.ui.remove("companion");
       await this.save();
@@ -145,9 +154,10 @@ class Companion {
     else if (command === "resume") this.config.paused = false;
     else if (command === "pet") this.activity.flash("done");
     else if (command && command !== "on") {
-      await this.$.ui.notify("/mascot [on|off|pause|resume|reload]", "info");
+      await this.$.ui.notify("/mascot [on|off|pause|resume|pet|status|reload]", "info");
       return;
     }
+    if(command==="on")this.timeline=new Timeline();
     this.config.enabled = true;
     this.attached = true;
     await this.save();
@@ -174,8 +184,10 @@ const hooks: Record<string, any> = {
     const instance = instances.get($.session.id);
     if (!instance) return;
     instance.visible = e.visible;
-    instance.motion = (e.rows === undefined || e.rows >= WISP_ROWS) && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
+    instance.imageVisible=e.visible&&e.columns>0&&e.rows>=6;
+    instance.motion = (e.rows === undefined || e.rows >= 6) && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
     instance.attached = e.attached;
+    instance.timeline.play(e.visible&&instance.motion&&!instance.config.paused);
     instance.stop();
     if (e.visible) await instance.show();
   },

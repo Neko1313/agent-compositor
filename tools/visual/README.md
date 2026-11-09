@@ -35,7 +35,7 @@ Ctrl+C closes only the PTY session; use Restart session to reopen it.
 
 Artifacts default to `dist/visual-proof/` (override with `VISUAL_OUTPUT`):
 
-- PNGs: Wisp composer attachment, pause and manual approval;
+- PNGs: Ghost composer attachment, pause and manual approval;
   startup, drag/resize, tasks, saved placement, restored workspace, theme,
   compact/narrow terminals, slash palette, multiline input, subagent question,
   delegation, auto mode, review, checkpoints and independent-agent restoration.
@@ -66,7 +66,7 @@ restoring an independent agent.
 
 ## Native graphics and compiled distributions
 
-The default scenario checks the portable half-block path. Run
+The default scenario checks portable text rendering and compact image status. Run
 `VISUAL_GRAPHICS=kitty npm run visual:check` to let the browser bench answer the
 real Kitty query and emulate emitted RGBA upload/placement/deletion commands.
 The canvas overlay consumes PTY bytes only; it does not read AppUI or plugin
@@ -87,14 +87,25 @@ workspace checks need no model requests. The full scripted scenario still uses
 the source fixture. `VISUAL_EXECUTABLE` must point to the executable inside its
 complete extracted distribution, beside `plugins/` and `node_modules/`.
 
-`npm run visual:mascot` checks the Wisp composer attachment through the real
-PTY: text animation, pause, pet reaction, compact status, draft preservation,
-disable, and settings restoration after restart. It does not create a mascot
-window or use a graphics protocol. The motion scenario deliberately omits
-inherited NO_COLOR in its isolated child; the plugin otherwise respects it.
-Combine with VISUAL_EXECUTABLE to check a complete compiled distribution.
-Evidence defaults to dist/visual-ghost-lifecycle/. Generic raster transport is
-covered separately by renderer and portable-view tests.
+`npm run visual:mascot` checks the Ghost image attachment through the real
+PTY and the diagnostic Kitty emulator: source pixels, frame changes, pause,
+pet, compact status, draft preservation, disable, and restart. The motion
+scenario deliberately omits inherited NO_COLOR in its isolated child; production
+still respects it. Combine with VISUAL_EXECUTABLE for a compiled distribution.
+Evidence defaults to dist/visual-ghost-lifecycle/.
+
+VISUAL_MASCOT_GIF selects a test GIF copied into the isolated temporary project.
+An optional VISUAL_EXPECT_MIN_FPS sets an explicit observation threshold; the
+report records observed image changes/s separately from the file timing. It is
+not a hardware/terminal-wide performance promise. The 50 fps test asset must
+contain enough distinct frames to make observed changes meaningful.
+
+`node tools/visual/sixel-reference-check.mjs` optionally uses ImageMagick to
+decode a 64×64 generated SIXEL checkerboard and checks all 4096 pixels (two RGB
+levels of tolerance because SIXEL uses percentage colour definitions). This is
+an independent encoder check, not native VTE screen verification. Tiny SIXEL
+streams are avoided because the local ImageMagick decoder rejects files below
+2048 bytes, including its own tiny outputs.
 
 ### Native settings scenario
 

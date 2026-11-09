@@ -28,3 +28,18 @@ it('attaches replaceable plugin art to the host editor without a window, preserv
   await ui.core.host.emit('service.ui.remove',{plugin:'example',id:'spirit'});expect(text()).not.toContain('••');expect(text()).toContain('a precise edit');
  }finally{ui.close();await ui.settled();}
 });
+
+it.each([false,true])('keeps native composer pixels independent of input and uses honest status fallback: %s',async native=>{
+ const messages:WireMessage[]=[],ui=new AppUI(approve=>new AgentCore({cwd:process.cwd(),provider:new ScriptedProvider([]),onApproval:approve}));
+ ui.connect(m=>messages.push(m));ui.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Layout',...(native?['Raster']:[])],encodings:['jsonl']}));ui.resize(100,30);
+ try{
+  await ui.core.host.emit('service.ui.view',{plugin:'image',id:'ghost',title:'Ghost',view:{attachment:{site:'composer',width:18,rows:6,label:'Ready'},lines:[],raster:{width:2,height:2,rgba:Buffer.alloc(16,255).toString('base64')}}});await ui.settled();
+  ui.receive({type:'input',surface:'input',data:{kind:'text',text:'unchanged draft'}});
+  const rendered=messages.filter(m=>m.type==='render'&&m.surface==='input').at(-1);
+  expect(rendered?.type==='render'&&!!rendered.raster).toBe(native);
+  if(rendered?.type==='render')expect(rendered.grid?.map(row=>row.map(c=>c.ch).join('')).join('\n')).toContain('unchanged draft');
+  expect(ui.windows.ids()).not.toContain('plugin-image-ghost');
+  const title=messages.filter(m=>m.type==='declare').at(-1);
+  expect(title?.type==='declare'&&(title.surfaces.find(s=>s.id==='input')?.title??'').includes('images unavailable')).toBe(!native);
+ }finally{ui.close();await ui.settled();}
+});

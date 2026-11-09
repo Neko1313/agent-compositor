@@ -31,7 +31,7 @@ describe('native terminal graphics',()=>{
    expect(await graphics.detect('auto',false)).toBe(false);
    expect(await graphics.detect('auto',true,true)).toBe(false);expect(writes).toHaveLength(0);
    const pending=graphics.detect('auto',true);await vi.advanceTimersByTimeAsync(351);expect(await pending).toBe(false);
-   const rejected=graphics.detect('auto',true);graphics.response(`i=${graphics.queryId}`,'ENOTSUP');expect(await rejected).toBe(false);
+   const rejected=graphics.detect('auto',true);graphics.response(`i=${graphics.queryId}`,'ENOTSUP');await vi.advanceTimersByTimeAsync(351);expect(await rejected).toBe(false);
    const cancelled=graphics.detect('auto',true);graphics.dispose();expect(await cancelled).toBe(false);
    expect(await graphics.detect('kitty',true)).toBe(true);
   }finally{vi.useRealTimers();}

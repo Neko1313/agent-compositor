@@ -12,6 +12,9 @@ export type SurfaceDecl = DeclareMessage["surfaces"][number];
  */
 export class RendererState {
   constructor(public nativeImages = false) {}
+  /** Dirty channels let pixel clients animate without repainting text. */
+  textChanged=false;
+  rasterChanged=false;
   readonly rasters = new Map<string, NonNullable<Extract<WireMessage, { type: "render" }>["raster"]>>();
   readonly surfaces = new Map<string, SurfaceDecl>();
   readonly grids = new Map<string, SurfaceGrid>();
@@ -20,38 +23,46 @@ export class RendererState {
 
   /** Apply one wire message. Returns true when the visual state changed. */
   apply(msg: WireMessage): boolean {
+    this.textChanged=false;this.rasterChanged=false;
     switch (msg.type) {
-      case "layout": this.layout = msg; return true;
-      case "declare":
+      case "layout": {if(JSON.stringify(this.layout)===JSON.stringify(msg))return false;this.layout=msg;return this.textChanged=true;}
+      case "declare": {
+        let changed=false;
         for (const decl of msg.surfaces) {
-          this.surfaces.set(decl.id, decl);
+          if(JSON.stringify(this.surfaces.get(decl.id))!==JSON.stringify(decl)){this.surfaces.set(decl.id, decl);changed=true;}
           if (!this.grids.has(decl.id)) this.grids.set(decl.id, new SurfaceGrid());
         }
         if (!this.focused && msg.surfaces.length > 0) this.focused = msg.surfaces[0].id;
-        return msg.surfaces.length > 0;
+        return this.textChanged=changed;
+      }
       case "render": {
         const grid = this.grids.get(msg.surface) ?? this.createImplicit(msg.surface);
         if (msg.mode === "full" && msg.grid) {
-          if (msg.raster && this.nativeImages) {
-            this.rasters.set(msg.surface, msg.raster);
-            const image = msg.raster;
-            grid.applyFull(msg.grid.map((row, y) => row.map((cell, x) =>
-              y >= image.row && y < image.row + image.rows && x >= image.column && x < image.column + image.columns ? { ch: ' ' } : cell)));
-          } else { this.rasters.delete(msg.surface); grid.applyFull(msg.grid); }
-          if (msg.focused) this.focused = msg.surface;
-          return true;
+          let cells=msg.grid;
+          const previous=this.rasters.get(msg.surface);
+          if(msg.raster&&this.nativeImages){
+            const image=msg.raster;this.rasters.set(msg.surface,image);
+            cells=cells.map((row,y)=>row.map((cell,x)=>y>=image.row&&y<image.row+image.rows&&x>=image.column&&x<image.column+image.columns?{ch:' '}:cell));
+          }else this.rasters.delete(msg.surface);
+          const changed=!grid.equals(cells)||(msg.focused===true&&this.focused!==msg.surface);
+          if(changed)grid.applyFull(cells);
+          if(msg.focused)this.focused=msg.surface;
+          const next=this.rasters.get(msg.surface);
+          this.rasterChanged=previous!==next&&(!previous||!next||previous.width!==next.width||previous.height!==next.height||previous.rgba!==next.rgba||previous.column!==next.column||previous.row!==next.row||previous.columns!==next.columns||previous.rows!==next.rows||previous.alt!==next.alt);
+          this.textChanged=changed;
+          return changed||this.rasterChanged;
         }
         if (msg.mode === "diff" && msg.ops) {
           grid.applyOps(msg.ops);
           if (msg.focused) this.focused = msg.surface;
-          return msg.flush; // batch: repaint only on flush
+          return this.textChanged=msg.flush; // batch: repaint only on flush
         }
         return false;
       }
       case "focus":
-        if (this.surfaces.has(msg.surface) || this.grids.has(msg.surface)) {
+        if (this.focused!==msg.surface&&(this.surfaces.has(msg.surface) || this.grids.has(msg.surface))) {
           this.focused = msg.surface;
-          return true;
+          return this.textChanged=true;
         }
         return false;
       case "invalidate":

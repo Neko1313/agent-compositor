@@ -19,6 +19,12 @@ await writeFile(join(cwd, '.agent-compositor/todos.json'), JSON.stringify([
   { content: 'Inspect project', status: 'pending' }, { content: 'Build interactive UI', status: 'pending' },
   { content: 'Verify drag and persistence', status: 'pending' },
 ]));
+if(process.env.VISUAL_MASCOT_GIF){
+  await mkdir(join(cwd,'animations'));
+  await cp(resolve(process.env.VISUAL_MASCOT_GIF),join(cwd,'animations/source.gif'));
+  const names=['idle','thinking','searching','editing','planning','waiting_subagents','question','approval','done','error'];
+  await writeFile(join(cwd,'.agent-compositor/mascot.json'),JSON.stringify({pack:'animations',animations:Object.fromEntries(names.map(name=>[name,'source.gif']))}));
+}
 if(process.env.VISUAL_HISTORY)await seedHistory(cwd);
 const token = crypto.randomUUID();
 let active;

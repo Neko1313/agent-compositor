@@ -76,7 +76,7 @@ for (const entry of modules) {
     await mkdir(dest, { recursive: true });
     await cp(join(source, 'package.json'), join(dest, 'package.json'));
     for (const file of await readdir(source)) {
-      if (/^(licen[cs]e|notice|copying)([.-]|$)/i.test(file)) await cp(join(source, file), join(dest, file), { recursive: true });
+      if (/^(licen[cs]e|notice|copying|readme)([.-]|$)/i.test(file)) await cp(join(source, file), join(dest, file), { recursive: true });
     }
   }
 }

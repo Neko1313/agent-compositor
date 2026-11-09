@@ -1,6 +1,6 @@
 // Exercise the release exactly as an end user, outside the source tree.
 import { createServer } from 'node:http';
-import { mkdtemp, readFile, writeFile, mkdir, readdir, rm, access } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, mkdir, readdir, rm, access, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -10,7 +10,9 @@ import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { callixRelease } from '../../plugins/callix/distribution.mjs';
 const exec = promisify(execFile);
-const temp = await mkdtemp(join(tmpdir(), 'compositor-release-'));
+// Permission rules and guarded edit anchors use canonical paths. macOS aliases
+// /var to /private/var, so fixture allow rules must use the same physical path.
+const temp = await realpath(await mkdtemp(join(tmpdir(), 'compositor-release-')));
 const asset = `compositor-${process.platform}-${process.arch}.tar.gz`;
 const archive = await readFile(resolve('dist/release', asset));
 const digest = createHash('sha256').update(archive).digest('hex');

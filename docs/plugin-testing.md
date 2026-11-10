@@ -3,8 +3,11 @@
 Status: enforced fail-closed certification model for native plugin releases. The
 v2 schema, requirement catalog, exact-case runner and publication/catalog gates
 are implemented. Existing green convenience suites still do not establish full
-readiness. Current packages have explicit profiles and lifecycle cases, while
-missing domain/UI/model bindings remain visible blockers.
+readiness. Current packages have bound component/trait profiles and lifecycle,
+domain, UI and model cases where applicable. Missing required bindings or
+evidence block certification; readiness always belongs to an exact source,
+reference configuration and artifact platform. See the committed release
+summaries under `reports/certification` for historical verification evidence.
 
 ## Three distinct responsibilities
 

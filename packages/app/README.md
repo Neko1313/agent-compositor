@@ -49,7 +49,7 @@ Env wins over config:
 |---|---|---|
 | `AGENT_BASE_URL` | `providers.default.baseUrl` | `http://127.0.0.1:11434/v1` (ollama) |
 | `AGENT_API_KEY` | `providers.default.apiKey` | `ollama` |
-| `AGENT_MODEL` | `model` | `qwen2.5-coder:14b` |
+| `AGENT_MODEL` | `model` | `gemma4:31b-cloud` |
 
 ## A plugin in one minute
 
@@ -104,8 +104,9 @@ protocol. The interactive UI is the protocol-based product path.
 }
 ```
 
-Compaction is enabled by default with an estimated 32768-token window;
-configure it for your model. `/compact` summarizes older messages through
+Compaction is enabled by default. Context capacity comes from the selected model's
+metadata or explicit profile settings, with a marked 32768-token fallback.
+`/compact` (from the enabled session-ctl plugin) summarizes older messages through
 the configured provider, preserving the system prompt and recent tail.
 The persisted compaction snapshot restores that same tail on resume.
 
@@ -133,7 +134,8 @@ start side by side; windows can be nested, resized, moved and closed. A
 focused window has an accent border. Message input stays in a dock and only
 receives typing when focused. Conversation views share the current agent
 session; creating a view does not spawn another agent. Scroll positions
-belong to individual windows. Layouts live in memory for this app run.
+belong to individual windows. The application persists supported layout state
+and independent-agent metadata in project-scoped private storage for restart.
 
 | Shortcut | Action |
 |---|---|

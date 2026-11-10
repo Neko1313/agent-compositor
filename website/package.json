@@ -1,0 +1,19 @@
+{
+  "name": "@agent-compositor/docs",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "content": "node ../tools/docs/prepare.mjs",
+    "start": "docusaurus start --host 127.0.0.1",
+    "build": "node ../tools/docs/prepare.mjs && docusaurus build",
+    "serve": "docusaurus serve --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@easyops-cn/docusaurus-search-local": "0.55.3",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

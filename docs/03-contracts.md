@@ -68,7 +68,11 @@ Base domains:
 
 - **Onion chain:** a handler receives the event and `next()`; it may call `next(rewrittenEvent)`. Whoever doesn't call `next()` is the terminal.
 - **Order:** explicit priority, not registration order (otherwise determinism breaks when the plugin set changes).
-- **Budgets:** an own-time limit per handler; the clock runs only while the handler itself is working and stops on `await next()`. On exceed → fail-operational: a `.catch` window → replay. A handler error never kills the session.
+- **Budgets:** an own-time limit per handler; the clock pauses while awaiting
+  downstream work. Ordinary middleware failures continue downstream without
+  replaying a continuation that already started. Failed explicitly selected
+  providers report errors. Asynchronous deadlines revoke host capabilities;
+  synchronous trusted JavaScript cannot be forcibly preempted.
 
 ## 3. Trust model — three classes
 
@@ -153,9 +157,11 @@ registration are now implemented. Selected editor/dialog/placement/history
 controllers and full session repository replacement are described in
 [ui-controllers.md](ui-controllers.md), including privacy, lifecycle and limits.
 
-The base runtime is implemented in the kimi-code fork and has passed an external review (Claude Mods API compatibility is pinned by a fixture). In this repo the kernel-side packages are implemented and tested end-to-end:
+The design originated in the kimi-code fork; the active core in this repository
+was subsequently written independently. The historical package milestones below
+are complemented by the current [architecture map](architecture.md):
 
-- **events** — versioned catalog (26 events), generated docs + JSON schema, CI-frozen shapes;
+- **events** — [versioned catalog](events.md), generated docs + JSON schema, CI-frozen shapes;
 - **runtime** — onion-chain dispatcher with thread/own/yield budgets, fail-operational faults, chain trace (`--plugin-trace`);
 - **hooks** — mods-style `(event, $)` layer; service-backed `$` methods are `service.*` events; private UI capabilities bypass broadcasts; per-plugin state; workspace confinement for fs/exec;
 - **loader** — disk discovery, manifest validation, tiered registration, hot reload with reverse teardown;

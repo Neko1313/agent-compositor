@@ -1,0 +1,7 @@
+{
+  "name": "hello",
+  "version": "1.0.0",
+  "trust": "trusted",
+  "main": "hooks.js",
+  "commands": [{"name": "/hello", "description": "Show a greeting"}]
+}

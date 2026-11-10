@@ -1,5 +1,47 @@
 # Project memory
 
+## Docusaurus documentation and GitHub Pages — 2026-11-11
+
+The user authorized building the documentation site and publishing it to GitHub
+Pages, including repository configuration changes through the authenticated gh
+CLI. Pages now uses Actions at https://neko1313.github.io/agent-compositor/;
+the repository homepage points there. No native application release is implied.
+
+The website workspace uses Docusaurus 3.10.2, its standard reading/navigation UI
+and local full-text search. It publishes 92 pages from canonical docs, all 26
+native plugin READMEs/changelogs, authoring references, the terminal manual and
+the visual bench guide. website/.content and build are ignored projections;
+edit links return to the original source. Navigation inventory and ownership
+coverage live in tools/docs. The site describes main, with independent plugin
+versions, rather than claiming immutable release snapshots.
+
+New entry guides cover setup, the first plugin, architecture, contribution and
+documentation maintenance. Generated committed references use real CLI help,
+plugin manifests and package metadata. docs:check rejects stale output, missing
+page/module coverage and broken links/anchors and executes the first-plugin
+package through actual activation, unrelated-input handling, reload and disable.
+An intentional wrong tutorial was rejected by the checker. docs:dev watches
+canonical source directories; source-to-projection changes and restoration were
+verified. AGENTS.md and the PR template require documentation impact review;
+docs:impact routes diffs to relevant pages and is explicitly advisory.
+
+The documentation workflow checks pushes/PRs and deploys main through the Pages
+environment using OIDC. Existing application/plugin release gates remain separate.
+GitHub branch protection was not changed: workflow execution alone does not make
+it a required merge status. Runtime docs were corrected for model defaults,
+layout persistence, context metadata, mouse support and historical milestones.
+
+Docusaurus transitive Tinypool, serialize-javascript and SockJS UUID dependencies
+have reviewed root overrides. Audit reports no moderate/high/critical entries;
+five low entries remain from upstream deepmerge in the build-time SVGR chain
+(docs/dependencies.md). Search uses hashed filenames: Docusaurus's local server
+misredirects query-hashed JSON assets under a non-root base URL. Browser smoke
+is docs:browser with an existing Chromium override; captures live under dist/.
+
+Local typecheck and all 787 application tests passed (3 optional skips), along
+with documentation checks/build and event generation. Publication status must
+be verified from the documentation workflow and public URL after the commit.
+
 ## Verified v0.4.0 publication — 2026-11-10
 
 The user authorized committing, pushing and publishing the host release after CI.

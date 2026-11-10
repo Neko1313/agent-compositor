@@ -2,6 +2,10 @@
 
 An open runtime for LLM CLI agents: **core + swappable renderers + plugin contracts**.
 
+Read the **[documentation](https://neko1313.github.io/agent-compositor/)** for
+getting started, architecture, extension development and the searchable plugin
+reference. The site follows main; plugin versions are independent of the host.
+
 The kernel is domain-independent. Select tools, instructions and plugins for a
 particular workflow, or replace turn execution, tool scheduling, context and
 journal strategies through public services. Coding capabilities can be omitted
@@ -134,7 +138,9 @@ Run the interactive app with `npm run start -w @agent-compositor/app` (Bun requi
 
 ## Documentation
 
-Start with [docs/INDEX.md](docs/INDEX.md) — a map of all topics and the decision log:
+Start with [the documentation home](docs/overview.md) and
+[the architecture map](docs/architecture.md). The
+[documentation index](docs/INDEX.md) retains the dated decision log:
 
 1. [Concept](docs/01-concept.md) — what we are building and why
 2. [UI](docs/02-ui.md) — the pane model, Ink, swappable renderers

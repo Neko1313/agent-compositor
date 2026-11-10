@@ -101,3 +101,23 @@ The subsequent Ghost media integration adds omggif 1.0.10 and its types 1.0.5
 (verified npm stable tags). Decoding is pure JavaScript and requires no FFmpeg
 binary in releases. See the [media plugin](../plugins/mascot/README.md) for
 GIF compositing, decoder budgets, source-clock playback and SIXEL support.
+
+## Documentation toolchain — 2026-11-11
+
+The `website` workspace adds Docusaurus core/preset-classic 3.10.2, local search
+0.55.3, Prism React Renderer and React DOM. It builds static documentation for
+GitHub Pages and does not become a native application runtime dependency.
+React remains shared with the monorepo where the peer ranges permit it.
+
+Root overrides replace Docusaurus's older Tinypool with 2.2.0 or later,
+serialize-javascript with 7.1.4 or later, and SockJS's UUID with compatible
+CommonJS UUID 11.1.1 or later. Validate the site build, dev preview and search
+after updating those overrides; do not remove them without reviewing the
+upstream dependency ranges and advisories.
+
+The installation audit after these changes reports no moderate, high or critical
+advisories. Five low-severity entries trace to deepmerge 4.3.1 through the
+build-time SVGR chain. Upstream has no patched stable deepmerge release at this
+review; the published static site does not execute that build dependency.
+Track [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4)
+and recheck with `npm audit` when updating the documentation dependencies.

@@ -1,6 +1,9 @@
 # 06 — Core blueprint: best-of harvest from 8 reference codebases
 
-Status: proposal. Supersedes open item #3 in `03-contracts.md` ("port the kimi-code agent core" — the fork becomes one reference among eight, not the port source).
+Status: historical blueprint. Its independent-core direction was accepted and
+implemented; its build-order milestones are retained as history. Read the
+[current architecture](architecture.md) for the active application. This document
+superseded the original proposal to port the kimi-code core wholesale.
 
 ## Principle
 

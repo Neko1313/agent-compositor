@@ -1,6 +1,17 @@
 # INDEX — documentation map and decision log
 
-This is the router file: reading starts here. It links to topics and records significant decisions.
+Start with [the documentation home](overview.md) for maintained guides and reference.
+This file retains the topic index and dated decision history. Descriptions inside
+dated milestones describe those milestones, not necessarily the current product.
+
+## Documentation site — 2026-11-11
+
+Docusaurus publishes the canonical repository sources through GitHub Pages.
+The [architecture map](architecture.md) describes the active implementation;
+[documentation maintenance](documentation.md) defines source ownership,
+generated references, executable examples and checks. Existing document paths
+remain stable. The site includes plugin-owned READMEs and changelogs without
+introducing separately maintained copies.
 
 ## Topics
 

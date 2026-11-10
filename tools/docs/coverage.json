@@ -1,0 +1,32 @@
+{
+  "packages": {
+    "agent": ["docs/architecture.md"],
+    "app": ["docs/architecture.md", "docs/agent-features.md", "packages/app/README.md"],
+    "cli": ["docs/reference/cli.md", "docs/getting-started.md"],
+    "config": ["docs/state-and-network.md", "docs/core-customization.md"],
+    "context": ["docs/agent-features.md"],
+    "core": ["docs/core-customization.md", "docs/architecture.md"],
+    "events": ["docs/events.md", "docs/03-contracts.md"],
+    "hooks": ["docs/03-contracts.md", "docs/ui-controllers.md"],
+    "loader": ["docs/plugin-standard.md", "docs/marketplace.md"],
+    "permissions": ["docs/agent-features.md", "docs/workspaces-and-web.md"],
+    "plugins": ["docs/marketplace.md", "docs/plugin-standard.md"],
+    "protocol": ["docs/03-contracts.md", "docs/architecture.md"],
+    "provider": ["docs/state-and-network.md", "docs/agent-features.md"],
+    "renderer-ink": ["docs/02-ui.md", "docs/ui-theming.md", "tools/visual/README.md"],
+    "runtime": ["docs/03-contracts.md", "docs/core-customization.md"],
+    "session": ["docs/ui-controllers.md", "docs/agent-features.md"],
+    "skills": ["docs/plugin-authoring.md", "docs/core-customization.md"],
+    "tools": ["docs/agent-features.md", "docs/workspaces-and-web.md"]
+  },
+  "paths": {
+    "website/": ["docs/documentation.md"],
+    "tools/docs/": ["docs/documentation.md", "docs/contributing.md"],
+    "tools/plugins/": ["docs/plugin-standard.md", "docs/plugin-testing.md"],
+    "tools/release/": ["docs/releases.md"],
+    "tools/evals/": ["docs/evals.md"],
+    "tools/visual/": ["tools/visual/README.md"],
+    ".github/workflows/": ["docs/contributing.md", "docs/releases.md", "docs/documentation.md"],
+    "install.sh": ["docs/getting-started.md", "docs/releases.md"]
+  }
+}

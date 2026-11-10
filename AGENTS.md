@@ -27,3 +27,19 @@ The maintained bench documentation is [tools/visual/README.md](tools/visual/READ
 Write repository documentation, comments, and project memory in English. Keep
 chat replies in the user's language. Preserve intentional language support in
 code and fixtures when translating repository text.
+
+## Documentation maintenance
+
+Read [docs/documentation.md](docs/documentation.md) before changing public behavior,
+configuration, commands, extension contracts or operational limits. Update the
+canonical documentation in the same change. Use `npm run docs:impact -- BASE_REF`
+to find related pages; explain concretely when a change has no documentation impact.
+
+Guides live in `docs/`; plugin README/changelog files remain owned by their plugin.
+The Docusaurus site projects those sources into ignored `website/.content/`.
+Never edit that projection or generated references by hand. Run `npm run gen` and
+`npm run docs:gen` after changing their inputs, then `npm run docs:check`.
+Keep executable tutorial examples in sync with their tested source files.
+New pages must appear in `tools/docs/structure.mjs`; new packages need a mapping
+in `tools/docs/coverage.json`. Current behavior belongs in maintained guides;
+dated implementation notes and proposals remain clearly labeled as history.

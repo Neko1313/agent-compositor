@@ -6,9 +6,17 @@
   "description": "Open runtime for LLM CLI agents: core, swappable renderers, plugin contracts.",
   "workspaces": [
     "packages/*",
-    "plugins/*"
+    "plugins/*",
+    "website"
   ],
   "scripts": {
+    "docs:dev": "node tools/docs/dev.mjs",
+    "docs:build": "npm run build -w @agent-compositor/docs",
+    "docs:serve": "npm run serve -w @agent-compositor/docs",
+    "docs:check": "node tools/docs/check.mjs && node --import tsx --test tools/docs/examples.check.mjs && npm run docs:build",
+    "docs:gen": "node tools/docs/generate.mjs",
+    "docs:impact": "node tools/docs/impact.mjs",
+    "docs:browser": "node tools/docs/browser-check.mjs",
     "test": "vitest run",
     "typecheck": "tsc -b --emitDeclarationOnly false --noEmit && tsc -p tools/plugins/tsconfig.json",
     "gen": "npm run gen --workspaces --if-present",
@@ -57,6 +65,11 @@
     "plugin:audit": "bun tools/plugins/certify.ts --all --audit",
     "plugin:certify": "bun tools/plugins/certify.ts",
     "plugin:gate": "bun tools/plugins/gate.ts"
+  },
+  "overrides": {
+    "@docusaurus/core": { "tinypool": "^2.2.0" },
+    "serialize-javascript": "^7.1.4",
+    "sockjs": { "uuid": "^11.1.1" }
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

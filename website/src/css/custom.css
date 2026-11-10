@@ -1,0 +1,57 @@
+:root {
+  --ifm-color-primary: #355ab4;
+  --ifm-color-primary-dark: #2f50a0;
+  --ifm-color-primary-darker: #2c4b97;
+  --ifm-color-primary-darkest: #243e7d;
+  --ifm-color-primary-light: #426ac4;
+  --ifm-color-primary-lighter: #4c73c9;
+  --ifm-color-primary-lightest: #6d8dd5;
+  --ifm-background-color: #fbfcfe;
+  --ifm-font-family-base: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --ifm-line-height-base: 1.7;
+  --ifm-heading-line-height: 1.25;
+  --ifm-code-font-size: 90%;
+  --ifm-navbar-shadow: none;
+  --ifm-global-radius: 0.5rem;
+  --ifm-menu-color-background-active: #eaf0fc;
+  --ifm-table-stripe-background: #f1f4fa;
+  --doc-sidebar-width: 290px;
+  --docusaurus-highlighted-code-line-bg: #eaf0fc;
+  color-scheme: light;
+}
+[data-theme='dark'] {
+  --ifm-color-primary: #a0baff;
+  --ifm-color-primary-dark: #7da0ff;
+  --ifm-color-primary-darker: #6b93ff;
+  --ifm-color-primary-darkest: #366bff;
+  --ifm-color-primary-light: #c3d3ff;
+  --ifm-color-primary-lighter: #d5e0ff;
+  --ifm-color-primary-lightest: #f1f5ff;
+  --ifm-background-color: #131923;
+  --ifm-background-surface-color: #192230;
+  --ifm-menu-color-background-active: #25334c;
+  --ifm-table-stripe-background: #1b2637;
+  --docusaurus-highlighted-code-line-bg: #25334c;
+  color-scheme: dark;
+}
+.navbar { border-bottom: 1px solid var(--ifm-color-emphasis-200); }
+.navbar__brand { letter-spacing: -0.025em; }
+.navbar__logo { margin-right: 0.65rem; }
+.markdown { max-width: 74ch; }
+.markdown h1 { font-size: clamp(2rem, 4vw, 2.8rem); letter-spacing: -0.03em; margin-bottom: 1.4rem; }
+.markdown h2 { margin-top: 2.5rem; }
+.markdown a { text-underline-offset: 0.2em; }
+.markdown table { font-size: 0.93rem; }
+.menu { padding: 1rem 0.75rem; }
+.menu__link { padding-top: 0.45rem; padding-bottom: 0.45rem; }
+.menu__list-item-collapsible .menu__link { font-weight: 650; }
+.footer { --ifm-footer-background-color: #192230; }
+::selection { background: #c8d8ff; color: #14274c; }
+[data-theme='dark'] ::selection { background: #3d5686; color: #fff; }
+:focus-visible { outline: 2px solid var(--ifm-color-primary); outline-offset: 3px; }
+input { caret-color: var(--ifm-color-primary); }
+* { scrollbar-color: var(--ifm-color-emphasis-400) transparent; scrollbar-width: thin; }
+@media (max-width: 996px) {
+  .markdown h1 { margin-top: 0.5rem; }
+  .navbar__title { font-size: 1.05rem; }
+}

@@ -13,11 +13,15 @@ This is the router file: reading starts here. It links to topics and records sig
 | 5 | [05-prior-art.md](05-prior-art.md) | Prior art: architecture of Claude Code, VS Code, Neovim, Sway, Linux; what we adopt | accepted |
 | 6 | [06-core-blueprint.md](06-core-blueprint.md) | Core blueprint: best-of harvest from 8 local reference codebases; subsystem → reference → what we take | proposal |
 | 7 | [agent-features.md](agent-features.md) | Implemented agent plan: commands, providers, auto, checkpoints, worktrees, extensions, usage and setup limits | implemented |
+| 9 | [ui-controllers.md](ui-controllers.md) | Private editor/dialog/history/placement controllers and full session repositories | implemented |
+| 8 | [core-customization.md](core-customization.md) | Domain-independent composition, replaceable execution/context strategies, tool selection and extension events | implemented; see companion UI/storage contracts |
 
 ## Decision log
 
 | Date | Decision | Status | Context |
 |------|----------|--------|---------|
+| 2026-11-10 | Domain behavior is composed over a neutral kernel; replace turn, tool scheduling, context and journal implementations through public services | accepted | User explicitly requested a customizable kernel rather than DevOps integrations. Added exact capability selection, explicit tool providers, extension event definitions and real middleware continuations. See core-customization.md for current scope. |
+| 2026-11-10 | Tiling is the only fixed product mechanism; all other UI and agent behavior must have replaceable implementations | accepted | User selected this boundary after the concept audit. Rendering, input, state and lifecycle must all be replaceable; editor/dialog/history controllers and session repositories now have selected implementations. See 01-concept and 03-contracts. |
 | 2026-11-07 | Build the compositor, don't rewrite the core | accepted | The core is a driver stack; a rewrite is months of work with no architectural gain |
 | 2026-11-07 | Ink as the TUI component model | accepted | Community and example-code density are critical for agent-driven development; the render engine is a consumable |
 | 2026-11-07 | Claude Mods API compatibility as the entry point | accepted | Xwayland strategy: compatibility with an existing protocol brings users from day one |

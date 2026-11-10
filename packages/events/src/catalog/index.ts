@@ -9,9 +9,11 @@ import * as services from "./services.js";
 import * as coreServices from "./core-services.js";
 import * as coreTurns from "./core-turns.js";
 import * as coreContext from "./core-context.js";
+import * as customization from "./customization.js";
 
 /** The catalog: ordered, versioned, frozen. The single source of truth. */
 export const catalog: readonly EventDef[] = [
+  ...Object.values(customization),
   // session lifecycle first: composition is known before anything fires
   session.sessionStart,
   session.sessionReload,

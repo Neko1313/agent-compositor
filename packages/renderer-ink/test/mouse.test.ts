@@ -28,3 +28,16 @@ it("reports drag motion and fragmented releases separately from clicks", () => {
 it("decodes hover reports with no button held", () => {
   expect(new MouseDecoder().push("\x1b[<35;30;6M")).toEqual({ text: "", events: [{ kind: "mouse", col: 29, row: 5, button: "other", action: "move" }] });
 });
+
+it('forwards function keys omitted by Ink, including split sequences and modifiers',()=>{
+  const decoder=new MouseDecoder();
+  expect(decoder.push('\x1bO').events).toEqual([]);
+  expect(decoder.push('Q').events).toEqual([{kind:'key',key:'f2',modifiers:[]}]);
+  expect(decoder.push('\x1b[15;5~\x1b[1;2R').events).toEqual([{kind:'key',key:'f5',modifiers:['ctrl']},{kind:'key',key:'f3',modifiers:['shift']}]);
+  expect(decoder.push('\x1b[24~').events).toEqual([{kind:'key',key:'f12',modifiers:[]}]);
+});
+
+it('preserves ordering when text and function keys share a terminal read',()=>{
+  const decoder=new MouseDecoder();decoder.push('first\x1bOQsecond');
+  expect(decoder.chunks).toEqual([{text:'first'},{event:{kind:'key',key:'f2',modifiers:[]}},{text:'second'}]);
+});

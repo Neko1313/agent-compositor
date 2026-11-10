@@ -9,7 +9,7 @@ import {
   type PluginManifest,
   type Tier,
 } from "@agent-compositor/runtime";
-import { HooksHost, type UserHookFn } from "@agent-compositor/hooks";
+import { HooksHost, validateControllers, type UserHookFn, type UiControllers } from "@agent-compositor/hooks";
 import {
   ApprovalSession,
   compileRules,
@@ -17,7 +17,6 @@ import {
   type PermissionRule,
   type ToolCallDescriptor,
 } from "@agent-compositor/permissions";
-import { SessionStore } from "@agent-compositor/session";
 import {
   compactTranscript,
   TokenBudget,
@@ -37,6 +36,7 @@ import {
   type ToolSpec,
 } from "@agent-compositor/tools";
 import { replayTranscript } from "./resume.js";
+import type { AgentTurnContext, AgentToolBatchContext, TurnOutcome, SessionJournal } from "./customization.js";
 import { askTool, askQuestionsTool, taskTool, SUBAGENT_SYSTEM_PROMPT } from "./tools/index.js";
 import type {
   ChatMessage,
@@ -48,12 +48,15 @@ import type {
 } from "./provider.js";
 
 export interface CorePlugin {
+  controllers?:UiControllers;
   manifest: PluginManifest;
   hooks: Record<string, UserHookFn>;
   tier?: Tier;
+  events?: readonly import("@agent-compositor/events").EventDef[];
 }
 
 export interface AgentCoreOptions {
+  uiControllers?:ConstructorParameters<typeof HooksHost>[1]["uiControllers"];
   /** Internal host fallback, inherited by ephemeral children. */
   permissionReview?: (input:Record<string,unknown>)=>Promise<unknown>;
   /** Ancestor budget guard for ephemeral/background children. */
@@ -74,7 +77,7 @@ export interface AgentCoreOptions {
   toolEnv?: () => Record<string, string>;
   fetch?: typeof fetch;
   cwd: string;
-  provider: ModelProvider;
+  provider?: ModelProvider;
   plugins?: CorePlugin[];
   /** user permission rules; builtin conservative defaults prepend them */
   rules?: PermissionRule[];
@@ -91,7 +94,7 @@ export interface AgentCoreOptions {
   persistApprovals?: (
     approvals: readonly import("@agent-compositor/permissions").Approval[]
   ) => Promise<void>;
-  sessions?: SessionStore;
+  sessions?: SessionJournal;
   sessionId?: string;
   systemPrompt?: string;
   maxStepsPerTurn?: number;
@@ -100,6 +103,12 @@ export interface AgentCoreOptions {
   tools?: ToolSpec<unknown, unknown>[];
   /** append model-facing tools (e.g. plugin-provided tools.ts) on top of the builtins */
   extraTools?: ToolSpec<unknown, unknown>[];
+  /** Exact effective tool allowlist. [] means no model-facing tools. */
+  toolNames?: string[];
+  /** Names of automatically supplied helper/delegation/question tools. */
+  controlTools?: string[];
+  /** Explicit replacements, including schemas, for existing tool names. */
+  toolOverrides?: ToolSpec<unknown, unknown>[];
   /** AskUserQuestion channel; undefined = headless, questions are denied (fail closed) */
   onAsk?: (req:UserQuestionRequest)=>Promise<UserQuestionAnswer>;
   /** recursion guard for the task tool / service.agent.spawn (default 2 deep) */
@@ -154,7 +163,7 @@ export class AgentCore {
   private readonly compiledRules: ReturnType<typeof compileRules>;
   private readonly approvals?: ApprovalSession;
   private readonly onApproval?: AgentCoreOptions["onApproval"];
-  private readonly sessions?: SessionStore;
+  private readonly sessions?: SessionJournal;
   private readonly maxSteps: number;
   private readonly undo = new UndoStore();
 
@@ -182,7 +191,7 @@ export class AgentCore {
     ])
       if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0))
         throw new Error("Agent budgets must be positive integers");
-    this.provider = options.provider;
+    this.provider = options.provider ?? {name:"unconfigured",async *complete(){throw new Error("No model provider configured; select a service.model.stream implementation");}};
     this.sessionId = options.sessionId ?? randomUUID();
     this.maxSteps = options.maxStepsPerTurn ?? 32;
     this.toolSpecs = this.composeTools(options.extraTools ?? []);
@@ -210,12 +219,13 @@ export class AgentCore {
 
     this.runtime = new Runtime({ providers: options.serviceProviders });
     this.host = new HooksHost(this.runtime, {
+      uiControllers:options.uiControllers,
       session: { id: this.sessionId, cwd: options.cwd },
       workspaceRoot: options.cwd,
       storage: options.storage,
       execEnvironment: options.toolEnv,
       auth: options.auth,
-      signal: () => this.abort.signal,
+      signal: () => this.state==="running" ? this.abort.signal : undefined,
       onPluginRemoved: (plugin) =>
         this.broadcast({
           kind: "catalog",
@@ -386,6 +396,15 @@ export class AgentCore {
     this.runtime.setResolver("service.model.capabilities", async (e:any) => ({value: await (this.provider.capabilities?.(e.signal ?? this.abort.signal) ?? Promise.resolve(null))}));
     this.runtime.setResolver("service.agent.instructions", () => ({value:""}));
     this.runtime.setResolver("service.agent.finish", () => ({value:{complete:true}}));
+    this.runtime.setResolver("service.agent.run", async () => ({value:await this.runSteps()}));
+    this.runtime.setResolver("service.agent.tools", ({tools}) => ({value:tools}));
+    this.runtime.setResolver("service.agent.batch", async ({calls,context}) => {
+      for(const call of calls)await context.execute(call);return{value:true};
+    });
+    this.runtime.setResolver("service.context.prepare", async ({text}) => ({value:this.options.preparePrompt ? await this.options.preparePrompt(text) : text}));
+    this.runtime.setResolver("service.context.manage", async () => { await this.manageContextDefault(); return {value:true}; });
+    this.runtime.setResolver("service.context.compact", async () => { await this.compactDefault(); return {value:true}; });
+    this.runtime.setResolver("service.session.append", async ({event,data}) => { await this.persistDefault(event,data); return {value:true}; });
     this.runtime.setResolver("service.permission.review", async (input:Record<string,unknown>) =>
       options.permissionReview ? await options.permissionReview(input) : {value:{decision:"ask"}});
     this.runtime.setResolver(
@@ -519,7 +538,7 @@ export class AgentCore {
     });
 
     for (const plugin of options.plugins ?? []) {
-      this.host.registerPlugin(plugin.manifest, plugin.hooks, plugin.tier);
+      this.host.registerPlugin(plugin.manifest, plugin.hooks, plugin.tier, plugin.events,plugin.controllers);
     }
 
     if (options.systemPrompt)
@@ -546,6 +565,7 @@ export class AgentCore {
   private pendingContextRestore?: ChatMessage[];
   private spentTokens = 0;
   private turnTokens = 0;
+  private turnUsage = {inputTokens:0,outputTokens:0};
   get controlsReady(): boolean {
     return this.state !== "running" || this.inPromptHook;
   }
@@ -585,6 +605,8 @@ export class AgentCore {
     ) => {
       this.spentTokens += event.inputTokens + event.outputTokens;
       this.turnTokens += event.inputTokens + event.outputTokens;
+      this.turnUsage.inputTokens += event.inputTokens;
+      this.turnUsage.outputTokens += event.outputTokens;
       await this.emit("model.usage", {
         model: request.model ?? this.options.model?.(),
         profile: request.profile,
@@ -649,6 +671,7 @@ export class AgentCore {
     this.invokingTool = true;
     this.state = "running";
     this.turnTokens = 0;
+    this.turnUsage = {inputTokens:0,outputTokens:0};
     this.abort = new AbortController();
     let outcome: { ok: boolean; output?: unknown; error?: string } = {
       ok: false,
@@ -667,6 +690,7 @@ export class AgentCore {
         };
     });
     try {
+      await this.resolveTools();
       await this.emit("turn.start", { turnId, interactiveTool: true });
       this.messages.push({
         role: "assistant",
@@ -700,32 +724,41 @@ export class AgentCore {
   ): ToolSpec<unknown, unknown>[] {
     const tools = [
       ...(this.options.tools ?? builtinTools).filter(t=>t.name!=="tool_help"),
-      createToolHelp(()=>this.toolSpecs),
-      taskTool,
-      askTool,
-      askQuestionsTool,
+      ...[createToolHelp(()=>this.toolSpecs),taskTool,askTool,askQuestionsTool]
+        .filter(tool=>!this.options.controlTools || this.options.controlTools.includes(tool.name)),
       ...extraTools,
     ];
     // Children inherit the effective toolset; do not advertise task/ask twice.
+    const overrides = new Map((this.options.toolOverrides ?? []).map(tool=>[tool.name,tool]));
     return tools.filter(
       (tool, index) =>
         tools.findIndex((other) => other.name === tool.name) === index
-    );
+    ).map(tool=>overrides.get(tool.name) ?? tool)
+      .filter(tool=>!this.options.toolNames || this.options.toolNames.includes(tool.name))
+      .map(tool=>({...tool,parameters:structuredClone(tool.parameters)}));
   }
 
   /** Idle-only composition update: hooks, tools and future children stay in sync. */
   replacePlugins(
     plugins: CorePlugin[],
-    extraTools: ToolSpec<unknown, unknown>[]
+    extraTools: ToolSpec<unknown, unknown>[],
+    toolOverrides = this.options.toolOverrides
   ): void {
     if (this.state === "running")
       throw new Error("Cannot reload plugins during a running turn");
+    const preview=new Runtime();
+    for(const plugin of plugins){
+      validateControllers(plugin.controllers);
+      if(plugin.controllers && plugin.manifest.trust!=="trusted")throw new Error("Private UI controllers require a trusted plugin");
+      preview.register(plugin.manifest,Object.fromEntries(Object.keys(plugin.hooks).map(name=>[name,()=>undefined])),plugin.tier,plugin.events);
+    }
     for (const plugin of this.options.plugins ?? [])
       this.host.unregisterPlugin(plugin.manifest.name);
     for (const plugin of plugins)
-      this.host.registerPlugin(plugin.manifest, plugin.hooks, plugin.tier);
+      this.host.registerPlugin(plugin.manifest, plugin.hooks, plugin.tier, plugin.events,plugin.controllers);
     this.options.plugins = plugins;
     this.options.extraTools = extraTools;
+    this.options.toolOverrides = toolOverrides;
     this.toolSpecs = this.composeTools(extraTools);
   }
 
@@ -833,6 +866,7 @@ export class AgentCore {
     this.currentTurnId = turnId;
     this.lastTurnError = undefined;
     this.turnTokens = 0;
+    this.turnUsage = {inputTokens:0,outputTokens:0};
     this.state = "running";
     this.interruptedByUser = false;
     this.abort = new AbortController();
@@ -856,21 +890,17 @@ export class AgentCore {
       typeof (submitted as { text: unknown }).text === "string"
         ? (submitted as { text: string }).text
         : text;
-    if (this.options.preparePrompt) {
-      const prepared = await this.options.preparePrompt(promptText);
-      if (typeof prepared === "string") promptText = prepared;
-      else {
-        promptText = prepared.text;
-        this.options.initialImages = [
-          ...(this.options.initialImages ?? []),
-          ...(prepared.images ?? []),
-        ];
-      }
-      await this.emit("context.prepared", {
-        text: promptText,
-        images: this.options.initialImages,
-      });
-    }
+    const preparedResult = (await this.emit("service.context.prepare", {text:promptText,signal:this.abort.signal})) as {value?:unknown;deny?:string};
+    if (preparedResult?.deny) throw new Error(preparedResult.deny);
+    const prepared = preparedResult?.value;
+    if (typeof prepared === "string") promptText = prepared;
+    else if (prepared && typeof prepared === "object" && "text" in prepared && typeof prepared.text === "string") {
+      promptText = prepared.text;
+      const images = (prepared as {images?:ChatMessage["images"]}).images;
+      this.options.initialImages = [...(this.options.initialImages ?? []), ...(images ?? [])];
+    } else throw new Error("Context preparation must return text or {text,images} in {value}");
+    await this.emit("context.prepared", {text:promptText,images:this.options.initialImages});
+    await this.resolveTools();
     const behavior = (await this.emit("service.agent.instructions", {})) as {value?:string};
     this.baseInstructions = typeof behavior?.value === "string" ? behavior.value : "";
     this.turnToolRecords=[];
@@ -884,6 +914,76 @@ export class AgentCore {
     this.options.initialImages = undefined;
     await this.emit("turn.start", { turnId });
 
+    const execution = (await this.host.emit("service.agent.run", {turnId,context:this.turnContext()})).value as {value?:TurnOutcome;deny?:string};
+    if (execution?.deny) throw new Error(execution.deny);
+    const outcome = execution?.value;
+    if (!outcome || typeof outcome.text !== "string" || (outcome.error !== undefined && typeof outcome.error !== "string"))
+      throw new Error("Agent strategy must return a TurnOutcome in {value}");
+    const {text:fullText,error:failed,metadata} = outcome;
+    Object.assign(usage,this.turnUsage.inputTokens || this.turnUsage.outputTokens ? this.turnUsage : outcome.usage ?? {});
+    if (usage.inputTokens > 0 || usage.outputTokens > 0) {
+      await this.emit("turn.usage", { turnId, ...usage });
+    }
+
+    if (this.interruptedByUser) {
+      this.state = "interrupted";
+      await this.emit("turn.interrupted", { turnId });
+    } else if (failed !== undefined) {
+      if (fullText)
+        this.messages.push({ role: "assistant", content: fullText, metadata });
+      await this.emit("turn.failed", { turnId, error: failed });
+      this.lastTurnError = failed;
+      this.state = "idle";
+    } else {
+      if (fullText)
+        this.messages.push({ role: "assistant", content: fullText, metadata });
+      await this.emit("turn.complete", { turnId, text: fullText });
+      this.state = "idle";
+    }
+    this.currentTurnId = undefined;
+  }
+
+  private async resolveTools(): Promise<void> {
+    const result=(await this.host.emit("service.agent.tools",{tools:this.composeTools(this.options.extraTools ?? [])})).value as {value?:unknown;deny?:string};
+    if(result?.deny)throw new Error(result.deny);
+    this.toolSpecs=this.validateTools(result?.value);
+  }
+
+  private validateTools(value: unknown): ToolSpec[] {
+    if (!Array.isArray(value) || value.length>1000) throw new Error("Tool provider must return at most 1000 definitions");
+    const names=new Set<string>();
+    for (const tool of value) {
+      if (!tool || typeof tool.name!=="string" || !tool.name || names.has(tool.name) || typeof tool.description!=="string" ||
+          !tool.parameters || typeof tool.parameters!=="object" || typeof tool.describe!=="function" || typeof tool.execute!=="function")
+        throw new Error("Invalid or duplicate tool definition");
+      names.add(tool.name);
+    }
+    return value.filter(tool=>!this.options.toolNames || this.options.toolNames.includes(tool.name))
+      .map(tool=>({...tool,parameters:structuredClone(tool.parameters)}));
+  }
+
+  private turnContext(scope?:AbortSignal): AgentTurnContext {
+    const operation=this.abort.signal, signal=scope?AbortSignal.any([operation,scope]):operation, turnId=this.currentTurnId ?? "interactive";
+    const check=()=> { signal.throwIfAborted(); if(this.abort.signal!==operation || (this.currentTurnId!==turnId && turnId!=="interactive") || (this.state!=="running" && turnId!=="interactive")) throw new Error("Turn context has expired"); };
+    return {
+      turnId,sessionId:this.sessionId,cwd:this.options.cwd,signal,maxSteps:this.maxSteps,
+      withSignal:next=>{check();return this.turnContext(AbortSignal.any([signal,next]));},
+      messages:()=>{check();return structuredClone(this.messages);},
+      tools:()=>{check();return this.request().tools;},
+      append:message=>{check();this.messages.push(structuredClone(message));},
+      replace:async messages=>{check();this.messages=structuredClone(messages);await this.emit("context.restored",{messages:this.messages});},
+      request:()=>{check();return {...this.request(),signal};},
+      stream:(request)=>{check();const input=request??this.request();return this.streamModel({...input,signal:AbortSignal.any([input.signal,signal])});},
+      execute:async calls=>{check();this.messages.push({role:"assistant",content:"",toolCalls:structuredClone(calls)});await this.runToolBatch(turnId,calls,signal);},
+      publish:async text=>{check();const result=await this.emit("assistant.text",{turnId,text}) as {text?:string};check();const delta=typeof result?.text==="string"?result.text:text;this.broadcast({kind:"text",turnId,delta});return delta;},
+      manageContext:()=>{check();return this.maybeCompact();},
+      compact:reason=>{check();return this.compactNow(reason);},
+    };
+  }
+
+  private async runSteps(): Promise<TurnOutcome> {
+    const turnId=this.currentTurnId!;
+    const usage={inputTokens:0,outputTokens:0};
     let fullText = "";
     let metadata: Record<string, unknown> | undefined;
     let failed: string | undefined;
@@ -994,29 +1094,15 @@ export class AgentCore {
       break; // stop
     }
 
-    if (usage.inputTokens > 0 || usage.outputTokens > 0) {
-      await this.emit("turn.usage", { turnId, ...usage });
-    }
-
-    if (this.interruptedByUser) {
-      this.state = "interrupted";
-      await this.emit("turn.interrupted", { turnId });
-    } else if (failed !== undefined) {
-      if (fullText)
-        this.messages.push({ role: "assistant", content: fullText, metadata });
-      await this.emit("turn.failed", { turnId, error: failed });
-      this.lastTurnError = failed;
-      this.state = "idle";
-    } else {
-      if (fullText)
-        this.messages.push({ role: "assistant", content: fullText, metadata });
-      await this.emit("turn.complete", { turnId, text: fullText });
-      this.state = "idle";
-    }
-    this.currentTurnId = undefined;
+    return {text:fullText,error:failed,metadata,usage};
   }
 
   private async maybeCompact(): Promise<void> {
+    const result=(await this.host.emit("service.context.manage",{context:this.turnContext()})).value as {deny?:string};
+    if(result?.deny)throw new Error(result.deny);
+  }
+
+  private async manageContextDefault(): Promise<void> {
     const compaction = this.options.compaction;
     if (!compaction) return;
     const response = await this.emit('service.model.capabilities',{signal:this.abort.signal}) as {value?:import('./provider.js').ModelCapabilities};
@@ -1042,7 +1128,12 @@ export class AgentCore {
   }
 
   /** Force a compaction pass regardless of cooldown/budget gates (Claude's /compact). */
-  async compactNow(): Promise<void> {
+  async compactNow(reason?:string): Promise<void> {
+    const result=(await this.host.emit("service.context.compact",{context:this.turnContext(),reason})).value as {deny?:string};
+    if(result?.deny)throw new Error(result.deny);
+  }
+
+  private async compactDefault(): Promise<void> {
     const compaction = this.options.compaction;
     if (!compaction) return;
     await this.emit("context.compacting", { sessionId: this.sessionId });
@@ -1126,7 +1217,11 @@ export class AgentCore {
       if(event.kind==="catalog" && event.event==="model.usage"){
         const tokens=Number(event.input.inputTokens??0)+Number(event.input.outputTokens??0);
         this.spentTokens+=tokens;
-        if(this.state==="running")this.turnTokens+=tokens;
+        if(this.state==="running"){
+          this.turnTokens+=tokens;
+          this.turnUsage.inputTokens+=Number(event.input.inputTokens??0);
+          this.turnUsage.outputTokens+=Number(event.input.outputTokens??0);
+        }
         const write=this.emit("model.usage", event.input);
         void write.catch(()=>{});
         usageWrites.push(write);
@@ -1181,10 +1276,46 @@ export class AgentCore {
 
   private async runToolBatch(
     turnId: string,
-    batch: ChatToolCall[]
+    batch: ChatToolCall[],
+    signal=this.abort.signal
   ): Promise<void> {
-    for (const call of batch) {
-      const spec = this.toolSpecs.find((t) => t.name === call.name);
+    const executed=new Set<string>(),pending:Promise<void>[]=[];
+    let active=true;
+    const create=(scope:AbortSignal):AgentToolBatchContext=>({signal:scope,
+      withSignal:next=>create(AbortSignal.any([scope,next])),
+      execute:call=>{
+        scope.throwIfAborted();
+        if(!active || !batch.some(original=>original.id===call.id) || executed.has(call.id))
+          throw new Error("Tool batch call is unknown, expired or already executed");
+        executed.add(call.id);
+        const task=this.executeToolCalls(turnId,[call],scope);pending.push(task);return task;
+      },
+    });
+    try {
+      const response=(await this.host.emit("service.agent.batch",{calls:structuredClone(batch),context:create(signal)})).value as {deny?:string};
+      if(response?.deny)throw new Error(response.deny);
+      await Promise.all(pending);
+    } finally {
+      active=false;
+      // Started effects settle before the next model request, even after scheduler failure.
+      await Promise.allSettled(pending);
+    }
+    for(const call of batch.filter(call=>!executed.has(call.id))) {
+      const error="Tool call was not scheduled by the selected batch strategy";
+      this.turnToolRecords.push({name:call.name,args:call.args,ok:false});
+      await this.emit("tool.result",{callId:call.id,tool:call.name,ok:false,error});
+      this.messages.push({role:"tool",toolCallId:call.id,name:call.name,content:error});
+    }
+  }
+
+  private async executeToolCalls(
+    turnId: string,
+    batch: ChatToolCall[],
+    signal:AbortSignal
+  ): Promise<void> {
+    for (let call of batch) {
+      signal.throwIfAborted();
+      let spec = this.toolSpecs.find((t) => t.name === call.name);
       if (!spec) {
         this.turnToolRecords.push({name:call.name,args:call.args,ok:false});
         await this.emit("tool.result", {
@@ -1202,7 +1333,7 @@ export class AgentCore {
         continue;
       }
 
-      const args = call.args ?? {};
+      let args = call.args ?? {};
       // 1) tool.call: a plugin may answer ({result}) or refuse ({deny})
       const intercepted = await this.emit("tool.call", {
         tool: call.name,
@@ -1234,11 +1365,19 @@ export class AgentCore {
         error === undefined &&
         !(isObject(intercepted) && "result" in intercepted)
       ) {
+        // Resolve transformed arguments once, before both permission evaluation and execution.
+        if (isObject(intercepted) && typeof intercepted.tool === "string") {
+          const replacement=this.toolSpecs.find(tool=>tool.name===intercepted.tool);
+          if(!replacement) throw new Error(`Unknown rewritten tool: ${intercepted.tool}`);
+          spec=replacement;
+          call={...call,name:replacement.name,args:intercepted.input};
+          args=intercepted.input ?? {};
+        }
         // 2) permissions via tool.check (chain may override with {decision})
         const descriptor = spec.describe(args);
         if (descriptor.path && typeof (args as any).path === "string")
           descriptor.path = resolvePath(this.options.cwd, (args as any).path);
-        if(spec===execTool)descriptor.readOnly=!(args as any).env&&!(args as any).background&&await isReadOnlyShell((args as any).command,(args as any).cwd??this.options.cwd,this.options.cwd,{...process.env,...this.options.toolEnv?.()});
+        if(spec.execute===execTool.execute && spec.describe===execTool.describe)descriptor.readOnly=!(args as any).env&&!(args as any).background&&await isReadOnlyShell((args as any).command,(args as any).cwd??this.options.cwd,this.options.cwd,{...process.env,...this.options.toolEnv?.()});
         let decision = evaluate(descriptor, this.compiledRules, this.approvals);
         let overrideReason: string | undefined;
         const checkRes = await this.emit("tool.check", {
@@ -1313,7 +1452,7 @@ export class AgentCore {
                     tool: call.name,
                     descriptor,
                     reason: reviewReason ?? decision.rule?.reason,
-                    signal: this.abort.signal,
+                    signal,
                   });
                 } finally {
                   await this.emit("ui.reaction", {
@@ -1346,7 +1485,8 @@ export class AgentCore {
 
         // 3) execute through the $ service chain
         if (!denied) {
-          const ctx = this.buildToolContext();
+          signal.throwIfAborted();
+          const ctx = this.buildToolContext(signal);
           try {
             const executed = await spec.execute(ctx, args);
             if (executed.ok) result = executed.data;
@@ -1387,7 +1527,7 @@ export class AgentCore {
     return JSON.stringify({truncated:true,originalBytes:Buffer.byteLength(text,"utf8"),preview:text.slice(0,16000),hint:"Tool result exceeded 128 KiB. Query a smaller page/range; this preview is not a complete edit source."});
   }
 
-  private buildToolContext(): ToolContext {
+  private buildToolContext(signal=this.abort.signal): ToolContext {
     return {
       cwd: this.options.cwd,
       stateDir: this.options.storage?.paths.state,
@@ -1396,7 +1536,7 @@ export class AgentCore {
       fetch: this.options.fetch,
       settings: (name: string) =>
         this.options.storage?.config(name) ?? Promise.resolve({}),
-      signal: this.abort.signal,
+      signal,
       undo: this.undo,
       request: async <T = unknown>(
         service: string,
@@ -1488,10 +1628,11 @@ export class AgentCore {
 
   private sessionEnsured: Promise<unknown> | undefined;
 
-  private async persist(
-    event: string,
-    input: Record<string, unknown>
-  ): Promise<void> {
+  private async persist(event: string, input: Record<string, unknown>): Promise<void> {
+    await this.host.emit("service.session.append",{sessionId:this.sessionId,cwd:this.options.cwd,event,data:input});
+  }
+
+  private async persistDefault(event:string,input:Record<string,unknown>): Promise<void> {
     if (!this.sessions) return;
     // the store requires a created session before append; ensure exactly once
     // (create is idempotent-ish: a second create for the same id is a no-op

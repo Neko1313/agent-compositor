@@ -25,6 +25,7 @@ export interface TelemetrySink {
 }
 
 export interface HooksHostConfig {
+  uiControllers?:Partial<Record<import("./controllers.js").UiControllerKind,string>>;
   session: { id: string; cwd: string };
   /** fs confinement root; defaults to session.cwd */
   workspaceRoot?: string;
@@ -50,7 +51,7 @@ export interface HooksHostConfig {
     legacyWrite(path: string, content: string): Promise<void>;
   };
   /** Current agent operation cancellation, combined with hook budgets. */
-  signal?: () => AbortSignal;
+  signal?: () => AbortSignal | undefined;
   model?: ModelProvider;
   auth?: AuthProvider;
   notify?: NotifySink;

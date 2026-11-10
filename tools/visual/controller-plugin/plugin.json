@@ -1,0 +1,1 @@
+{"name":"controller-proof","version":"1.0.0","trust":"trusted","main":"hooks.js","hookTimeouts":{"prompt.submit":30000}}

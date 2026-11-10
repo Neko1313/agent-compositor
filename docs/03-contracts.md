@@ -4,6 +4,51 @@
 
 A contract is a syscall ABI: versioned (semver), changed only through an explicit procedure, documented as a catalog. A plugin written against contract version N keeps working on N+1.
 
+## Replacement contract — accepted target
+
+Decision: 2026-11-10. The only fixed product mechanism is tiling: window-tree
+ownership, geometry, workspaces, focus routing, and drag/resize. All other UI
+and agent behavior must be replaceable without editing the host. This decision
+supersedes earlier rules that made the composer and system dialogs permanently
+host-owned. Existing exceptions below describe the implementation during the
+migration, not the target architecture.
+
+| Component | Required replacement surface |
+|---|---|
+| Message editor, completions and non-tiling shortcuts | Rendering, input handling, draft state, submission/steering intents and teardown |
+| Approval, question and settings dialogs | Rendering, editing, validation, explicit results, cancellation and pending-request cleanup |
+| Conversation, tools, status controls and window decoration | Content, interaction and presentation within compositor-owned rectangles |
+| Commands, providers, auth and model selection | Default and extension implementations use the same public service paths |
+| Tool definitions and execution | Explicit replacement of schemas/handlers; rewritten calls reach execution and permission evaluation consistently |
+| Agent execution, recovery and context management | Replaceable orchestration strategies, rather than observers around fixed algorithms |
+| Session and other state services | Replaceable persistence/control implementations with explicit lifecycle contracts |
+
+Implementation requirements:
+
+- Defaults and extensions use the same selection and lifecycle mechanisms.
+  Selection must identify the active provider and report missing or conflicting
+  providers; duplicate names must not silently discard a requested replacement.
+- A visual override must not retain obsolete default hit areas or key handling.
+  Components return semantic actions/results; the tiling manager retains control
+  of window geometry and focus routing.
+- Private editor/form state belongs to its selected implementation and does not
+  become a broadcast event payload. Replacing a component does not require
+  exposing passwords to unrelated render hooks or recording drafts in logs.
+- Reload, disable, session switching and cancellation must dispose old instances,
+  resolve or cancel pending interactions, and remove stale contributions.
+- Replacement preserves the negotiated contract and the user's configured
+  policy. A new dialog must return an explicit decision through the normal
+  permission path; changing its appearance is not implicit authorization.
+
+Acceptance requires actual external extensions, not only constructor injection
+in tests: replace an editor and a dialog (including their input behavior), a
+built-in tool definition, an auth flow, an agent strategy and a session service;
+then verify unload/reload, cancellation and resumption with the same tiling
+manager. Tests must also prove that rewritten tool arguments reach execution,
+rendering cannot mutate agent state, and an unresponsive async hook cannot hold
+the chain indefinitely. Until those checks exist and pass, describe the system
+as extensible at selected seams rather than universally replaceable.
+
 ## 1. Event catalog
 
 A machine-readable schema plus a human-readable document (`docs/events.md`). Every event: a name in the `plugin.foo:bar` format (namespaces instead of flat strings), a version, a payload schema, response forms, a default budget. Legacy names exist only as aliases in the schema — no multiplying handlers.
@@ -100,11 +145,19 @@ Renderers own: cell-grid semantics (full/diff ops, scroll, cursor), style mappin
 
 ## Implementation status
 
+Current core composition and strategy replacements are documented in
+[core-customization.md](core-customization.md). Catalog 0.18 adds these services;
+the older milestone list below is historical. Explicit within-tier priorities,
+awaited middleware continuations, bounded asynchronous hooks and atomic plugin
+registration are now implemented. Selected editor/dialog/placement/history
+controllers and full session repository replacement are described in
+[ui-controllers.md](ui-controllers.md), including privacy, lifecycle and limits.
+
 The base runtime is implemented in the kimi-code fork and has passed an external review (Claude Mods API compatibility is pinned by a fixture). In this repo the kernel-side packages are implemented and tested end-to-end:
 
 - **events** — versioned catalog (26 events), generated docs + JSON schema, CI-frozen shapes;
 - **runtime** — onion-chain dispatcher with thread/own/yield budgets, fail-operational faults, chain trace (`--plugin-trace`);
-- **hooks** — mods-style `(event, $)` layer; every `$` method is a `service.*` event; per-plugin state; workspace confinement for fs/exec;
+- **hooks** — mods-style `(event, $)` layer; service-backed `$` methods are `service.*` events; private UI capabilities bypass broadcasts; per-plugin state; workspace confinement for fs/exec;
 - **loader** — disk discovery, manifest validation, tiered registration, hot reload with reverse teardown;
 - **protocol** — JSONL wire codec + handshake with version negotiation;
 - **renderer-ink** — reference terminal renderer (grid state machine + Ink view); runs the full contour disk → runtime → protocol → Ink with input routed back;
@@ -112,6 +165,6 @@ The base runtime is implemented in the kimi-code fork and has passed an external
 
 Open items:
 
-1. Explicit priority instead of registration order;
+1. ~~Explicit priority instead of registration order~~ — implemented with manifest `priority` within each tier;
 2. Structured core→renderer delta channel (today streaming renders as grid diffs; a web/desktop renderer may want a protocol minor with typed deltas);
 3. ~~Porting the kimi-code agent core~~ — **superseded** by [06-core-blueprint.md](06-core-blueprint.md): the core is written greenfield as a best-of harvest over 8 local reference codebases; the fork is one reference among them.

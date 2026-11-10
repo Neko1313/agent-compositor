@@ -25,6 +25,49 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("HooksHost / $ API", () => {
+  it("revokes retained API handles on unload even if another instance reuses the name",async()=>{
+    let retained:HooksApi|undefined,writes=0;
+    runtime.setResolver("service.fs.write",()=>{writes++;return{value:true};});
+    host.registerPlugin(manifest("replaceable"),{"session.start":(_e,$)=>{retained=$;}});
+    await host.emit("session.start",{sessionId:"s",cwd:dir,plugins:[]});
+    host.unregisterPlugin("replaceable");host.registerPlugin(manifest("replaceable"),{});
+    await expect(retained!.fs.write("old","late")).rejects.toThrow("unloaded");
+    expect(retained!.signal.aborted).toBe(true);expect(writes).toBe(0);
+  });
+
+  it("blocks render-only file effects and agent mutations through public APIs",async()=>{
+    let writes=0,clears=0;
+    runtime.setResolver("service.fs.write",()=>{writes++;return{value:true};});
+    runtime.setResolver("service.agent.clear",()=>{clears++;return{value:true};});
+    for(const [name,operation] of Object.entries({file:($:HooksApi)=>$.fs.write("blocked","x"),clear:($:HooksApi)=>$.agent.clear(),emit:($:HooksApi)=>$.emit("service.agent.clear",{})})) {
+      host.registerPlugin(manifest(name,"render-only"),{"ui.render":async(_e,$)=>{await operation($);}});
+    }
+    const result=await host.emit("ui.render",{site:"s",surface:"terminal",props:{}});
+    expect(result.faults).toHaveLength(3);expect(writes).toBe(0);expect(clears).toBe(0);
+  });
+
+  it("routes agent controls and awaited authentication status through interceptable services",async()=>{
+    const seen:unknown[]=[];
+    host.registerPlugin(manifest("services"),{
+      "service.agent.clear":()=>({deny:"retained"}),
+      "service.auth.status":()=>({value:{loggedIn:true,provider:"replacement"}}),
+      "session.start":async(_e,$)=>{
+        seen.push($.auth.status().loggedIn,await $.auth.status());
+        await expect($.agent.clear()).rejects.toThrow("retained");
+      },
+    });
+    const result=await host.emit("session.start",{sessionId:"s",cwd:dir,plugins:[]});
+    expect(result.faults).toEqual([]);expect(seen).toEqual([false,{loggedIn:true,provider:"replacement"}]);
+  });
+
+  it("rejects host API effects from a hook after its deadline",async()=>{
+    let retained:HooksApi|undefined,writes=0;
+    runtime.setResolver("service.fs.write",()=>{writes++;return{value:true};});
+    host.registerPlugin({...manifest("late"),hookTimeouts:{"tool.call":10}}, {"tool.call":async(_e,$)=>{retained=$;await new Promise(()=>{});}});
+    await host.emit("tool.call",{tool:"read",input:{},callId:"c"});
+    await expect(retained!.fs.write("late","x")).rejects.toBeDefined();expect(writes).toBe(0);
+  });
+
   it("hooks receive (event, $); $.next continues the chain; $.plugin identifies the caller", async () => {
     let seen = "";
     host.registerPlugin(manifest("a"), {

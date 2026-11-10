@@ -39,7 +39,8 @@
     "visual:presentation": "node tools/visual/presentation-check.mjs",
     "visual:questions": "node tools/visual/questions-check.mjs",
     "visual:history": "node tools/visual/history-check.mjs",
-    "visual:ux": "node tools/visual/ux-check.mjs"
+    "visual:ux": "node tools/visual/ux-check.mjs",
+    "visual:controllers": "node tools/visual/controllers-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

@@ -20,11 +20,12 @@ const digest = createHash('sha256').update(archive).digest('hex');
 const expected = JSON.parse(await readFile('package.json')).version;
 const installer = resolve('install.sh');
 let corrupt = true;
-let callixResult, workflowResult, guardedEditResult;
+let callixResult, workflowResult, guardedEditResult, modelRequests=0;
 const server = createServer(async (req, res) => {
   if (req.url.endsWith('/SHA256SUMS')) { res.end(`${corrupt ? '0'.repeat(64) : digest}  ${asset}\n`); return; }
   if (req.url.endsWith(`/${asset}`)) { res.end(archive); return; }
   if (req.url === '/v1/chat/completions') {
+    modelRequests++;
     let body = ''; for await (const chunk of req) body += chunk;
     const request = JSON.parse(body);
     res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -107,6 +108,41 @@ await hooks['session.start']({},api);dispose();if(image?.width!==2||image?.heigh
   assert.match(license.toString('utf8'), /MIT License/);
   const noPath = join(temp, 'empty-path'); await mkdir(noPath);
   const callixOptions = { ...options, timeout: 120000, env: { ...env, CALLIX_BIN: '', PATH: noPath } };
+  // A selected external kernel extension works without source packages, a
+  // fallback model request, coding tools, Node or Bun on PATH.
+  const kernelProject=join(temp,'custom-kernel'),kernelPlugin=join(kernelProject,'plugins/kernel-fixture');
+  await mkdir(kernelPlugin,{recursive:true});
+  await writeFile(join(kernelProject,'agent-compositor.json'),JSON.stringify({
+    enabledPlugins:['kernel-fixture'],sessionProvider:'kernel-fixture',serviceProviders:{'service.agent.run':'kernel-fixture'},
+    agent:{builtinTools:[],controlTools:[],tools:['inspect'],skills:false,projectContext:false,fileReferences:false},
+    permissions:{rules:[{tool:'inspect',decision:'allow'}]},
+  }));
+  await writeFile(join(kernelPlugin,'plugin.json'),JSON.stringify({name:'kernel-fixture',version:'1.0.0',trust:'trusted',main:'hooks.js',provides:['service.agent.run']}));
+  await writeFile(join(kernelPlugin,'repository.js'),await readFile(new URL('../visual/controller-plugin/hooks.js',import.meta.url),'utf8'));
+  await writeFile(join(kernelPlugin,'hooks.js'),`export {sessionRepository} from './repository.js';
+  export const events=[{
+    name:'plugin.kernel-fixture:inspect',since:'1.0.0',version:1,summary:'Inspect fixture',frozen:true,
+    input:{parse(value){if(typeof value.id!=='string')throw Error('id required');return value;}},
+    responses:[{kind:'value',summary:'Fixture result',schema:{safeParse(value){return{success:typeof value?.value==='string'};}}}]
+  }];
+  export const hooks={
+    'plugin.kernel-fixture:inspect':event=>({value:'observed '+event.id}),
+    'service.agent.run':async event=>{const ctx=event.context;
+      if(ctx.tools().map(t=>t.name).join(',')!=='inspect')throw Error('Unexpected capabilities');
+      const count=ctx.messages().filter(m=>m.role==='user').length;
+      await ctx.execute([{id:'inspect',name:'inspect',args:{id:'resource'}}]);
+      const text='KERNEL_'+count+': '+ctx.messages().at(-1).content;
+      await ctx.publish(text);return{value:{text}};
+    }
+  };`);
+  await writeFile(join(kernelPlugin,'tools.js'),`export default [{name:'inspect',description:'Fixture inspection',parameters:{type:'object',properties:{id:{type:'string'}},required:['id']},
+    describe:()=>({tool:'inspect'}),execute:async(ctx,args)=>({ok:true,data:await ctx.request('plugin.kernel-fixture:inspect',args)})}];`);
+  const beforeKernel=modelRequests,kernelOptions={...callixOptions,cwd:kernelProject};
+  const firstKernel=JSON.parse((await exec(binary,['-p','Inspect','--output-format','json'],kernelOptions)).stdout);
+  assert.equal(firstKernel.response,'KERNEL_1: "observed resource"');assert.equal(firstKernel.error,undefined);
+  const resumedKernel=JSON.parse((await exec(binary,['--resume',firstKernel.sessionId,'-p','Inspect again','--output-format','json'],kernelOptions)).stdout);
+  assert.equal(resumedKernel.response,'KERNEL_2: "observed resource"');assert.equal(resumedKernel.error,undefined);
+  assert.equal(modelRequests,beforeKernel,'Selected kernel extension must not call the fallback model');
   assert.equal((await exec(join(callixDirectory, 'callix'), ['--version'], callixOptions)).stdout.trim(), `callix ${provenance.version}`);
   await writeFile(join(project, 'package.json'), JSON.stringify({ name: 'callix-release-check', private: true, type: 'module' }));
   await writeFile(join(project, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext' }, include: ['*.ts'] }));
@@ -132,7 +168,7 @@ console.log('MONTY_OK');
   await writeFile(marker, 'user state');
   await exec('sh', [installer, '--prefix', prefix], options);
   assert.equal(await readFile(marker, 'utf8'), 'user state');
-  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, packaged GIF decoder/license, model response, background workflow, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
+  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, external kernel extension/events/exact tools/custom session repository/resume without fallback model or PATH, packaged GIF decoder/license, model response, background workflow, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
 } finally {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   await rm(temp, { recursive: true, force: true });

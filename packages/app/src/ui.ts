@@ -1,3 +1,5 @@
+import { ControllerDialog } from "./controller-dialog.js";
+import { type UiControllerFactory, UiControllerLease, type UiControllerInput, type UiControllerView, type UiEditorState, type UiEditorIntent } from "@agent-compositor/hooks";
 import { ApprovalDialog } from "./approval.js";
 import type { UserQuestionAnswer } from "@agent-compositor/events";
 import { FormDialog } from "./form.js";
@@ -21,6 +23,7 @@ import type {
   LoopEvent,
 } from "@agent-compositor/core";
 import {
+  surfacePlacementSchema,
   uiAppearanceSchema,
   uiTextViewSchema,
   type UiAppearance,
@@ -116,7 +119,13 @@ export class AppUI {
   private composerViews = new Map<string, {plugin:string;surface:string;view:UiTextView}>();
   private pluginWindows = new Map<string, PluginWindow>();
   private panel?: PluginPanel;
+  private placementController?:UiControllerLease;
   private drag?: Drag;
+  private editor?:UiControllerLease;
+  private controllerUnsubscribe?:()=>void;
+  private controllerBypass=false;
+  private editorCapture?:UiControllerLease;
+  private readonly uiLifetime=new AbortController();
   private lastMouse?: MouseInput;
   private hoveredTitle?: string;
   private pointerSupported = false;
@@ -127,14 +136,14 @@ export class AppUI {
   private statusNavigationRows = 1;
   private statusActionsVisible = true;
   private approval?: {
-    dialog: ApprovalDialog;
+    dialog: ControllerDialog<Parameters<NonNullable<AgentCoreOptions["onApproval"]>>[0]>;
     resolve: (
       answer: Awaited<ReturnType<NonNullable<AgentCoreOptions["onApproval"]>>>
     ) => void;
   };
   private approvalQueue: NonNullable<AppUI["approval"]>[] = [];
   private question?: {
-    dialog: QuestionDialog;
+    dialog: ControllerDialog<QuestionRequest>;
     resolve: (answer: UserQuestionAnswer) => void;
     reject: (error: Error) => void;
   };
@@ -142,7 +151,7 @@ export class AppUI {
   private unsubscribe: () => void;
   private closed = false;
   private actionFocus = new Map<string, string>();
-  private form?: { dialog: FormDialog; finish: (result: UiFormResult | null) => void };
+  private form?: { dialog: ControllerDialog<UiForm>; finish: (result: UiFormResult | null) => void };
   private ready = false;
   private nativeRaster = false;
   private tasks = new Set<Promise<void>>();
@@ -198,22 +207,128 @@ export class AppUI {
     this.windows.focused = "input";
     this.unsubscribe = this.core.subscribe((event) => this.event(event));
     this.bindForms();
+    this.bindControllers();
     this.installResume();
+  }
+  private editorSnapshot():UiEditorState {
+    try {
+      const value=this.editor?.snapshot() as UiEditorState|undefined;
+      if(value && typeof value.text==='string' && Number.isInteger(value.cursor) && value.cursor>=0 && value.cursor<=value.text.length)
+        return structuredClone(value);
+    } catch {/* Preserve the last host draft if an extension cannot snapshot. */}
+    return {text:this.draft,cursor:this.cursor};
+  }
+  private bindControllers():void {
+    this.controllerUnsubscribe?.();
+    const replace=()=>{
+      const state=this.editorSnapshot();this.editor?.dispose();this.draft=state.text;this.cursor=state.cursor;
+      const fallback:UiControllerFactory=()=>({
+        snapshot:()=>({text:this.draft,cursor:this.cursor}),
+        render:({columns,rows})=>this.defaultEditorView(columns,rows),
+        preferredRows:()=>this.defaultDockHeight()-5,
+        pointer:()=>"text",
+        handle:input=>{
+          if(input.kind==='action'||input.kind==='change')return;
+          const data=input.kind==='mouse'?{...input,row:input.row+this.rows-this.dockHeight()+2,col:input.col+2}:input;
+          this.controllerBypass=true;try{this.receive({type:'input',surface:'input',data});}finally{this.controllerBypass=false;}
+        },
+      });
+      const capabilities=new AbortController();
+      try{this.editor=this.core.host.controllers.create('editor',{
+        sessionId:this.core.sessionId,
+        commands:()=>{capabilities.signal.throwIfAborted();return structuredClone(this.commandList());},
+        files:this.panelOptions.files?async()=>{capabilities.signal.throwIfAborted();const files=await this.panelOptions.files!();capabilities.signal.throwIfAborted();return files;}:undefined,
+      },fallback,()=>this.draw(),state,this.uiLifetime.signal);
+        this.editor.signal.addEventListener('abort',()=>capabilities.abort(),{once:true});
+      }
+      catch{
+        capabilities.abort();
+        this.editor=new UiControllerLease('@unavailable','editor',()=>({snapshot:()=>state,
+          render:()=>({lines:[{text:'Selected editor is unavailable',tone:'danger'}]}),
+          handle:input=>input.kind==='key'&&input.key==='c'&&input.modifiers?.includes('ctrl')?{type:'interrupt'}:undefined,
+        }),{kind:'editor',data:null,state},this.uiLifetime.signal,()=>this.draw(),(_owner,fn)=>fn());
+      }
+    };
+    replace();this.controllerUnsubscribe=this.core.host.controllers.subscribe(kinds=>{if(kinds.includes('editor')){replace();this.draw();}});
+  }
+  private controllerView(lease:UiControllerLease,columns:number,rows:number):UiControllerView {
+    try{return lease.render(columns,rows);}catch{lease.dispose();return{lines:[{text:"Selected controller is unavailable",tone:"danger"}]};}
+  }
+  private dispatchController(lease:UiControllerLease,input:UiControllerInput,accept:(result:unknown)=>void):void {
+    const finish=(result:unknown)=>{if(this.closed||lease.signal.aborted)return;accept(result);this.draw();};
+    const failed=()=>{if(lease.signal.aborted||this.closed)return;lease.dispose();this.transcript.push({kind:'notice',tone:'danger',text:`${lease.kind} controller failed`});this.draw();};
+    try{const value=lease.handle(input);if(value&&typeof(value as PromiseLike<unknown>).then==='function')this.track(Promise.resolve(value).then(finish,failed));else finish(value);}
+    catch{failed();}
+  }
+  private routeEditorInput(data:Extract<WireMessage,{type:'input'}>['data']):boolean {
+    if(!this.editor||this.approval||this.question||this.form||this.panel||this.drag)return false;
+    if(data.kind==='key'&&data.modifiers?.includes('meta')){
+      const key=data.key.toLowerCase();
+      const tiling=['h','j','k','l','left','right','up','down','b','v','f','q','i','=','+','-','enter','t','s'];
+      if(this.editor.isDefault||tiling.includes(key)||/^[1-9]$/.test(key))return false;
+    }
+    let input=data;
+    if(data.kind==='mouse') {
+      const start=this.rows-this.dockHeight()+2;
+      const inside=data.row>=start&&data.row<this.rows-2&&data.col>=2&&data.col<this.columns-2;
+      if(!inside&&!this.editorCapture)return false;
+      if(data.action==='move'&&!this.editorCapture)return false;
+      if(data.action==='press'&&data.button==='left'){this.windows.focused='input';this.editorCapture=this.editor;}
+      if(data.action==='release')this.editorCapture=undefined;
+      input={...data,row:data.row-start,col:data.col-2};
+    } else if(this.windows.focused!=='input')return false;
+    const editor=this.editor;
+    this.dispatchController(editor,input,result=>{if(this.editor===editor)this.editorIntent(result);});return true;
+  }
+  private editorIntent(result:unknown):void {
+    const intent=result as UiEditorIntent|undefined;if(!intent)return;
+    if(intent.type==='interrupt'){if(this.core.getState()==='running')this.core.interrupt();else this.close();return;}
+    if(intent.type==='scroll'&&Number.isFinite(intent.rows)){this.offset=Math.max(0,this.offset+intent.rows);return;}
+    if((intent.type==='submit'||intent.type==='steer')&&typeof intent.text==='string'&&intent.text.trim()) {
+      const text=intent.text;this.transcript.push({kind:'user',text});
+      if(text==='/plugins'){this.openPanel();return;}
+      if(text==='/reload'&&this.reload){this.track(this.reload(this.core).then(text=>{this.transcript.push({kind:'notice',text});this.viewCache.clear();this.draw();}));return;}
+      this.track(intent.type==='steer'?this.core.steer(text):this.core.submit(text));
+    }
+  }
+  private formResult(request:UiForm,value:unknown):UiFormResult|null {
+    const result=value as UiFormResult;
+    if(!result||!request.actions.some(action=>action.id===result.action)||!result.values||typeof result.values!=='object')return null;
+    const values:UiFormResult['values']={};
+    for(const field of request.fields){
+      const entry=result.values[field.id];
+      if(field.type==='toggle'?typeof entry!=='boolean':typeof entry!=='string')return null;
+      if(field.required&&!String(entry).trim())return null;
+      if(typeof entry==='string'&&entry.length>4096)return null;
+      if(field.type==='select'&&!field.options?.some(option=>option.value===entry))return null;
+      if(field.type==='url'&&entry){try{if(!['http:','https:'].includes(new URL(String(entry)).protocol))return null;}catch{return null;}}
+      values[field.id]=entry;
+    }
+    return {action:result.action,values};
   }
   private bindForms(): void {
     this.core.host.setFormHandler((_plugin, request: UiForm, signal) => {
       if (this.closed || signal.aborted) return Promise.resolve(null);
       if (this.form) return Promise.reject(new Error('Close the current form first'));
       return new Promise(resolve => {
-        const dialog = new FormDialog(request);
+        const native = new FormDialog(request);
+        const dialog = new ControllerDialog(this.core.host.controllers.create("form",request,()=>({
+          render:({columns,rows})=>({lines:native.visible(columns,rows)}),
+          handle:input=>native.handle(input as Extract<WireMessage,{type:'input'}>['data']),
+          preferredRows:(_columns,max)=>max,pointer:()=>['password','text','url'].includes(native.request.fields[native.focus]?.type??'')?'text':'pointer',
+          dispose:()=>native.clear(),
+        }),()=>this.draw()),request);
+        let settled=false;
         const abort = () => finish(null);
         const finish = (result: UiFormResult | null) => {
-          signal.removeEventListener('abort', abort);
+          if(settled)return;settled=true;
+          signal.removeEventListener('abort', abort);dialog.lease.signal.removeEventListener('abort',abort);
           if (this.form?.dialog === dialog) this.form = undefined;
           dialog.clear(); resolve(result); this.draw();
         };
         this.form = { dialog, finish };
         signal.addEventListener('abort', abort, { once: true });
+        dialog.lease.signal.addEventListener('abort',abort,{once:true});
         this.cancelDrag(); this.draw();
       });
     });
@@ -532,6 +647,7 @@ export class AppUI {
     if (!this.ready || message.type !== "input") return;
     const data = message.data;
     if (data.kind === "mouse") this.lastMouse = data;
+    if(!this.controllerBypass && this.routeEditorInput(data))return;
     if (data.kind === "key" && this.drag) {
       this.cancelDrag();
       if (data.key === "escape") {
@@ -568,16 +684,19 @@ export class AppUI {
     if (this.form && !this.approval && !this.question) {
       if (data.kind === 'mouse' && (data.row < 2 || data.row >= this.rows - this.dockHeight() - 1 || data.col < 2 || data.col >= this.columns - 2)) return;
       const input = data.kind === 'mouse' ? { ...data, row: data.row - 2, col: data.col - 2 } : data;
-      const result = this.form.dialog.handle(input);
-      if (result) this.form.finish(result === 'cancel' ? null : result);
-      this.draw(); return;
+      const current=this.form;
+      this.dispatchController(current.dialog.lease,input,result=>{
+        if(this.form!==current)return;
+        if(result)current.finish(result==='cancel'?null:this.formResult(current.dialog.request,result));
+      });return;
     }
     if (this.panel && !this.approval && !this.question) {
-      const action = this.panel.handle(data);
-      if (action === "close") this.panel = undefined;
-      else if (action === "apply" || action === "save")
-        this.applyPanel(action === "save");
-      this.draw();
+      const lease=this.placementController!;
+      this.dispatchController(lease,data,result=>{
+        if(this.placementController!==lease)return;
+        if(result==="close")this.closePanel();
+        else if(result==="apply"||result==="save")this.track(this.applyPanel(result==="save"));
+      });
       return;
     }
     if (data.kind === "mouse") {
@@ -1041,15 +1160,23 @@ export class AppUI {
     if (req.signal?.aborted || this.closed) return Promise.resolve(false);
     return new Promise((resolve) => {
       this.cancelDrag();
+      const native=new ApprovalDialog(req);
+      let dialog:ControllerDialog<typeof req>;
+      try{dialog=new ControllerDialog(this.core.host.controllers.create('approval',{...req,signal:undefined},()=>({
+        render:({columns,rows})=>({lines:native.visible(columns,rows)}),handle:input=>native.handle(input as Extract<WireMessage,{type:'input'}>['data']),
+        preferredRows:columns=>native.rows(columns).length,pointer:row=>native.interactiveRow(row)?'pointer':'default',
+      }),()=>this.draw()),req);}catch{resolve(false);return;}
+      let settled=false;
       const entry = {
-        dialog: new ApprovalDialog(req),
+        dialog,
         resolve: (
           value: Awaited<
             ReturnType<NonNullable<AgentCoreOptions["onApproval"]>>
           >
         ) => {
-          req.signal?.removeEventListener("abort", abort);
-          resolve(value);
+          if(settled)return;settled=true;
+          req.signal?.removeEventListener("abort", abort);dialog.lease.signal.removeEventListener('abort',abort);
+          dialog.clear();resolve(value);
         },
       };
       const abort = () => {
@@ -1062,6 +1189,7 @@ export class AppUI {
         this.draw();
       };
       req.signal?.addEventListener("abort", abort, { once: true });
+      dialog.lease.signal.addEventListener('abort',abort,{once:true});
       if (this.approval || this.question) this.approvalQueue.push(entry);
       else this.approval = entry;
       this.windows.focused = "input";
@@ -1069,9 +1197,14 @@ export class AppUI {
     });
   }
   private handleApproval(data:Extract<WireMessage,{type:'input'}>['data']):void {
-    const result=this.approval?.dialog.handle(data);
-    if(result){const approval=this.approval!;this.approval=this.approvalQueue.shift();approval.resolve(result);}
-    this.draw();
+    const current=this.approval;if(!current)return;
+    this.dispatchController(current.dialog.lease,data,result=>{
+      if(this.approval!==current||!result)return;
+      const value=result as {allow?:boolean;scope?:string};
+      const valid=typeof value.allow==='boolean'&&['once','session','project'].includes(value.scope??'once');
+      this.approval=this.approvalQueue.shift();
+      current.resolve(valid?{allow:value.allow!,scope:(value.scope??'once') as 'once'|'session'|'project'}:false);
+    });
   }
   private installResume(): void {
     if (!this.panelOptions.resume) return;
@@ -1095,10 +1228,16 @@ export class AppUI {
           (req) => this.requestApproval(req),
           (req) => this.askUser(req)
         );
-        this.unsubscribe();
+        this.unsubscribe();this.closePanel();
+        const editorState=this.editorSnapshot();this.controllerUnsubscribe?.();
+        this.form?.finish(null);this.cancelQuestions();
+        const approvals=[...(this.approval?[this.approval]:[]),...this.approvalQueue];this.approval=undefined;this.approvalQueue=[];
+        for(const approval of approvals)approval.resolve(false);
+        this.core.host.controllers.disposeAll();
         this.core.host.setFormHandler(undefined);
         this.core = next;
         this.bindForms();
+        this.draft=editorState.text;this.cursor=editorState.cursor;this.bindControllers();
         this.unsubscribe = next.subscribe((event) => this.event(event));
         this.installResume();
         this.transcript = next
@@ -1127,17 +1266,16 @@ export class AppUI {
       } finally { this.switchingSession = false; }
     };
   }
-  private handleQuestion(data: Extract<WireMessage, { type: "input" }>["data"]): void {
-    const result = this.question?.dialog.handle(data);
-    if (result) {
-      const current = this.question!;
-      this.question = undefined;
-      if (result === "cancel") current.reject(new Error("Question cancelled by user"));
-      else current.resolve(result.answer);
-      this.question = this.questionQueue.shift();
-      if (!this.question) this.approval ??= this.approvalQueue.shift();
-    }
-    this.draw();
+  private handleQuestion(data:Extract<WireMessage,{type:'input'}>['data']):void {
+    const current=this.question;if(!current)return;
+    this.dispatchController(current.dialog.lease,data,result=>{
+      if(this.question!==current||!result)return;
+      this.question=undefined;
+      if(result==='cancel')current.reject(new Error('Question cancelled by user'));
+      else if(typeof result==='object'&&'answer' in result)current.resolve((result as {answer:UserQuestionAnswer}).answer);
+      else current.reject(new Error('Invalid question controller result'));
+      this.question=this.questionQueue.shift();if(!this.question)this.approval??=this.approvalQueue.shift();
+    });
   }
   private askUser(
     request: QuestionRequest & { signal?: AbortSignal }
@@ -1147,16 +1285,22 @@ export class AppUI {
         reject(new Error("UI closed or question cancelled"));
         return;
       }
-      const cleanup = () => request.signal?.removeEventListener("abort", abort);
+      const native=new QuestionDialog(request);
+      let dialog:ControllerDialog<QuestionRequest>;
+      try{dialog=new ControllerDialog(this.core.host.controllers.create('question',{...request,signal:undefined},()=>({
+        render:({columns,rows})=>({lines:native.visible(columns,rows)}),handle:input=>native.handle(input as Extract<WireMessage,{type:'input'}>['data']),
+        snapshot:()=>({review:native.review}),preferredRows:columns=>native.rows(columns).length,
+        pointer:row=>native.interactiveRow(row)?'pointer':'default',
+      }),()=>this.draw()),request);}catch(error){reject(error);return;}
+      let settled=false;
+      const cleanup = () => {request.signal?.removeEventListener("abort", abort);dialog.lease.signal.removeEventListener('abort',abort);dialog.clear();};
       const entry = {
-        dialog: new QuestionDialog(request),
+        dialog,
         resolve: (value: UserQuestionAnswer) => {
-          cleanup();
-          resolve(value);
+          if(settled)return;settled=true;cleanup();resolve(value);
         },
         reject: (error: Error) => {
-          cleanup();
-          reject(error);
+          if(settled)return;settled=true;cleanup();reject(error);
         },
       };
       const abort = () => {
@@ -1171,10 +1315,11 @@ export class AppUI {
         this.draw();
       };
       request.signal?.addEventListener("abort", abort, { once: true });
+      dialog.lease.signal.addEventListener('abort',abort,{once:true});
       this.questionQueue.push(entry);
       this.question ??= this.questionQueue.shift();
       this.cancelDrag();
-      this.panel = undefined;
+      this.closePanel();
       this.windows.focused = "input";
       this.draw();
     });
@@ -1217,9 +1362,9 @@ export class AppUI {
             ? "not-allowed"
             : "grabbing";
       else if (this.form && !this.approval && !this.question)
-        shape = this.form.dialog.request.fields[this.form.dialog.focus]?.type === "password" || ["text","url"].includes(this.form.dialog.request.fields[this.form.dialog.focus]?.type ?? "") ? "text" : "pointer";
+        shape = this.form.dialog.lease.pointer(mouse.row-2,mouse.col-2);
       else if (this.panel)
-        shape = this.panel.interactiveRow(mouse.row) ? "pointer" : "default";
+        shape = this.placementController?.pointer(mouse.row,mouse.col)??"default";
       else {
         const { col, row } = mouse,
           dock = this.dockHeight();
@@ -1247,7 +1392,7 @@ export class AppUI {
           row < this.rows - 2 &&
           col < this.columns
         )
-          shape = "text";
+          shape = this.editor?.pointer(row-(this.rows-dock+2),col-2)??"text";
         else {
           const split = this.windows.separator(
             col,
@@ -1378,6 +1523,7 @@ export class AppUI {
     return "Drag to an edge to split, center to swap, or workspace number to move";
   }
   private openPanel(): void {
+    this.closePanel();
     this.panel = new PluginPanel(
       () =>
         [...this.pluginWindows.values()].map((window) => ({
@@ -1397,17 +1543,41 @@ export class AppUI {
         })),
       () => [...this.panes.keys()]
     );
+    const panel=this.panel;
+    try{
+      const lease=this.core.host.controllers.create("placement",{
+        windows:()=>panel.windows(),anchors:()=>[...this.panes.keys()],
+        apply:async(id:string,placement:Placement,save=false)=>{
+          lease.signal.throwIfAborted();
+          const target=panel.windows().find(window=>window.id===id);
+          if(!target)throw new Error("Unknown window");
+          const parsed=surfacePlacementSchema.parse(placement);
+          panel.selected=id;panel.draft=parsed;
+          await this.applyPanel(save);
+        },
+      },()=>({render:({rows})=>({lines:panel.rows(rows).map(text=>({text}))}),
+        handle:input=>input.kind==='action'||input.kind==='change'?undefined:panel.handle(input),
+        pointer:row=>panel.interactiveRow(row)?'pointer':'default',
+      }),()=>this.draw());
+      this.placementController=lease;
+      lease.signal.addEventListener("abort",()=>{if(this.placementController===lease){this.closePanel();this.draw();}},{once:true});
+    }catch{this.closePanel();this.transcript.push({kind:"notice",tone:"danger",text:"Selected placement controller is unavailable"});}
   }
-  private applyPanel(save: boolean): void {
+  private closePanel():void {const lease=this.placementController;this.placementController=undefined;this.panel=undefined;lease?.dispose();}
+  private async applyPanel(save: boolean): Promise<void> {
     const panel = this.panel,
       window = panel?.target();
     if (!panel || !window || panel.busy) return;
+    const lease=this.placementController;
+    lease?.signal.throwIfAborted();
     const placement = { ...panel.draft };
     const rule = {
       ...placement,
       match: { plugin: window.plugin, surface: window.surface },
     };
     const apply = () => {
+      lease?.signal.throwIfAborted();
+      if(this.panel!==panel)throw new Error("Placement controller closed");
       const rules = (this.placementConfig.rules ?? []).filter(
         (r) =>
           r.match.plugin !== window.plugin || r.match.surface !== window.surface
@@ -1427,20 +1597,9 @@ export class AppUI {
       return;
     }
     panel.busy = true;
-    this.track(
-      this.panelOptions
-        .save(rule)
-        .then(() => {
-          apply();
-        })
-        .catch((error) => {
-          panel.message = `Save failed: ${String(error)}`;
-        })
-        .finally(() => {
-          panel.busy = false;
-          this.draw();
-        })
-    );
+    try{await this.panelOptions.save(rule);apply();}
+    catch(error){panel.message=`Save failed: ${String(error)}`;throw error;}
+    finally{panel.busy=false;this.draw();}
   }
   private completions(): {
     name: string;
@@ -1448,6 +1607,7 @@ export class AppUI {
     usage?: string;
   }[] {
     if (
+      (this.editor && !this.editor.isDefault) ||
       this.panel ||
       this.completionDismissed ||
       this.approval ||
@@ -1490,9 +1650,16 @@ export class AppUI {
   private composerRows(): number { return this.composer()?.[1].view.attachment?.rows ?? 4; }
   private composerWidth(): number {
     const view=this.composer()?.[1].view;
-    return view&&(view.lines.length>0||!!view.raster)&&(!view.raster||this.nativeRaster)&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
+    return (!this.editor || this.editor.isDefault)&&view&&(view.lines.length>0||!!view.raster)&&(!view.raster||this.nativeRaster)&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
   }
-  private dockHeight(): number {
+  private dockHeight():number {
+    if(!this.approval && !this.question && this.editor && !this.editor.isDefault) {
+      try{return Math.min(this.rows-4,Math.max(6,this.editor.preferredRows(this.columns-4,this.rows-9)+5));}
+      catch{return 7;}
+    }
+    return this.defaultDockHeight();
+  }
+  private defaultDockHeight(): number {
     if (this.question && !this.approval)
       return Math.min(
         this.rows - 4,
@@ -1610,6 +1777,39 @@ export class AppUI {
       .catch(() => {});
     this.tasks.add(task);
     void task.finally(() => this.tasks.delete(task));
+  }
+  private defaultEditorView(inputWidth:number,height:number):UiControllerView {
+    const prompt = `› ${this.draft.slice(0, this.cursor)}▏${this.draft.slice(
+      this.cursor
+    )}`;
+    const draftRows = textRows(prompt, inputWidth);
+    const caretRow =
+      wrap(`› ${this.draft.slice(0, this.cursor)}▏`, inputWidth).length - 1;
+    const startRow = Math.max(0, caretRow - height + 1);
+    let inputRows: Row[] = draftRows.slice(startRow, startRow + height);
+    if (!this.approval && !this.draft)
+      inputRows = [{ text: "› ▏Describe your task…", tone: "muted" }];
+    if (!this.approval && this.visibleCompletions().length) {
+      const selected =
+        this.completions()[
+          Math.min(this.selectedCommand, this.completions().length - 1)
+        ];
+      inputRows = [
+        ...textRows(prompt, inputWidth).slice(-1),
+        ...this.visibleCompletions().map((command) => ({
+          text: `${command.name === selected?.name ? "›" : " "} ${
+            command.usage ?? command.name
+          } — ${command.description}`,
+          tone:
+            command.name === selected?.name
+              ? ("accent" as const)
+              : ("muted" as const),
+          bold: command.name === selected?.name,
+          selected: command.name === selected?.name,
+        })),
+      ];
+    }
+    return {lines:inputRows};
   }
   private draw(): void {
     if (this.windows.focused.startsWith("plugin-agent-hub-agent-"))
@@ -1742,9 +1942,7 @@ export class AppUI {
           mode: "full",
           flush: true,
           grid: gridFrom(
-            this.panel
-              .rows(frame.height)
-              .map((text) => ({ text, tone: "text" })),
+            this.controllerView(this.placementController!,frame.width-2,frame.height).lines,
             this.theme,
             frame.width - 2
           ),
@@ -1844,36 +2042,9 @@ export class AppUI {
     }
     const attachmentWidth=this.composerWidth();
     const inputWidth = Math.max(1, this.columns - 4 - attachmentWidth);
-    const prompt = `› ${this.draft.slice(0, this.cursor)}▏${this.draft.slice(
-      this.cursor
-    )}`;
-    const draftRows = textRows(prompt, inputWidth);
-    const caretRow =
-      wrap(`› ${this.draft.slice(0, this.cursor)}▏`, inputWidth).length - 1;
-    const startRow = Math.max(0, caretRow - (dock - 5) + 1);
-    let inputRows: Row[] = draftRows.slice(startRow, startRow + dock - 5);
-    if (!this.approval && !this.draft)
-      inputRows = [{ text: "› ▏Describe your task…", tone: "muted" }];
-    if (!this.approval && this.visibleCompletions().length) {
-      const selected =
-        this.completions()[
-          Math.min(this.selectedCommand, this.completions().length - 1)
-        ];
-      inputRows = [
-        ...textRows(prompt, inputWidth).slice(-1),
-        ...this.visibleCompletions().map((command) => ({
-          text: `${command.name === selected?.name ? "›" : " "} ${
-            command.usage ?? command.name
-          } — ${command.description}`,
-          tone:
-            command.name === selected?.name
-              ? ("accent" as const)
-              : ("muted" as const),
-          bold: command.name === selected?.name,
-          selected: command.name === selected?.name,
-        })),
-      ];
-    }
+    let inputRows:Row[];
+    try{inputRows=this.editor?.render(inputWidth,dock-5).lines??this.defaultEditorView(inputWidth,dock-5).lines;}
+    catch{inputRows=[{text:"Selected editor is unavailable",tone:"danger"}];}
     if (this.approval)
       inputRows = this.approval.dialog.visible(inputWidth,dock-5);
     else if (this.question)
@@ -1901,12 +2072,12 @@ export class AppUI {
     const hidden=Math.max(0,this.windows.ids().length-frames.filter(f=>this.windows.ids().includes(f.surface)).length);
     for(const part of [this.contextIndicator,this.windows.fullscreen?' · FULLSCREEN':'',!protectedInput&&hidden?` · ${hidden} hidden`:''])if(bar.length+part.length<=barWidth)bar+=part;
     const pane=this.panes.get(this.windows.focused),narrow=this.columns<70;
-    const hint=this.approval?(narrow?'Y once · N deny · PgDn details':'↑↓ scopes · Enter select · PgUp/PgDn details · Esc deny')
-      :this.question?this.question.dialog.review?'↑↓ edit · Enter select/submit · Esc cancel':narrow?'↑↓ choose · Space toggle · Tab · Enter next · Esc cancel':'↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel'
-      :formActive?'Tab / Shift+Tab fields · Enter next · Esc cancel'
-      :this.panel?'Tab / ↑↓ fields · ←→ change · Esc close'
+    const hint=this.approval?this.approval.dialog.hint??(narrow?'Y once · N deny · PgDn details':'↑↓ scopes · Enter select · PgUp/PgDn details · Esc deny')
+      :this.question?this.question.dialog.hint??(this.question.dialog.review?'↑↓ edit · Enter select/submit · Esc cancel':narrow?'↑↓ choose · Space toggle · Tab · Enter next · Esc cancel':'↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel')
+      :formActive?this.form?.dialog.hint??'Tab / Shift+Tab fields · Enter next · Esc cancel'
+      :this.panel?this.placementController?.lastView?.hint??'Tab / ↑↓ fields · ←→ change · Esc close'
       :this.drag?this.dragHint()
-      :pane?.view?.hint??(pane?.view?.input?'Type search · ↑↓ select · Enter resume · Esc close'
+      :(this.windows.focused==='input'?this.editor?.lastView?.hint:undefined)??pane?.view?.hint??(pane?.view?.input?'Type search · ↑↓ select · Enter resume · Esc close'
       :pane?.kind==='plugin'?narrow?'↑↓ actions · Enter · PgDn scroll · Esc leave':'↑↓ actions · Enter activate · PgUp/PgDn scroll · Esc leave'
       :this.status.startsWith('Working')?'Ctrl+C stop · Tab steer · Enter queue'
       :narrow?'/ commands · Ctrl+J newline':'/ commands · Ctrl+J newline · Alt+t tools · Alt+? shortcuts');
@@ -1919,6 +2090,8 @@ export class AppUI {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.closePanel();
+    this.uiLifetime.abort(new Error("UI closed"));this.editor?.dispose();this.controllerUnsubscribe?.();
     for(const id of this.composerViews.keys())this.removeComposer(id);
     this.form?.finish(null);
     this.core.host.setFormHandler(undefined);
@@ -1939,6 +2112,7 @@ export class AppUI {
     this.core.interrupt();
     this.unsubscribe();
     this.cancelQuestions();
+    this.core.host.controllers.disposeAll();
     this.sink?.({ type: "bye", reason: "closed" });
   }
   async settled(): Promise<void> {

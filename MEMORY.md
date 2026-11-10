@@ -1,5 +1,119 @@
 # Project memory
 
+## Accepted replacement boundary — 2026-11-10
+
+After reviewing the concept audit, the user chose that every part except tiling
+must be replaceable. The fixed tiling mechanism owns the window tree, geometry,
+workspaces, focus routing and drag/resize. Decoration, all other UI (including
+the composer, forms, questions and approvals), and agent behavior must have
+replaceable implementations with public contracts. Styling alone is insufficient:
+rendering, input, state transitions and lifecycle must be replaceable too.
+
+This supersedes earlier permanent host-ownership decisions for the editor and
+dialogs, including historical notes farther below. The kernel and private UI/
+session repository changes below implement selected replacements. Concept and
+contract documentation record the boundary, acceptance evidence and limits. The user subsequently authorized the generic kernel work
+below and explicitly rejected implementing DevOps-specific integrations as the
+answer to this requirement. Audit artifacts: dist/concept-audit/report.json
+(run-specific evidence).
+
+## Generic kernel customization — implemented 2026-11-10
+
+The kernel is domain-independent; coding is an optional composition. No
+Kubernetes/GitLab/domain integration plugins were added. Catalog 0.18 exposes
+replaceable turn execution, tool-batch scheduling, effective tool definitions,
+input preparation, context-pressure management/compaction and journal writes.
+Public AgentTurnContext/AgentToolBatchContext preserve lifecycle, permission
+checks, model accounting and invocation-scoped cancellation. Host usage totals
+also cover replacement strategies; publish returns transformed assistant text.
+SessionJournal is structural, and a concrete fallback model is optional.
+
+Runtime next() now supports actual awaited downstream results and streaming
+backpressure. Async hook deadlines race uncooperative promises; hooks cannot use
+host effects after expiry or unload. Wrapper faults do not replay completed
+continuations. Explicitly selected missing/failed providers raise errors rather
+than silently choosing another backend. Registration/composition validation is
+atomic; manifests support within-tier priority. Native modules can export owned
+plugin.<name>:<event> definitions, removed with their hooks on unload. Render-only
+and render-time public API mutation paths are guarded; agent clear/compact and
+awaited auth status route through services. Legacy synchronous auth-status fields
+retain the host snapshot. Trusted JS remains in-process, not an OS sandbox.
+
+Assembly controls: enabledPlugins (before import, also applies to host
+contributions), toolProviders (whole schema/handler replacement), agent.tools
+(final allowlist), agent.builtinTools/controlTools, and projectContext,
+fileReferences and skills switches. Neutral instructions are the harness default;
+agent.instructionsPreset=coding selects the former coding instructions. Reload
+retains the harness and custom event/tool composition. Standard /login uses the
+replaceable auth service even when the built-in profile has no OAuth endpoint.
+Tool-call rewrites now reach both permission evaluation and execution.
+
+The subsequent private UI/session repository work below completes the editor,
+dialog and history/storage seams left by this kernel change. Config changes use
+existing reload/restart behavior.
+Custom strategies own their algorithms and must honor supplied signals/limits;
+synchronous JS cannot be forcibly preempted and started effects are not undone.
+
+Validation: 559 tests passed, 3 optional native checks skipped, 70 files;
+line coverage 84.2%, all coverage gates passed. Typecheck/gen, 26-entry catalog,
+scripted evals 5/5 and tool evals 3/3, and proxy smoke passed. Linux x64 release
+build/install smoke includes an external kernel extension with private event,
+exact tools and resume, without a fallback-model request or Node/Bun on PATH.
+The real PTY regression passed with inspected screenshots under
+dist/core-customization-verified. The earlier dist/core-customization-final is a
+failed diagnostic: the harness searched before the composer redraw settled.
+Its locate helper now waits for the exact visible text; no assertion was removed.
+Summary and logs: dist/core-customization-report/report.json. No release was
+published and no public tag or release assets were modified.
+
+## Private UI controllers and complete session repositories — 2026-11-10
+
+The user explicitly authorized implementing the remaining editor/dialog and
+history/storage replacement work. Trusted native modules can export named
+`controllers` and `sessionRepository` factories without hooks. `ui.controllers`
+selects owners independently for editor, approval, question, form, placement and
+history; `sessionProvider` selects the complete conversation backend. Omission
+keeps standard implementations through the same registry/router. Explicit missing
+selections fail closed rather than silently using another implementation.
+
+Public controller leases carry private data/state directly to the selected owner,
+with rendering, input, snapshot, measurement, pointer and teardown contracts.
+Editor snapshots survive reload even when dispose erases state. Async extension
+input is serialized; abort races uncooperative handlers and rejects late results.
+UI close/session switch disposes pending leases and settles/cancels dialogs.
+Forms validate returned field types/values; approvals require an explicit boolean
+and valid scope. Editor/form views bypass unrelated render hooks. Pure rendering
+also rejects effects through retained APIs belonging to a different owner, and
+rejects recursive invalidate calls. Reference renderer forwards F1–F12 and their
+modifiers, preserving text/function-key/mouse order in coalesced terminal reads.
+Fixed tiling geometry/focus/drag/resize remains in WindowManager.
+
+SessionRepository is a complete structural interface, independent of SessionStore
+and filesystem roots. Journaling, browsing/search, rename/archive/fork, interactive
+resume, headless startup resume and independent-agent restoration share the
+selected backend. Reload gates calls, drains operations before opening the next
+repository, validates the core contribution, commits, then disposes the old
+backend. Failed preparation keeps the previous repository. Cleanup errors after
+commit are recorded on the router. General settings and agent-window metadata
+still use their separate storage services; changing providers does not migrate
+records. Custom private input handlers have no automatic hook deadline and must
+honor their lifetime signal. Trusted JS remains in-process.
+
+Contracts/configuration: [docs/ui-controllers.md](docs/ui-controllers.md). External
+fixture is test-only under tools/visual/controller-plugin; no domain integration
+plugins or production remote storage backend were added. `visual:controllers`
+exercises replacement behavior and persistence across actual PTY restarts in
+source and compiled modes. Earlier failed diagnostic directories under dist/
+record transport and bench-synchronization fixes; use the final report paths
+recorded by the current verification run. Validation: 577 passed, 3 optional
+checks skipped in 73 files; line coverage 84.51%, all gates passed. Typecheck/gen,
+26-entry plugin catalog, scripted evals 5/5, tool evals 3/3 and proxy smoke passed.
+Linux x64 build/install smoke passed with the external repository. Source/binary
+replacement and standard PTY reports all pass; screenshots inspected. Summary:
+dist/ui-replacement-report/report.json. Current replacement captures:
+dist/ui-replacement-source-final and dist/ui-replacement-binary-final; tiling
+regression: dist/ui-replacement-standard-final. No release has been published.
+
 ## Implemented: auto approval review
 
 The user requested automatic action approval based on risk assessments by a

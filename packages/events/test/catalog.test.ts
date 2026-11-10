@@ -1,10 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { byAnyName, byName, catalog, resolve } from "../src/index.js";
 import { namespaceOf } from "../src/define.js";
 
 describe("event catalog", () => {
+  it("preserves the recorded event contracts and aliases",()=>{
+    const baseline=JSON.parse(readFileSync(new URL("./fixtures/catalog-0.17.json",import.meta.url),"utf8"));
+    const current=JSON.parse(readFileSync(new URL("../../../schema/events.json",import.meta.url),"utf8"));
+    const canonical=(value:any):any=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'
+      ?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([key,value])=>[key,canonical(value)])):value;
+    for(const [name,old] of Object.entries(baseline.events) as [string,{version:number;aliases:string[];sha256:string}][]) {
+      const entry=current.events[name];expect(entry,`Removed frozen event ${name}`).toBeDefined();
+      expect(entry.version,`${name}: preserve the published version`).toBe(old.version);
+      expect(entry.aliases).toEqual(expect.arrayContaining(old.aliases));
+      const signature={input:entry.input,responses:Object.fromEntries(Object.entries(entry.responses).map(([key,response])=>[key,(response as any).schema]))};
+      expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
+        `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);
+    }
+  });
   it("has unique canonical names", () => {
     const names = catalog.map((e) => e.name);
     expect(new Set(names).size).toBe(names.length);

@@ -1,10 +1,20 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.17.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.18.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
+| `service.agent.batch` | 0.18.0 | 1 | Schedule a batch of tool calls. Each context.execute call retains permission checks and executes at most once. | `value`, `deny` | — |
+| `service.agent.clear` | 0.18.0 | 1 | Clear the active conversation through an interceptable service. | `value`, `deny` | — |
+| `service.agent.compact` | 0.18.0 | 1 | Request compaction through the shared context service. | `value`, `deny` | — |
+| `service.agent.run` | 0.18.0 | 1 | Execute a prepared turn through a replaceable strategy. Return a TurnOutcome in {value}. | `value`, `deny` | — |
+| `service.agent.tools` | 0.18.0 | 1 | Resolve the effective tool definitions before a turn. Only returned tools can be called. | `value`, `deny` | — |
+| `service.auth.status` | 0.18.0 | 1 | Read the selected authentication implementation's status. | `value`, `deny` | — |
+| `service.context.compact` | 0.18.0 | 1 | Replace conversation compaction using the public turn context. | `value`, `deny` | — |
+| `service.context.manage` | 0.18.0 | 1 | Run a replaceable context-pressure strategy before a model step. | `value`, `deny` | — |
+| `service.context.prepare` | 0.18.0 | 1 | Prepare user input and optional attachments without assuming repository references. | `value`, `deny` | — |
+| `service.session.append` | 0.18.0 | 1 | Persist a session event through a replaceable journal implementation. | `value`, `deny` | — |
 | `session.start` | 0.1.0 | 1 | Once per loaded plugin before the first prompt, and again after that plugin reloads. Carries the session composition (the udev moment: the module sees the device). | `next` | `classic.SessionStart` |
 | `session.reload` | 0.1.0 | 1 | Plugin set changed. In-memory plugin state is recreated; reload is a state-recovery point. | `next` | — |
 | `session.end` | 0.1.0 | 1 | Session ends, or /clear, /resume, /branch runs. | `next` | `classic.SessionEnd` |
@@ -91,6 +101,7 @@
 
 ## Domains
 
+- **service**: `service.agent.batch`, `service.agent.clear`, `service.agent.compact`, `service.agent.run`, `service.agent.tools`, `service.auth.status`, `service.context.compact`, `service.context.manage`, `service.context.prepare`, `service.session.append`, `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.questionnaire`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
 - **session**: `session.start`, `session.reload`, `session.end`, `session.compact`
 - **prompt**: `prompt.submit`, `prompt.compose`, `prompt.steer`, `prompt.queued`
 - **skill**: `skill.prompt`
@@ -100,7 +111,6 @@
 - **assistant**: `assistant.text`, `assistant.metadata`
 - **subagent**: `subagent.start`, `subagent.complete`
 - **context**: `context.compacted`, `context.compacting`, `context.pressure`, `context.restored`, `context.prepared`
-- **service**: `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.questionnaire`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
 - **project**: `project.changed`
 - **ui**: `ui.visibility`, `ui.reaction`, `ui.render`, `ui.press`, `ui.change`, `ui.focus`, `ui.invalidate`
 - **model**: `model.usage`

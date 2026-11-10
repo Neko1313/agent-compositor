@@ -2,14 +2,20 @@ import { PassThrough } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
 import type { InputData } from "./keys.js";
 
-/** Strip SGR mouse reports before Ink's keyboard parser, including split reports. */
+/** Decode terminal reports and keys omitted by Ink, including split sequences. */
 export class MouseDecoder {
   constructor(private onResponse?: (control: string, payload: string) => void) {}
   private pending = "";
+  chunks:({text:string}|{event:InputData})[]=[];
   push(text: string): { text: string; events: InputData[] } {
     this.pending += text;
     let output = "";
     const events: InputData[] = [];
+    this.chunks=[];let emitted=0;
+    const emit=(event:InputData)=>{
+      if(output.length>emitted)this.chunks.push({text:output.slice(emitted)});
+      emitted=output.length;this.chunks.push({event});events.push(event);
+    };
     while (this.pending) {
       const index = this.pending.indexOf("\x1b");
       if (index < 0) { output += this.pending; this.pending = ""; break; }
@@ -36,13 +42,22 @@ export class MouseDecoder {
         }
       }
       if (["\x1b_", "\x1b", "\x1b[", "\x1b[<"].includes(this.pending)) break;
+      const functionKey=/^\x1b(?:O([PQRS])|\[(?:(1[1-5]|1[7-9]|2[0134])(?:;(\d+))?~|(?:1;(\d+))?([PQRS])))/.exec(this.pending);
+      if(functionKey){
+        const letter=functionKey[1]??functionKey[5];
+        const number=letter?'PQRS'.indexOf(letter)+1:({11:1,12:2,13:3,14:4,15:5,17:6,18:7,19:8,20:9,21:10,23:11,24:12} as Record<string,number>)[functionKey[2]];
+        const bits=Number(functionKey[3]??functionKey[4]??1)-1;
+        const modifiers=[...(bits&1?['shift']:[]),...(bits&2?['meta']:[]),...(bits&4?['ctrl']:[])];
+        emit({kind:'key',key:`f${number}`,modifiers});this.pending=this.pending.slice(functionKey[0].length);continue;
+      }
+      if(/^\x1bO$/.test(this.pending)||/^\x1b\[(?:1[1-5]|1[7-9]|2[0134]|1;\d+)(?:;\d*)?$/.test(this.pending))break;
       if (this.pending.startsWith("\x1b[<")) {
         const match = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/.exec(this.pending);
         if (match) {
           const code = Number(match[1]), col = Number(match[2]) - 1, row = Number(match[3]) - 1;
           if (row >= 0 && col >= 0) {
             const button = code & 64 ? (code & 1 ? "wheel-down" : "wheel-up") : (code & 3) === 0 ? "left" : "other";
-            events.push({ kind: "mouse", row, col, button, action: match[4] === "m" ? "release" : code & 32 ? "move" : "press" });
+            emit({ kind: "mouse", row, col, button, action: match[4] === "m" ? "release" : code & 32 ? "move" : "press" });
           }
           this.pending = this.pending.slice(match[0].length); continue;
         }
@@ -50,6 +65,7 @@ export class MouseDecoder {
       }
       output += this.pending[0]; this.pending = this.pending.slice(1);
     }
+    if(output.length>emitted)this.chunks.push({text:output.slice(emitted)});
     return { text: output, events };
   }
   flush(): string {
@@ -69,10 +85,9 @@ export function mouseInput(source: NodeJS.ReadableStream, onMouse: (data: InputD
   let timer: ReturnType<typeof setTimeout> | undefined;
   const data = (chunk: Buffer | string) => {
     clearTimeout(timer);
-    const decoded = decoder.push(typeof chunk === "string" ? chunk : utf8.write(chunk));
-    // Deliver preceding keyboard input before mouse coordinates from the same chunk.
-    if (decoded.text) input.write(decoded.text);
-    for (const event of decoded.events) onMouse(event);
+    decoder.push(typeof chunk === "string" ? chunk : utf8.write(chunk));
+    // Preserve text/key/mouse ordering within coalesced terminal reads.
+    for(const chunk of decoder.chunks){if('text' in chunk)input.write(chunk.text);else onMouse(chunk.event);}
     timer = setTimeout(() => { const text = decoder.flush(); if (text) input.write(text); }, 40);
   };
   const end = () => { clearTimeout(timer); input.end(decoder.flush()); };

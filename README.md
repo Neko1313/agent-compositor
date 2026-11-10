@@ -2,6 +2,13 @@
 
 An open runtime for LLM CLI agents: **core + swappable renderers + plugin contracts**.
 
+The kernel is domain-independent. Select tools, instructions and plugins for a
+particular workflow, or replace turn execution, tool scheduling, context and
+journal strategies through public services. Coding capabilities can be omitted
+entirely. See [core customization](docs/core-customization.md) for configuration,
+extension contracts, and [UI controllers and session repositories](docs/ui-controllers.md)
+for replacing input, dialogs, history and persistence.
+
 A model provider integrates via plugins, not by forking: override the login with their own SSO, add a model plugin and workflow presets — and get a full-featured CLI agent. Analogous to a Wayland compositor: the protocol is stable, implementations are replaceable.
 
 ## Install

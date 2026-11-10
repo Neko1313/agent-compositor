@@ -28,6 +28,10 @@ Don't lock away technologies that work well for some — let the whole world use
 - **Existing providers** — a common open standard instead of closed, incompatible forks.
 - **Corporations** — SSO, private models, internal plugins.
 - **The community** — one written plugin works in every CLI on this runtime.
+- **Professional teams** — a domain-specific agent built from selected API,
+  workflow and UI capabilities. A team operating infrastructure should be able
+  to omit coding tools entirely. Domain integrations belong to extensions;
+  the kernel supplies the shared composition and execution contracts.
 
 ## License
 

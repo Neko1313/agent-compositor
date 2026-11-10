@@ -11,14 +11,33 @@ const placement = z.object({
   relativeTo: z.string().min(1).max(64).optional(), focus: z.boolean().optional(),
 });
 
+/** Composition controls fail closed before executable extensions are imported. */
+export const compositionSchema = z.object({
+  sessionProvider:z.string().min(1).optional(),
+  ui:z.object({controllers:z.record(z.enum(["editor","approval","question","form","placement","history"]),z.string().min(1)).optional()}).passthrough().optional(),
+  enabledPlugins: z.array(z.string().min(1)).optional(),
+  toolProviders: z.record(z.string().min(1),z.string().min(1)).optional(),
+  agent: z.object({
+    builtinTools:z.array(z.string()).optional(),
+    controlTools:z.array(z.enum(["task","ask_user","ask_questions","tool_help"])).optional(),
+    tools:z.array(z.string()).optional(),
+    projectContext:z.boolean().optional(),fileReferences:z.boolean().optional(),skills:z.boolean().optional(),
+    instructionsPreset:z.enum(["general","coding"]).optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
 export const ConfigSchema = z
   .object({
     ui: z.object({
+      controllers:z.record(z.enum(["editor","approval","question","form","placement","history"]),z.string().min(1)).optional(),
       sites: z.object({ split: placement.optional(), sidebar: placement.optional(), inspector: placement.optional(), "status-bar": placement.optional() }).optional(),
       rules: z.array(placement.extend({ match: z.object({ plugin: z.string().optional(), surface: z.string().optional() }) })).optional(),
     }).optional(),
     serviceProviders: z.record(z.string(), z.string()).optional(),
     disabledPlugins: z.array(z.string()).optional(),
+    enabledPlugins: z.array(z.string()).optional(),
+    toolProviders: z.record(z.string(), z.string()).optional(),
+    sessionProvider:z.string().optional(),
     model: z.string().optional(),
     small_model: z.string().optional(),
     providers: z.record(z.string(), z.unknown()).optional(),

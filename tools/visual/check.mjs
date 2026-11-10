@@ -296,13 +296,16 @@ try {
   await page.waitForFunction(() =>
     visual.text().split("\n")[38]?.includes("Ready")
   );
-  const locate = async (text) =>
-    page.evaluate((text) => {
+  const locate = async (text) => {
+    // Ready and the composer can arrive in separate terminal writes after a dialog.
+    await waitText(text);
+    return page.evaluate((text) => {
       const lines = visual.text().split("\n");
       const row = lines.findIndex((line) => line.includes(text));
       if (row < 0) throw new Error(`Missing visible text: ${text}`);
       return { row, col: lines[row].indexOf(text) + 1 };
     }, text);
+  };
   const clickText = async (text) => {
     const p = await locate(text);
     await click(p.col, p.row);

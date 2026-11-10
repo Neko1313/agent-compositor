@@ -17,6 +17,7 @@
     "@agent-compositor/events": "^0.3.0",
     "@agent-compositor/hooks": "^0.3.0",
     "@agent-compositor/runtime": "^0.1.0",
+    "@agent-compositor/session": "^0.1.0",
     "zod": "^4.6.7"
   }
 }

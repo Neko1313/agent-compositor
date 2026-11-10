@@ -3,7 +3,7 @@ import { harnessControls } from "./harness.js";
 import { profileSettings } from "./provider-settings.js";
 import { marketplaces } from "./marketplaces.js";
 import { NetworkClient } from "@agent-compositor/provider";
-import { ProjectStorage, mergeSettings } from "@agent-compositor/config";
+import { ProjectStorage, mergeSettings, compositionSchema } from "@agent-compositor/config";
 import { ApprovalSession } from "@agent-compositor/permissions";
 import { extensionManager } from "./extensions.js";
 import { authentication } from "./auth.js";
@@ -24,7 +24,7 @@ import {
   ProviderRouter,
   type ProviderProfile,
 } from "@agent-compositor/provider";
-import { SessionStore, type SessionEvent } from "@agent-compositor/session";
+import { SessionStore, SessionRepositoryRouter, validateSessionRepository, type SessionRepository, type SessionEvent } from "@agent-compositor/session";
 import {
   savePlacementRule,
   loadConfig,
@@ -46,6 +46,8 @@ export interface ProviderSettings {
 
 export interface BuildAppOptions {
   inheritedConfig?: LoadedConfig;
+  /** Independent agents resume only if the selected repository contains their session. */
+  resumeIfPresent?: boolean;
   inheritedSettings?: (name: string) => Promise<any>;
   agentHub?: boolean;
   sessionId?: string;
@@ -70,7 +72,7 @@ export interface BuiltApp {
   config: LoadedConfig;
   plugins: DiskPlugin[];
   pluginErrors: { dir: string; error: string }[];
-  store: SessionStore;
+  store: SessionRepositoryRouter;
   resumedEvents: SessionEvent[];
   savePlacement: (
     rule: NonNullable<
@@ -124,6 +126,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     config.sources = [...options.inheritedConfig.sources, ...config.sources];
     config.origins = [...options.inheritedConfig.origins, ...config.origins];
   }
+  compositionSchema.parse(config.config);
   const storage = new ProjectStorage(options.cwd, env);
   storage.inheritedSettings = options.inheritedSettings;
   await storage.init();
@@ -145,7 +148,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     ...resolveProvider(config.config, env),
     fetch: network.fetch("models"),
   };
-  const store = new SessionStore({ sessionsRoot: storage.paths.sessions });
+  const localStore = new SessionStore({sessionsRoot:storage.paths.sessions});
+  const store = new SessionRepositoryRouter(localStore);
   const profileConfig = (config.config.providers ?? {}) as Record<
     string,
     Record<string, unknown>
@@ -232,12 +236,29 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       ...extensions.disabled(),
     ]),
   ];
-  const loaded = await loadPluginsFromDisk([...new Set(dirs)], disabled());
+  const loaded = await loadPluginsFromDisk([...new Set(dirs)], disabled(), config.config.enabledPlugins);
   const plugins = loaded.plugins.filter(
       (p) => !config.config.disabledPlugins?.includes(p.manifest.name)
     ),
     errors = loaded.errors;
 
+  const prepareRepository = async (source:DiskPlugin[]):Promise<SessionRepository> => {
+    const owner=config.config.sessionProvider;
+    if(!owner)return localStore;
+    const factory=source.find(plugin=>plugin.manifest.name===owner)?.sessionRepository;
+    if(!factory)throw new Error(`Selected session repository ${owner} is unavailable`);
+    const lifetime=new AbortController();
+    let repository:SessionRepository|undefined;
+    try {
+      repository=await factory({cwd:options.cwd,sessionsRoot:storage.paths.sessions,stateRoot:storage.paths.state,signal:lifetime.signal,config:name=>storage.config(name)});
+      validateSessionRepository(repository);
+      return new Proxy(repository,{get(target,key,receiver){
+        if(key==='dispose')return async()=>{lifetime.abort(new Error('Session repository disposed'));await target.dispose?.();};
+        const value=Reflect.get(target,key,receiver);return typeof value==='function'?value.bind(target):value;
+      }});
+    } catch(error){lifetime.abort(error);await repository?.dispose?.();throw error;}
+  };
+  await store.replaceWith(()=>prepareRepository(plugins));
   const mcpServers = Object.assign(
     {},
     ...plugins.map((p) => p.mcpServers ?? {})
@@ -247,23 +268,15 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   let resumedEvents: SessionEvent[] = [];
   let resumedSessionId: string | undefined;
   if (options.resumeSessionId) {
-    const meta = await store
-      .findByPrefix(options.resumeSessionId, options.cwd)
-      .catch(() => undefined);
-    if (!meta)
-      throw new Error(
-        `Session not found or ambiguous: ${options.resumeSessionId}`
-      );
-    if (meta) {
-      const session = await store
-        .load(meta.id, options.cwd)
-        .catch(() => undefined);
-      resumedEvents = session?.events ?? [];
-      resumedSessionId = meta.id;
+    const meta = await store.findByPrefix(options.resumeSessionId,options.cwd);
+    if (!meta && !options.resumeIfPresent) throw new Error(`Session not found or ambiguous: ${options.resumeSessionId}`);
+    if(meta){
+      const session=await store.load(meta.id,options.cwd);
+      resumedEvents=session.events;resumedSessionId=meta.id;
     }
   }
 
-  const instructions = await projectInstructions(
+  const instructions = config.config.agent?.projectContext===false ? "" : await projectInstructions(
     options.cwd,
     storage.paths.home
   );
@@ -286,21 +299,13 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       { name: "cursor", dir: path.join(env.HOME ?? "", ".cursor/skills") },
     ],
   });
-  const skillIndex = await skills.renderIndex();
+  const skillIndex = config.config.agent?.skills===false ? "" : await skills.renderIndex();
   const hub =
-    options.agentHub === false
+    options.agentHub === false || config.config.disabledPlugins?.includes("agent-hub") || (config.config.enabledPlugins && !config.config.enabledPlugins.includes("agent-hub"))
       ? undefined
       : await agentManager(
           options.cwd,
           async (record, channels) => {
-            const exists = await new SessionStore({
-              sessionsRoot: new ProjectStorage(record.cwd, env).paths.sessions,
-            })
-              .load(record.sessionId, record.cwd)
-              .then(
-                () => true,
-                () => false
-              );
             const child = await buildApp({
               ...options,
               inheritedConfig: config,
@@ -309,7 +314,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               agentHub: false,
               cwd: record.cwd,
               sessionId: record.sessionId,
-              resumeSessionId: exists ? record.sessionId : undefined,
+              resumeSessionId: record.sessionId,
+              resumeIfPresent: true,
               pluginDirs: [...new Set(dirs)],
               maxSteps: Math.min(record.maxSteps, options.maxSteps ?? 32),
               maxTokensPerTurn: Math.min(
@@ -352,6 +358,15 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       }
     },
   };
+  const hostEnabled = (name:string,source=plugins) => !disabled().includes(name) &&
+    (!config.config.enabledPlugins || config.config.enabledPlugins.includes(name)) && !source.some(p=>p.manifest.name===name);
+  const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
+  const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
+  const toolOverrides = (source=plugins) => Object.entries(config.config.toolProviders ?? {}).map(([name,owner])=>{
+    const tool=source.find(p=>p.manifest.name===owner)?.tools.find(t=>t.name===name);
+    if(!tool)throw new Error(`Selected tool provider ${owner} does not supply ${name}`);
+    return tool as ToolSpec;
+  });
   const createCore = (
     onApproval: NonNullable<
       ConstructorParameters<typeof AgentCore>[0]["onApproval"]
@@ -359,6 +374,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     onAsk?: NonNullable<ConstructorParameters<typeof AgentCore>[0]["onAsk"]>,
     adopt?: { id: string; events: SessionEvent[] }
   ): AgentCore => {
+    const sessionPlugin=sessionControls();
     const provider = options.provider ?? {
       name: "authenticated-router",
       capabilities: async (signal:AbortSignal,profile?:string) => {
@@ -377,6 +393,11 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       },
     };
     const harness = harnessControls(storage,config.config.agent??{},()=>core.sessionId);
+    const builtinNames=config.config.agent?.builtinTools;
+    if(builtinNames!==undefined && (!Array.isArray(builtinNames) || builtinNames.some(name=>!builtinTools.some(t=>t.name===name))))
+      throw new Error("agent.builtinTools must list known built-in tool names");
+    for(const key of ['tools','controlTools'])if(config.config.agent?.[key]!==undefined && (!Array.isArray(config.config.agent[key]) || config.config.agent[key].some((v:unknown)=>typeof v!=="string")))
+      throw new Error(`agent.${key} must be an array of tool names`);
     const sessionApprovals = new ApprovalSession();
     sessionApprovals.restore(approvals.session.list());
     const coreOptions: ConstructorParameters<typeof AgentCore>[0] = {
@@ -386,6 +407,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       fetch: network.fetch("tools"),
       auth: auth.provider,
       serviceProviders: config.config.serviceProviders,
+      uiControllers:config.config.ui?.controllers,
       maxStepsPerTurn: options.maxSteps ?? (typeof config.config.agent?.maxSteps === "number" ? config.config.agent.maxSteps : 64),
       maxConsecutiveToolFailures:typeof config.config.agent?.maxConsecutiveToolFailures==='number'?config.config.agent.maxConsecutiveToolFailures:6,
       maxTokensPerTurn:
@@ -400,9 +422,9 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           : undefined),
       initialImages: options.images,
       model: () => router.model,
-      preparePrompt: (text) => expandReferences(options.cwd, text),
+      preparePrompt: config.config.agent?.fileReferences===false ? undefined : (text) => expandReferences(options.cwd, text),
       services: {
-        ...harness.services,
+        ...(hostEnabled("agent-harness") ? harness.services : {}),
         "service.network.configure": async ({ config }: { config: any }) => ({
           value: network.configure(config),
         }),
@@ -433,13 +455,16 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
         { tool: "extension_list", decision: "allow" },
         { tool: "agent_message", decision: "allow" },
       ],
+      toolNames: config.config.agent?.tools as string[] | undefined,
+      controlTools: config.config.agent?.controlTools as string[] | undefined,
+      toolOverrides: toolOverrides(),
       tools: [
-        ...builtinTools,
-        harness.tool,
-        skillTool,
-        extensions.tool,
-        market.tool,
-        ...(hub ? [hub.tool] : []),
+        ...builtinTools.filter(tool=>!builtinNames || (builtinNames as string[]).includes(tool.name)),
+        ...(hostEnabled("agent-harness") ? [harness.tool] : []),
+        ...(config.config.agent?.skills===false ? [] : [skillTool]),
+        ...(hostEnabled(extensions.plugin.manifest.name) ? [extensions.tool] : []),
+        ...(hostEnabled(market.plugin.manifest.name) ? [market.tool] : []),
+        ...(hub && hostEnabled(hub.plugin.manifest.name) ? [hub.tool] : []),
       ],
       compaction:
         config.config.compaction?.enabled === false
@@ -461,18 +486,16 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           .filter(Boolean)
           .join("\n\n") || undefined,
       plugins: [
-        harness.plugin,
+        ...(hostEnabled(harness.plugin.manifest.name) ? [harness.plugin] : []),
         ...plugins.map((p) => ({
           manifest: p.manifest,
           hooks: p.hooks,
           tier: p.tier,
+          events: p.events,
+          controllers:p.controllers,
         })),
-        controls,
-        sessionPlugin,
-        extensions.plugin,
-        market.plugin,
-        auth.plugin,
-        ...(hub ? [hub.plugin] : []),
+        ...[controls,sessionPlugin,extensions.plugin,market.plugin,auth.plugin,...(hub?[hub.plugin]:[])]
+          .filter(plugin=>hostEnabled(plugin.manifest.name)),
       ],
       // PluginTool is a structural mirror of core's ToolSpec (validated by
       // the loader); cast to avoid a hard tools-dep in app.
@@ -487,6 +510,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       events.length > 0
         ? AgentCore.resume(coreOptions, events)
         : new AgentCore(coreOptions);
+    harnesses.set(core,harness);sessionPlugins.set(core,sessionPlugin);
     hub?.bind({ approve: onApproval, ask: onAsk });
     installSessionServices(core, store, options.cwd);
     return core;
@@ -501,28 +525,28 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const reloadPlugins = async (core: AgentCore): Promise<string> => {
     if (core.getState() === "running")
       return "Wait until the current turn finishes before /reload.";
-    const next = await loadPluginsFromDisk([...new Set(dirs)], disabled());
+    const next = await loadPluginsFromDisk([...new Set(dirs)], disabled(), config.config.enabledPlugins);
     next.plugins = next.plugins.filter(
       (p) => !config.config.disabledPlugins?.includes(p.manifest.name)
     );
-    core.replacePlugins(
+    await store.replaceWith(()=>prepareRepository(next.plugins),()=>{core.replacePlugins(
       [
+        ...(hostEnabled("agent-harness",next.plugins) && harnesses.get(core) ? [harnesses.get(core)!.plugin] : []),
         ...next.plugins.map((p) => ({
           manifest: p.manifest,
           hooks: p.hooks,
           tier: p.tier,
+          events: p.events,
+          controllers:p.controllers,
         })),
-        controls,
-        sessionPlugin,
-        extensions.plugin,
-        market.plugin,
-        auth.plugin,
-        ...(hub ? [hub.plugin] : []),
+        ...[controls,sessionPlugins.get(core)!,extensions.plugin,market.plugin,auth.plugin,...(hub?[hub.plugin]:[])]
+          .filter(plugin=>hostEnabled(plugin.manifest.name,next.plugins)),
       ],
       next.plugins.flatMap((p) => p.tools) as NonNullable<
         ConstructorParameters<typeof AgentCore>[0]["extraTools"]
-      >
-    );
+      >,
+      toolOverrides(next.plugins)
+    );});
     await Promise.allSettled(plugins.map((p) => p.dispose?.()));
     plugins.splice(0, plugins.length, ...next.plugins);
     const mcpServers = Object.assign(
@@ -601,7 +625,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               name,
               {
                 name,
-                description: ["/history", "/sessions", "/resume"].includes(name) ? "Search and resume saved chats" : "Manage local sessions",
+                description: ["/history", "/sessions", "/resume"].includes(name) ? "Search and resume saved chats" : "Manage saved sessions",
                 usage: `${name} [name, id or search]`,
               },
             ] as const
@@ -623,7 +647,16 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           },
         ] as const,
       ]).values(),
-    ].sort((a, b) => a.name.localeCompare(b.name));
+    ].filter(command=> {
+      if(plugins.some(p=>p.commands?.some(c=>c.name===command.name)))return true;
+      const owners:Record<string,string>={
+        '/tasks':'agent-harness','/continue':'agent-harness',
+        '/settings':controls.manifest.name,'/providers':controls.manifest.name,'/models':controls.manifest.name,'/model':controls.manifest.name,
+        '/auth':auth.plugin.manifest.name,'/login':auth.plugin.manifest.name,'/logout':auth.plugin.manifest.name,
+        '/extensions':extensions.plugin.manifest.name,'/marketplace':market.plugin.manifest.name,
+        ...Object.fromEntries(['/sessions','/history','/resume','/fork','/rename','/archive','/unarchive'].map(name=>[name,sessionPlugin.manifest.name]))};
+      return !owners[command.name] || hostEnabled(owners[command.name]);
+    }).sort((a, b) => a.name.localeCompare(b.name));
   let savedRules = structuredClone(config.config.ui?.rules ?? []);
   let saveQueue = Promise.resolve();
   const savePlacement: BuiltApp["savePlacement"] = (rule) => {
@@ -656,6 +689,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   return {
     close: async () => {
       await hub?.close();
+      await store.dispose();
       await network.close();
       await Promise.allSettled(plugins.map((p) => p.dispose?.()));
     },

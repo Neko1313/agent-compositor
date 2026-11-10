@@ -33,7 +33,7 @@ describe("Runtime", () => {
     expect(oldCalls).toBe(0); expect(guards).toBe(1);
     const missing = new Runtime({ providers: { "service.project.query": "missing" } });
     missing.register({ ...manifest("callix"), provides: ["service.project.query"] }, { "service.project.query": () => ({ value: "wrong" }) });
-    expect((await emitAll(missing, "service.project.query", { cwd: ".", action: "status" })).value.value).not.toEqual({ value: "wrong" });
+    await expect(emitAll(missing, "service.project.query", { cwd: ".", action: "status" })).rejects.toThrow("Selected provider");
   });
 
   it("applies declared timeouts to trusted provider hooks", async () => {
@@ -44,7 +44,9 @@ describe("Runtime", () => {
         return { deny: "provider cancelled" };
       },
     });
-    expect((await emitAll(r, "service.project.query", { cwd: ".", action: "status" })).value.value).toEqual({ deny: "provider cancelled" });
+    const result=await emitAll(r,"service.project.query",{cwd:".",action:"status"});
+    expect(result.value.faults).toMatchObject([{plugin:"provider"}]);
+    expect((result.value.faults[0] as any).kind).toMatch(/^(own|thread)-budget$/);
   });
 
   it("returns input unchanged when no hooks are registered", async () => {

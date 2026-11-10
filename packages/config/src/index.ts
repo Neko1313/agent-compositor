@@ -14,6 +14,7 @@ export {
 } from "./variable.js";
 export {
   ConfigSchema,
+  compositionSchema,
   type CompositorConfig,
   type ConfigSource,
   type ConfigKeyOrigin,

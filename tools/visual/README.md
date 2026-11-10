@@ -185,3 +185,13 @@ model fixture. Default output: `dist/visual-ux/`; inspect PNGs and `report.json`
 
 The maintained [TUI design guide](../../docs/tui-design.md) explains the shared
 layout, navigation, literal-input, contrast and plugin-contract decisions.
+
+### Replacement controller scenario
+
+`npm run visual:controllers` loads an external test-only plugin with custom editor,
+approval, question, private form, placement and history controllers plus its own
+structural session repository. Real PTY function keys exercise behavior replacement;
+restart/search/resume checks persistence and a 60-column viewport. Artifacts default
+to `dist/visual-controllers/`. `VISUAL_EXECUTABLE` checks a compiled distribution
+using the token-scoped loopback model. Inspect the PNGs and `report.json`; raw input
+captures contain only fake credentials. The fixture backend is not production code.

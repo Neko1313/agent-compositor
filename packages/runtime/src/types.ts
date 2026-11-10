@@ -32,6 +32,8 @@ export interface PluginManifest {
   capabilities?: string[];
   /** Service events supplied by this replaceable provider plugin. */
   provides?: string[];
+  /** Lower numbers run first within a tier; ties retain registration order. */
+  priority?: number;
   /** Explicit wall-time limits for slow provider operations (milliseconds). */
   hookTimeouts?: Record<string, number>;
 }
@@ -43,6 +45,9 @@ export interface NextMarker {
   readonly [NEXT]: true;
   readonly event?: unknown;
 }
+
+/** Lazy continuation: return it unchanged, or await the downstream result. */
+export interface NextHandle extends NextMarker, PromiseLike<unknown> {}
 
 export function next(event?: unknown): NextMarker {
   return { [NEXT]: true, event };
@@ -58,7 +63,7 @@ export interface HookContext {
   /** aborted when the thread budget fires */
   signal: AbortSignal;
   budget: Readonly<Budget>;
-  next: (event?: unknown) => NextMarker;
+  next: (event?: unknown) => NextHandle;
 }
 
 /** A hook: sync, async, or async-generator (yield = intermediate value). */

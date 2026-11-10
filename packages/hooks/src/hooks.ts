@@ -1,4 +1,5 @@
 import type { QuestionOption, Questionnaire, QuestionnaireResult } from "@agent-compositor/events";
+import { UiControllerRegistry, validateControllers, type UiControllers, type UiControllerKind, type UiControllerFactory, type UiControllerLease } from "./controllers.js";
 import { uiFormSchema, type UiForm, type UiFormResult, type UiFormHandler } from "@agent-compositor/events";
 import type {
   SurfacePlacement,
@@ -11,7 +12,7 @@ import { dirname, resolve as resolvePath, sep } from "node:path";
 import { Runtime } from "@agent-compositor/runtime";
 import type {
   HookContext,
-  NextMarker,
+  NextHandle,
   PluginManifest,
   Tier,
 } from "@agent-compositor/runtime";
@@ -30,7 +31,7 @@ export type UserHookFn = (event: any, $: HooksApi) => unknown;
 export interface HooksApi {
   readonly plugin: string;
   /** continue the chain, optionally with a rewritten event */
-  readonly next: (event?: unknown) => NextMarker;
+  readonly next: (event?: unknown) => NextHandle;
   /** aborted when the hook's thread budget fires */
   readonly signal: AbortSignal;
   readonly session: { id: string; cwd: string };
@@ -70,9 +71,11 @@ export interface HooksApi {
   };
   auth: {
     login(provider?: string): Promise<{ status: string }>;
-    status(): { loggedIn: boolean; provider?: string };
+    /** Await for the selected service; fields retain the legacy host snapshot. */
+    status(): { loggedIn: boolean; provider?: string } & PromiseLike<{ loggedIn: boolean; provider?: string }>;
   };
   ui: {
+    controller(kind:UiControllerKind,data:unknown,fallback:UiControllerFactory,invalidate:()=>void,state?:unknown):UiControllerLease;
     ask(request:{question:string;options?:QuestionOption[];multi?:boolean;allowOther?:boolean}):Promise<string|string[]>;
     questionnaire(request:Questionnaire):Promise<QuestionnaireResult>;
     /** Local human input, returned directly to the requesting plugin; never a catalog payload. */
@@ -118,7 +121,9 @@ export class PermissionError extends Error {
 }
 
 export class HooksHost {
+  readonly controllers:UiControllerRegistry;
   private readonly pluginTrust = new Map<string, string>();
+  private readonly pluginLifetimes = new Map<string, AbortController>();
   private formHandler?: UiFormHandler;
   setFormHandler(handler?: UiFormHandler) { this.formHandler = handler; }
   private readonly pluginState = new Map<string, Map<string, unknown>>();
@@ -136,6 +141,7 @@ export class HooksHost {
     private readonly runtime: Runtime,
     private readonly config: HooksHostConfig
   ) {
+    this.controllers=new UiControllerRegistry(config.uiControllers,(owner,fn)=>this.rendering.run(owner,fn));
     this.workspaceRoot = resolvePath(
       config.workspaceRoot ?? config.session.cwd
     );
@@ -148,25 +154,37 @@ export class HooksHost {
   registerPlugin(
     manifest: PluginManifest,
     hooks: Record<string, UserHookFn>,
-    tier: Tier = "user"
+    tier: Tier = "user",
+    events: readonly import("@agent-compositor/events").EventDef[] = [],
+    controllers?:UiControllers
   ): void {
     const wrapped: Record<string, (event: any, ctx: HookContext) => unknown> =
       {};
     for (const [name, fn] of Object.entries(hooks)) {
       const isUiRender = name === "ui.render";
       wrapped[name] = (event: any, ctx: HookContext) => {
-        if (!isUiRender) return fn(event, this.buildApi(manifest.name, ctx));
+        const api=this.buildApi(manifest.name,ctx);
+        if (["service.agent.run","service.agent.batch","service.context.manage","service.context.compact"].includes(name) && typeof event.context?.withSignal === "function")
+          event = {...event,context:event.context.withSignal(api.signal)};
+        if (!isUiRender) return fn(event, api);
         return this.rendering.run(manifest.name, () =>
-          fn(event, this.buildApi(manifest.name, ctx))
+          fn(event, api)
         );
       };
     }
+    validateControllers(controllers);
+    if(controllers && manifest.trust!=="trusted")throw new Error("Private UI controllers require a trusted plugin");
+    this.runtime.register(manifest, wrapped, tier, events);
     this.pluginTrust.set(manifest.name, manifest.trust);
-    this.runtime.register(manifest, wrapped, tier);
+    this.pluginLifetimes.set(manifest.name,new AbortController());
     this.pluginState.set(manifest.name, new Map());
+    this.controllers.register(manifest.name,controllers,this.pluginLifetimes.get(manifest.name)!.signal);
   }
 
   unregisterPlugin(name: string): boolean {
+    this.pluginLifetimes.get(name)?.abort(new Error("Plugin unloaded"));
+    this.pluginLifetimes.delete(name);
+    this.controllers.remove(name);
     this.pluginTrust.delete(name);
     this.pluginState.delete(name);
     const removed = this.runtime.unregister(name);
@@ -191,8 +209,11 @@ export class HooksHost {
 
   private buildApi(plugin: string, ctx: HookContext): HooksApi {
     const host = this;
+    const operation=this.config.signal?.();
+    const signal=AbortSignal.any([ctx.signal,this.pluginLifetimes.get(plugin)!.signal,...(operation?[operation]:[])]);
     const stateGuard = (op: string) => {
-      if (host.rendering.getStore() === plugin) {
+      signal.throwIfAborted();
+      if (host.rendering.getStore() !== undefined) {
         throw new Error(
           `$.state.${op}: writing plugin state during ui.render is forbidden`
         );
@@ -200,10 +221,21 @@ export class HooksHost {
     };
     const state = this.pluginState.get(plugin)!;
 
+    const access = (event: string) => {
+      signal.throwIfAborted();
+      const canonical = host.runtime.resolve(event)?.name ?? event;
+      const reads = ["service.storage.config", "service.storage.read", "service.fs.read", "service.file.read", "service.file.readText", "service.project.query", "service.auth.status"];
+      const rendering = host.rendering.getStore() !== undefined;
+      if (rendering && !reads.includes(canonical)) throw new Error(`${canonical}: effects during ui.render are forbidden`);
+      if (host.pluginTrust.get(plugin) === "render-only" && !reads.includes(canonical) && !canonical.startsWith("ui.") && !canonical.startsWith("service.ui."))
+        throw new Error(`render-only plugins may not call ${canonical}`);
+    };
+
     const callService = async (
       event: string,
       input: Record<string, unknown>
     ): Promise<unknown> => {
+      access(event);
       if (
         [
           "service.storage.write",
@@ -235,9 +267,7 @@ export class HooksHost {
     return {
       plugin,
       next: (event?: unknown) => ctx.next(event),
-      signal: this.config.signal
-        ? AbortSignal.any([ctx.signal, this.config.signal()])
-        : ctx.signal,
+      signal,
       session: { ...this.config.session },
       state: {
         get: (key) => state.get(key) as never,
@@ -300,21 +330,27 @@ export class HooksHost {
           callService("service.auth.login", { provider }) as Promise<{
             status: string;
           }>,
-        status: () => this.config.auth?.status() ?? { loggedIn: false },
+        status: () => ({...(this.config.auth?.status() ?? {loggedIn:false}),
+          then:(accept,reject)=>(callService("service.auth.status", {}) as Promise<{loggedIn:boolean;provider?:string}>).then(accept,reject)}),
       },
       ui: {
+        controller:(kind,data,fallback,invalidate,state)=>{
+          stateGuard("ui.controller");
+          if(this.pluginTrust.get(plugin)!=="trusted")throw new Error("Private UI controllers require a trusted plugin");
+          return this.controllers.create(kind,data,fallback,invalidate,state,this.pluginLifetimes.get(plugin)!.signal);
+        },
         ask: async request => {
-          const result = await callService("service.ui.ask", { ...request, signal: ctx.signal }) as { answer: string | string[] };
+          const result = await callService("service.ui.ask", { ...request, signal }) as { answer: string | string[] };
           return result.answer;
         },
         questionnaire: request => callService("service.ui.questionnaire", {
-          ...request, signal: ctx.signal,
+          ...request, signal,
         }) as Promise<QuestionnaireResult>,
         form: async request => {
           stateGuard("ui.form");
           if (this.pluginTrust.get(plugin) !== "trusted") throw new Error("Only trusted plugins may request local forms");
           if (!this.formHandler) throw new Error("Forms require an interactive UI");
-          return this.formHandler(plugin, uiFormSchema.parse(request), ctx.signal);
+          return this.formHandler(plugin, uiFormSchema.parse(request), signal);
         },
         view: async (id, title, view, placement) => {
           await callService("service.ui.view", { id, title, view, placement });
@@ -347,10 +383,10 @@ export class HooksHost {
           }>;
         },
         compact: async (reason) => {
-          await this.config.agent?.compact(reason);
+          await callService("service.agent.compact", { reason });
         },
         clear: async () => {
-          await this.config.agent?.clear();
+          await callService("service.agent.clear", {});
         },
       },
       telemetry: {
@@ -364,8 +400,7 @@ export class HooksHost {
           try {
             return await fn();
           } finally {
-            await host.emit("service.telemetry.log", {
-              plugin,
+            await callService("service.telemetry.log", {
               event: "measure",
               data: { name, ms: Math.round(performance.now() - t0) },
             });
@@ -373,6 +408,7 @@ export class HooksHost {
         },
       },
       emit: async (event, input) => {
+        access(event);
         if (
           [
             "ui.invalidate",
@@ -397,6 +433,14 @@ export class HooksHost {
   private installResolvers(): void {
     const r = this.runtime;
     const root = this.workspaceRoot;
+
+    r.setResolver("service.agent.compact", async ({reason}) => {
+      await this.config.agent?.compact(reason); return {value:true};
+    });
+    r.setResolver("service.agent.clear", async () => {
+      await this.config.agent?.clear(); return {value:true};
+    });
+    r.setResolver("service.auth.status", () => ({value:this.config.auth?.status() ?? {loggedIn:false}}));
 
     const confine = (p: string): string => {
       const abs = resolvePath(root, p);

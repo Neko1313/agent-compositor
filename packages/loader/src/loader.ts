@@ -19,6 +19,9 @@ export interface DiscoveredPlugin {
 }
 
 export interface LoadedPlugin {
+  controllers?:import("@agent-compositor/hooks").UiControllers;
+  sessionRepository?:import("@agent-compositor/session").SessionRepositoryFactory;
+  events?: readonly import("@agent-compositor/events").EventDef[];
   mcpServers?: Record<string, unknown>;
   dispose?: () => void | Promise<void>;
   name: string;
@@ -57,6 +60,8 @@ export interface LoadReport {
 }
 
 export interface PluginLoaderOptions {
+  /** Exact plugin allowlist, checked before importing executable code. */
+  enabled?: string[];
   disabled?: string[];
   /** explicit search dirs; default: project `./plugins`, `./.agent-compositor/plugins`, user config dir */
   dirs?: string[];
@@ -176,11 +181,11 @@ async function importModule(
 async function importHooks(
   entryPath: string,
   lastModule?: unknown
-): Promise<{ hooks: Record<string, UserHookFn>; module: unknown }> {
+): Promise<{ hooks: Record<string, UserHookFn>; events?: readonly import("@agent-compositor/events").EventDef[]; module: Record<string,unknown> }> {
   const mod = await importModule(entryPath, lastModule);
   const hooks = (mod.hooks ??
     (mod.default as Record<string, unknown> | undefined)?.hooks ??
-    mod.default) as Record<string, unknown> | undefined;
+    mod.default ?? (mod.controllers || mod.sessionRepository ? {} : undefined)) as Record<string, unknown> | undefined;
   if (typeof hooks !== "object" || hooks === null || Array.isArray(hooks)) {
     throw new Error(
       `hooks module must export a named "hooks" object (e.g. export const hooks = { "tool.check": ... })`
@@ -190,7 +195,8 @@ async function importHooks(
     if (typeof fn !== "function")
       throw new Error(`hook "${name}" is not a function`);
   }
-  return { hooks: hooks as Record<string, UserHookFn>, module: mod };
+  if (mod.events !== undefined && !Array.isArray(mod.events)) throw new Error("events must export an array of event definitions");
+  return { hooks: hooks as Record<string, UserHookFn>, events: mod.events as import("@agent-compositor/events").EventDef[] | undefined, module: mod };
 }
 
 async function importTools(
@@ -227,6 +233,7 @@ async function importTools(
 }
 
 export class PluginLoader {
+  private readonly optsEnabled?: string[];
   private readonly disabled: string[];
   private readonly dirs: string[];
   private readonly loadedByName = new Map<
@@ -244,6 +251,7 @@ export class PluginLoader {
     opts: PluginLoaderOptions = {}
   ) {
     this.disabled = opts.disabled ?? [];
+    this.optsEnabled = opts.enabled;
     const cwd = opts.cwd ?? process.cwd();
     this.dirs = opts.dirs ?? [
       join(cwd, "plugins"),
@@ -317,7 +325,7 @@ export class PluginLoader {
     const seen = new Set<string>();
     for (const disc of found) {
       const name = disc.manifest.name;
-      if (this.disabled.includes(name)) {
+      if (this.disabled.includes(name) || (this.optsEnabled && !this.optsEnabled.includes(name))) {
         report.skipped.push({
           name,
           path: disc.root,
@@ -436,13 +444,17 @@ export class PluginLoader {
       if (hasTools && !manifest.main && !manifest.entry) return undefined;
       throw error;
     });
-    const { hooks, module } = entry
+    const { hooks, events, module } = entry
       ? await importHooks(entry, lastModule)
       : { hooks: {}, module: undefined };
     const { tools, module: toolsModule } = hasTools
       ? await importTools(toolsPath, lastToolsModule)
       : { tools: [], module: undefined };
     const hookCount = Object.keys(hooks).length;
+    const controllers=module?.controllers as import("@agent-compositor/hooks").UiControllers|undefined;
+    const sessionRepository=module?.sessionRepository as import("@agent-compositor/session").SessionRepositoryFactory|undefined;
+    if(sessionRepository!==undefined && (manifest.trust!=="trusted" || typeof sessionRepository!=="function"))
+      throw new Error("Session repository factories require a trusted plugin");
     const tier: Tier = manifest.tier ?? "user";
     this.host.registerPlugin(
       {
@@ -452,10 +464,13 @@ export class PluginLoader {
         trust: manifest.trust,
         capabilities: manifest.capabilities,
         provides: manifest.provides,
+        priority: manifest.priority,
         hookTimeouts: manifest.hookTimeouts,
       },
       hooks,
-      tier
+      tier,
+      events,
+      controllers
     );
     const loaded: LoadedPlugin = {
       name: manifest.name,
@@ -464,6 +479,9 @@ export class PluginLoader {
       tier,
       root,
       hookCount,
+      events,
+      controllers,
+      sessionRepository,
       dispose: async () => {
         for (const item of [module, toolsModule]) {
           const dispose = (item as { dispose?: () => unknown } | undefined)

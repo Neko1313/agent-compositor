@@ -247,9 +247,13 @@ export async function authentication(
     hooks: {
       "service.auth.login": async (e, $) => {
         try {
+          const name=e.provider ?? router.credentialProfile;
+          if (!(profiles[name] as any)?.oauth?.deviceAuthorizationEndpoint) {
+            await keyForm(name,$); return {value:{status:credentials[name]?"logged-in":"cancelled",provider:name}};
+          }
           return {
             value: await login(
-              e.provider ?? router.active,
+              name,
               (message) => $.ui.notify(message),
               $.signal
             ),
@@ -272,8 +276,7 @@ export async function authentication(
               credentials[name] = { accessToken: env[variable]! };
               await save(name);
               apply(name);
-            } else if ((profiles[name] as any)?.oauth?.deviceAuthorizationEndpoint) await $.auth.login(name);
-            else await keyForm(name, $);
+            } else await $.auth.login(name);
           } else if (command === "/logout") {
             if (!profiles[name]) throw new Error("Unknown profile");
             delete credentials[name];
@@ -293,8 +296,7 @@ export async function authentication(
         ) {
           try {
             const name = e.key.slice(6);
-            if ((profiles[name] as any)?.oauth?.deviceAuthorizationEndpoint) await $.auth.login(name);
-            else await keyForm(name, $);
+            await $.auth.login(name);
             await show($);
           } catch (error) {
             await $.ui.notify(String(error), "error");

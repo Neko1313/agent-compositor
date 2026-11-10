@@ -1,8 +1,498 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "events": {
+    "service.agent.batch": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Schedule a batch of tool calls. Each context.execute call retains permission checks and executes at most once.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "calls": {
+            "type": "array",
+            "items": {}
+          },
+          "context": {}
+        },
+        "required": [
+          "calls",
+          "context"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.agent.clear": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Clear the active conversation through an interceptable service.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "plugin": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.agent.compact": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Request compaction through the shared context service.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "plugin": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.agent.run": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Execute a prepared turn through a replaceable strategy. Return a TurnOutcome in {value}.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "turnId": {
+            "type": "string"
+          },
+          "context": {}
+        },
+        "required": [
+          "turnId",
+          "context"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.agent.tools": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Resolve the effective tool definitions before a turn. Only returned tools can be called.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tools": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "tools"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.auth.status": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Read the selected authentication implementation's status.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "plugin": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.context.compact": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Replace conversation compaction using the public turn context.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "context": {},
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "context"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.context.manage": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Run a replaceable context-pressure strategy before a model step.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "context": {}
+        },
+        "required": [
+          "context"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.context.prepare": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Prepare user input and optional attachments without assuming repository references.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "signal": {}
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.session.append": {
+      "since": "0.18.0",
+      "version": 1,
+      "summary": "Persist a session event through a replaceable journal implementation.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string"
+          },
+          "data": {}
+        },
+        "required": [
+          "sessionId",
+          "cwd",
+          "event",
+          "data"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Selected implementation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Refuse the operation",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
     "session.start": {
       "since": "0.1.0",
       "version": 1,

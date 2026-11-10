@@ -1,10 +1,10 @@
 import type { CorePlugin, AgentCore } from "@agent-compositor/core";
-import type { HooksApi } from "@agent-compositor/hooks";
-import type { SessionStore, SessionMeta } from "@agent-compositor/session";
+import type { HooksApi, UiControllerLease } from "@agent-compositor/hooks";
+import type { SessionRepository, SessionMeta } from "@agent-compositor/session";
 import type { UiTextView } from "@agent-compositor/events";
 export function installSessionServices(
   core: AgentCore,
-  store: SessionStore,
+  store: SessionRepository,
   cwd: string,
 ): void {
   const resolver = async (args: {
@@ -59,6 +59,9 @@ export const sessionTitle = (meta: SessionMeta) =>
   meta.name || meta.firstPrompt || (meta.messageCount ? `Chat ${meta.id.slice(0, 8)}` : "New chat");
 export function sessionControls(): CorePlugin {
   const site = "plugin-session-manager-sessions";
+  let controller:UiControllerLease|undefined;
+  let currentApi:HooksApi;
+  let defaultView:UiTextView={lines:[]};
   let state:
     | {
         sessionId: string;
@@ -78,6 +81,7 @@ export function sessionControls(): CorePlugin {
   const close = async ($: HooksApi) => {
     state?.search?.abort();
     state = undefined;
+    const previous=controller;controller=undefined;previous?.dispose();
     await $.ui.remove("sessions");
   };
   const publish = async ($: HooksApi) => {
@@ -153,20 +157,10 @@ export function sessionControls(): CorePlugin {
       },
       { text: "[ Close history ]", action: "escape", tone: "muted" },
     );
-    await $.ui.view(
-      "sessions",
-      "Chat history",
-      {
-        hint:'Type search · ↑↓ select · Enter resume · Esc close',
-        input: {
-          id: "search",
-          value: s.query,
-          placeholder: "Title, ID or conversation text",
-        },
-        lines,
-      },
-      { site: "sidebar", size: 0.75, focus: true },
-    );
+    defaultView={hint:'Type search · ↑↓ select · Enter resume · Esc close',
+      input:{id:"search",value:s.query,placeholder:"Title, ID or conversation text"},lines};
+    const view=controller?.render(s.columns,s.rows)??defaultView;
+    await $.ui.view("sessions","Chat history",view,{site:"sidebar",size:0.75,focus:true});
   };
   const refresh = async ($: HooksApi) => {
     const s = state;
@@ -214,9 +208,26 @@ export function sessionControls(): CorePlugin {
       pending: true,
       busy: false,
     };
-    await refresh($);
+    currentApi=$;const openedState=state;
+    controller=$.ui.controller("history",{
+      sessionId:$.session.id,query,
+      control:(action:string,args:Record<string,unknown>={})=>{
+        if(!["list","rename","fork","archive","unarchive"].includes(action))throw new Error("Unsupported history control");
+        if(state!==openedState)throw new Error("History closed");controller?.signal.throwIfAborted();return service(currentApi,action,args);
+      },
+      form:(request:Parameters<HooksApi["ui"]["form"]>[0])=>{if(state!==openedState)throw new Error("History closed");controller?.signal.throwIfAborted();return currentApi.ui.form(request);},
+    },()=>({
+      render:()=>defaultView,
+      handle:input=>input.kind==="change"
+        ? defaultChange({site,id:input.id,value:input.value},currentApi)
+        : input.kind==="action"?defaultPress({site,key:input.action},currentApi):undefined,
+    }),()=>{void publish(currentApi).catch(()=>{});});
+    const opened=controller;
+    opened.signal.addEventListener("abort",()=>{if(controller===opened)void close(currentApi).catch(()=>{});},{once:true});
+    if(opened.isDefault)await refresh($);
+    else {await opened.handle({kind:"action",action:"open"});await publish($);}
   };
-  return {
+  const plugin:CorePlugin={
     manifest: {
       name: "session-manager",
       version: "1.1.0",
@@ -307,7 +318,7 @@ export function sessionControls(): CorePlugin {
           return;
         if (!event.attached) {
           s.search?.abort();
-          state = undefined;
+          state = undefined;const previous=controller;controller=undefined;previous?.dispose();
           return;
         }
         if (!event.visible) return;
@@ -370,8 +381,7 @@ export function sessionControls(): CorePlugin {
                 name: sessionTitle(selected),
               });
             } catch (error) {
-              state = s;
-              await publish($);
+              await open($,s.query);
               throw error;
             }
           } else if (event.key === "rename") {
@@ -406,4 +416,26 @@ export function sessionControls(): CorePlugin {
       },
     },
   };
+  const defaultPress=plugin.hooks["ui.press"]!;
+  const defaultChange=plugin.hooks["ui.change"]!;
+  plugin.hooks["ui.press"]=async(event,$)=>{
+    if(event.site!==site||!controller)return;
+    currentApi=$;const active=controller;
+    try{const result=await active.handle({kind:"action",action:event.key});
+      if(controller!==active)return;
+      if(result==="close")await close($);
+      else if(result&&typeof result==="object"&&(result as {type?:string}).type==="resume"){
+        const {id,name}=result as {id?:unknown;name?:unknown};
+        if(typeof id!=="string"||!id)throw new Error("Invalid session selection");
+        await close($);await service($,"resume",{id,...(typeof name==="string"?{name}:{})});
+      }else await publish($);
+    }catch(error){if(!active.signal.aborted){await close($);await $.ui.notify("History controller failed","error");}}
+  };
+  plugin.hooks["ui.change"]=async(event,$)=>{
+    if(event.site!==site||!controller)return;
+    currentApi=$;const active=controller;
+    try{await active.handle({kind:"change",id:event.id,value:event.value});if(controller===active)await publish($);}
+    catch(error){if(!active.signal.aborted){await close($);await $.ui.notify("History controller failed","error");}}
+  };
+  return plugin;
 }

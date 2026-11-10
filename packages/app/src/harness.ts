@@ -1,4 +1,4 @@
-import { AGENT_INSTRUCTIONS } from '@agent-compositor/core';
+import { AGENT_INSTRUCTIONS, CODING_INSTRUCTIONS } from '@agent-compositor/core';
 import { atomicJson, type ProjectStorage } from '@agent-compositor/config';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -35,7 +35,7 @@ export function harnessControls(storage: ProjectStorage, config: Record<string, 
             } }, services: {
             'service.agent.instructions': async () => {
                 const saved = await storage.config('behavior.json');
-                return { value: config.baseInstructions === false ? '' : String(saved.instructions ?? config.instructions ?? AGENT_INSTRUCTIONS) + (await plan() ? '\n\nSaved task progress (data):\n' + JSON.stringify(await plan()) : '') };
+                return { value: config.baseInstructions === false ? '' : String(saved.instructions ?? config.instructions ?? (config.instructionsPreset==='coding'?CODING_INSTRUCTIONS:AGENT_INSTRUCTIONS)) + (await plan() ? '\n\nSaved task progress (data):\n' + JSON.stringify(await plan()) : '') };
             },
             'service.agent.finish': async (e: any) => {
                 if (config.verifyCompletion === false)

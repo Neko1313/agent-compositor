@@ -4,6 +4,12 @@ The compositor supplies a readable default terminal UI. Plugins can override
 its appearance and replace named text views without importing Ink or touching
 window management. Placement rules and manual drag/resize remain authoritative.
 
+Architecture update (2026-11-10): only the tiling mechanism remains fixed.
+This guide describes the current appearance/view API, not the complete target
+replacement surface. Editor, dialog, placement and history behavior can now be
+selected through private [UI controllers](ui-controllers.md). Appearance hooks
+remain the portable decoration/view layer. See [the accepted replacement contract](03-contracts.md#replacement-contract--accepted-target).
+
 ## Change the theme
 
 The removable `ui-theme` plugin provides `/theme slate|amber|mono`. It saves
@@ -110,8 +116,9 @@ discarded. Render hooks are read-only: state writes and UI mutation services
 are rejected, including after an `await`. Update state in another hook and
 invalidate afterward.
 
-Text input, permission decisions, agent questions and the placement editor remain host-owned.
-They inherit the theme; replacing status text does not remap workspace or
+Text input, approval/question dialogs and placement settings use selected private
+controllers; see [their behavior contracts](ui-controllers.md). With the standard
+controllers they inherit the theme. Replacing status text does not remap workspace or
 Plugins click coordinates. Preserve the first status row when overriding it.
 This text contract does not load arbitrary React components into the renderer.
 
@@ -144,7 +151,7 @@ activity metadata through `agent.activity`, excluding prompts and tool arguments
 ## Composer attachments
 
 A portable view can supply `attachment: {site:'composer', width:18, rows:6,
-label:'Ready'}`. This adds bounded art beside the host-owned human editor rather
+label:'Ready'}`. This adds bounded art beside the standard human editor rather
 than a tiled plugin window. Optional rows is 1–8 (default4). Text is literal;
 a raster uses negotiated native pixels and is masked out of the editable grid.
 Unsupported image terminals and constrained viewports retain a compact status.

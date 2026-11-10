@@ -1,0 +1,434 @@
+{
+  "catalog": "0.17.0",
+  "sourceRevision": "6bb30ae8d908a7645d0daed83d41a565b181a7a0",
+  "events": {
+    "session.start": {
+      "version": 1,
+      "aliases": [
+        "classic.SessionStart"
+      ],
+      "sha256": "01650ad8a9a8f9ab9c9e8eaa14b70111c8c41f481b26a70902cc61c5892f45ed"
+    },
+    "session.reload": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "2849caef7086f40229d24e498f1b41caadb4cf13739415542ffc5c56651e32a1"
+    },
+    "session.end": {
+      "version": 1,
+      "aliases": [
+        "classic.SessionEnd"
+      ],
+      "sha256": "e947e19a9e21ab67608e250fd4ae91b906657a66f49bc65357dfdec27dc9e516"
+    },
+    "session.compact": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "452fcf54ec65a72aa657a40eae4cde07497c27c5dcfb6456c385195f88b9ca7b"
+    },
+    "prompt.submit": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "c94c7f4e7ab019da24ac723ea8404c4ab454d3105f8ab2b16a8ba72a886274e3"
+    },
+    "prompt.compose": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "8393aa341c7ae76bf42e93d7caad59d027806722a5e69dbd06ff179a703795af"
+    },
+    "skill.prompt": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "259b814770c4134cf96640bced4050f73aa1165908fb9b57b3571ddc2228a86b"
+    },
+    "tool.call": {
+      "version": 1,
+      "aliases": [
+        "classic.PreToolUse"
+      ],
+      "sha256": "012072de0c9ba9f77ce29d13c2a9049daad28e81b632cb4457476e30b0a96e29"
+    },
+    "tool.check": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "565f9342778a5863653331a8ac2fbef18f78491babc26af23cbf766fc242661b"
+    },
+    "tool.describe": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "5a71b1bcfd4c6f70f522841f678541bd1abb5e91294b0925f34d4f861960c425"
+    },
+    "turn.start": {
+      "version": 1,
+      "aliases": [
+        "turn.started"
+      ],
+      "sha256": "3f13bad7e1bd848e852ea2d48b43a741dd2bd83a4e05571b2917564881ab7a81"
+    },
+    "turn.step": {
+      "version": 1,
+      "aliases": [
+        "turn.step.started"
+      ],
+      "sha256": "90bfc3dff0dca56b9c42e32c9069aaad0e49ddf208bf1d59103822b3f66bf1ae"
+    },
+    "turn.complete": {
+      "version": 1,
+      "aliases": [
+        "classic.Stop",
+        "turn.completed"
+      ],
+      "sha256": "fa4a7343c9b379e33a5ddbf9cb02215288fe2b07d70b7f98f84617d6dcf63b3b"
+    },
+    "agent.offer": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "599dd6a8c826abcb184c8b17845b5e9e995324d491353d825b07ded5525c3339"
+    },
+    "agent.spawn": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "26e991622431b930ef9d990d465d518d19c6a00810aa4d031c2460343e914425"
+    },
+    "prompt.steer": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "1503b195b8929d2bb09076ffe57dce4855c8c079394a91ced42ecb1e7286288c"
+    },
+    "prompt.queued": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "69b613d77581ee41f7693c8f7703553103d44de593b4756b5d9e20e502a57547"
+    },
+    "assistant.text": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "62751613bce9cb96cef60c1ee4b1eb3cfc0536b9b47992e635e893f772114785"
+    },
+    "tool.result": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "91a1e63cab820d1aeb7292fa96bf029db53832582ac598de05acfe4a57cc9589"
+    },
+    "turn.failed": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "400e55ffee5d63cf14420bf5e78020564b815aca535d709edf544ec150f20281"
+    },
+    "turn.interrupted": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "6fd0ec59540cb4665d5e82ca32239a0aec2541e29f9d3745e4fad2c307989c50"
+    },
+    "turn.usage": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "a74511224957e6bc8e5503332836751597aabc69a06529d8cc6df09c15fbee10"
+    },
+    "subagent.start": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "2e18c2672f4d42597e75700c73753ebca2e38ba14c7013e70a8e701572b28440"
+    },
+    "subagent.complete": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "06f93a402aea95d35bab70e052aa65455565621952a10cb9eb2f19d873fa7c12"
+    },
+    "context.compacted": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "e9780ebc2c40fe6ed260531a8ad1f7bbada659c9ba49cb14cc46966ef120a3e9"
+    },
+    "context.compacting": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "4a189a1562a173ff0ca1e0236e92476a53c147da043504a5716cec5f329877da"
+    },
+    "context.pressure": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "d0707ff9aee3719dfe87fcf777c451ed2de7bb76b7ca4e8a98670d6e483743f3"
+    },
+    "service.model.capabilities": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "9befc4d56f2d37600b2e66096eee19d09b19b0563105bb894555be9909d5107a"
+    },
+    "service.agent.instructions": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "525ce1dadc21aa6c48b7b9e2e2bd7640639b85798754f7cb3c3743841883522a"
+    },
+    "service.agent.finish": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "5b869e51bd545a1743b28989c9f397e59a3fbfddb27fc60fed68ffa38e5643c3"
+    },
+    "service.ui.configure": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "e333f3e22c3e817d7a82b5721563a699c9060539800211cefd6a0c5747f4d098"
+    },
+    "service.storage.read": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "ad1b290cec1f197184bcdd9a233fc01eba493349f09f04770a7da13f93d20fe0"
+    },
+    "service.storage.write": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "bd6bc2e15235b3e5d846e7bdb9dfde8d1d28174fd4fa4d2736d662388b23d487"
+    },
+    "service.storage.config": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "2742a0b2fd00e4bd9d979e78fcccf67114442103c396b98a5dd8b6059efca7e3"
+    },
+    "project.changed": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "f4d35564c51e8cfb14c7c8089f2d97cbec76956d9d0f2e1d8db29a3629c0bc84"
+    },
+    "service.network.configure": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "4e57607fdf49816d07110eb6d8de58ef81e6ce011243a7aa0534d6c79b00fa77"
+    },
+    "ui.visibility": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "b78dc0e76a01c7be70d0263748bc487ea19a463215674138ef2a0e050a5c95d2"
+    },
+    "ui.reaction": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "0664f3d7ccb7ee28cb1539b3481686299a0bf96f2dad61da8af8a17c9017b77f"
+    },
+    "service.ui.remove": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "6cc96379763587dd469fd94fb1bae5947a96ef69e88058d20f0023f0270a9c6d"
+    },
+    "agent.activity": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "2fcc6707871f420be05a15dbda9cab09e8e142ae6c669db4c976aee7d1e7b4b0"
+    },
+    "service.ui.inputTarget": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "23ea97cfb29e398211d11d36d76f838775b27b13a180ca3e8a34a0a7fc0c9544"
+    },
+    "service.ui.view": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "19e292ef37e271c55983e9ef329a4445732bb301e1422f5acd2465f2e6931f77"
+    },
+    "service.agent.tool": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "11e6a437a7c66bb1d4b28effaa34684d3e41152cda9e928a8d6d2f57ae60fc4b"
+    },
+    "service.ui.surface": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "abc7fe8f4fe81f142ae6dda8583f91da7ffba6729da964d7cf95762abaaf325e"
+    },
+    "ui.render": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "02fc4f6e2f4ffd26b9044125c043820f5e86a1669db7894db0a8e0d3cbe0f161"
+    },
+    "ui.press": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "76330f9c0c7dff73bee79ba0975e647fa9853865fc595ff598f0ed57b4558aca"
+    },
+    "ui.change": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "95ad52a730ee18a125ef917ba5852d5be340f8354993c72557ff37579d030392"
+    },
+    "ui.focus": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "56cfd2b0478f08ce90328696f21ba03124ca74dd78839c8d52623b9b130a70cc"
+    },
+    "ui.invalidate": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "ee79f6a9d00cf662f40e8b35ccb0aaa97dc7f99c7b25574022b97c9c5d7bac15"
+    },
+    "service.fs.read": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "e325aa5b1327664c01fe46bbbf2ecc02ae50971bb997b53f3f1e2d16046199ec"
+    },
+    "service.fs.write": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "057396a56bc42c2588b25b5f22a81311932d0e1c9697db447c96bcb53f5eacf0"
+    },
+    "service.exec.run": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "45026c83147b90414e0ef21d9e3daf15bfa616f12debedb032312297be61b54e"
+    },
+    "service.model.complete": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "146702f73abe0e8221f48bd0157d036751bcc48e713bd7bfac0235de064951ac"
+    },
+    "service.auth.login": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "005245068f5f3eb5afeeefa0211d2e083df7f264739796fc89cc41710b28eb47"
+    },
+    "service.ui.ask": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "578f713c5eb1488f1559ceef28781f28ab921371179eda2af4d0e8c42119fb65"
+    },
+    "service.ui.questionnaire": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "6c9a15c7a0accc6ae7fc64f4b5583b505f9f147e1497f2252c7502d94353ac3a"
+    },
+    "service.ui.notify": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "8e8a97acf27400b79dd4052f5a8bdade05b593d87214f00ffb5830d113e66903"
+    },
+    "service.telemetry.log": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "323004f198e2b69c7b3309c7928928de3b4fac8fbcc0ab0faac7f43a52f1f53d"
+    },
+    "service.skills.load": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "7cdd0f042f4759a08cde987ed51c2be8e5c038c589e686a5a28c68182547a7e8"
+    },
+    "service.project.query": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "66264f9a88380979fced5e32eaaf22244ab40cd9849b6a996befdfc27ddc4f49"
+    },
+    "service.sandbox.run": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "20172579eba49d6de6647772f6dce54b4ecba3cf1e18cea9edcbf60f9eb8f85b"
+    },
+    "service.permission.review": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "d0942ecbd3ac560c43f209dea5f6d3b0f988d89f25ed3aac13623b8573d48c06"
+    },
+    "service.context.control": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "23c9c5bc0979ef9306f56c054ca7314cc5f297d253f9fc638431073200c8c5d5"
+    },
+    "model.usage": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "3f571789945c8eca779e875fbe0e933143c2fb95869dba13e4c77faefeeb2be1"
+    },
+    "service.usage.quota": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "f94ecbbb341e4bfb42feb0d55787fd241cc2af5070afbf0386acb1df3e913c0e"
+    },
+    "context.restored": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "f03b0ff3bb61d0d12f15d64069872857c073ba4e1919dd1e89ab44eb8217e934"
+    },
+    "service.checkpoint.control": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "3ea539b551fdfeb46b1836e9c6bd94d480469d49e12e1d0c86f167ebc7bf7a42"
+    },
+    "service.agent.control": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "52509e5c0b2a816d949280b92b8d1280e9afd8e59e46ed9db17eb8394879346a"
+    },
+    "service.model.stream": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "542f1542fb4a40449fd0c695cf3007255824a7244d620d07f3f7ec76adaf5654"
+    },
+    "context.prepared": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "84ce034a4942c13dc1eb489aafd555261f2923c2e235ff88cba8f8374b1ecf85"
+    },
+    "assistant.metadata": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "93ca4c903624f7048ef32902f00e8ea422f5ddc9e6ac382d09bef921fbbfcfdc"
+    },
+    "service.session.control": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "ad61d107f6c0405d322531394226595cc3fe56f7ac2ba327e3d3d8ce99969857"
+    },
+    "service.session.store": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "ad61d107f6c0405d322531394226595cc3fe56f7ac2ba327e3d3d8ce99969857"
+    },
+    "service.shell.exec": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "5a423124c170cf306ad4d9b09b8640e4912f04cebcfb738eab733706d7468614"
+    },
+    "service.shell.execOutput": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "fc42e0a8cbff346677fc615b28b1f7ea1294381b2866eb1f75b724a80c513cee"
+    },
+    "service.shell.execKill": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "fc42e0a8cbff346677fc615b28b1f7ea1294381b2866eb1f75b724a80c513cee"
+    },
+    "service.agent.spawn": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "894a2bc28397257738590b8bc9df3ee1554aa274d15d409e7cbb34f894a9850a"
+    },
+    "service.workflow.run": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "59f1eb537e1197b4836095d5d994cff7924ee6f05fb4480a2bde8d5419f2d8bc"
+    },
+    "service.todo.update": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "83c5e721be00119ae1cf546803ff65d2d0eaae141bb30eed751b5cdedcd338d0"
+    },
+    "service.file.read": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "c82ac9876d5b20c74be2bc0c356fa373b8f362f89478e30c66c0820afd9ffeb4"
+    },
+    "service.file.readText": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "2c13eb35fb3f2696cfb547dadaab0bba3620d4097b582c2aedf888a2ddec1843"
+    },
+    "service.file.write": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "1810445753dc4fe8425e497ae187a4291083d89770bbab7546eea82ebfc37508"
+    },
+    "service.file.edit": {
+      "version": 1,
+      "aliases": [],
+      "sha256": "36b69d60f8719cf576e6760f5fae2e7ee35bbe5965b6d770c178b6f81ac2368d"
+    }
+  }
+}

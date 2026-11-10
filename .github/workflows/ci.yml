@@ -18,6 +18,8 @@ jobs:
         node: ['26', '22.19.0']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
@@ -33,6 +35,19 @@ jobs:
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
+        run: npm run plugin:schema -- --check
+      - name: Certify every plugin against its mandatory deterministic matrix
+        if: matrix.node == '26'
+        run: npm run plugin:certify -- --all
+      - name: Verify independent plugin version changes
+        if: matrix.node == '26'
+        env:
+          PLUGIN_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$PLUGIN_BASE_SHA" ] && [ "$PLUGIN_BASE_SHA" != '0000000000000000000000000000000000000000' ]; then
+            npm run plugin:changed -- "$PLUGIN_BASE_SHA"
+          fi
+      - if: matrix.node == '26'
         run: npm run eval -- --output dist/evals-ci
       - if: matrix.node == '26'
         run: npm run eval:tools -- --output dist/evals-tools-ci
@@ -45,7 +60,8 @@ jobs:
           name: quality-reports-node-${{ matrix.node }}
           path: |
             reports/junit.xml
-            reports/coverage.xml
+            reports/coverage/coverage.xml
+            reports/certification/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

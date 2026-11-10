@@ -96,7 +96,7 @@ export class NetworkClient {
   }
   async close() {
     await Promise.allSettled(
-      [...this.agents.values()].map((agent) => agent.close())
+      [...this.agents.values()].map((agent) => agent.destroy())
     );
     this.agents.clear();
   }

@@ -24,7 +24,7 @@ export default {
   "prompt.submit": async (event: { text: string }, $: any) => {
     const hit = scan(event.text);
     if (hit) {
-      $.ui.notify(`blocked: ${hit} detected in prompt — turn dropped`, "error");
+      await $.ui.notify(`blocked: ${hit} detected in prompt — turn dropped`, "error");
       return { drop: `${hit} detected in prompt` };
     }
     return undefined;
@@ -33,7 +33,7 @@ export default {
   "tool.call": async (event: { tool: string; input: unknown }, $: any) => {
     const hit = scan(JSON.stringify(event.input ?? {}));
     if (hit) {
-      $.ui.notify(`denied: ${event.tool} blocked — ${hit} in arguments`, "error");
+      await $.ui.notify(`denied: ${event.tool} blocked — ${hit} in arguments`, "error");
       return { deny: `${hit} in arguments (guard-secrets)` };
     }
     return undefined;

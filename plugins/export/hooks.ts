@@ -22,12 +22,12 @@ export default {
       ].join("\n");
       const out = `.agent-compositor/session-${$.session.id}.md`;
       return $.fs.write(out, md).then(
-        () => {
-          void $.ui.notify(`export: ${entries.length} message(s) → ${out}`, "info");
+        async () => {
+          await $.ui.notify(`export: ${entries.length} message(s) → ${out}`, "info");
           return { drop: "export: transcript written" };
         },
-        (err: unknown) => {
-          void $.ui.notify(`export failed: ${err instanceof Error ? err.message : String(err)}`, "error");
+        async (err: unknown) => {
+          await $.ui.notify(`export failed: ${err instanceof Error ? err.message : String(err)}`, "error");
           return { drop: "export: failed" };
         },
       );
@@ -38,6 +38,7 @@ export default {
     $.state.set("buffer", entries.slice(-500));
   },
   "assistant.text": (event: { turnId: string; text: string }, $: any) => {
+    if(typeof event.text!=="string")throw new TypeError("Assistant text must be a string");
     const entries = buffer($);
     const last = entries[entries.length - 1];
     if (last && last.role === "assistant") {

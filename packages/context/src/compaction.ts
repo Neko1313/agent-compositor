@@ -14,6 +14,8 @@ import { estimateMessageTokens, type MessageLike } from "./budget.js";
 export interface CompactionResult {
   messages: MessageLike[];
   summary: string;
+  /** Failure preserves the transcript but must not be reported as successful compaction. */
+  failure?: string;
   /** how many original messages were folded into the summary */
   foldedCount: number;
   tokensBefore: number;
@@ -69,9 +71,9 @@ export async function compactTranscript(
     summary = await summarize(middle, { signal });
     signal.throwIfAborted();
     if (!summary?.trim()) throw Error("Empty summary");
-  } catch {
+  } catch (error) {
     signal.throwIfAborted();
-    if (!fallback) return {messages,summary:"",foldedCount:0,tokensBefore:countAll(messages),tokensAfter:countAll(messages)};
+    if (!fallback) return {messages,failure:String(error),summary:"",foldedCount:0,tokensBefore:countAll(messages),tokensAfter:countAll(messages)};
     summary = fallback;
   }
 
@@ -81,7 +83,7 @@ export async function compactTranscript(
     ...tail,
   ];
 
-  if(countAll(compacted)>=countAll(messages))return {messages,summary:"",foldedCount:0,tokensBefore:countAll(messages),tokensAfter:countAll(messages)};
+  if(countAll(compacted)>=countAll(messages))return {messages,failure:"Compaction did not reduce context",summary:"",foldedCount:0,tokensBefore:countAll(messages),tokensAfter:countAll(messages)};
   return {
     messages: compacted,
     summary,

@@ -1,12 +1,222 @@
 # Project memory
 
-## Next concept discussion — 2026-11-10
+## Plugin coverage completion — 2026-11-10
 
-The user authorized committing/pushing the completed authoring and composite
-plugin work. Next, discuss the product concept and marketplace experience:
-provide our plugins through a default marketplace and improve enabling/disabling
-and related management there. This is a deferred discussion, not authorization
-to implement a marketplace redesign in the commit/push task.
+The user asked to close the blocking gaps from the initial certification rollout.
+This supersedes the initial 25-plugin/329-gap inventory below. All 26 native
+packages now bind and pass their complete deterministic PR matrix and Linux x64
+extracted-archive matrix. There are no deterministic adoption waivers.
+
+Added tools/plugins/behavior requirement-specific oracles for actual SDK-loaded
+modules, filesystem state, genuine legacy layouts, project isolation, HTTP and
+CONNECT faults, stdio MCP, native Monty workers, controlled Callix processes,
+workflow selection/routing/budgets, private forms and plugin authoring. Composite
+cases repeat all component assertions on the managed installed package after
+reload, fresh process, a synthetic contract-preserving update, rollback and
+re-enablement. Synthetic updates are not historical compatibility evidence.
+Archive scenarios verify embedded identity and use the same public SDK linking
+helper as the real installer. A separate extracted native Callix check parsed a
+TypeScript function through code_query successfully.
+
+Nine package-specific real PTY scenarios exercise source/archive identity, actual
+terminal input/actions, narrow drafts, dismissal and restart, retaining PNG/ANSI/
+input/report evidence. Six model profiles use the declared live Ollama reference
+(gemma4:31b-cloud), three repetitions of seven task types each. All 126 cases pass;
+graders inspect actual artifacts, activated generated commands, approval verdicts,
+workflow results, plans and retained compaction goals. Thirteen negative controls
+reject wrong, unsafe, fabricated or incomplete outputs. Calls and tokens are
+bounded; provider usage is recorded and unavailable monetary billing is null.
+Standalone live evaluation is diagnostic, never a publication certificate.
+
+Coverage found and fixed observable failures: unawaited notifications, lost
+turn-log retry prompts, malformed export input, invalid MCP configurations and
+hidden operation errors, cross-project checkpoint storage and cancelled restore
+writes, hanging CONNECT shutdown, and default one-second model command deadlines.
+Compaction now preserves its transcript AND reports summarizer/non-reduction
+failure; session commands consume denied/failed controls so the model cannot
+falsely claim success. Plugin authoring checks entry syntax without importing code
+in Bun and guides complete-file edits and behavior verification. Changed plugins
+have independent patch versions, changelogs and matching development catalog
+entries. Coverage output now lives in reports/coverage so it cannot erase existing
+certification evidence during a concurrent run.
+
+Validation: 787 TypeScript tests passed, 3 optional skips; 86.7% line coverage.
+Typechecks, generated contracts/schemas, marketplace metadata, independent version
+checks, workflow YAML and the scripted 5-case/3-case/proxy evals passed. All 52
+PR/archive certificates were reverified against the current inputs and exact
+archive checksums. All nine required UI profiles passed; inspected the relevant
+normal/narrow/private-form/restarted screenshots. Failed diagnostic captures and
+superseded source identities are not publication evidence.
+
+Current evidence: reports/certification/adoption-readiness.json and
+verified-local.json, summary-pr.json, summary-artifact-local.json, per-package
+artifact/linux-x64/pty, and dist/plugin-live-verified-<name>. The source release
+gate still rejects uncommitted inputs; other three archive platforms and remote
+CI were not executed. Model-dependent release CI requires repository variable
+PLUGIN_LIVE_OLLAMA_URL and optionally secret PLUGIN_LIVE_OLLAMA_TOKEN; absence
+blocks the release rather than replacing the model. No commit, push or release
+was requested or performed in this follow-up.
+
+## Initial fail-closed plugin certification — 2026-11-10
+
+The user authorized implementing the blocking mechanism for current and future
+plugins. V2 plans now declare component/trait profiles, platforms, preceding
+release, individually bound cases, setup/oracles/forbidden effects and budgets.
+The loader derives a union of mandatory requirements. Legacy v1 convenience
+suites remain readable but cannot certify publication. Obvious omitted manifest
+profiles are rejected; arbitrary trusted native logic still requires review.
+
+Added tools/plugins/certification.ts, certify.ts, gate.ts and the scenario protocol.
+Exact Vitest file/full-name results plus diagnostics reject skips, duplicates,
+empty/unrelated runs, failures, retries and flaky passes. Scenario evidence binds
+run ID, package, plan, host/tooling/fixture snapshot, platform and archive checksums.
+Live cases must match predeclared provider/model/config/task digest, repeat count,
+success floor and baseline; scripted models cannot satisfy them. Upgrade evidence
+needs the actual previous tagged version and pinned artifact. A forgotten null
+previousVersion cannot waive preceding tags. Release inputs must be committed.
+
+The bounded runner limits time/output and terminates owned process groups on
+failure/timeout, including descendants. Archive certification repeats component
+and trait behavior against the installed candidate, rather than accepting a lone
+install smoke. The archive embeds its build input identity and is checked before
+execution. Publication/catalog generation reverify complete source and four-platform
+archive certificates against the immutable plugin tag. Catalog promotion retains
+hashed evidence; official archive validation rejects missing certification even
+when an entry omits the native format marker. CI/host-release jobs automatically
+run the mandatory deterministic matrix for every discovered native package.
+
+All 26 native packages have v2 profiles and useful installed-package lifecycle
+scenarios: inactive installation, enable, repeat, double reload, fresh process,
+disable, re-enable and remove preserving independent settings. Their source
+baseline scenarios pass. This does NOT mean all 26 are fully certified: only
+notify-done currently satisfies the complete deterministic matrix; 25 are blocked
+by 329 missing deterministic bindings. Real PTY/model/domain/migration coverage
+must be implemented rather than relabeling broad convenience suites. The mandatory
+CI step intentionally remains red while those requirements are absent. No
+legacy adoption exemption or waiver silently grants readiness. The portable
+Claude example is not an independently published native package.
+
+A new command isolation probe found btw consuming /btw-unrelated. Fixed exact
+command matching, added regression coverage and bumped its independent version
+and development catalog entry to 1.2.0. notify-done now has real public-host
+unrelated/repeat/dependency-failure recovery cases. Host update tests additionally
+reject a tampered rollback backup while retaining the active version.
+
+Validation: 761 TypeScript tests pass, 3 optional skips, 85.92% line coverage;
+root and new plugin-tooling typechecks, schemas, marketplace metadata and workflow
+YAML parsing pass. notify-done passes deterministic and Linux x64 archive matrices;
+corrupt archives and uncommitted release inputs are rejected. Validator tests
+exercise incomplete evidence, wrong content/platform/artifact, exact bindings,
+model policy drift, preceding tags and catalog promotion with an older release.
+Other platforms and live reference-model evaluations were not executed locally.
+Reports: reports/certification/summary-pr.json, per-package readiness/certificates,
+notify-done/artifact/linux-x64 and rejections/. No commit, push, release or remote
+CI execution was requested or performed in this turn.
+
+## Mandatory plugin testing model — 2026-11-10
+
+The user correctly identified that the standard's test-plan format and green
+commands do not define or enforce sufficient coverage. Audited the current
+runner: unit/integration suites are self-declared, visual/evals optional, and
+the shared per-plugin contract only exercises activation/unload. The previous
+744/26 passing counts must not be described as complete plugin certification.
+
+Added docs/plugin-testing.md as a proposed normative model, explicitly separating
+host guarantees, actual plugin behavior and real model effectiveness. It defines
+mandatory lifecycle cases, component/trait-derived obligations, objective case
+oracles, negative controls for graders, source/artifact checks, previous-release
+migration and live model evidence for model-dependent changes. Readiness has
+passed/failed/missing/blocked/reviewed-not-applicable outcomes; missing required
+evidence or skipped required cases cannot produce a green publication gate.
+
+The model is not yet enforced by schemaVersion 1 or certification tooling.
+Do not claim that all 26 packages satisfy it, fabricate mappings from existing
+broad suites, or treat scripted model results as live quality evidence. Next
+implementation should derive required matrices, bind individual executed cases,
+audit actual coverage and gate release/catalog promotion on content-bound
+certificates. This turn defines the model rather than silently implementing a
+new testing framework before discussing its requirements.
+
+## Plugin standard 1 and independent marketplace lifecycle — 2026-11-10
+
+The user requested uniform plugin standards/testing, all plugins off by default,
+a preconnected repository marketplace, scoped opt-in and independent plugin
+versions/releases/updates. They explicitly chose independent versions and releases
+in this monorepo rather than separate repositories. This authorizes the current
+implementation; the earlier deferred marketplace discussion is resolved.
+
+All filesystem packages now remain unimported until explicit user/project
+activation (or an explicitly configured legacy capability selection). Kernel
+loop/file tools, model/session/settings and management adapters remain available
+for bootstrap. An exact enabledPlugins ceiling and disabledPlugins restrictions
+remain binding. Project decisions override user decisions. Selection records bind
+the actual source directory, persist across restart and do not silently fall back
+to another copy when the chosen source disappears. User grants select shared code;
+project-local overrides need explicit project consent. HOME workspaces keep new
+project installations separate from user installations; legacy paths are retained.
+
+The repository agent-compositor catalog ships offline. Bundled code is an inactive
+cache: normal installed-app activation requires installing a scope-specific
+snapshot first, preserving its version across core upgrades. Installed versions
+outrank the cache. Official relative entries use matching self-contained bundled
+snapshots; newer first-party versions require a published archive entry, avoiding
+incomplete raw sources. Installed package versions remain unchanged on catalog
+refresh. Local development folders can still be explicitly enabled for iteration.
+
+Standard: docs/plugin-standard.md; JSON schemas under schema/plugin-*.json.
+All 26 native first-party plugins declare compositor.standard=1/apiVersion=1,
+independent SemVer, README/changelog and plugin.test.json. The initial migration
+increments their own minor versions; catalog metadata starts at 1.0.0, and the
+portable Claude example remains separate. QA plans reference existing meaningful
+behavior suites and optional real PTY/eval checks. plugin:test runs a common
+lifecycle contract, declared suites and scripted evals, emitting per-plugin JUnit;
+zero executed tests is a failure. plugin:test:all runs all 26 packages. CI validates
+schemas and rejects runtime/catalog changes without the appropriate version bump.
+Positive test fixtures explicitly choose their packages; production has no
+hidden auto-enable test mode. Harness2 fixtures now explicitly opt into their
+requested plugin directories while respecting explicit capability restrictions.
+
+Plugin releases use plugin/<name>/v<SemVer>, independently of host releases.
+plugin-release.yml verifies, tests, builds and smokes four native artifacts, then
+publishes that plugin without moving application latest. Dispatch builds only.
+Development may run ahead of published catalog versions; unlisted new packages
+can be tested/released before catalog promotion. Release CI emits a four-platform
+marketplace-entry.json with archive URLs/checksums. plugin:catalog applies that
+reviewed entry and increments catalog metadata; committing/pushing it is explicit.
+Current first-party entries are still bundled/development snapshots pending their
+first independent publication. No release or remote workflow was triggered here.
+
+The installer supports pinned Git/local sources and SHA-256 platform archives.
+Archive download/extraction is bounded (128 MiB compressed, 512 MiB decompressed,
+120 seconds), accepts regular-file/directory ustar and rejects links, special
+entries, duplicates and escapes before activation. Locks record version/source/
+ref/commit or archive digest plus package content, including owned dependencies
+and excluding provided host SDK links. Updates reject mutable same-version data,
+modified installed contents, downgrades and incompatible metadata. Rollback checks
+backup contents and preserves activation. Failed candidate/state commits retain
+old code. Removing a package or catalog preserves independent user settings.
+
+Marketplaces/extensions now render compact native text views, with mouse actions
+for browsing/installing and management forms selecting user/project scope. They
+report effective overrides, missing bound sources and reload requirements. Scope
+is included in mutation permission descriptors. check-updates is read-only.
+The real PTY marketplace scenario is npm run visual:marketplace.
+
+Validation: 744 TypeScript tests pass (3 optional skips), 85.85% line coverage;
+all 26 plugin-specific commands pass; Python 46 tests and scripted Harness2 12/12
+pass. Typecheck, marketplace/schema/version checks, evals 5/5 + 3/3, proxy smoke,
+Linux x64 app build and installed-release smoke pass. Individual Linux x64
+plugin-author, todos, callix and monty archives build and pass the same secure
+archive installer smoke (including real native dependencies). Source/binary PTY
+checks cover inactive startup, default market, scope forms, installation without
+activation, restart/disable and composite authoring; workflows PTY also passes.
+Four-platform release jobs are configured, not locally verified on other targets.
+Evidence: dist/standards-proof/report.json, dist/standards-market-final/,
+dist/standards-author-final/, dist/standards-workflows-visual/,
+dist/standards-harness2/ and reports/plugins/. Screenshots inspected.
+
+This follow-up remains uncommitted/unreleased on top of pushed 45e47b2.
+Published v0.3.0 is unchanged and does not include these new defaults/standards.
 
 ## Composite plugin packages — 2026-11-10
 

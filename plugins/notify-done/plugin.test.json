@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 2,
+  "plugin": "notify-done",
+  "tests": [
+    {
+      "layer": "unit",
+      "files": [
+        "plugins/notify-done/tests/behavior.test.ts"
+      ]
+    }
+  ],
+  "profiles": {
+    "components": [
+      "hook"
+    ],
+    "traits": []
+  },
+  "platforms": [
+    "linux-x64",
+    "linux-arm64",
+    "darwin-x64",
+    "darwin-arm64"
+  ],
+  "previousVersion": null,
+  "cases": [
+    {
+      "id": "package-lifecycle",
+      "requirements": [
+        "package.activate",
+        "package.reload",
+        "package.restart",
+        "package.disable",
+        "package.reenable",
+        "package.remove",
+        "hook.intended",
+        "hook.unrelated"
+      ],
+      "kind": "deterministic",
+      "setup": "Isolated projects and home; actual package installed from a local catalog, initially inactive.",
+      "expect": [
+        "A useful package operation succeeds after enable, repeated invocation, double reload, fresh-process restart and re-enable.",
+        "Disable and removal detach owned hooks; independent settings survive."
+      ],
+      "forbidden": [
+        "Duplicate notifications or writes; effects from a disabled package; import errors on restart."
+      ],
+      "timeoutMs": 120000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/package-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "installed-artifact",
+      "requirements": [
+        "artifact.install",
+        "artifact.behavior",
+        "artifact.lifecycle",
+        "package.activate",
+        "package.reload",
+        "package.restart",
+        "package.disable",
+        "package.reenable",
+        "package.remove",
+        "hook.intended",
+        "hook.unrelated",
+        "hook.repeat",
+        "hook.failure"
+      ],
+      "kind": "artifact",
+      "setup": "The exact checksum-pinned release archive is extracted and installed into an isolated scope.",
+      "expect": [
+        "The installed candidate performs a useful operation and survives the full package lifecycle."
+      ],
+      "forbidden": [
+        "Falling back to working-tree package code or leaving the candidate active after removal."
+      ],
+      "timeoutMs": 120000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/package-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "notification-behavior",
+      "requirements": [
+        "hook.intended"
+      ],
+      "kind": "deterministic",
+      "setup": "Actual notification hooks registered with the public host and an observable notification sink.",
+      "expect": [
+        "Notification count/content and host fault/recovery assertions pass."
+      ],
+      "forbidden": [
+        "Duplicate effects, leaked hooks after unload, or corruption after a dependency failure."
+      ],
+      "timeoutMs": 10000,
+      "run": {
+        "runner": "vitest",
+        "file": "plugins/notify-done/tests/behavior.test.ts",
+        "test": "reports successful and failed completion with bounded diagnostic text"
+      }
+    },
+    {
+      "id": "notification-isolation-repeat",
+      "requirements": [
+        "hook.unrelated",
+        "hook.repeat"
+      ],
+      "kind": "deterministic",
+      "setup": "Actual notification hooks registered with the public host and an observable notification sink.",
+      "expect": [
+        "Notification count/content and host fault/recovery assertions pass."
+      ],
+      "forbidden": [
+        "Duplicate effects, leaked hooks after unload, or corruption after a dependency failure."
+      ],
+      "timeoutMs": 10000,
+      "run": {
+        "runner": "vitest",
+        "file": "plugins/notify-done/tests/behavior.test.ts",
+        "test": "does not observe unrelated events and emits exactly once for each repeated completion"
+      }
+    },
+    {
+      "id": "notification-failure",
+      "requirements": [
+        "hook.failure"
+      ],
+      "kind": "deterministic",
+      "setup": "Actual notification hooks registered with the public host and an observable notification sink.",
+      "expect": [
+        "Notification count/content and host fault/recovery assertions pass."
+      ],
+      "forbidden": [
+        "Duplicate effects, leaked hooks after unload, or corruption after a dependency failure."
+      ],
+      "timeoutMs": 10000,
+      "run": {
+        "runner": "vitest",
+        "file": "plugins/notify-done/tests/behavior.test.ts",
+        "test": "contains notification dependency failures and recovers on the next event"
+      }
+    }
+  ]
+}

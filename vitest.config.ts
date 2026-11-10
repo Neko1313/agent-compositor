@@ -3,7 +3,7 @@ export default defineConfig({
   test: {
     coverage: {
       provider: "v8",
-      reportsDirectory: "reports",
+      reportsDirectory: "reports/coverage",
       reporter: ["text", ["cobertura", { file: "coverage.xml" }]],
       include: ["packages/*/src/**/*.{ts,tsx}", "plugins/*/*.ts"],
       exclude: ["**/*.d.ts", "**/bin.ts"],

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { installCallix } from '../../plugins/callix/distribution.mjs';
 import { copyPluginResources } from './resources.mjs';
+import {copyLicenseNotices} from './licenses.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.chdir(root);
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
@@ -37,6 +38,10 @@ for (const name of await readdir('plugins')) {
   await writeFile(join(dest, 'plugin.json'), JSON.stringify(manifest, null, 2) + '\n');
   await copyPluginResources(source, dest, manifest);
 }
+// The catalog ships offline; its packages remain inactive until explicit selection.
+await mkdir(join(stage,'.claude-plugin'),{recursive:true});
+await cp('.claude-plugin/marketplace.json',join(stage,'.claude-plugin/marketplace.json'));
+await cp('examples/plugins/portable-example',join(stage,'examples/plugins/portable-example'),{recursive:true});
 // Resolve a target-specific verified upstream release, not the ignored local bin/.
 const callix = await installCallix({ destination: join(stage, 'plugins/callix'), platform, archivePath: process.env.CALLIX_RELEASE_ARCHIVE });
 console.log(`Bundled Callix ${callix.version} for ${callix.platform} (${callix.archiveSha256})`);
@@ -48,7 +53,7 @@ for (const dep of dependencies) {
   copied.add(dep);
   const source = join('node_modules', dep);
   const metadata = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'));
-  await cp(source, join(stage, 'node_modules', dep), { recursive: true, dereference: true });
+  await cp(source, join(stage, 'plugins/monty/node_modules', dep), { recursive: true, dereference: true });
   dependencies.push(...Object.keys(metadata.dependencies ?? {}));
 }
 // Native marketplace extensions can import the host's public runtime API.
@@ -62,23 +67,7 @@ for (const name of await readdir('packages')) {
   await writeFile(join(dest, 'package.json'), JSON.stringify({ name: metadata.name, version: metadata.version, type: 'module', main: './index.js', exports: './index.js' }) + '\n');
 }
 // Preserve third-party license texts for bundled modules as well as disk modules.
-const modules = await readdir('node_modules');
-for (const entry of modules) {
-  if (entry.startsWith('.') || entry === '@agent-compositor') continue;
-  const names = entry.startsWith('@')
-    ? (await readdir(join('node_modules', entry))).map(name => `${entry}/${name}`)
-    : [entry];
-  for (const name of names) {
-    const source = join('node_modules', name);
-    if (!await exists(join(source, 'package.json'))) continue;
-    const dest = join(stage, 'licenses', name);
-    await mkdir(dest, { recursive: true });
-    await cp(join(source, 'package.json'), join(dest, 'package.json'));
-    for (const file of await readdir(source)) {
-      if (/^(licen[cs]e|notice|copying|readme)([.-]|$)/i.test(file)) await cp(join(source, file), join(dest, file), { recursive: true });
-    }
-  }
-}
+await copyLicenseNotices(root,join(stage,'licenses'));
 const command = ['build', '--compile', 'packages/app/src/bin.ts', '--outfile', join(stage, 'compositor')];
 if (process.arch === 'x64') command.push(`--target=bun-${process.platform === 'darwin' ? 'darwin' : 'linux'}-x64-baseline`);
 execFileSync(process.execPath, command, { stdio: 'inherit' });

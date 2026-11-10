@@ -15,6 +15,7 @@
  * properties, no enums — plain fields and `#`-free privates aren't used
  * either; everything is module-scoped or closure-based.
  */
+import {mcpServerMapSchema} from '@agent-compositor/loader';
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
@@ -206,6 +207,7 @@ async function loadConfig(
   ) {
     error = 'no MCP config: missing "mcpServers" object';
   }
+  if(!error){const checked=mcpServerMapSchema.safeParse(config?.mcpServers);if(!checked.success)error='invalid MCP server configuration';else config={mcpServers:checked.data};}
   configCache = { cwd, config, error };
   return configCache;
 }

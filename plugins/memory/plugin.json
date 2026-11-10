@@ -1,7 +1,13 @@
 {
   "name": "memory",
-  "version": "1.0.0",
-  "description": "COMPOSITOR.md project memory — GEMINI.md / CLAUDE.md analog. `# <note>` appends to the memory file; every prompt gets the memory prepended as context. Drop this folder to remove.",
+  "version": "1.1.1",
+  "description": "COMPOSITOR.md project memory \u2014 GEMINI.md / CLAUDE.md analog. `# <note>` appends to the memory file; every prompt gets the memory prepended as context. Drop this folder to remove.",
   "trust": "trusted",
-  "capabilities": ["prompt.submit"]
+  "capabilities": [
+    "prompt.submit"
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildApp } from "../src/build.js";
+import {buildAppWithPlugins as buildApp} from "./plugin-fixture.js";
 import { ScriptedProvider } from "@agent-compositor/core";
 const roots: string[] = [],
   apps: Awaited<ReturnType<typeof buildApp>>[] = [];

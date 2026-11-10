@@ -4,12 +4,12 @@ const WRITE_TOOLS = new Set(["write", "edit", "exec", "exec_kill"]);
 const REMINDER = "\n\n[plan mode is ON: read-only. Produce a plan, change nothing. Send /plan again to exit.]";
 
 export default {
-  "prompt.submit": (event: { text: string }, $: any) => {
+  "prompt.submit": async (event: { text: string }, $: any) => {
     if (event.text === "/plan") {
       const on = !$.state.get("planning");
       $.state.set("planning", on);
-      void $.emit("ui.reaction", {source:"plan-mode",kind:"planning",id:"mode",active:on});
-      void $.ui.notify(on ? "plan mode ON — writes denied" : "plan mode OFF — writes allowed", "info");
+      await $.emit("ui.reaction", {source:"plan-mode",kind:"planning",id:"mode",active:on});
+      await $.ui.notify(on ? "plan mode ON — writes denied" : "plan mode OFF — writes allowed", "info");
       return { drop: "plan-mode: toggled" };
     }
     if ($.state.get("planning") && !event.text.startsWith("/")) {

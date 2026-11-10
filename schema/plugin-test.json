@@ -1,0 +1,495 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "plugin": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "tests": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "layer": {
+                "type": "string",
+                "enum": [
+                  "unit",
+                  "integration"
+                ]
+              },
+              "files": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "layer",
+              "files"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "visual": {
+          "type": "string"
+        },
+        "evals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        }
+      },
+      "required": [
+        "plugin",
+        "tests",
+        "schemaVersion"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "plugin": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "tests": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "layer": {
+                "type": "string",
+                "enum": [
+                  "unit",
+                  "integration"
+                ]
+              },
+              "files": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "layer",
+              "files"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "visual": {
+          "type": "string"
+        },
+        "evals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "schemaVersion": {
+          "type": "number",
+          "const": 2
+        },
+        "profiles": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "hook",
+                  "command",
+                  "tool",
+                  "skill",
+                  "view",
+                  "interactive-ui",
+                  "agent-service",
+                  "mcp"
+                ]
+              }
+            },
+            "traits": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "mutation",
+                  "network",
+                  "subprocess",
+                  "persistence",
+                  "private-input",
+                  "model"
+                ]
+              }
+            }
+          },
+          "required": [
+            "components",
+            "traits"
+          ],
+          "additionalProperties": false
+        },
+        "platforms": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "linux-x64",
+              "linux-arm64",
+              "darwin-x64",
+              "darwin-arm64"
+            ]
+          }
+        },
+        "modelPolicy": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "repeats": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 9007199254740991
+            },
+            "successFloor": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "baseline": {
+              "type": "string",
+              "minLength": 12
+            },
+            "taskSet": {
+              "type": "string",
+              "minLength": 1
+            },
+            "taskSetSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "configuration": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            }
+          },
+          "required": [
+            "provider",
+            "name",
+            "repeats",
+            "successFloor",
+            "baseline",
+            "taskSet",
+            "taskSetSha256",
+            "configuration"
+          ],
+          "additionalProperties": false
+        },
+        "previousVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+].+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previousArtifacts": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "linux-x64",
+              "linux-arm64",
+              "darwin-x64",
+              "darwin-arm64"
+            ]
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "url",
+              "sha256"
+            ],
+            "additionalProperties": false
+          },
+          "required": [
+            "linux-x64",
+            "linux-arm64",
+            "darwin-x64",
+            "darwin-arm64"
+          ]
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9.-]*$"
+              },
+              "requirements": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "package.activate",
+                    "package.reload",
+                    "package.restart",
+                    "package.disable",
+                    "package.reenable",
+                    "package.remove",
+                    "hook.intended",
+                    "hook.unrelated",
+                    "hook.repeat",
+                    "hook.failure",
+                    "command.intended",
+                    "command.unrelated",
+                    "command.repeat",
+                    "command.failure",
+                    "tool.success",
+                    "tool.invalid",
+                    "tool.denied",
+                    "tool.failure",
+                    "tool.cancel",
+                    "skill.discovery",
+                    "skill.resources",
+                    "skill.precedence",
+                    "view.content",
+                    "view.empty",
+                    "view.error",
+                    "view.narrow",
+                    "view.lifecycle",
+                    "ui.keyboard",
+                    "ui.pointer",
+                    "ui.focus",
+                    "ui.submit",
+                    "ui.cancel",
+                    "ui.restart",
+                    "agent.selection",
+                    "agent.routing",
+                    "agent.failure",
+                    "agent.cancel",
+                    "agent.budget",
+                    "agent.policy",
+                    "agent.honesty",
+                    "mcp.rpc",
+                    "mcp.invalid",
+                    "mcp.namespace",
+                    "mcp.failure",
+                    "mcp.timeout",
+                    "mcp.denied",
+                    "mcp.reconnect",
+                    "mcp.cleanup",
+                    "mutation.result",
+                    "mutation.invalid",
+                    "mutation.denied",
+                    "mutation.recovery",
+                    "network.success",
+                    "network.status",
+                    "network.malformed",
+                    "network.unavailable",
+                    "network.timeout",
+                    "network.cancel",
+                    "process.success",
+                    "process.failure",
+                    "process.cancel",
+                    "process.timeout",
+                    "process.cleanup",
+                    "state.fresh",
+                    "state.restart",
+                    "state.invalid",
+                    "state.migration",
+                    "state.isolation",
+                    "privacy.receiver",
+                    "privacy.model",
+                    "privacy.logs",
+                    "privacy.events",
+                    "model.intended",
+                    "model.unrelated",
+                    "model.clarify",
+                    "model.failure",
+                    "model.denied",
+                    "model.untrusted",
+                    "model.cancel",
+                    "model.negative-control",
+                    "composite.lifecycle",
+                    "release.upgrade",
+                    "release.rollback",
+                    "artifact.install",
+                    "artifact.behavior",
+                    "artifact.lifecycle"
+                  ]
+                }
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "deterministic",
+                  "visual",
+                  "live",
+                  "artifact",
+                  "upgrade"
+                ]
+              },
+              "setup": {
+                "type": "string",
+                "minLength": 12
+              },
+              "expect": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 8
+                }
+              },
+              "forbidden": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 8
+                }
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 600000
+              },
+              "run": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "runner": {
+                        "type": "string",
+                        "const": "vitest"
+                      },
+                      "file": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "test": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "runner",
+                      "file",
+                      "test"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "runner": {
+                        "type": "string",
+                        "const": "scenario"
+                      },
+                      "file": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "args": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "runner",
+                      "file",
+                      "args"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "requirements",
+              "kind",
+              "setup",
+              "expect",
+              "forbidden",
+              "timeoutMs",
+              "run"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "plugin",
+        "tests",
+        "schemaVersion",
+        "profiles",
+        "platforms",
+        "previousVersion",
+        "cases"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

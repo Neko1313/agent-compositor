@@ -1,6 +1,6 @@
 {
   "name": "callix",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query.",
   "trust": "trusted",
   "provides": [
@@ -11,5 +11,9 @@
   },
   "capabilities": [
     "tool"
-  ]
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

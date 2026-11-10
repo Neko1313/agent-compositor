@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Writable, Readable } from "node:stream";
 import { ScriptedProvider } from "@agent-compositor/core";
 import { runRepl } from "@agent-compositor/cli";
-import { buildApp } from "../src/build.js";
+import {buildAppWithPlugins as buildApp} from "./plugin-fixture.js";
 import { main } from "../src/main.js";
 
 let tmp: string;

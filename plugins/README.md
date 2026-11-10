@@ -5,7 +5,10 @@ This folder is the **default market**: the features every mainstream agent
 CLI ships, reimplemented as removable plugins over the event chain.
 Harvested from Claude Code, Codex CLI, Gemini CLI, and friends.
 
-Delete any folder = the feature is gone. Nothing here is load-bearing.
+Packages are available but off until an explicit user/project activation.
+Use `/marketplace` to install a version, then `/extensions enable NAME --project` (or `--user`), then
+`/reload`. See [plugin standard 1](../docs/plugin-standard.md) for independent
+versions, test plans, releases, updates and rollback. Nothing here is load-bearing.
 
 | Plugin | Feature | Harvested from |
 |---|---|---|
@@ -36,7 +39,8 @@ Delete any folder = the feature is gone. Nothing here is load-bearing.
 
 ## Install
 
-Running from the repo, `./plugins` is discovered automatically.
+Running from the repo, `./plugins` metadata is discovered automatically; executable
+modules remain unloaded until explicit activation.
 For the compiled binary (or a global install):
 
 ```bash

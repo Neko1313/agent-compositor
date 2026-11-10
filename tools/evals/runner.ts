@@ -54,6 +54,7 @@ export async function runCase(
     await writeFile(
       join(cwd, "agent-compositor.json"),
       JSON.stringify({
+        enabledPlugins:['todos','guard-secrets','guard-scope','plan-mode','network-proxy',...(test.expect.grader||test.navigationMode?['callix']:[])],
         permissions: {
           rules: [
             { tool: "write", path: cwd + "/**", decision: "allow" },

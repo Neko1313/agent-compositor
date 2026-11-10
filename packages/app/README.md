@@ -19,6 +19,15 @@ npm run build:binary -w @agent-compositor/app
 ./dist/compositor --plugins ./plugins
 ```
 
+## Plugins start off
+
+The default repository marketplace ships offline. `/marketplace` browses it;
+installation leaves a package inactive and pins its version separately from the
+app. Install in the chosen scope first, then use `/extensions enable NAME --project`
+or `--user`, then `/reload`. Project decisions override user defaults. Discovery
+and `--plugins` do not activate code. See [the standard](../../docs/plugin-standard.md)
+for compatibility, tests, versions, updates and rollback.
+
 ## Flags
 
 ```

@@ -26,8 +26,8 @@ export default {
 
 async function append($: any, outcome: Record<string, unknown>): Promise<void> {
   const prompt = ($.state.get("pending") as string) ?? "";
-  $.state.delete("pending");
   let existing = ((await $.fs.read(FILE).catch(() => "")) as string) ?? "";
   const line = JSON.stringify({ ts: new Date().toISOString(), session: $.session.id, prompt, ...outcome });
   await $.fs.write(FILE, existing + line + "\n");
+  $.state.delete("pending");
 }

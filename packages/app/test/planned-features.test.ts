@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer } from "node:http";
 import { AgentCore, ScriptedProvider } from "@agent-compositor/core";
-import { buildApp } from "../src/build.js";
+import {buildAppWithPlugins as buildApp} from "./plugin-fixture.js";
 import { fetchPage } from "../../../plugins/web/tools.js";
 const roots: string[] = [];
 afterEach(async () => {

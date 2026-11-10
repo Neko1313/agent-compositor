@@ -21,16 +21,16 @@ export default {
 
     switch (text.split(/\s/)[0]) {
       case "/help":
-        $.ui.notify(
+        await $.ui.notify(
           "commands: /help · /status · /usage — memory: # <note> · plugins live in ./plugins or ~/.agent-compositor/plugins",
           "info",
         );
         break;
       case "/status":
-        $.ui.notify(`session ${$.session.id.slice(0, 8)} · cwd ${$.session.cwd} · turns ${turns} · prompts ${prompts}`, "info");
+        await $.ui.notify(`session ${$.session.id.slice(0, 8)} · cwd ${$.session.cwd} · turns ${turns} · prompts ${prompts}`, "info");
         break;
       case "/usage":
-        $.ui.notify(
+        await $.ui.notify(
           `turns this session: ${turns} — token-cost introspection lands when the loop surfaces usage events`,
           "info",
         );

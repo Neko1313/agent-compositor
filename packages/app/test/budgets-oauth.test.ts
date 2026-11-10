@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentCore, ScriptedProvider } from "@agent-compositor/core";
-import { buildApp } from "../src/build.js";
+import {buildAppWithPlugins as buildApp} from "./plugin-fixture.js";
 let server: Server | undefined;
 const roots: string[] = [];
 afterEach(async () => {

@@ -6,7 +6,7 @@ import { WorkflowEngine } from '../../../plugins/workflows/engine.js';
 import { discoverCapabilities, ProviderRouter } from '@agent-compositor/provider';
 import { AgentCore, ScriptedProvider, AGENT_INSTRUCTIONS } from '@agent-compositor/core';
 import { TokenBudget, compactTranscript, summarizeChunks } from '@agent-compositor/context';
-import { buildApp } from '../src/build.js';
+import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 const roots: string[] = [];
 afterEach(async () => { for (const d of roots.splice(0))
     await rm(d, { recursive: true, force: true }); });

@@ -1,6 +1,6 @@
 {
   "name": "cost",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "/cost and /usage \u2014 token accounting from turn.usage events (Claude Code /cost analog). Tally survives across turns in plugin state; drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [
@@ -16,5 +16,9 @@
       "name": "/usage",
       "description": "Show token usage"
     }
-  ]
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

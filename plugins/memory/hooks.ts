@@ -33,14 +33,14 @@ export default {
     if (text.trimStart().startsWith("#")) {
       const note = text.trim().replace(/^#+\s*/, "");
       if (note.length === 0) {
-        $.ui.notify("empty memory note — nothing saved", "warn");
+        await $.ui.notify("empty memory note — nothing saved", "warn");
         return { drop: "empty memory note" };
       }
       let existing =
         ((await $.fs.read(FILE).catch(() => "")) as string) ||
         "# COMPOSITOR.md — what this agent should remember\n\n";
       await $.fs.write(FILE, `${existing}- ${note}\n`);
-      $.ui.notify(`remembered: ${note.slice(0, 80)}`, "info");
+      await $.ui.notify(`remembered: ${note.slice(0, 80)}`, "info");
       return { drop: "memory note saved" };
     }
 

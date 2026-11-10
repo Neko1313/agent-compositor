@@ -2,6 +2,7 @@ import { z } from "zod";
 import { manifestSchema } from "@agent-compositor/runtime";
 import type { Tier } from "@agent-compositor/runtime";
 import { pluginMcpSourcesSchema } from "./mcp.js";
+import {pluginStandardSchema} from './standard.js';
 
 /**
  * The on-disk manifest: the runtime manifest plus loader fields.
@@ -17,6 +18,7 @@ import { pluginMcpSourcesSchema } from "./mcp.js";
  *   }
  */
 export const diskManifestSchema = manifestSchema.extend({
+  compositor:pluginStandardSchema.optional(),
   trust: z.enum(["trusted", "sandboxed", "render-only"]).default("trusted"),
   commands: z
     .array(

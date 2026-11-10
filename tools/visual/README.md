@@ -219,3 +219,30 @@ plugin-author skill/resources. `VISUAL_OUTPUT` selects a fresh capture directory
 (default `dist/visual-plugin-author/`). The scenario supplies no live provider
 credentials. Inspect `report.json` and the PNGs; scripted success checks the
 integration path, not arbitrary model-generated plugin quality.
+
+## Default marketplace and scoped activation
+
+`npm run visual:marketplace` starts the actual TUI with no active filesystem
+plugins. It browses the offline default catalog, installs packages inactive,
+explicitly enables Todos in project scope, verifies restart persistence and
+disables it. Real terminal mouse/keyboard actions then install and enable a
+package through forms selecting user scope. `VISUAL_EXECUTABLE` selects an
+extracted compiled distribution. All projects/homes are isolated. Existing
+positive scenarios now explicitly select their fixture plugins; discovery alone
+never activates production code.
+
+## Plugin certification scenarios
+
+`node tools/visual/plugin-check.mjs <plugin>` runs the package-specific scenario
+for auto-approve, checkpoint-history, cost, mascot, mcp, network-proxy, todos,
+ui-theme or workflows. `VISUAL_OUTPUT` selects a fresh evidence directory.
+`VISUAL_PLUGIN_DIR` selects the exact extracted archive candidate; the bench
+asserts the loaded directory and writes `fixture-identity.json`. All activation,
+configuration, model responses and project data remain isolated fixtures.
+
+The certification wrapper is `tools/plugins/visual-scenario.ts`; it verifies
+required observations and hashes PNG, ANSI, input and report evidence into the
+scenario protocol. Interactive actions travel through terminal input. The proxy
+password fixture is private and must never appear in visible cells, model context
+or ordinary plugin events/logs. Screenshots verify masking; deterministic privacy
+cases additionally inspect the receiver and excluded channels.

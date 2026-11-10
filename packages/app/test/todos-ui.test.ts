@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ScriptedProvider } from "@agent-compositor/core";
 import { hello, type WireMessage } from "@agent-compositor/protocol";
-import { buildApp } from "../src/build.js";
+import {buildAppWithPlugins as buildApp} from "./plugin-fixture.js";
 import { AppUI } from "../src/ui.js";
 let root: string;
 beforeEach(async () => {

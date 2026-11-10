@@ -1,9 +1,19 @@
 {
   "name": "monty",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Replaceable Python sandbox provider using Monty. No filesystem, network or shell capabilities are supplied.",
   "trust": "trusted",
-  "provides": ["service.sandbox.run"],
-  "hookTimeouts": {"service.sandbox.run": 300000},
-  "capabilities": ["tool"]
+  "provides": [
+    "service.sandbox.run"
+  ],
+  "hookTimeouts": {
+    "service.sandbox.run": 300000
+  },
+  "capabilities": [
+    "tool"
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

@@ -22,13 +22,13 @@ type Snapshot = {
 const hash = (data: Uint8Array) =>
   createHash("sha256").update(data).digest("hex");
 const stateRoots = new Map<string, string>();
-export function checkpointStorage(session: string, dir: string) {
-  stateRoots.set(session, dir);
+export function checkpointStorage(session: string, dir: string, cwd?: string) {
+  stateRoots.set(cwd ? JSON.stringify([cwd, session]) : session, dir);
 }
 const root = (cwd: string, session: string) => {
   if (!/^[\w-]+$/.test(session)) throw new Error("Invalid session");
   return join(
-    stateRoots.get(session) ?? join(cwd, ".agent-compositor"),
+    stateRoots.get(JSON.stringify([cwd,session])) ?? stateRoots.get(session) ?? join(cwd, ".agent-compositor"),
     "turn-checkpoints",
     session
   );

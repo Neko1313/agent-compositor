@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { AgentCore, ScriptedProvider } from "@agent-compositor/core";
 import { hello, type WireMessage } from "@agent-compositor/protocol";
 import { AppUI } from "../src/ui.js";
-import { buildApp } from "../src/build.js";
+import {buildAppWithPlugins as buildApp} from "./plugin-fixture.js";
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -123,6 +123,7 @@ describe("main agent work integrated with the compositor", () => {
     await writeFile(join(updated, "plugin.json"), JSON.stringify({ name: "updated", version: "1.0.0", trust: "trusted" }));
     await writeFile(join(updated, "tools.ts"), tool("new_tool"));
     await writeFile(join(updated, "hooks.ts"), "export default { 'prompt.submit': e => e.text === 'child' ? {text:'changed child'} : undefined };");
+    await core.invokeTool("extension_control",{action:"enable",name:"updated",scope:"project"});
     await app.reloadPlugins(core);
     await core.submit("delegate");
     expect(provider.requests[0].tools.map(t => t.name)).toContain("new_tool");

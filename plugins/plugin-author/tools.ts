@@ -16,6 +16,7 @@ const guides = {
   patterns: 'references/patterns.md',
   testing: 'references/testing.md',
   composition: 'references/composition.md',
+  standard:'references/standard.md',
 };
 interface Args {
   action: 'guide' | 'init' | 'check';
@@ -59,7 +60,7 @@ async function guide(args:Args) {
 
 function starter(name:string, components:readonly typeof kinds[number][]) {
   const selected = new Set(components);
-  const manifest:Record<string,unknown> = {name, version:'0.1.0', description:`Local ${name} extension`, trust:'trusted'};
+  const manifest:Record<string,unknown> = {name, version:'0.1.0', description:`Local ${name} extension`, trust:'trusted',compositor:{standard:1,apiVersion:1}};
   const files:Record<string,string> = {};
   const hooks:string[] = [];
   if (selected.has('tool')) {
@@ -114,6 +115,8 @@ input.on('line', line => {
 });\n`;
   }
   files['plugin.json'] = JSON.stringify(manifest, null, 2) + '\n';
+  files['README.md'] = `# ${name}\n\nDocument the plugin's purpose, runtime requirements and observable usage.\nInstallation leaves it off; explicitly enable it in project or user scope and reload.\n`;
+  files['CHANGELOG.md'] = '# Changelog\n\n## 0.1.0\n\nInitial local draft. Add behavioral tests and describe the implemented workflow before release.\n';
   return files;
 }
 
@@ -150,7 +153,7 @@ async function init(ctx:ToolContext, args:Args) {
     ctx.signal.throwIfAborted();
     return {path:destination, kind, components, files:Object.keys(files), activated:false,
       requirements:components.includes('mcp')?['Enable the mcp plugin/mcp_call gateway; the sample stdio server needs Node.js (or an explicitly configured runtime).']:[],
-      next:'Edit the starter for the request, run plugin_dev check and behavior checks, then use /reload between turns. Explicit enabledPlugins allowlists must include this plugin. Changes to provider/controller selections require restarting the app.'};
+      next:'This is a generic starter. Implement and inspect the exact requested behavior before reporting completion; initialization and structural checks alone are insufficient. Edit the draft for the request, add request-specific tests and a plugin.test.json release plan, then run plugin_dev check and behavior checks. Explicitly enable the plugin with extension_control in user or project scope, then /reload between turns. Existing enabledPlugins allowlists must include it. Provider/controller selection changes require restart.'};
   } catch (error) {
     await rm(destination, {recursive:true, force:true});
     throw error;
@@ -164,6 +167,7 @@ async function check(ctx:ToolContext, args:Args) {
   const errors:string[] = [];
   const warnings:string[] = [];
   const entryFiles:string[] = [];
+  if(!await exists(join(root,'plugin.test.json')))warnings.push('Draft: add plugin.test.json and behavioral tests before publishing. See the standard guide.');
   const mcpServers = Object.keys(await readPluginMcp(root, manifest.name, manifest.mcpServers));
   for (const resource of manifest.resources ?? []) await contained(root,resource);
   if (manifest.trust === 'render-only' && mcpServers.length) errors.push('render-only plugins may not contribute MCP servers.');
@@ -192,6 +196,12 @@ async function check(ctx:ToolContext, args:Args) {
       else skills.push(frontmatter.name);
     }
   }
+  const transpiler=(globalThis as any).Bun?.Transpiler;
+  if(transpiler)for(const file of entryFiles){
+    try{new transpiler({loader:file.endsWith('.ts')?'ts':'js'}).transformSync(await text(file));}
+    catch(error){errors.push(`Syntax check failed in ${file}: ${String(error)}`);}
+  }
+  else if(entryFiles.length)warnings.push('Syntax validation is unavailable in this runtime; run a compiler before activation.');
   if (!entryFiles.length && !skills.length && !mcpServers.length) errors.push('No hook/controller entry, tools, described skills or MCP servers found.');
   if (mcpServers.length) warnings.push('MCP declarations require the enabled mcp/mcp_call gateway. Processes start on use, under normal permission policy.');
   if (manifest.provides?.length) warnings.push('Select service providers explicitly in project configuration; declaration alone does not activate a replacement.');

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import review from '../../../plugins/auto-approve/hooks.js';
 import { ScriptedProvider } from '@agent-compositor/core';
-import { buildApp } from '../src/build.js';
+import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true }); });

@@ -1,14 +1,20 @@
 {
   "name": "mascot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "trust": "trusted",
   "description": "GIF/APNG Ghost companion attached to the message composer; observes agent, tool and dialog activity.",
-  "capabilities": ["render"],
+  "capabilities": [
+    "render"
+  ],
   "commands": [
     {
       "name": "/mascot",
       "description": "Show, hide or pause the animated companion",
       "usage": "/mascot [on|off|pause|resume|pet|status|reload]"
     }
-  ]
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

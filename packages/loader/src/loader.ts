@@ -62,6 +62,8 @@ export interface LoadReport {
 }
 
 export interface PluginLoaderOptions {
+  /** Application activation policy, evaluated on metadata before import. */
+  accept?: (plugin:DiscoveredPlugin)=>boolean;
   /** Exact plugin allowlist, checked before importing executable code. */
   enabled?: string[];
   disabled?: string[];
@@ -235,6 +237,7 @@ async function importTools(
 }
 
 export class PluginLoader {
+  private readonly accept?: (plugin:DiscoveredPlugin)=>boolean;
   private readonly optsEnabled?: string[];
   private readonly disabled: string[];
   private readonly dirs: string[];
@@ -253,6 +256,7 @@ export class PluginLoader {
     opts: PluginLoaderOptions = {}
   ) {
     this.disabled = opts.disabled ?? [];
+    this.accept = opts.accept;
     this.optsEnabled = opts.enabled;
     const cwd = opts.cwd ?? process.cwd();
     this.dirs = opts.dirs ?? [
@@ -327,7 +331,7 @@ export class PluginLoader {
     const seen = new Set<string>();
     for (const disc of found) {
       const name = disc.manifest.name;
-      if (this.disabled.includes(name) || (this.optsEnabled && !this.optsEnabled.includes(name))) {
+      if (this.disabled.includes(name) || (this.optsEnabled && !this.optsEnabled.includes(name)) || this.accept?.(disc)===false) {
         report.skipped.push({
           name,
           path: disc.root,
@@ -410,6 +414,8 @@ export class PluginLoader {
     lastToolsModule?: unknown
   ): Promise<LoadedPlugin> {
     const { manifest, root } = disc;
+    if(this.disabled.includes(manifest.name)||(this.optsEnabled&&!this.optsEnabled.includes(manifest.name))||this.accept?.(disc)===false)
+      throw new Error('Plugin is inactive under the loader activation policy');
     if (manifest.trust === "sandboxed") {
       throw new Error(
         "Sandboxed plugin modules require an explicit language host. Use the configured sandbox service for generated code; trusted TS plugins run on the host."

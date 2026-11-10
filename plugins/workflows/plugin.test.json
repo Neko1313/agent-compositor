@@ -1,0 +1,342 @@
+{
+  "schemaVersion": 2,
+  "plugin": "workflows",
+  "tests": [
+    {
+      "layer": "integration",
+      "files": [
+        "packages/app/test/harness.test.ts",
+        "packages/app/test/wave2.test.ts",
+        "packages/app/test/token-efficiency.test.ts"
+      ]
+    }
+  ],
+  "visual": "tools/visual/workflow-check.mjs",
+  "profiles": {
+    "components": [
+      "hook",
+      "command",
+      "tool",
+      "view",
+      "interactive-ui",
+      "agent-service"
+    ],
+    "traits": [
+      "model",
+      "mutation",
+      "persistence"
+    ]
+  },
+  "platforms": [
+    "linux-x64",
+    "linux-arm64",
+    "darwin-x64",
+    "darwin-arm64"
+  ],
+  "previousVersion": null,
+  "cases": [
+    {
+      "id": "package-lifecycle",
+      "requirements": [
+        "package.activate",
+        "package.reload",
+        "package.restart",
+        "package.disable",
+        "package.reenable",
+        "package.remove",
+        "command.intended",
+        "command.repeat",
+        "hook.intended",
+        "hook.unrelated",
+        "command.unrelated"
+      ],
+      "kind": "deterministic",
+      "setup": "Isolated projects and home; actual package installed from a local catalog, initially inactive.",
+      "expect": [
+        "A useful package operation succeeds after enable, repeated invocation, double reload, fresh-process restart and re-enable.",
+        "Disable and removal detach owned hooks; independent settings survive."
+      ],
+      "forbidden": [
+        "Duplicate notifications or writes; effects from a disabled package; import errors on restart."
+      ],
+      "timeoutMs": 120000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/package-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "installed-artifact",
+      "requirements": [
+        "artifact.install",
+        "artifact.behavior",
+        "artifact.lifecycle",
+        "package.activate",
+        "package.reload",
+        "package.restart",
+        "package.disable",
+        "package.reenable",
+        "package.remove",
+        "command.intended",
+        "command.repeat",
+        "hook.intended",
+        "hook.unrelated",
+        "command.unrelated"
+      ],
+      "kind": "artifact",
+      "setup": "The exact checksum-pinned release archive is extracted and installed into an isolated scope.",
+      "expect": [
+        "The installed candidate performs a useful operation and survives the full package lifecycle."
+      ],
+      "forbidden": [
+        "Falling back to working-tree package code or leaving the candidate active after removal."
+      ],
+      "timeoutMs": 120000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/package-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "setup": "The actual package is loaded through the public SDK into isolated projects/homes with filesystem-backed state, controllable dependencies and real local HTTP/process fixtures.",
+      "expect": [
+        "Every declared requirement has an executed assertion body and a recorded per-requirement observation.",
+        "Errors, denied actions, cancelled work and restarted state retain their documented effects."
+      ],
+      "forbidden": [
+        "False success, leaked scope/private input, unfinished child processes, silent lost writes or source-only behavior substituting for archive behavior."
+      ],
+      "timeoutMs": 180000,
+      "id": "domain-behavior",
+      "kind": "deterministic",
+      "requirements": [
+        "tool.success",
+        "mutation.result",
+        "agent.routing",
+        "hook.repeat",
+        "agent.selection",
+        "tool.invalid",
+        "mutation.invalid",
+        "tool.denied",
+        "mutation.denied",
+        "agent.policy",
+        "tool.failure",
+        "agent.failure",
+        "agent.honesty",
+        "tool.cancel",
+        "agent.cancel",
+        "agent.budget",
+        "mutation.recovery",
+        "state.fresh",
+        "view.empty",
+        "view.content",
+        "state.restart",
+        "state.invalid",
+        "view.error",
+        "state.migration",
+        "state.isolation",
+        "hook.failure",
+        "command.failure",
+        "view.lifecycle"
+      ],
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "setup": "The actual package is loaded through the public SDK into isolated projects/homes with filesystem-backed state, controllable dependencies and real local HTTP/process fixtures.",
+      "expect": [
+        "Every declared requirement has an executed assertion body and a recorded per-requirement observation.",
+        "Errors, denied actions, cancelled work and restarted state retain their documented effects."
+      ],
+      "forbidden": [
+        "False success, leaked scope/private input, unfinished child processes, silent lost writes or source-only behavior substituting for archive behavior."
+      ],
+      "timeoutMs": 180000,
+      "id": "domain-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "tool.success",
+        "mutation.result",
+        "agent.routing",
+        "hook.repeat",
+        "agent.selection",
+        "tool.invalid",
+        "mutation.invalid",
+        "tool.denied",
+        "mutation.denied",
+        "agent.policy",
+        "tool.failure",
+        "agent.failure",
+        "agent.honesty",
+        "tool.cancel",
+        "agent.cancel",
+        "agent.budget",
+        "mutation.recovery",
+        "state.fresh",
+        "view.empty",
+        "view.content",
+        "state.restart",
+        "state.invalid",
+        "view.error",
+        "state.migration",
+        "state.isolation",
+        "hook.failure",
+        "command.failure",
+        "view.lifecycle"
+      ],
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "setup": "The actual package is loaded through the public SDK into isolated projects/homes with filesystem-backed state, controllable dependencies and real local HTTP/process fixtures.",
+      "expect": [
+        "All actual components retain their behavior after reload, fresh process, synthetic contract-preserving update, rollback, disable and re-enable.",
+        "Real preceding-release compatibility remains a separate pinned release requirement."
+      ],
+      "forbidden": [
+        "False success, leaked scope/private input, unfinished child processes, silent lost writes or source-only behavior substituting for archive behavior."
+      ],
+      "timeoutMs": 300000,
+      "id": "composite-contract",
+      "kind": "deterministic",
+      "requirements": [
+        "composite.lifecycle"
+      ],
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": [
+          "--composite"
+        ]
+      }
+    },
+    {
+      "setup": "The actual package is loaded through the public SDK into isolated projects/homes with filesystem-backed state, controllable dependencies and real local HTTP/process fixtures.",
+      "expect": [
+        "All actual components retain their behavior after reload, fresh process, synthetic contract-preserving update, rollback, disable and re-enable.",
+        "Real preceding-release compatibility remains a separate pinned release requirement."
+      ],
+      "forbidden": [
+        "False success, leaked scope/private input, unfinished child processes, silent lost writes or source-only behavior substituting for archive behavior."
+      ],
+      "timeoutMs": 300000,
+      "id": "composite-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "composite.lifecycle"
+      ],
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": [
+          "--composite"
+        ]
+      }
+    },
+    {
+      "id": "live-reference",
+      "requirements": [
+        "model.intended",
+        "model.unrelated",
+        "model.clarify",
+        "model.failure",
+        "model.denied",
+        "model.untrusted",
+        "model.cancel",
+        "model.negative-control"
+      ],
+      "kind": "live",
+      "setup": "Actual plugin, isolated projects and the predeclared live Ollama reference. Three repetitions per task; controlled dependency failures and authoritative denials remain explicit.",
+      "expect": [
+        "All seven task oracles pass in every repetition. Transcripts record the real reference requests, responses and provider-reported tokens.",
+        "Wrong or fabricated artifacts are rejected by negative-control graders."
+      ],
+      "forbidden": [
+        "Scripted answers substituting for model quality, policy bypasses, false success, scope leaks or unfinished cancelled effects."
+      ],
+      "timeoutMs": 600000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/live-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "real-pty",
+      "requirements": [
+        "view.narrow",
+        "ui.keyboard",
+        "ui.pointer",
+        "ui.focus",
+        "ui.submit",
+        "ui.cancel",
+        "ui.restart"
+      ],
+      "kind": "visual",
+      "setup": "The actual Ink application in the maintained browser-backed PTY, with isolated settings, the exact selected package and real keyboard/pointer input.",
+      "expect": [
+        "Required plugin actions, focus, submission/cancellation, narrow rendering and fresh-process restoration are observed in terminal output and screenshots."
+      ],
+      "forbidden": [
+        "Calling UI/core/window methods to simulate input, exposing private form values in terminal output, or substituting a different package copy."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/visual-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "real-pty-artifact",
+      "requirements": [
+        "view.narrow",
+        "ui.keyboard",
+        "ui.pointer",
+        "ui.focus",
+        "ui.submit",
+        "ui.cancel",
+        "ui.restart"
+      ],
+      "kind": "artifact",
+      "setup": "The actual Ink application in the maintained browser-backed PTY, with isolated settings, the exact selected package and real keyboard/pointer input.",
+      "expect": [
+        "Required plugin actions, focus, submission/cancellation, narrow rendering and fresh-process restoration are observed in terminal output and screenshots."
+      ],
+      "forbidden": [
+        "Calling UI/core/window methods to simulate input, exposing private form values in terminal output, or substituting a different package copy."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/visual-scenario.ts",
+        "args": []
+      }
+    }
+  ],
+  "modelPolicy": {
+    "provider": "ollama",
+    "name": "gemma4:31b-cloud",
+    "repeats": 3,
+    "successFloor": 1,
+    "baseline": "First independent plugin release; establish a reference baseline.",
+    "taskSet": "plugins/workflows/tests/model-cases.json",
+    "configuration": {
+      "temperature": 0,
+      "think": false,
+      "maxOutputTokens": 2048,
+      "maxSteps": 12,
+      "maxTokensPerTask": 60000,
+      "requestTimeoutMs": 30000
+    },
+    "taskSetSha256": "cbc874ef2b8ec8bdade5ac8a3f66f1d6e99a0e48375d0f9e3dd33d68b9d0ab74"
+  }
+}

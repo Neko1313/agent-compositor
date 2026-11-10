@@ -74,6 +74,7 @@ try {
     home = join(temp, "home");
   await mkdir(join(cwd, ".agent-compositor"), { recursive: true });
   await mkdir(home);
+  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['network-proxy','web']}));
   await writeFile(
     join(cwd, ".agent-compositor/proxy.json"),
     JSON.stringify({ enabled: true, url: endpoint, noProxy: [] })

@@ -11,7 +11,7 @@ export async function copyPluginResources(source, destination, manifest) {
   };
   const references = (Array.isArray(manifest.mcpServers) ? manifest.mcpServers : [manifest.mcpServers]).filter(item => typeof item === 'string');
   const declared = [...(manifest.resources ?? []), ...references];
-  for (const resource of new Set(['assets','skills','.mcp.json','worker.mjs','install.mjs','distribution.mjs','README.md',...declared])) {
+  for (const resource of new Set(['assets','skills','.mcp.json','worker.mjs','install.mjs','distribution.mjs','README.md','CHANGELOG.md','plugin.test.json',...declared])) {
     const name = posix.normalize(resource.replaceAll('\\', '/')).replace(/\/$/, '');
     if (name === '.' || isAbsolute(name) || resource.split(/[\\/]/).includes('..')) throw Error('Bundle resources must use package-relative paths');
     // The bundle owns its generated entries and host dependency distribution.

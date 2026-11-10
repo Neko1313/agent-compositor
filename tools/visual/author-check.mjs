@@ -41,6 +41,7 @@ try {
   await ready();
   await shot('01-authored-and-checked.png');
   report.checks.push('Human /plugin request loads composition guidance, scaffolds all six components, edits existing hooks without removing other components, and checks with real tools');
+  await send('/extensions enable hello-local --project');await wait('Enabled hello-local · project');
   await send('/reload');await wait('Reloaded');
   await send('/hello-local');
   const version=JSON.parse(await readFile('schema/events.json','utf8')).version;

@@ -1,1 +1,35 @@
-{"name":"checkpoint-history","version":"1.0.0","trust":"trusted","description":"Turn snapshots for code and conversation, with conflict-aware restore and review.","provides":["service.checkpoint.control"],"hookTimeouts":{"turn.start":30000,"turn.complete":30000,"turn.failed":30000,"turn.interrupted":30000},"commands":[{"name":"/checkpoints","description":"Browse turn checkpoints"},{"name":"/restore","description":"Restore a checkpoint","usage":"/restore <id> code|conversation|both"},{"name":"/review","description":"Review changes since a checkpoint","usage":"/review [id]"}]}
+{
+  "name": "checkpoint-history",
+  "version": "1.1.1",
+  "trust": "trusted",
+  "description": "Turn snapshots for code and conversation, with conflict-aware restore and review.",
+  "provides": [
+    "service.checkpoint.control"
+  ],
+  "hookTimeouts": {
+    "turn.start": 30000,
+    "turn.complete": 30000,
+    "turn.failed": 30000,
+    "turn.interrupted": 30000
+  },
+  "commands": [
+    {
+      "name": "/checkpoints",
+      "description": "Browse turn checkpoints"
+    },
+    {
+      "name": "/restore",
+      "description": "Restore a checkpoint",
+      "usage": "/restore <id> code|conversation|both"
+    },
+    {
+      "name": "/review",
+      "description": "Review changes since a checkpoint",
+      "usage": "/review [id]"
+    }
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
+}

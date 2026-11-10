@@ -1,6 +1,6 @@
 {
   "name": "todos",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Persistent task list window. Restores tasks on startup, updates after todo tool calls, and opens with /todos. Placement is controlled by the compositor.",
   "trust": "trusted",
   "capabilities": [
@@ -15,5 +15,9 @@
       "name": "/todos",
       "description": "Open the persistent task list window"
     }
-  ]
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

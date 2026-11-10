@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AgentCore, ScriptedProvider } from '@agent-compositor/core';
-import { buildApp } from '../src/build.js';
+import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 import { WorkflowEngine } from '../../../plugins/workflows/engine.js';
 import cost from '../../../plugins/cost/hooks.js';
 import autoReview, { reviewPolicy } from '../../../plugins/auto-approve/hooks.js';

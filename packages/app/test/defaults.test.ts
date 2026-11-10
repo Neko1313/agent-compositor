@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Readable, Writable } from "node:stream";
 import { ScriptedProvider } from "@agent-compositor/core";
 import { runRepl } from "@agent-compositor/cli";
-import { buildApp } from "../src/build.js";
+import {buildAppWithPlugins as buildApp} from "./plugin-fixture.js";
 import slashCommands from "../../../plugins/slash-commands/hooks.js";
 import memory from "../../../plugins/memory/hooks.js";
 import guardSecrets from "../../../plugins/guard-secrets/hooks.js";
@@ -254,7 +254,7 @@ describe("default market: unit", () => {
 });
 
 describe("default market: end-to-end through the assembled app", () => {
-  it("all default plugins load with valid manifests", async () => {
+  it("explicitly opted-in first-party plugins load with valid manifests", async () => {
     const provider = new ScriptedProvider([{ text: "unused" }]);
     const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider, pluginDirs: [REPO_PLUGINS] });
     expect(app.pluginErrors).toEqual([]);

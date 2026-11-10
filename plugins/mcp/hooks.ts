@@ -7,6 +7,7 @@ type Server = {
   error?: string;
 };
 async function configured($: HooksApi): Promise<Server[]> {
+  $.state.set("error", "");
   try {
     const raw =
       process.env.AGENT_MCP_CONFIG ??
@@ -100,7 +101,6 @@ async function show($: HooksApi): Promise<void> {
 }
 async function open($: HooksApi): Promise<void> {
   $.state.set("open", true);
-  $.state.set("error", "");
   if (!$.state.get("servers")) $.state.set("servers", await configured($));
   await show($);
 }

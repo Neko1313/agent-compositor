@@ -4,7 +4,7 @@ import {uxTool,uxReply} from './ux-sample.ts';
 import {seedHistory,historyReply} from './history-sample.ts';
 import {questionsSample,questionsReply} from './questions-sample.ts';
 import {markdownSample} from './markdown-sample.ts';
-import { mkdtemp, mkdir, writeFile, cp, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, cp, rm, readdir, readFile } from 'node:fs/promises';
 import { appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -47,6 +47,27 @@ if(process.env.VISUAL_WORKSPACES){
   await writeFile(join(workspaceHome,'other project/notes.txt'),'OTHER_PROJECT_EVIDENCE');
   await writeFile(join(cwd,'.agent-compositor/callix.json'),'{"background":false}');
   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness','web','callix','session-manager'],agent:{skills:false,controlTools:[],projectContext:false},permissions:{rules:[{tool:'web_search',decision:'allow'},{tool:'web_fetch',decision:'allow'}]}}));
+}
+if(!process.env.VISUAL_MARKETPLACE){
+  // Existing positive scenarios explicitly select their fixture packages.
+  const all=(await readdir(join(root,'plugins'),{withFileTypes:true})).filter(entry=>entry.isDirectory()).map(entry=>entry.name);
+  const configFile=join(cwd,'agent-compositor.json'),config=await readFile(configFile,'utf8').then(JSON.parse).catch(()=>({}));
+  if(!config.enabledPlugins)config.enabledPlugins=[...all,'harness-proof','agent-harness','agent-hub','extension-manager','marketplace-manager','model-selector','provider-auth','session-manager',...(process.env.VISUAL_AUTHOR?['hello-local']:[])];
+  await writeFile(configFile,JSON.stringify(config));
+}else{
+  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},permissions:{rules:[{tool:'extension_control',decision:'allow'}]}}));
+}
+if(process.env.VISUAL_CERT_PLUGIN){
+ const name=process.env.VISUAL_CERT_PLUGIN;
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager'],compaction:{enabled:false}}));
+ if(name==='cost')await writeFile(join(cwd,'.agent-compositor/usage-visual-certification.json'),JSON.stringify({in:42,out:7,turns:1}));
+ if(name==='workflows')for(const [id,label]of [['a'.repeat(40),'WORKFLOW_ALPHA'],['b'.repeat(40),'WORKFLOW_BETA']]){const dir=join(cwd,'.agent-compositor/workflows',id);await mkdir(dir,{recursive:true});await writeFile(join(dir,'journal.json'),JSON.stringify([{prompt:label,result:'Verified journal evidence'}]));}
+ if(name==='checkpoint-history'){
+  const dir=join(cwd,'.agent-compositor/turn-checkpoints/visual-certification');await mkdir(dir,{recursive:true});await writeFile(join(cwd,'review.txt'),'AFTER');
+  const hash=value=>new Bun.CryptoHasher('sha256').update(value).digest('hex');
+  const data={id:'visual-proof',at:Date.now(),messages:[{role:'user',content:'Historical fixture'}],before:{'review.txt':{data:Buffer.from('BEFORE').toString('base64'),hash:hash('BEFORE'),mode:420}},after:{'review.txt':hash('AFTER')},afterContent:{'review.txt':Buffer.from('AFTER').toString('base64')}};
+  await writeFile(join(dir,'visual-proof.json'),JSON.stringify(data));await writeFile(join(dir,'visual-proof.meta.json'),JSON.stringify(data));
+ }
 }
 const token = crypto.randomUUID();
 let active;

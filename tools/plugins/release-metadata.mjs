@@ -1,0 +1,10 @@
+import {SEMVER} from '../../packages/loader/src/version.ts';
+import {readFile,appendFile} from 'node:fs/promises';
+const tag=process.env.PLUGIN_RELEASE_TAG??process.argv[2]??'';
+const match=/^plugin\/([a-z][a-z0-9-]*)\/v([^/]+)$/.exec(tag);
+if(!match||!SEMVER.test(match[2]))throw Error('Use plugin/<name>/v<SemVer>');
+const manifest=JSON.parse(await readFile(`plugins/${match[1]}/plugin.json`,'utf8'));
+if(manifest.name!==match[1]||manifest.version!==match[2])throw Error('Tag identity/version does not match plugin manifest');
+const result={name:match[1],version:match[2],tag};
+if(process.env.GITHUB_OUTPUT)await appendFile(process.env.GITHUB_OUTPUT,`name=${result.name}\nversion=${result.version}\ntag=${result.tag}\n`);
+console.log(JSON.stringify(result));

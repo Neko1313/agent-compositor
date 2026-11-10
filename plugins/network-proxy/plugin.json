@@ -1,6 +1,6 @@
 {
   "name": "network-proxy",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "trust": "trusted",
   "description": "Optional HTTP CONNECT proxy for model streams and network tools, with child-process proxy environment.",
   "commands": [
@@ -13,5 +13,9 @@
   "hookTimeouts": {
     "prompt.submit": 300000,
     "ui.press": 300000
+  },
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
   }
 }

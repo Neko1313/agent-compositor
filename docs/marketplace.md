@@ -8,7 +8,8 @@ and [manifest reference](https://code.claude.com/docs/en/plugins-reference).
 ```text
 /marketplace add owner/repository main
 /marketplace list
-/extensions install plugin-name@marketplace-name
+/extensions install plugin-name@marketplace-name --project
+/extensions enable plugin-name --project
 /reload
 ```
 
@@ -18,6 +19,12 @@ to register it in project settings; registrations default to user scope.
 removes the registration while preserving installed plugins. Git checkouts are
 pinned to a commit SHA. Credential-free HTTPS and local directories are supported;
 ZIP, SSH, and private Git credential flows are outside this implementation.
+
+The repository catalog is available offline as the default `agent-compositor`
+marketplace. All filesystem plugins start off. Installation and catalog refresh
+do not activate packages. The interactive marketplace lists packages and offers
+a scope form; `/extensions` shows available/active status and scoped management.
+See [plugin standard 1](plugin-standard.md) for testing and independent releases.
 
 Installation defaults to user scope (`~/.agent-compositor/plugins`).
 `/extensions install name@market --project` installs only in
@@ -64,7 +71,7 @@ provide an OS sandbox for an installed plugin.
 
 ## Sharing a plugin
 
-This repository includes a ready-to-use catalog with 26 entries and a
+This repository includes a ready-to-use catalog with 27 entries and a
 [portable example](../examples/plugins/portable-example/.claude-plugin/plugin.json).
 Native entries explicitly identify their runtime through `compositor.format`.
 Sharing a catalog format does not make native TS/UI code executable in another
@@ -90,3 +97,20 @@ For an external GitHub plugin:
 `{"name":"my-plugin","source":{"source":"github","repo":"owner/repo","ref":"main","sha":"<40-character-commit>"}}`.
 Git URLs use `source: "url", url: "https://..."`; `path` selects a subdirectory.
 Paths must remain inside the root, including after resolving symlinks.
+
+## Versions and rollback
+
+Each plugin has its own SemVer, API compatibility declaration, changelog and test
+plan. `/extensions check-updates` compares the pinned catalog with installed
+versions. `/extensions update NAME --project` retains activation and records a
+content lock; `/extensions rollback NAME --project` restores a verified backup.
+Use `/reload` after changing versions. Refreshing the marketplace does not update
+installed packages; update them explicitly. Independent release tags use
+`plugin/NAME/vVERSION`, and never change the host release version or latest tag.
+
+Native entries can also pin platform archives with
+`source:{source:"archive",assets:{"linux-x64":{url:"https://.../plugin.tar.gz",sha256:"<64 hex characters>"}}}`.
+The selected platform must be present. The downloader checks the digest before
+extracting the bounded ustar archive; no package code runs during installation.
+The independent release workflow produces a complete four-platform catalog entry
+for review and publication using `npm run plugin:catalog -- ENTRY.json`.

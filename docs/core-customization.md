@@ -36,8 +36,9 @@ The assembled application accepts these settings in `agent-compositor.json`:
 
 - `enabledPlugins`, when present, is an exact name allowlist. Disk modules are
   excluded before import; host contributions also respect the list. The existing
-  `disabledPlugins` list takes precedence. Omitting the allowlist preserves normal
-  discovery. Plugin installation and model profiles remain separate concerns.
+  `disabledPlugins` list takes precedence. Omitting the allowlist discovers available packages while keeping them off until
+  an explicit user/project activation. Project choices override user defaults.
+  Plugin installation, activation and model profiles remain separate concerns.
 - `agent.builtinTools` selects standard file/shell/Todo tools. Omitting it keeps
   the existing defaults. `agent.controlTools` selects `task`, `ask_user`,
   `ask_questions` and `tool_help`; an empty array removes all automatic helpers.

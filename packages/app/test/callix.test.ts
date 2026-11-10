@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { indexProject, parseGraph, queryGraph, runBinary, type Graph } from '../../../plugins/callix/adapter.js';
-import { buildApp } from '../src/build.js';
+import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 import { ScriptedProvider } from '@agent-compositor/core';
 
 const graph: Graph = { schema_version: 1, metadata: { resolver_status: { typescript: 'degraded' } }, nodes: [

@@ -92,6 +92,7 @@ describe("Claude-compatible marketplace", () => {
         })
       ).ok
     ).toBe(true);
+    await core.invokeTool("extension_control",{action:"enable",name:"portable",scope:"user"});
     await app.reloadPlugins(core);
     expect(app.commands().some((c) => c.name === "/portable:hello")).toBe(true);
     await core.submit("/portable:hello Ada");
@@ -214,6 +215,7 @@ describe("Claude-compatible marketplace", () => {
         },
       })
     );
+    await file(cwd,"agent-compositor.json",JSON.stringify({enabledPlugins:["portable"]}));
     const app = await buildApp({
       cwd,
       env: { HOME: home },
@@ -285,6 +287,7 @@ describe("Claude-compatible marketplace", () => {
         })
       ).ok
     ).toBe(true);
+    await core.invokeTool("extension_control",{action:"enable",name:"native-example",scope:"user"});
     await app.reloadPlugins(core);
     expect(app.pluginErrors).toEqual([]);
     expect(app.plugins.some((p) => p.manifest.name === "native-example")).toBe(

@@ -1175,6 +1175,7 @@ export class AgentCore {
         keepTail:Math.max(1,tail),
       }
     );
+    if (result.failure) throw Error(result.failure);
     if (result.foldedCount === 0) return;
     this.messages = [...(result.messages as ChatMessage[])];
     this.messagesSinceCompaction = this.messages.length;

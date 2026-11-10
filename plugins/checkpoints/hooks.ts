@@ -40,13 +40,13 @@ export default {
     if (event.text !== "/rewind") return;
     const snaps = await readJournal($);
     if (snaps.length === 0) {
-      void $.ui.notify("checkpoints: journal is empty — nothing to rewind", "warn");
+      await $.ui.notify("checkpoints: journal is empty — nothing to rewind", "warn");
       return { drop: "checkpoints: nothing to rewind" };
     }
     const last = snaps[snaps.length - 1];
     await $.fs.write(last.path, last.content);
     await writeJournal($, snaps.slice(0, -1));
-    void $.ui.notify(`checkpoints: restored ${last.path} (journal: ${snaps.length - 1} left)`, "info");
+    await $.ui.notify(`checkpoints: restored ${last.path} (journal: ${snaps.length - 1} left)`, "info");
     return { drop: "checkpoints: rewound" };
   },
 };

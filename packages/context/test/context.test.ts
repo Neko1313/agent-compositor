@@ -87,6 +87,7 @@ describe("compactTranscript", () => {
     const result = await compactTranscript(transcript(), boom, { keepTail: 2 });
     expect(result.messages).toEqual(transcript());
     expect(result.foldedCount).toBe(0);
+    expect(result.failure).toContain("model down");
     expect(result.messages.at(-1)).toMatchObject({ content: "current answer" });
   });
 });

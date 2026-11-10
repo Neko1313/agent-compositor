@@ -15,7 +15,8 @@ const proofProvider={name:"harness-proof",async *complete(req:any){
   yield{type:'finish' as const,reason:'stop' as const};
 }};
 const app = await buildApp({
-  pluginDirs: [new URL('../../plugins',import.meta.url).pathname,...(process.env.VISUAL_HARNESS?[new URL('./harness-plugin',import.meta.url).pathname]:[])],
+  pluginDirs: [new URL('../../plugins',import.meta.url).pathname,...(process.env.VISUAL_PLUGIN_DIR?[process.env.VISUAL_PLUGIN_DIR]:[]),...(process.env.VISUAL_HARNESS?[new URL('./harness-plugin',import.meta.url).pathname]:[])],
+  ...(process.env.VISUAL_CERT_PLUGIN?{sessionId:'visual-certification'}:{}),
   cwd: process.argv[2], env: { HOME: process.env.VISUAL_WORKSPACES?process.env.HOME:process.argv[2], XDG_CONFIG_HOME: `${process.argv[2]}/xdg` },
   provider: process.env.VISUAL_AUTHOR?{name:'author-proof',async *complete(req:any){const reply=authorReply(req.messages);if(reply.call)yield{type:'tool_call' as const,...reply.call};else yield{type:'text_delta' as const,text:reply.text!};yield{type:'finish' as const,reason:reply.call?'tool_calls' as const:'stop' as const};}}:process.env.VISUAL_WORKSPACES?{name:'workspace-proof',async *complete(req:any){const reply=workspaceReply(req.messages);if(reply.call)yield{type:'tool_call' as const,...reply.call};else yield{type:'text_delta' as const,text:reply.text!};yield{type:'finish' as const,reason:reply.call?'tool_calls' as const:'stop' as const};}}:process.env.VISUAL_CONTROLLERS?new ScriptedProvider([{text:'CUSTOM RESPONSE: storage and input verified'},{text:'CUSTOM CONTINUATION: restored history verified'}]):process.env.VISUAL_UX?{name:'ux-proof',async *complete(req:any){const reply=uxReply(req.messages);if(reply)yield{type:'text_delta' as const,text:reply};else yield{type:'tool_call' as const,...uxTool};yield{type:'finish' as const,reason:reply?'stop' as const:'tool_calls' as const};}}:process.env.VISUAL_HISTORY?{name:'history-proof',async *complete(req:any){yield{type:'text_delta' as const,text:historyReply(req.messages)};yield{type:'finish' as const,reason:'stop' as const};}}:process.env.VISUAL_QUESTIONS ? {name:'questions-proof',async *complete(req:any){const reply=questionsReply(req.messages);if(reply)yield{type:'text_delta' as const,text:reply};else yield{type:'tool_call' as const,id:'questionnaire-proof',name:'ask_questions',args:questionsSample};yield{type:'finish' as const,reason:reply?'stop' as const:'tool_calls' as const};}}:process.env.VISUAL_MARKDOWN ? new ScriptedProvider([{text:markdownSample}]):process.env.VISUAL_HARNESS?proofProvider:new ScriptedProvider([
     { text: "I will update the project task list.", toolCalls: [{ name: "todo", args: { todos: [
@@ -33,4 +34,11 @@ const app = await buildApp({
     { text: "Independent agent response" },
   ]),
 });
+if(process.env.VISUAL_CERT_PLUGIN){
+ const{writeFile}=await import('node:fs/promises'),{join,resolve}=await import('node:path');
+ const selected=app.plugins.find(p=>p.manifest.name===process.env.VISUAL_CERT_PLUGIN);
+ if(!selected)throw Error('Certification package was not loaded');
+ if(process.env.VISUAL_PLUGIN_DIR&&resolve(selected.dir)!==resolve(process.env.VISUAL_PLUGIN_DIR))throw Error('UI scenario loaded a different package copy');
+ await writeFile(join(process.env.VISUAL_OUTPUT!,'fixture-identity.json'),JSON.stringify({plugin:selected.manifest.name,version:selected.manifest.version,directory:selected.dir}));
+}
 await runTui(app, process.stdin, process.stdout, process.env.VISUAL_START_HISTORY?"/history":undefined);

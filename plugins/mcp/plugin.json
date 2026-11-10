@@ -1,6 +1,6 @@
 {
   "name": "mcp",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "MCP client: expose stdio MCP servers' tools to the model through the mcp_call gateway. Servers come from AGENT_MCP_CONFIG (JSON, Claude-style mcpServers) or <cwd>/.agent-compositor/mcp.json.",
   "trust": "trusted",
   "capabilities": [
@@ -11,5 +11,9 @@
       "name": "/mcp",
       "description": "Open MCP connections and tools"
     }
-  ]
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

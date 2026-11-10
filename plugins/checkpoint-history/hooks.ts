@@ -70,6 +70,7 @@ async function review(id: string | undefined, $: any) {
   );
 }
 async function show($: any) {
+  if($.storage?.paths)checkpointStorage($.session.id,$.storage.paths.state,$.session.cwd);
   const rows = await list($.session.cwd, $.session.id);
   $.state.set(
     "checkpoints",
@@ -110,7 +111,7 @@ export default {
         beforeTurn: true,
       });
       $.storage?.paths &&
-        checkpointStorage($.session.id, $.storage.paths.state);
+        checkpointStorage($.session.id, $.storage.paths.state, $.session.cwd);
       await capture($.session.cwd, $.session.id, e.turnId, r.value.messages);
       $.state.set("turn", e.turnId);
     } catch (error) {
@@ -136,7 +137,7 @@ export default {
   "service.checkpoint.control": async (e: any, $: any) => {
     try {
       if ($.storage?.paths)
-        checkpointStorage($.session.id, $.storage.paths.state);
+        checkpointStorage($.session.id, $.storage.paths.state, $.session.cwd);
       const rows = await list($.session.cwd, $.session.id);
       if (e.action === "list")
         return {
@@ -176,6 +177,7 @@ export default {
         throw new Error(
           "Restore from interactive controls after the current turn"
         );
+      $.signal.throwIfAborted();
       if (mode !== "conversation")
         await restoreCode($.session.cwd, value, e.paths);
       if (mode !== "code") {

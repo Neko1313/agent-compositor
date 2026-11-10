@@ -3,11 +3,11 @@
 const FILLER = /^(sure|certainly|great question|of course|absolutely|no problem)[,!\.]*\s*/i;
 
 export default {
-  "prompt.submit": (event: { text: string }, $: any) => {
+  "prompt.submit": async (event: { text: string }, $: any) => {
     if (event.text === "/style terse" || event.text === "/style off") {
       const style = event.text === "/style terse" ? "terse" : "off";
       $.state.set("style", style);
-      void $.ui.notify(`output style: ${style}`, "info");
+      await $.ui.notify(`output style: ${style}`, "info");
       return { drop: "output-style: switched" };
     }
   },

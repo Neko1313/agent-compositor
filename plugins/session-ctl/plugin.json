@@ -1,6 +1,6 @@
 {
   "name": "session-ctl",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "/compact \u2014 force context compaction now; /clear \u2014 drop the conversation, keep the system prompt (Claude Code /compact and /clear analogs). Both ride $.agent. Drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [
@@ -15,5 +15,12 @@
       "name": "/clear",
       "description": "Clear the conversation"
     }
-  ]
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  },
+  "hookTimeouts": {
+    "prompt.submit": 45000
+  }
 }

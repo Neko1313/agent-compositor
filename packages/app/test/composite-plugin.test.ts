@@ -30,6 +30,9 @@ it('manages every component as one marketplace package and disposes MCP processe
   const core=app.createCore(async()=>true),events:any[]=[];core.subscribe(e=>{if(e.kind==='catalog')events.push(e);});
   expect((await core.invokeTool('marketplace_control',{action:'add',source:repo})).ok).toBe(true);
   expect(await core.invokeTool('extension_control',{action:'install',name:'workspace-suite@suite-market',scope:'project'})).toMatchObject({ok:true,output:{version:'1.0.0'}});
+  expect(app.plugins).toEqual([]);
+  await core.invokeTool('extension_control',{action:'enable',name:'mcp',scope:'project'});
+  await core.invokeTool('extension_control',{action:'enable',name:'workspace-suite',scope:'project'});
   await app.reloadPlugins(core);
   const installed=join(cwd,'.agent-compositor/plugins/workspace-suite');
   const call=()=>core.invokeTool('mcp_call',{action:'call',server:'workspace-suite-local',tool:'probe'});

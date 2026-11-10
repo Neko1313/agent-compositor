@@ -25,7 +25,8 @@ export interface LoadResult {
 export async function loadPluginsFromDisk(
   dirs: string[],
   disabled: string[] = [],
-  enabled?: string[]
+  enabled?: string[],
+  accept?: (plugin:import('@agent-compositor/loader').DiscoveredPlugin)=>boolean,
 ): Promise<LoadResult> {
   const plugins: DiskPlugin[] = [];
   const validation = new Runtime();
@@ -47,6 +48,7 @@ export async function loadPluginsFromDisk(
     dirs: [...dirs].reverse(),
     disabled,
     enabled,
+    accept,
   });
   const report = await loader.loadAll();
   for (const plugin of plugins) {

@@ -12,6 +12,8 @@ import { join, isAbsolute, resolve, dirname } from "node:path";
 import { z } from "zod";
 import { atomicJson } from "@agent-compositor/config";
 import { contained } from "@agent-compositor/loader";
+import {bundledMarketplaceRoot,DEFAULT_MARKETPLACE,DEFAULT_MARKETPLACE_REPOSITORY} from './bundled-marketplace.js';
+import {marketplaceView,extensionView} from './extension-views.js';
 const exec = promisify(execFile);
 const name = z.string().regex(/^[a-z0-9][a-z0-9._-]*$/);
 export const marketplaceSchema = z
@@ -26,11 +28,12 @@ export const marketplaceSchema = z
           name,
           description: z.string().optional(),
           version: z.string().optional(),
+          compositor:z.object({format:z.string().optional()}).passthrough().optional(),
           source: z.union([
             z.string(),
             z
               .object({
-                source: z.enum(["github", "url"]),
+                source: z.enum(["github", "url", "archive"]),
                 repo: z.string().optional(),
                 url: z.string().optional(),
                 ref: z.string().optional(),
@@ -39,8 +42,13 @@ export const marketplaceSchema = z
                   .regex(/^[a-f0-9]{40}$/)
                   .optional(),
                 path: z.string().optional(),
+                assets:z.record(z.string(),z.object({url:z.string().url(),sha256:z.string().regex(/^[a-f0-9]{64}$/)}).strict()).optional(),
               })
-              .passthrough(),
+              .passthrough().superRefine((source,ctx)=>{
+                if(source.source==='archive'&&(!source.assets||!Object.keys(source.assets).length))ctx.addIssue({code:'custom',message:'Archive source needs pinned platform assets'});
+                if(source.source==='github'&&!source.repo)ctx.addIssue({code:'custom',message:'GitHub source needs a repository'});
+                if(source.source==='url'&&!source.url)ctx.addIssue({code:'custom',message:'Git source needs a URL'});
+              }),
           ]),
         })
         .passthrough()
@@ -113,13 +121,19 @@ type Registration = {
   root?: string;
   name?: string;
   scope: "user" | "project";
+  builtin?:boolean;
+  removed?:boolean;
 };
 export async function marketplaces(
   cwd: string,
   home: string,
   stateDir: string,
-  globalRoot = join(home, ".agent-compositor")
+  globalRoot = join(home, ".agent-compositor"),
+  snapshotRoot?:string,
 ) {
+  const builtinRoot=snapshotRoot??await bundledMarketplaceRoot();
+  const shipped=!!builtinRoot&&await readFile(join(builtinRoot,'VERSION'),'utf8').then(()=>true,error=>{if(error.code!=='ENOENT')throw error;return false;});
+  const builtin:Record<string,Registration>=builtinRoot?{[DEFAULT_MARKETPLACE]:{source:DEFAULT_MARKETPLACE_REPOSITORY,ref:'main',root:builtinRoot,name:DEFAULT_MARKETPLACE,scope:'user',builtin:true}}:{};
   const globalFile = join(globalRoot, "marketplaces.json"),
     projectFile = join(cwd, ".agent-compositor/marketplaces.json");
   const read = async (file: string): Promise<Record<string, Registration>> =>
@@ -129,10 +143,11 @@ export async function marketplaces(
         if (e.code !== "ENOENT") throw e;
         return {};
       });
-  const registrations = async () => ({
+  const registrations = async () => Object.fromEntries(Object.entries({
+    ...builtin,
     ...(await read(globalFile)),
     ...(await read(projectFile)),
-  });
+  }).filter(([,reg])=>!reg.removed)) as Record<string,Registration>;
   const catalog = async (reg: Registration) => {
     if (!reg.root) {
       if (isAbsolute(reg.source) || reg.source.startsWith(".")) {
@@ -259,7 +274,8 @@ export async function marketplaces(
     if (args.action === "remove") {
       const file = reg.scope === "project" ? projectFile : globalFile,
         existing = await read(file);
-      delete existing[args.name];
+      if(builtin[args.name])existing[args.name]={...reg,removed:true};
+      else delete existing[args.name];
       await atomicJson(file, existing);
       return { removed: args.name };
     }
@@ -277,17 +293,32 @@ export async function marketplaces(
     if (!reg) throw Error("Unknown marketplace");
     const entry = (await catalog(reg)).plugins.find((p) => p.name === plugin);
     if (!entry) throw Error("Plugin is not in marketplace");
-    if (typeof entry.source === "string")
+    if (typeof entry.source === "string"){
+      let directory=await contained(reg.root!,entry.source);
+      if(shipped&&market===DEFAULT_MARKETPLACE&&reg.source===DEFAULT_MARKETPLACE_REPOSITORY&&entry.compositor?.format==='native'){
+        const cached=await contained(builtinRoot!,join('plugins',plugin));
+        const metadata=JSON.parse(await readFile(join(cached,'plugin.json'),'utf8'));
+        if(metadata.version!==entry.version)throw Error('This plugin version requires a published archive entry; the catalog has unreleased source code');
+        directory=cached;
+      }
       return {
         name: plugin,
-        directory: await contained(reg.root!, entry.source),
+        directory,
         repository: reg.source,
         ref: reg.commit ?? reg.ref,
         marketplace: market,
+        version:entry.version,
+        format:entry.compositor,
       };
+    }
     const s = entry.source,
       repository =
         s.source === "github" ? `https://github.com/${s.repo}.git` : s.url;
+    if(s.source==='archive'){
+      const archive=s.assets?.[`${process.platform}-${process.arch}`];
+      if(!archive||!entry.version)throw Error('Missing version or archive for this platform');
+      return{name:plugin,version:entry.version,archive,ref:archive.sha256,repository:archive.url,marketplace:market,format:entry.compositor};
+    }
     if (!repository) throw Error("Missing source repository");
     return {
       name: plugin,
@@ -295,6 +326,8 @@ export async function marketplaces(
       ref: s.sha ?? s.ref ?? "HEAD",
       path: s.path,
       marketplace: market,
+      version:entry.version,
+      format:entry.compositor,
     };
   }
   const tool: any = {
@@ -314,7 +347,7 @@ export async function marketplaces(
     },
     describe: (a: any) => ({
       tool: a.action === "list" ? "extension_list" : "extension_control",
-      command: [a.action, a.source ?? a.name ?? ""],
+      command: [a.action, a.source ?? a.name ?? "",...(a.action==='add'?['--'+(a.scope??'user')]:[])],
     }),
     execute: async (ctx: any, args: any) => {
       try {
@@ -329,6 +362,7 @@ export async function marketplaces(
       name: "marketplace-manager",
       version: "1.0.0",
       trust: "trusted",
+      hookTimeouts:{'ui.press':300000,'prompt.submit':300000},
     },
     hooks: {
       "prompt.submit": async (e: any, $: any) => {
@@ -342,15 +376,33 @@ export async function marketplaces(
           action,
           ...(action === "add" ? { source, ref, scope } : { name: source }),
         });
-        await $.ui.surface(
+        await $.ui.view(
           "marketplaces",
           "Marketplaces",
-          JSON.stringify(result, null, 2),
+          marketplaceView(result),
           { site: "inspector" }
         );
         return { drop: "marketplace: handled" };
       },
+      'ui.press':async(e:any,$:any)=>{
+        if(e.site!=='plugin-marketplace-manager-marketplaces')return;
+        if(e.key.startsWith('catalog:')){
+          const market=e.key.slice(8),reg=(await registrations())[market];if(!reg)return;
+          const data=await catalog(reg);
+          await $.ui.view('marketplaces','Marketplaces',{lines:[{text:market,bold:true},{text:'Choose a plugin to install. Installation leaves it off.',tone:'muted'},...data.plugins.map(p=>({text:`${p.name}  v${p.version??'unversioned'}`,action:'install:'+p.name+'@'+market}))]},{site:'inspector'});
+        }else if(e.key.startsWith('install:')){
+          const name=e.key.slice(8);
+          const form=await $.ui.form({title:`Install ${name}`,fields:[{id:'scope',label:'Scope',type:'select',value:'project',options:[{value:'project',label:'This project'},{value:'user',label:'All my projects'}]}],actions:[{id:'install',label:'Install inactive'},{id:'cancel',label:'Cancel'}]});
+          if(!form||form.action!=='install')return;
+          const result=await $.agent.tool('extension_control',{action:'install',name,scope:form.values.scope});
+          await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'inspector'});
+        }
+      },
     },
   };
-  return { tool, plugin, source, control };
+  const published=async()=>{
+    const reg=(await registrations())[DEFAULT_MARKETPLACE];
+    return reg?Object.fromEntries((await catalog(reg)).plugins.map(plugin=>[plugin.name,plugin.version])):{};
+  };
+  return { tool, plugin, source, control, builtinRoot,shipped,published };
 }

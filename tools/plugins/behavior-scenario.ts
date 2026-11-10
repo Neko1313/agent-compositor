@@ -1,0 +1,10 @@
+import {writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {scenarioContext,scenarioEvidence,finishScenario} from './scenario.js';
+import {withCandidate} from './candidate.js';
+import {behavior} from './behavior/index.js';
+import {exercisePackage} from './package-contract.js';
+const ctx=await scenarioContext(),full=process.argv.includes('--composite');
+const result=await withCandidate<unknown>(ctx,directory=>full?exercisePackage(directory,ctx.identity.plugin,ctx.stage==='artifact',true):behavior(ctx.identity.plugin,directory));
+const path=ctx.caseId+'.observations.json';await writeFile(join(ctx.output,path),JSON.stringify(result,null,2));
+await finishScenario({id:ctx.caseId,kind:ctx.stage==='artifact'?'artifact':'deterministic',status:'passed',evidence:[await scenarioEvidence(path)]});

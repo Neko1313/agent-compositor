@@ -1,0 +1,168 @@
+name: plugin-release
+
+on:
+  push:
+    tags: ['plugin/*/v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Plugin tag to validate and build (does not publish)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-release-${{ github.ref }}-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    outputs:
+      name: ${{ steps.metadata.outputs.name }}
+      version: ${{ steps.metadata.outputs.version }}
+      tag: ${{ steps.metadata.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+      - run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm ci
+      - id: metadata
+        run: bun tools/plugins/release-metadata.mjs
+        env:
+          PLUGIN_RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+      - run: npm run typecheck
+      - run: npm run marketplace:validate
+      - name: Verify plugin behavior and lifecycle
+        run: npm run plugin:test -- "$PLUGIN_NAME"
+        env:
+          PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
+      - name: Certify the full release matrix including mandatory UI and live evidence
+        env:
+          PLUGIN_LIVE_OLLAMA_URL: ${{ vars.PLUGIN_LIVE_OLLAMA_URL }}
+          PLUGIN_LIVE_OLLAMA_TOKEN: ${{ secrets.PLUGIN_LIVE_OLLAMA_TOKEN }}
+          PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
+        run: |
+          if node -e 'const p=require("./plugins/"+process.env.PLUGIN_NAME+"/plugin.test.json");process.exit(p.profiles.components.some(c=>["view","interactive-ui"].includes(c))?0:1)'; then
+            npx playwright install --with-deps chromium
+          fi
+          if node -e 'process.exit(require("./plugins/"+process.env.PLUGIN_NAME+"/plugin.test.json").modelPolicy?0:1)' && [ -z "$PLUGIN_LIVE_OLLAMA_URL" ]; then
+            echo 'Configure PLUGIN_LIVE_OLLAMA_URL for the required live reference model before releasing this plugin.'
+            exit 1
+          fi
+          npm run plugin:certify -- "$PLUGIN_NAME" --stage release
+      - name: Stage content-bound release evidence
+        env:
+          PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
+        run: |
+          mkdir -p "dist/plugin-release/certification/$PLUGIN_NAME/release"
+          cp -R "reports/certification/$PLUGIN_NAME/release/linux-x64" "dist/plugin-release/certification/$PLUGIN_NAME/release/"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plugin-source-evidence
+          path: dist/plugin-release/
+          if-no-files-found: error
+      - name: Preserve plugin quality reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plugin-quality
+          path: |
+            reports/
+            dist/visual*/
+
+  packages:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15-intel, macos-15]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+      - run: npm ci
+      - name: Install the browser for required artifact UI scenarios
+        env:
+          PLUGIN_NAME: ${{ needs.verify.outputs.name }}
+        run: |
+          if node -e 'const p=require("./plugins/"+process.env.PLUGIN_NAME+"/plugin.test.json");process.exit(p.profiles.components.some(c=>["view","interactive-ui"].includes(c))?0:1)'; then
+            npx playwright install --with-deps chromium
+          fi
+      - name: Build and smoke only the selected plugin
+        env:
+          PLUGIN_NAME: ${{ needs.verify.outputs.name }}
+          PLUGIN_RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          npm run plugin:build -- "$PLUGIN_NAME"
+          npm run plugin:smoke -- "$PLUGIN_NAME"
+          VERSION=$(node -e 'process.stdout.write(require("./plugins/"+process.env.PLUGIN_NAME+"/plugin.json").version)')
+          PLATFORM=$(node -e 'process.stdout.write(process.platform+"-"+process.arch)')
+          ARCHIVE="dist/plugins/$PLUGIN_NAME/$VERSION/$PLUGIN_NAME-$VERSION-$PLATFORM.tar.gz"
+          npm run plugin:certify -- "$PLUGIN_NAME" --stage artifact --artifact "$ARCHIVE"
+          mkdir -p "dist/plugin-release/certification/$PLUGIN_NAME/artifact"
+          cp -R "reports/certification/$PLUGIN_NAME/artifact/$PLATFORM" "dist/plugin-release/certification/$PLUGIN_NAME/artifact/"
+          cp "$ARCHIVE" "$ARCHIVE.sha256" dist/plugin-release/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plugin-${{ matrix.runner }}
+          path: dist/plugin-release/
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [verify, packages]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: plugin-*
+          path: dist/plugin-release
+          merge-multiple: true
+          digest-mismatch: error
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - name: Publish an independent plugin release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLUGIN_NAME: ${{ needs.verify.outputs.name }}
+          PLUGIN_TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          bun tools/plugins/catalog-entry.mjs
+          gh release create "$PLUGIN_TAG" --verify-tag --draft --title "$PLUGIN_TAG" --notes-file "plugins/$PLUGIN_NAME/CHANGELOG.md"
+          find dist/plugin-release -type f -name '*.tar.gz*' -exec gh release upload "$PLUGIN_TAG" {} +
+          tar --format=ustar -czf dist/plugin-release/certification.tar.gz -C dist/plugin-release certification
+          gh release upload "$PLUGIN_TAG" dist/plugin-release/marketplace-entry.json dist/plugin-release/certification.tar.gz
+          gh release edit "$PLUGIN_TAG" --draft=false --latest=false

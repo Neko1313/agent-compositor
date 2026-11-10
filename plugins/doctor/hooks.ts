@@ -8,11 +8,11 @@ export default {
       lines.push(`- ${name}: ${v ? (name === "AGENT_API_KEY" ? `<set, ${v.length} chars>` : v) : "(unset — default)"}`);
     }
     const ping = await $.model
-      .complete({ messages: [{ role: "user", content: "ping" }] })
+      .complete({ signal: $.signal, messages: [{ role: "user", content: "ping" }] })
       .then(() => "provider ping: OK")
       .catch((err: unknown) => `provider ping: FAIL (${err instanceof Error ? err.message : String(err)})`);
     lines.push(`- ${ping}`);
-    void $.ui.notify(lines.join("\n"), "info");
+    await $.ui.notify(lines.join("\n"), "info");
     return { drop: "doctor: report delivered" };
   },
 };

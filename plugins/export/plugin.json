@@ -1,6 +1,6 @@
 {
   "name": "export",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "/export \u2014 dump the session transcript (your prompts + assistant text) to .agent-compositor/session-<id>.md (Claude Code /export analog). Buffer caps at 100k chars. Drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [
@@ -12,5 +12,9 @@
       "name": "/export",
       "description": "Export conversation to Markdown"
     }
-  ]
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

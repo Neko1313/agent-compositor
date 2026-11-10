@@ -6,6 +6,7 @@ This is the router file: reading starts here. It links to topics and records sig
 
 | # | File | Topic | Status |
 |---|------|-------|--------|
+| 13 | [plugin-testing.md](plugin-testing.md) | Mandatory test model: host contracts, component/trait cases, live evaluation, artifact verification and release evidence | mandatory case matrix and fail-closed certification; existing coverage gaps block releases |
 | 1 | [01-concept.md](01-concept.md) | Concept: what we are building and why | accepted |
 | 2 | [02-ui.md](02-ui.md) | UI: the pane model, Ink, swappable renderers | accepted |
 | 3 | [03-contracts.md](03-contracts.md) | Contracts for writing CLI plugins | draft |
@@ -13,6 +14,7 @@ This is the router file: reading starts here. It links to topics and records sig
 | 5 | [05-prior-art.md](05-prior-art.md) | Prior art: architecture of Claude Code, VS Code, Neovim, Sway, Linux; what we adopt | accepted |
 | 6 | [06-core-blueprint.md](06-core-blueprint.md) | Core blueprint: best-of harvest from 8 local reference codebases; subsystem → reference → what we take | proposal |
 | 7 | [agent-features.md](agent-features.md) | Implemented agent plan: commands, providers, auto, checkpoints, worktrees, extensions, usage and setup limits | implemented |
+| 12 | [plugin-standard.md](plugin-standard.md) | Plugin standard 1: scoped opt-in, QA plans, independent releases, archive/Git updates and rollback | implemented after v0.3.0 |
 | 11 | [plugin-authoring.md](plugin-authoring.md) | Create, check and activate extensions inside Compositor; bundled plugin skills | implemented after v0.3.0 |
 | 10 | [workspaces-and-web.md](workspaces-and-web.md) | Keyless internet tools, attached projects, path completion, scope and concurrent agents | implemented |
 | 9 | [ui-controllers.md](ui-controllers.md) | Private editor/dialog/history/placement controllers and full session repositories | implemented |
@@ -22,6 +24,7 @@ This is the router file: reading starts here. It links to topics and records sig
 
 | Date | Decision | Status | Context |
 |------|----------|--------|---------|
+| 2026-11-10 | Keep all filesystem plugins off until scoped opt-in; ship the repository as the offline default market and version/test/release plugins independently | accepted | User chose independent versions and releases in this monorepo. Standard 1 adds QA plans, API compatibility, content locks, archive updates and rollback. Kernel management remains available for bootstrap. |
 | 2026-11-10 | One native package may combine agent logic, UI, tools, skills and MCP under one marketplace lifecycle | accepted | Added multi-component authoring, a shared native/Claude stdio MCP declaration reader, package resources and full install/update/disable/remove checks. See plugin-authoring.md. |
 | 2026-11-10 | Ship plugin authoring as a replaceable plugin with a progressively loaded skill and installed-contract helper | accepted | User requested creating plugins through Compositor itself. Native plugin skills follow enabled owner lifecycle; authoring uses normal filesystem policy and the existing reload boundary. |
 | 2026-11-10 | Domain behavior is composed over a neutral kernel; replace turn, tool scheduling, context and journal implementations through public services | accepted | User explicitly requested a customizable kernel rather than DevOps integrations. Added exact capability selection, explicit tool providers, extension event definitions and real middleware continuations. See core-customization.md for current scope. |

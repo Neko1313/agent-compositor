@@ -1,7 +1,14 @@
 {
   "name": "notify-done",
-  "version": "1.0.0",
-  "description": "Desktop notification when a turn finishes or fails — the Claude Code Notification / codex notify hook analog, so you can look away while the agent works. Drop this folder to remove.",
+  "version": "1.1.0",
+  "description": "Desktop notification when a turn finishes or fails \u2014 the Claude Code Notification / codex notify hook analog, so you can look away while the agent works. Drop this folder to remove.",
   "trust": "trusted",
-  "capabilities": ["turn.complete", "turn.failed"]
+  "capabilities": [
+    "turn.complete",
+    "turn.failed"
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

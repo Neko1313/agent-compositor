@@ -1,6 +1,6 @@
 // Exercise the release exactly as an end user, outside the source tree.
 import { createServer } from 'node:http';
-import { mkdtemp, readFile, writeFile, mkdir, readdir, rm, access, realpath } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, mkdir, readdir, rm, access, realpath, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -116,7 +116,11 @@ try {
   plain.child.stdin.end();
   const { stdout } = await plain;
   assert.doesNotMatch(stdout, /plugin load errors/);
-  for (const name of ['mascot', 'monty', 'callix', 'todos', 'ui-theme', 'mcp', 'workflows', 'plugin-author']) assert.match(stdout, new RegExp(`${name}@`));
+  for (const name of ['mascot', 'monty', 'callix', 'todos', 'ui-theme', 'mcp', 'workflows', 'plugin-author']) assert.doesNotMatch(stdout, new RegExp(`${name}@`));
+  const marketplaces=await exec(binary,['-p','/marketplace','--output-format','stream-json'],options);
+  assert.match(marketplaces.stdout,/agent-compositor/);
+  // Positive feature probes explicitly choose their packages in project scope.
+  await writeFile(join(project,'agent-compositor.json'),JSON.stringify({enabledPlugins:['monty','workflows','callix','checkpoint-history','agent-harness','session-manager','extension-manager','marketplace-manager']}));
   const reply = await exec(binary, ['-p', 'Reply with the smoke marker'], options);
   assert.match(reply.stdout, /RELEASE_SMOKE_OK/);
   assert.match((await exec(binary,['-p','WORKFLOW_DISTRIBUTION_CHECK'],options)).stdout,/WORKFLOW_DISTRIBUTION_OK/);
@@ -124,6 +128,19 @@ try {
   // Test the packaged mascot decoder/assets and Monty bridge, not source modules.
   const [distribution] = (await readdir(join(prefix, 'share/agent-compositor'))).filter(name => name.startsWith(`v${expected}-`));
   const directory = join(prefix, 'share/agent-compositor', distribution);
+  // A separately installed plugin version takes precedence over the app cache.
+  const overrideProject=join(temp,'override-project'),overrideMarket=join(temp,'override-market');
+  await mkdir(overrideProject);await mkdir(join(overrideMarket,'.claude-plugin'),{recursive:true});
+  await cp(join(directory,'plugins/todos'),join(overrideMarket,'plugins/todos'),{recursive:true});
+  const overrideManifest=JSON.parse(await readFile(join(overrideMarket,'plugins/todos/plugin.json'),'utf8'));overrideManifest.version='9.0.0';
+  await writeFile(join(overrideMarket,'plugins/todos/plugin.json'),JSON.stringify(overrideManifest));
+  await writeFile(join(overrideMarket,'.claude-plugin/marketplace.json'),JSON.stringify({name:'override-fixture',owner:{name:'Fixture'},plugins:[{name:'todos',version:'9.0.0',source:'./plugins/todos'}]}));
+  await writeFile(join(overrideProject,'agent-compositor.json'),JSON.stringify({permissions:{rules:[{tool:'extension_control',decision:'allow'}]}}));
+  const overrideOptions={...options,cwd:overrideProject};
+  await exec(binary,['-p','/marketplace add '+overrideMarket+' --project'],overrideOptions);
+  assert.match((await exec(binary,['-p','/extensions install todos@override-fixture --project','--output-format','stream-json'],overrideOptions)).stdout,/Installed todos v9.0.0/);
+  await exec(binary,['-p','/extensions enable todos --project'],overrideOptions);
+  const overridden=exec(binary,['--plain'],overrideOptions);overridden.child.stdin.end();assert.match((await overridden).stdout,/todos@9.0.0/);
   assert.match(await readFile(join(directory,'licenses/omggif/README'),'utf8'),/Permission is hereby granted/);
   const gifDirectory=join(project,'gif-assets');await mkdir(gifDirectory);
   const gifBytes=Buffer.alloc(1024),gif=new GifWriter(gifBytes,2,1,{palette:[0,0xff0000],loop:0});
@@ -210,7 +227,7 @@ await hooks['session.start']({},api);dispose();if(image?.width!==2||image?.heigh
   assert.ok(callixResult?.relations?.some(r => r.kind === 'calls'), JSON.stringify(callixResult));
   assert.ok(callixResult?.nodes?.some(n => n.name === 'start'), JSON.stringify(callixResult));
   assert.ok(callixResult?.symbols?.some(n => n.name === 'leaf'), JSON.stringify(callixResult));
-  await writeFile(join(project,'agent-compositor.json'),JSON.stringify({permissions:{rules:[{tool:'edit',path:join(project,'leaf.ts'),decision:'allow'}]}}));
+  await writeFile(join(project,'agent-compositor.json'),JSON.stringify({enabledPlugins:['monty','workflows','callix','checkpoint-history','agent-harness','session-manager'],permissions:{rules:[{tool:'edit',path:join(project,'leaf.ts'),decision:'allow'}]}}));
   assert.match((await exec(binary,['-p','CALLIX_SYMBOL_EDIT_CHECK'],callixOptions)).stdout,/CALLIX_SYMBOL_EDIT_OK/);
   assert.equal(guardedEditResult?.match,'exact',JSON.stringify(guardedEditResult));assert.match(guardedEditResult?.hashAfter??'',/^[a-f0-9]{64}$/);assert.match(await readFile(join(project,'leaf.ts'),'utf8'),/value \+ 2/);
   const verify = join(temp, 'verify.mjs');
@@ -225,7 +242,7 @@ console.log('MONTY_OK');
   await writeFile(marker, 'user state');
   await exec('sh', [installer, '--prefix', prefix], options);
   assert.equal(await readFile(marker, 'utf8'), 'user state');
-  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, bundled authoring skill/composite scaffold/SDK tool/selected instructions/command/skill/MCP with explicit runtime and no PATH, external kernel extension/events/exact tools/custom session repository/resume without fallback model or PATH, packaged GIF decoder/license, model response, background workflow, --add-dir/home paths/resumed scope without PATH, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
+  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, inactive packages/offline default market, independent scoped plugin version over bundled cache, bundled authoring skill/composite scaffold/SDK tool/selected instructions/command/skill/MCP with explicit runtime and no PATH, external kernel extension/events/exact tools/custom session repository/resume without fallback model or PATH, packaged GIF decoder/license, model response, background workflow, --add-dir/home paths/resumed scope without PATH, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
 } finally {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   await rm(temp, { recursive: true, force: true });

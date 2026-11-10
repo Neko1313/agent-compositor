@@ -36,6 +36,32 @@ SURFACE = SurfaceSpec(
     stubs=(("scripts/README.md", "Deterministic helpers; execution still follows host permissions.\n"),),
 )
 
+def activate_fixture_plugins(workspace: Path, plugin_dirs) -> None:
+    """Explicit benchmark opt-in; production directory discovery stays inactive."""
+    config_file = workspace / "agent-compositor.json"
+    config = json.loads(config_file.read_text()) if config_file.exists() else {}
+    if "enabledPlugins" in config:
+        return
+    state_file = workspace / ".agent-compositor/extensions-state.json"
+    state = json.loads(state_file.read_text()) if state_file.exists() else {"disabled": [], "installed": {}}
+    if "enabled" in state:
+        return
+    selected = set()
+    for directory in [*plugin_dirs, workspace / "plugins"]:
+        directory = Path(directory)
+        candidates = [directory, *(path for path in directory.iterdir() if path.is_dir())] if directory.is_dir() else []
+        for candidate in candidates:
+            for manifest in [candidate / "plugin.json", candidate / ".claude-plugin/plugin.json"]:
+                if manifest.is_file():
+                    name = json.loads(manifest.read_text()).get("name", candidate.name)
+                    if not isinstance(name, str):
+                        raise ValueError("Fixture plugin name must be a string")
+                    selected.add(name)
+                    break
+    state["enabled"] = sorted(selected)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(state))
+
 class CompositorSubstrate:
     name = "agent-compositor"
 
@@ -127,6 +153,7 @@ class CompositorSubstrate:
                 destination = fixture_path(home, target)
                 link.parent.mkdir(parents=True, exist_ok=True)
                 link.symlink_to(destination)
+            activate_fixture_plugins(workspace, self.plugin_dirs)
             # Grading data is never copied into the execution workspace.
             env = isolated_env(home, self.model, self.base_url)
             with (run / "trajectory.jsonl").open("w") as stdout, (run / "stderr.txt").open("w") as stderr:

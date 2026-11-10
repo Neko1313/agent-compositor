@@ -1,7 +1,14 @@
 {
   "name": "guard-secrets",
-  "version": "1.0.0",
-  "description": "Blocks private keys and API tokens from reaching the model or tool arguments (AWS AKIA…, OpenAI sk-…, GitHub ghp_…, Slack xoxb-…, PEM blocks). Drop this folder to remove.",
+  "version": "1.1.1",
+  "description": "Blocks private keys and API tokens from reaching the model or tool arguments (AWS AKIA\u2026, OpenAI sk-\u2026, GitHub ghp_\u2026, Slack xoxb-\u2026, PEM blocks). Drop this folder to remove.",
   "trust": "trusted",
-  "capabilities": ["prompt.submit", "tool.call"]
+  "capabilities": [
+    "prompt.submit",
+    "tool.call"
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

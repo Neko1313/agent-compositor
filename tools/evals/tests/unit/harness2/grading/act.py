@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from harness2_adapter import isolated_env, substitute
+from harness2_adapter import isolated_env, substitute, activate_fixture_plugins
 from harness2_bench import grade, CompositorBenchmark
 from harness2.core.spec import BenchmarkAdapter
 from harness2_helpers import action, capture, final
@@ -66,3 +66,32 @@ def test_home_and_absolute_path_spelling_are_equivalent(tmp_path):
 def test_equivalent_mutation_tool_is_accepted(tmp_path):
     run = capture(tmp_path, events=action('edit', output={'changed': True}) + [final()])
     assert grade(run, {'expect': {'tools': [{'tool': ['write', 'edit'], 'ok': True}]}})['all_pass']
+
+
+def test_benchmark_explicitly_selects_its_plugin_inputs_without_removing_denials(tmp_path):
+    workspace = tmp_path / 'workspace'
+    external = tmp_path / 'external'
+    external.mkdir()
+    (external / 'plugin.json').write_text(json.dumps({'name': 'web'}))
+    generated = workspace / 'plugins/notice'
+    generated.mkdir(parents=True)
+    (generated / 'plugin.json').write_text(json.dumps({'name': 'harness-notice'}))
+    state = workspace / '.agent-compositor/extensions-state.json'
+    state.parent.mkdir()
+    state.write_text(json.dumps({'disabled': ['web'], 'installed': {}}))
+
+    activate_fixture_plugins(workspace, [external])
+
+    selected = json.loads(state.read_text())
+    assert selected['enabled'] == ['harness-notice', 'web']
+    assert selected['disabled'] == ['web']
+
+
+def test_benchmark_preserves_an_explicit_empty_plugin_ceiling(tmp_path):
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    (workspace / 'agent-compositor.json').write_text(json.dumps({'enabledPlugins': []}))
+
+    activate_fixture_plugins(workspace, [tmp_path])
+
+    assert not (workspace / '.agent-compositor/extensions-state.json').exists()

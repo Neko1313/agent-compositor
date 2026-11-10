@@ -5,7 +5,9 @@ standard `plugin-author` plugin ships the `create-plugin` skill, installed
 contract guidance and the `plugin_dev` tool. It uses the same file tools,
 permissions, plugin loader and reload path as other extensions.
 
-In a build containing this plugin, start with a request such as:
+In a build containing this plugin, first explicitly enable `plugin-author` in the desired scope with
+`/extensions enable plugin-author --project`, then `/reload`. Installation alone
+does not activate it. Newly authored plugins also need explicit scoped activation. Start with a request such as:
 
 ```text
 /plugin Add a /deploy-status command that reads my project's deployment settings
@@ -24,7 +26,7 @@ predates it.
 
 `plugin_dev` supports:
 
-- `guide`: bundled overview/contracts/patterns/testing/composition topics. The events topic
+- `guide`: bundled overview/contracts/patterns/testing/composition/standard topics. The events topic
   returns names or the full input/response schema for an installed canonical
   event, rather than guessing from a different version's documentation.
 - `init`: command, tool, panel, skill, service or MCP starter; `components` combines

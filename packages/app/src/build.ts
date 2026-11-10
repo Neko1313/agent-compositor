@@ -1,4 +1,6 @@
 import {createSummarizer} from "./summarizer.js";
+import {PluginLoader} from '@agent-compositor/loader';
+import type {HooksHost} from '@agent-compositor/hooks';
 import { harnessControls } from "./harness.js";
 import { profileSettings } from "./provider-settings.js";
 import { marketplaces } from "./marketplaces.js";
@@ -135,14 +137,16 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     options.cwd,
     env.HOME ?? env.USERPROFILE ?? options.cwd,
     storage.paths.state,
-    storage.paths.home
+    storage.paths.home,
   );
   const extensions = await extensionManager(
     options.cwd,
     env.HOME ?? env.USERPROFILE ?? options.cwd,
     storage.paths.state,
     market,
-    storage.paths.home
+    storage.paths.home,
+    config.config.enabledPlugins,
+    config.config.disabledPlugins,
   );
   const network = new NetworkClient();
   const settings = {
@@ -224,12 +228,14 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   );
 
   const dirs = [
+    // The facade reverses directories: shipped packages have the lowest precedence.
+    path.join(path.dirname(realpathSync(process.execPath)), "plugins"),
     ...defaultPluginDirs(options.cwd, env),
+    extensions.projectDirectory,
     path.join(storage.paths.home, "plugins"),
     ...(config.config.plugins ?? []).map((p) => resolveDir(p, options.cwd)),
     ...(options.pluginDirs ?? []),
-    // Distribution defaults come last: user/project plugins retain precedence.
-    path.join(path.dirname(realpathSync(process.execPath)), "plugins"),
+    ...extensions.boundDirectories(),
   ];
   const disabled = () => [
     ...new Set([
@@ -237,7 +243,22 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       ...extensions.disabled(),
     ]),
   ];
-  const loaded = await loadPluginsFromDisk([...new Set(dirs)], disabled(), config.config.enabledPlugins);
+  const within=(root:string,directory:string)=>{const rel=path.relative(path.resolve(directory),path.resolve(root));return rel===''||!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel);};
+  const shared=(root:string)=>within(root,path.join(storage.paths.home,'plugins'))||!!market.builtinRoot&&market.shipped&&within(root,path.join(market.builtinRoot,'plugins'));
+  const accepts=(plugin:import('@agent-compositor/loader').DiscoveredPlugin)=>{
+    const name=plugin.manifest.name,target=extensions.selectedPath(name);
+    if(target&&path.resolve(target)!==path.resolve(plugin.root))return false;
+    if(extensions.activationScope(name)!=='configured'&&bundled(plugin.root))return false;
+    return extensions.activationScope(name)!=='user'||shared(plugin.root);
+  };
+  const bundled=(root:string)=>!!market.builtinRoot&&market.shipped&&within(root,path.join(market.builtinRoot,'plugins'));
+  extensions.setAvailable(async()=>{
+    const discovery=await new PluginLoader({} as HooksHost,{dirs:[...new Set([...dirs,...extensions.boundDirectories()])].reverse()}).discover();
+    const published=market.shipped?await market.published():undefined;
+    // Keep all copies for scope decisions; the public inventory selects one identity.
+    return discovery.found.filter(item=>!bundled(item.root)||published?.[item.manifest.name]===item.manifest.version).map(item=>({name:item.manifest.name,version:item.manifest.version,kind:'plugin',shared:shared(item.root),bundled:bundled(item.root),directory:item.root}));
+  });
+  const loaded = await loadPluginsFromDisk([...new Set(dirs)], disabled(), extensions.enabled(), accepts);
   const plugins = loaded.plugins.filter(
       (p) => !config.config.disabledPlugins?.includes(p.manifest.name)
     ),
@@ -536,7 +557,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const reloadPlugins = async (core: AgentCore): Promise<string> => {
     if (core.getState() === "running")
       return "Wait until the current turn finishes before /reload.";
-    const next = await loadPluginsFromDisk([...new Set(dirs)], disabled(), config.config.enabledPlugins);
+    await extensions.refresh();
+    const next = await loadPluginsFromDisk([...new Set([...dirs,...extensions.boundDirectories()])], disabled(), extensions.enabled(), accepts);
     next.plugins = next.plugins.filter(
       (p) => !config.config.disabledPlugins?.includes(p.manifest.name)
     );

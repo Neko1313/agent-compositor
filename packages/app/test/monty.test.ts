@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runSandbox } from '../../../plugins/monty/adapter.js';
 import { AgentCore, ScriptedProvider } from '@agent-compositor/core';
-import { buildApp } from '../src/build.js';
+import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function temp() { const root = await mkdtemp(join(tmpdir(), 'monty-check-')); roots.push(root); return root; }

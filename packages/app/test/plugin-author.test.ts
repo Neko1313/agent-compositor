@@ -4,7 +4,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {ScriptedProvider, type CompletionRequest} from '@agent-compositor/core';
 import {CATALOG_VERSION} from '@agent-compositor/events';
-import {buildApp} from '../src/build.js';
+import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 
 const roots:string[] = [];
 const apps:Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -52,6 +52,7 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
     expect(f.app.commands().some(c => c.name === '/catalog-greeting')).toBe(false);
     expect(f.events.some(e => String(e.input.message).startsWith('CATALOG_GREETING_'))).toBe(false);
 
+    await f.core.invokeTool('extension_control',{action:'enable',name:'catalog-greeting',scope:'project'});
     expect(await f.app.reloadPlugins(f.core)).not.toContain('error');
     const requests = f.provider.requests.length;
     await f.core.submit('/catalog-greeting');
@@ -67,6 +68,7 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
     const path = (created.output as any).path;
     const checked = await f.core.invokeTool('plugin_dev', {action:'check',path});
     expect(checked).toMatchObject({ok:true,output:{valid:true,executed:false}});
+    await f.core.invokeTool('extension_control',{action:'enable',name:'local-extension',scope:'project'});
     await f.app.reloadPlugins(f.core);
     expect(f.app.plugins.some(p => p.manifest.name === 'local-extension')).toBe(true);
     if (kind === 'tool') expect(await f.core.invokeTool('local_extension',{message:'ACTUAL_TOOL'})).toMatchObject({ok:true,output:{message:'ACTUAL_TOOL'}});
@@ -93,6 +95,7 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
     const path=(created.output as any).path;
     expect(await f.core.invokeTool('plugin_dev',{action:'check',path})).toMatchObject({ok:true,output:{valid:true,executed:false,skills:['composed-suite'],mcpServers:['composed-suite-local']}});
     expect(await f.core.invokeTool('plugin_dev',{action:'guide',topic:'composition'})).toMatchObject({ok:true,output:{text:expect.stringContaining('mcpServers')}});
+    await f.core.invokeTool('extension_control',{action:'enable',name:'composed-suite',scope:'project'});
     await f.app.reloadPlugins(f.core);
     await f.core.submit('/composed-suite');
     expect(f.provider.requests).toHaveLength(0);
@@ -117,6 +120,7 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
     expect(systems(f.provider.requests[0])).not.toContain('local-workflow:');
     await f.core.invokeTool('plugin_dev',{action:'init',name:'local-workflow',kind:'skill'});
     expect((await f.core.invokeTool('skills',{name:'local-workflow'})).ok).toBe(false);
+    await f.core.invokeTool('extension_control',{action:'enable',name:'local-workflow',scope:'project'});
     await f.app.reloadPlugins(f.core);
     await f.core.submit('After reload');
     expect(systems(f.provider.requests[1])).toContain('local-workflow:');
@@ -183,6 +187,7 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
     const path=(result.output as any).path,marker=join(f.cwd,'started');
     await writeFile(join(path,'.mcp.json'),JSON.stringify({mcpServers:{local:{command:process.execPath,args:['-e',`require('node:fs').writeFileSync(${JSON.stringify(marker)},'started')`]}}}));
     expect(await f.core.invokeTool('plugin_dev',{action:'check',path})).toMatchObject({ok:true,output:{valid:true,executed:false}});
+    await f.core.invokeTool('extension_control',{action:'enable',name:'guarded-mcp',scope:'project'});
     await f.app.reloadPlugins(f.core);
     expect(await f.core.invokeTool('mcp_call',{action:'call',server:'guarded-mcp-local',tool:'ping'})).toMatchObject({ok:false,error:expect.stringContaining('denied')});
     await expect(readFile(marker)).rejects.toMatchObject({code:'ENOENT'});

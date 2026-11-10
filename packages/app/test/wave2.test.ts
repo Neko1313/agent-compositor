@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AgentCore, ScriptedProvider } from "@agent-compositor/core";
 import type { ChatMessage, LoopEvent } from "@agent-compositor/core";
-import { buildApp } from "../src/build.js";
+import {buildAppWithPlugins as buildApp} from "./plugin-fixture.js";
 import { __mcpShutdown } from "../../../plugins/mcp/tools.js";
 
 const REPO_PLUGINS = path.resolve(__dirname, "../../../plugins");

@@ -25,6 +25,7 @@ export interface McpServerConfig {
   args?: string[];
   env?: Record<string, string>;
   timeoutMs?: number;
+  cwd?: string;
 }
 
 export interface McpConfig {
@@ -49,7 +50,7 @@ class McpClient {
   constructor(cfg: McpServerConfig, cwd: string) {
     this.timeoutMs = Math.max(100, Math.min(cfg.timeoutMs ?? 30000, 120000));
     this.proc = spawn(cfg.command, cfg.args ?? [], {
-      cwd,
+      cwd: cfg.cwd ?? cwd,
       detached: process.platform !== "win32",
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...(cfg.env ?? {}) },
@@ -243,8 +244,11 @@ export function __mcpShutdown(): void {
     p.then((c) => c.stop()).catch(() => undefined);
   clients.clear();
 }
-export const dispose = __mcpShutdown;
-if (typeof process !== "undefined") process.on("exit", () => __mcpShutdown());
+export function dispose(): void {
+  process.removeListener('exit', __mcpShutdown);
+  __mcpShutdown();
+}
+if (typeof process !== "undefined") process.on("exit", __mcpShutdown);
 
 async function withAbort<T>(
   client: McpClient,

@@ -1,5 +1,99 @@
 # Project memory
 
+## Next concept discussion — 2026-11-10
+
+The user authorized committing/pushing the completed authoring and composite
+plugin work. Next, discuss the product concept and marketplace experience:
+provide our plugins through a default marketplace and improve enabling/disabling
+and related management there. This is a deferred discussion, not authorization
+to implement a marketplace redesign in the commit/push task.
+
+## Composite plugin packages — 2026-11-10
+
+The user requested implementing the package model discussed after plugin-author:
+one plugin can combine agent services/hooks, UI, tools, skills and MCP, and the
+marketplace manages it as one installable unit. plugin_dev init now accepts a
+distinct components array, retaining kind for a single component, including mcp.
+Combined starters preserve service and prompt hooks together; pure skill/MCP
+packages need no dummy JS entry. The composition guide is bundled on demand.
+
+Native and Claude-compatible declarations now share the loader's stdio MCP
+reader. It supports .mcp.json, inline/wrapped maps, config references and arrays,
+validates before native import, expands PLUGIN_ROOT/CLAUDE_PLUGIN_ROOT literally,
+supports explicit cwd, and retains legacy owner-local IDs. Unsupported transports,
+render-only MCP and cross-owner server ID collisions fail visibly. Config paths
+are contained in the package; declarations do not launch processes. The ordinary
+mcp/mcp_call gateway and permission policy still apply. The sample worker needs
+Node or an explicitly configured runtime. Exact allowlists/selections are not
+edited automatically; provider/controller selections still need restart.
+
+Manifest resources retain additional runtime code/data in release bundles;
+referenced MCP configs and standard skills/assets are also copied. Packaging
+rejects escapes (including nested symlinks) and generated-entry collisions.
+Marketplace install validates declarations before side effects; rejected updates
+preserve the installed package. Reload disposes old MCP connections. Disabling
+or removing the owner removes hooks/tools/skills/MCP contributions; independent
+user settings survive. Removing a catalog retains installed extensions. MCP
+dispose now also removes its exit listener to avoid accumulating listeners.
+
+Validation: 681 tests pass, 3 optional skips, 85.89% line coverage; typecheck,
+marketplace validation (27 entries), evals 5/5 and tool evals 3/3 pass. The Linux
+x64 bundle and installed-release smoke pass, including composite scaffolding,
+SDK tool, selected instructions, command, skill and real stdio MCP with an
+explicit runtime under an empty PATH. Real PTY source/binary scenarios exercise
+creation, write approval, reload, panel/command/skill/MCP, restart and owner
+disable/re-enable. Screenshots inspected. Evidence:
+dist/composite-source-lifecycle/, dist/composite-binary-lifecycle/ and
+dist/composite-proof/report.json. This work is included in the authoring/composite
+feature commit; it is unreleased and published v0.3.0 remains unchanged.
+
+## Self-hosted plugin authoring — 2026-11-10
+
+After v0.3.0 publication the user requested a plugin with a skill that lets users
+write their own Compositor plugins inside the app. Added the ordinary replaceable
+plugin-author plugin, /plugin request command, create-plugin skill and plugin_dev
+tool. The host change is general: loaded disk plugins contribute skills/ entries,
+with existing project/user sources retaining priority. Descriptions are refreshed
+per turn, bodies load on demand, and reload/disable/removal updates discovery.
+Virtual app-injected plugins without a disk root contribute no filesystem skills.
+Selected service.agent.instructions replacements own their own index policy.
+
+plugin_dev guide serves bundled contracts/patterns/testing and current canonical
+event schemas, including from an installed distribution outside the workspace.
+init creates non-overwriting local command/tool/panel/skill/service starters and
+links public host SDK packages inside the new plugin. Paths use the attached
+workspace resolver; cancellation/failure cleans up the newly created directory.
+check validates metadata, entry containment and skill headers without importing
+code. It explicitly does not prove syntax, imports or behavior. Tool permissions
+still apply; no config allowlist/provider selection is changed or auto-activation
+performed. User /reload between turns activates code; startup composition config
+changes require restart. SDK links refer to the installation used at creation.
+
+Release packaging now includes plugin-owned skills/resources. The marketplace
+has 27 entries. Docs: docs/plugin-authoring.md and the bundled skill's references.
+The real PTY scenario is npm run visual:author; source and binary variants check
+skill/tool calls, an actual write approval, /reload, SDK-backed command execution
+and process restart. Synchronize on the Ready status before reloading; visible
+assistant final text alone does not mean the turn has finished.
+
+Validation: 14 new integration cases, 650 total tests passed (3 optional skips),
+85.47% line coverage; typecheck, marketplace validation, existing evals 5/5 and
+3/3, Linux x64 build and installed-release smoke pass. The smoke now also checks
+bundled skill/event schemas, scaffold/check and execution of an authored tool
+with a public SDK import under an empty PATH. Reports:
+dist/plugin-author-source-visual-final/report.json,
+dist/plugin-author-binary-visual-final/report.json and dist/plugin-author-proof/.
+One bounded Gemma live example generated a greeting command from a Russian
+request, structurally checked it and left activation pending. After reviewing
+its source, a fresh app executed it and emitted the requested notification with
+zero model calls. This is one authoring example, not a general quality score.
+Evidence: dist/plugin-author-live/generation.json and runtime.json.
+
+This follow-up is included in the authoring/composite feature commit and remains
+unreleased; published v0.3.0 predates plugin-author.
+The earlier release remains at 0ce49d2; CI 42756249621 and release workflow
+42756474129 succeeded, with four native bundles and verified publication/assets.
+
 ## v0.3.0 release preparation — 2026-11-10
 
 The user authorized committing/pushing the accumulated workspace/web/Harness2

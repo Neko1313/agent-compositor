@@ -21,7 +21,7 @@ const expected = JSON.parse(await readFile('package.json')).version;
 const installer = resolve('install.sh');
 let corrupt = true;
 let callixResult, workflowResult, guardedEditResult, modelRequests=0;
-const server = createServer(async (req, res) => {
+async function serve(req, res) {
   if (req.url.endsWith('/SHA256SUMS')) { res.end(`${corrupt ? '0'.repeat(64) : digest}  ${asset}\n`); return; }
   if (req.url.endsWith(`/${asset}`)) { res.end(archive); return; }
   if (req.url === '/v1/chat/completions') {
@@ -30,6 +30,36 @@ const server = createServer(async (req, res) => {
     const request = JSON.parse(body);
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     const frame = (delta, finish_reason = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\n\n`;
+    if(request.messages.some(m=>m.role==='user'&&m.content==='AUTHOR_DISTRIBUTION_CHECK')) {
+      assert.ok(request.tools.some(tool=>tool.function.name==='plugin_dev'));
+      assert.ok(request.messages.some(m=>m.role==='system'&&m.content.includes('create-plugin:')));
+      const last=request.messages.filter(m=>m.role==='tool').at(-1);
+      const call=(name,args)=>res.end(frame({tool_calls:[{index:0,id:'author-'+request.messages.length,type:'function',function:{name,arguments:JSON.stringify(args)}}]},'tool_calls')+'data: [DONE]\n\n');
+      if(!last)call('skills',{name:'create-plugin'});
+      else if(JSON.parse(last.content).name==='create-plugin'){assert.match(JSON.parse(last.content).body,/Create a Compositor plugin/);call('plugin_dev',{action:'guide',topic:'events',event:'tool.check'});}
+      else {
+        const result=JSON.parse(last.content);
+        if(result.catalogVersion)call('plugin_dev',{action:'init',name:'release-addon',components:['command','panel','tool','service','skill','mcp']});
+        else if(result.activated===false)call('plugin_dev',{action:'check',path:result.path});
+        else {assert.equal(result.valid,true);assert.equal(result.executed,false);assert.deepEqual(result.skills,['release-addon']);assert.deepEqual(result.mcpServers,['release-addon-local']);res.end(frame({content:'AUTHOR_DISTRIBUTION_OK'},'stop')+'data: [DONE]\n\n');}
+      }
+      return;
+    }
+    if(request.messages.some(m=>m.role==='user'&&m.content==='AUTHOR_TOOL_CHECK')) {
+      const last=request.messages.filter(m=>m.role==='tool').at(-1);
+      if(!last)res.end(frame({tool_calls:[{index:0,id:'authored-tool',type:'function',function:{name:'release_addon',arguments:'{}'}}]},'tool_calls')+'data: [DONE]\n\n');
+      else {assert.equal(JSON.parse(last.content).marker,'AUTHORED_SDK_OK');res.end(frame({content:'AUTHOR_TOOL_OK'},'stop')+'data: [DONE]\n\n');}
+      return;
+    }
+    if(request.messages.some(m=>m.role==='user'&&m.content==='AUTHOR_COMPOSITE_CHECK')) {
+      const last=request.messages.filter(m=>m.role==='tool').at(-1);
+      const call=(name,args)=>res.end(frame({tool_calls:[{index:0,id:'composite-'+request.messages.length,type:'function',function:{name,arguments:JSON.stringify(args)}}]},'tool_calls')+'data: [DONE]\n\n');
+      assert.ok(request.messages.some(m=>m.role==='system'&&m.content.includes('Help the user with the selected domain')));
+      if(!last)call('skills',{name:'release-addon'});
+      else if(JSON.parse(last.content).name==='release-addon')call('mcp_call',{action:'call',server:'release-addon-local',tool:'ping'});
+      else {assert.equal(JSON.parse(last.content).content[0].text,'release-addon MCP ready');res.end(frame({content:'AUTHOR_COMPOSITE_OK'},'stop')+'data: [DONE]\n\n');}
+      return;
+    }
     if(request.messages.filter(m=>m.role==='user').at(-1)?.content.startsWith('MULTIPROJECT_READ')){
       const last=request.messages.at(-1);
       if(last?.role==='tool')res.end(frame({content:JSON.parse(last.content).content==='INSTALLED_MULTI_PROJECT_EVIDENCE'?'MULTIPROJECT_READ_OK':'MULTIPROJECT_READ_FAILED'},'stop')+'data: [DONE]\n\n');
@@ -58,7 +88,8 @@ const server = createServer(async (req, res) => {
     return;
   }
   res.writeHead(404); res.end();
-});
+}
+const server = createServer((req, res) => { void serve(req, res).catch(error => res.destroy(error)); });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 const prefix = join(temp, 'install with spaces');
@@ -85,7 +116,7 @@ try {
   plain.child.stdin.end();
   const { stdout } = await plain;
   assert.doesNotMatch(stdout, /plugin load errors/);
-  for (const name of ['mascot', 'monty', 'callix', 'todos', 'ui-theme', 'mcp', 'workflows']) assert.match(stdout, new RegExp(`${name}@`));
+  for (const name of ['mascot', 'monty', 'callix', 'todos', 'ui-theme', 'mcp', 'workflows', 'plugin-author']) assert.match(stdout, new RegExp(`${name}@`));
   const reply = await exec(binary, ['-p', 'Reply with the smoke marker'], options);
   assert.match(reply.stdout, /RELEASE_SMOKE_OK/);
   assert.match((await exec(binary,['-p','WORKFLOW_DISTRIBUTION_CHECK'],options)).stdout,/WORKFLOW_DISTRIBUTION_OK/);
@@ -112,6 +143,22 @@ await hooks['session.start']({},api);dispose();if(image?.width!==2||image?.heigh
   assert.match(license.toString('utf8'), /MIT License/);
   const noPath = join(temp, 'empty-path'); await mkdir(noPath);
   const callixOptions = { ...options, timeout: 120000, env: { ...env, CALLIX_BIN: '', PATH: noPath } };
+  const authorProject=join(temp,'author-project');await mkdir(authorProject);
+  await writeFile(join(authorProject,'agent-compositor.json'),JSON.stringify({enabledPlugins:['plugin-author'],permissions:{rules:[{tool:'plugin_dev',decision:'allow'},{tool:'release_addon',decision:'allow'}]}}));
+  const authorOptions={...callixOptions,cwd:authorProject};
+  assert.match((await exec(binary,['-p','AUTHOR_DISTRIBUTION_CHECK'],authorOptions)).stdout,/AUTHOR_DISTRIBUTION_OK/);
+  const authored=join(authorProject,'.agent-compositor/plugins/release-addon');
+  // The package is portable, but its sample server needs an explicit runtime
+  // when the fixture intentionally removes all commands from PATH.
+  const authoredMcp=JSON.parse(await readFile(join(authored,'.mcp.json'),'utf8'));
+  authoredMcp.mcpServers.local.command=process.execPath;
+  await writeFile(join(authored,'.mcp.json'),JSON.stringify(authoredMcp));
+  await writeFile(join(authored,'tools.ts'),`import {CATALOG_VERSION} from '@agent-compositor/events';\nexport default [{name:'release_addon',description:'Packaged SDK probe',parameters:{type:'object',properties:{}},describe:()=>({tool:'release_addon'}),execute:async()=>({ok:true,data:{marker:'AUTHORED_SDK_OK',catalogVersion:CATALOG_VERSION}})}];`);
+  await writeFile(join(authorProject,'agent-compositor.json'),JSON.stringify({enabledPlugins:['plugin-author','release-addon','mcp'],serviceProviders:{'service.agent.instructions':'release-addon'},permissions:{rules:[{tool:'release_addon',decision:'allow'},{tool:'mcp_call',decision:'allow'}]}}));
+  assert.match((await exec(binary,['-p','AUTHOR_TOOL_CHECK'],authorOptions)).stdout,/AUTHOR_TOOL_OK/);
+  assert.match((await exec(binary,['-p','AUTHOR_COMPOSITE_CHECK'],authorOptions)).stdout,/AUTHOR_COMPOSITE_OK/);
+  const command=await exec(binary,['-p','/release-addon','--output-format','stream-json'],authorOptions);
+  assert.match(command.stdout,/release-addon ready/);
   const extraProject=join(home,'external projects');await mkdir(extraProject);
   await writeFile(join(extraProject,'evidence.txt'),'INSTALLED_MULTI_PROJECT_EVIDENCE');
   const firstWorkspace=JSON.parse((await exec(binary,['--add-dir','~/external projects','-p','MULTIPROJECT_READ','--output-format','json'],callixOptions)).stdout);
@@ -178,7 +225,7 @@ console.log('MONTY_OK');
   await writeFile(marker, 'user state');
   await exec('sh', [installer, '--prefix', prefix], options);
   assert.equal(await readFile(marker, 'utf8'), 'user state');
-  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, external kernel extension/events/exact tools/custom session repository/resume without fallback model or PATH, packaged GIF decoder/license, model response, background workflow, --add-dir/home paths/resumed scope without PATH, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
+  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, bundled authoring skill/composite scaffold/SDK tool/selected instructions/command/skill/MCP with explicit runtime and no PATH, external kernel extension/events/exact tools/custom session repository/resume without fallback model or PATH, packaged GIF decoder/license, model response, background workflow, --add-dir/home paths/resumed scope without PATH, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
 } finally {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   await rm(temp, { recursive: true, force: true });

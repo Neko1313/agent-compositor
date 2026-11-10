@@ -204,3 +204,18 @@ read, `/workspace`, a loopback search/fetch chain, and scope restoration after
 restart/resume at 60 columns. `VISUAL_EXECUTABLE` checks the compiled distribution.
 Inspect `report.json` and PNGs in `dist/visual-web-workspaces/`. The loopback fixture
 uses no live credentials or search account; live-provider probes are separate.
+
+## Plugin authoring lifecycle
+
+`npm run visual:author` exercises the real PTY's `/plugin` flow with an isolated
+scripted model: skill/composition guidance, a six-component scaffold, editing
+without removing other hooks, a real write approval, structure checking, user
+`/reload`, the authored command with an SDK import, an actual panel, plugin skill
+loading and a real local stdio MCP call. It repeats execution after process
+restart. It waits for the observed Ready state before
+reload. It also disables the owner, observes its panel/MCP contribution disappear,
+and re-enables it to exercise restoration. `VISUAL_EXECUTABLE` selects the compiled distribution; it must contain the
+plugin-author skill/resources. `VISUAL_OUTPUT` selects a fresh capture directory
+(default `dist/visual-plugin-author/`). The scenario supplies no live provider
+credentials. Inspect `report.json` and the PNGs; scripted success checks the
+integration path, not arbitrary model-generated plugin quality.

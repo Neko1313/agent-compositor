@@ -18,6 +18,7 @@ import {
   claudeManifest,
   loadClaudePlugin,
   contained,
+  readPluginMcp,
 } from "@agent-compositor/loader";
 import { atomicJson } from "@agent-compositor/config";
 import type { CorePlugin } from "@agent-compositor/core";
@@ -179,13 +180,18 @@ export async function extensionManager(
         const source = entry.path
           ? await contained(checkout, entry.path)
           : checkout;
+        const native = await readFile(join(source, "plugin.json"), "utf8").catch(error => {
+          if (error.code !== 'ENOENT') throw error;
+          return undefined;
+        });
         let manifest;
-        try {
-          manifest = diskManifestSchema.parse(
-            JSON.parse(await readFile(join(source, "plugin.json"), "utf8"))
-          );
-        } catch (e) {
-          if ((e as any).code !== "ENOENT") throw e;
+        if (native !== undefined) {
+          manifest = diskManifestSchema.parse(JSON.parse(native));
+          const servers = await readPluginMcp(source, manifest.name, manifest.mcpServers);
+          if (manifest.trust === 'render-only' && Object.keys(servers).length)
+            throw Error('render-only plugins may not contribute MCP servers');
+          for (const resource of manifest.resources ?? []) await contained(source, resource);
+        } else {
           manifest = await claudeManifest(source);
           await loadClaudePlugin(source);
         }

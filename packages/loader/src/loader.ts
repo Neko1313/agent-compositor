@@ -1,4 +1,6 @@
 import { claudeManifest, loadClaudePlugin } from "./claude.js";
+import { readPluginMcp } from "./mcp.js";
+import { contained } from "./paths.js";
 import * as nodeModule from "node:module";
 import { access, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -418,6 +420,7 @@ export class PluginLoader {
       !(await fileExists(join(root, "plugin.json")))
     ) {
       const adapted = await loadClaudePlugin(root);
+      this.assertMcpNames(manifest.name, adapted.mcpServers);
       const tier = manifest.tier ?? "user";
       this.host.registerPlugin(adapted.manifest, adapted.hooks, tier);
       const loaded = {
@@ -434,14 +437,20 @@ export class PluginLoader {
       this.loadedByName.set(manifest.name, { ...loaded, manifest });
       return loaded;
     }
+    const mcpServers = await readPluginMcp(root, manifest.name, manifest.mcpServers);
+    for (const resource of manifest.resources ?? []) await contained(root, resource);
+    this.assertMcpNames(manifest.name, mcpServers);
+    if (manifest.trust === "render-only" && Object.keys(mcpServers).length)
+      throw new Error("render-only plugins may not contribute MCP servers");
     const toolsPath = (await fileExists(join(root, "tools.ts")))
       ? join(root, "tools.ts")
       : join(root, "tools.js");
     const hasTools = await fileExists(toolsPath);
     if (hasTools && manifest.trust === "render-only")
       throw new Error("render-only plugins may not export model-facing tools");
-    const entry = await resolveEntry(root, manifest).catch((error) => {
-      if (hasTools && !manifest.main && !manifest.entry) return undefined;
+    const entry = await resolveEntry(root, manifest).catch(async (error) => {
+      const dataOnly = Object.keys(mcpServers).length > 0 || await fileExists(join(root, "skills"));
+      if ((hasTools || dataOnly) && !manifest.main && !manifest.entry) return undefined;
       throw error;
     });
     const { hooks, events, module } = entry
@@ -491,6 +500,7 @@ export class PluginLoader {
       },
       commands: manifest.commands,
       tools,
+      mcpServers,
     };
     this.loadedByName.set(manifest.name, {
       ...loaded,
@@ -500,6 +510,13 @@ export class PluginLoader {
       toolsModule,
     });
     return loaded;
+  }
+
+  private assertMcpNames(owner: string, servers: Record<string, unknown>) {
+    for (const plugin of this.loadedByName.values())
+      for (const name of Object.keys(servers))
+        if (plugin.name !== owner && Object.hasOwn(plugin.mcpServers ?? {}, name))
+          throw new Error(`MCP server name collision: ${name} from ${owner} and ${plugin.name}; use distinct local server names`);
   }
 }
 

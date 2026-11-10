@@ -23,7 +23,7 @@ export interface SkillRegistryConfig {
   /**
    * Directories to scan, in priority order. Each may contain
    * `<skill-name>/SKILL.md` entries (or loose `*.md` files).
-   * Later sources shadow earlier ones by name (workspace wins).
+   * Earlier sources shadow later ones by name (workspace wins).
    */
   sources: { name: string; dir: string }[];
 }

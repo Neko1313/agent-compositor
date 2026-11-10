@@ -170,6 +170,15 @@
       }
     },
     {
+      "name": "plugin-author",
+      "source": "./plugins/plugin-author",
+      "description": "Create and improve Compositor plugins from a request: bundled skill, current contracts, starter files and non-executing structure checks.",
+      "version": "1.0.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
       "name": "session-ctl",
       "source": "./plugins/session-ctl",
       "description": "/compact \u2014 force context compaction now; /clear \u2014 drop the conversation, keep the system prompt (Claude Code /compact and /clear analogs). Both ride $.agent. Drop this folder to remove.",

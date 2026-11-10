@@ -1,0 +1,13 @@
+{
+  "name": "plugin-author",
+  "version": "1.0.0",
+  "description": "Create and improve Compositor plugins from a request: bundled skill, current contracts, starter files and non-executing structure checks.",
+  "trust": "trusted",
+  "main": "hooks.ts",
+  "capabilities": ["tool", "prompt.submit"],
+  "commands": [{
+    "name": "/plugin",
+    "description": "Develop a Compositor plugin with the agent",
+    "usage": "/plugin <what the extension should do>"
+  }]
+}

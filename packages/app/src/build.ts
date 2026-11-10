@@ -281,7 +281,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     options.cwd,
     storage.paths.home
   );
-  const skills = new SkillRegistry({
+  const skills = () => new SkillRegistry({
     sources: [
       { name: "agents", dir: path.join(options.cwd, ".agents/skills") },
       {
@@ -298,9 +298,9 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       },
       { name: "claude", dir: path.join(env.HOME ?? "", ".claude/skills") },
       { name: "cursor", dir: path.join(env.HOME ?? "", ".cursor/skills") },
+      ...plugins.flatMap(plugin=>plugin.dir?[{name:`plugin:${plugin.manifest.name}`,dir:path.join(plugin.dir,"skills")}]:[]),
     ],
   });
-  const skillIndex = config.config.agent?.skills===false ? "" : await skills.renderIndex();
   const hub =
     options.agentHub === false || config.config.disabledPlugins?.includes("agent-hub") || (config.config.enabledPlugins && !config.config.enabledPlugins.includes("agent-hub"))
       ? undefined
@@ -325,7 +325,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
                 options.maxTokensPerTurn ?? Infinity
               ),
               maxTokensPerSession: record.maxTokens * 4,
-              systemPrompt: [options.systemPrompt, instructions, skillIndex]
+              systemPrompt: [options.systemPrompt, instructions]
                 .filter(Boolean)
                 .join("\n\n"),
             });
@@ -428,12 +428,17 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       preparePrompt: config.config.agent?.fileReferences===false ? undefined : (text,signal,source) => expandReferences(options.cwd,text,{workspace:core.workspace,attach:source==="agent"?undefined:path=>core.attachWorkspace(path),authorize:path=>core.authorizeAttachment(path),signal}),
       services: {
         ...(hostEnabled("agent-harness") ? harness.services : {}),
+        "service.agent.instructions": async () => {
+          const base=hostEnabled("agent-harness")?await harness.services["service.agent.instructions"]():{value:""};
+          const index=config.config.agent?.skills===false?"":await skills().renderIndex();
+          return {value:[base.value,index].filter(Boolean).join("\n\n")};
+        },
         "service.network.configure": async ({ config }: { config: any }) => ({
           value: network.configure(config),
         }),
         "service.usage.quota": readQuota,
         "service.skills.load": async ({ name }: { name: string }) => ({
-          value: await skills.load(name),
+          value: await skills().load(name),
         }),
         ...(hub
           ? {
@@ -488,7 +493,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       onAsk,
       sessions: store,
       systemPrompt:
-        [options.systemPrompt, instructions, skillIndex]
+        [options.systemPrompt, instructions]
           .filter(Boolean)
           .join("\n\n") || undefined,
       plugins: [

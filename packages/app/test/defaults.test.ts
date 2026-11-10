@@ -277,6 +277,7 @@ describe("default market: end-to-end through the assembled app", () => {
       "notify-done",
       "output-style",
       "plan-mode",
+      "plugin-author",
       "session-ctl",
       "slash-commands",
       "todos",

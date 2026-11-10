@@ -6,6 +6,7 @@ import {
   claudeManifest,
   loadClaudePlugin,
   contained,
+  readPluginMcp,
 } from "@agent-compositor/loader";
 const root = resolve(process.argv[2] ?? ".");
 const market = marketplaceSchema.parse(
@@ -17,12 +18,17 @@ for (const entry of market.plugins) {
   if (typeof entry.source !== "string") continue;
   const directory = await contained(root, entry.source);
   let manifest;
-  try {
-    manifest = diskManifestSchema.parse(
-      JSON.parse(await readFile(join(directory, "plugin.json"), "utf8"))
-    );
-  } catch (e) {
-    if ((e as any).code !== "ENOENT") throw e;
+  const native = await readFile(join(directory, 'plugin.json'), 'utf8').catch(error => {
+    if (error.code !== 'ENOENT') throw error;
+    return undefined;
+  });
+  if (native !== undefined) {
+    manifest = diskManifestSchema.parse(JSON.parse(native));
+    const servers = await readPluginMcp(directory, manifest.name, manifest.mcpServers);
+    if (manifest.trust === 'render-only' && Object.keys(servers).length)
+      throw Error('render-only plugins may not contribute MCP servers');
+    for (const resource of manifest.resources ?? []) await contained(directory, resource);
+  } else {
     manifest = await claudeManifest(directory);
     await loadClaudePlugin(directory);
   }

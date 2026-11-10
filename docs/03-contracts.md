@@ -82,7 +82,7 @@ The class is declared in the manifest and enforced by the runtime.
 
 ## 4. Plugin manifest
 
-`plugin.json`: name, version, declared events, trust class, capabilities (`model` | `auth` | `workflow` | `tool` | `render`), status-bar contribution. Loader-only fields: `main` (entry file, default `index.ts` → `index.js` → `index.mjs`) and `tier` (chain tier, default `user`).
+`plugin.json`: name, version, declared events, trust class, capabilities (`model` | `auth` | `workflow` | `tool` | `render`), status-bar contribution. Loader-only fields include `main` (entry file, default `hooks.ts` → `index.ts` → `index.js` → `index.mjs`), `tier` (chain tier, default `user`), `mcpServers` (validated stdio declarations/config references) and `resources` (additional package-local runtime files retained in bundles). A package can combine hooks/services, UI, tools, skills and MCP; skill-only/MCP-only packages need no dummy hook entry. See [composition and ownership](../plugins/plugin-author/skills/create-plugin/references/composition.md).
 
 ```json
 {

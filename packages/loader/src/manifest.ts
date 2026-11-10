@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { manifestSchema } from "@agent-compositor/runtime";
 import type { Tier } from "@agent-compositor/runtime";
+import { pluginMcpSourcesSchema } from "./mcp.js";
 
 /**
  * The on-disk manifest: the runtime manifest plus loader fields.
@@ -29,6 +30,10 @@ export const diskManifestSchema = manifestSchema.extend({
   /** entry file relative to the plugin root */
   main: z.string().min(1).optional(),
   entry: z.string().min(1).optional(),
+  /** Inline stdio servers or package-relative configuration paths. */
+  mcpServers: pluginMcpSourcesSchema.optional(),
+  /** Additional package-relative runtime resources retained in compiled bundles. */
+  resources: z.array(z.string().min(1)).optional(),
   /** chain tier for this plugin's hooks; default "user" */
   tier: z.enum(["prepend", "user", "append", "builtin", "core"]).optional(),
 });

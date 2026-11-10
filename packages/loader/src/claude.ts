@@ -1,21 +1,11 @@
-import { readFile, readdir, realpath } from "node:fs/promises";
-import { resolve, relative, isAbsolute, join, basename } from "node:path";
+import { contained } from './paths.js';
+import { readPluginMcp } from './mcp.js';
+export { contained } from './paths.js';
+import { readFile, readdir } from "node:fs/promises";
+import { join, basename } from "node:path";
 import { spawn } from "node:child_process";
 import type { UserHookFn } from "@agent-compositor/hooks";
 import { diskManifestSchema } from "./manifest.js";
-export async function contained(root: string, path: string) {
-  const base = await realpath(root),
-    file = await realpath(resolve(root, path));
-  const rel = relative(base, file);
-  if (
-    rel === ".." ||
-    rel.startsWith("../") ||
-    rel.startsWith("..\\") ||
-    isAbsolute(rel)
-  )
-    throw Error("Plugin path escapes root");
-  return file;
-}
 const readJson = async (file: string) =>
   JSON.parse(await readFile(file, "utf8"));
 const names: Record<string, string> = {
@@ -242,29 +232,7 @@ export async function loadClaudePlugin(root: string) {
       absorb((await readJson(await contained(root, entry))).hooks);
     else absorb(entry);
   }
-  let mcpServers: any = {};
-  const absorbMcp = (value: any) => {
-    const map = value.mcpServers ?? value;
-    if (!map || typeof map !== "object") throw Error("Invalid MCP map");
-    for (const [key, server] of Object.entries(map))
-      mcpServers[`${manifest.name}-${key}`] = JSON.parse(
-        JSON.stringify(server).replaceAll("${CLAUDE_PLUGIN_ROOT}", root)
-      );
-  };
-  try {
-    absorbMcp(await readJson(await contained(root, ".mcp.json")));
-  } catch (e) {
-    if ((e as any).code !== "ENOENT") throw e;
-  }
-  for (const entry of Array.isArray(raw.mcpServers)
-    ? raw.mcpServers
-    : raw.mcpServers
-    ? [raw.mcpServers]
-    : []) {
-    if (typeof entry === "string")
-      absorbMcp(await readJson(await contained(root, entry)));
-    else absorbMcp(entry);
-  }
+  const mcpServers = await readPluginMcp(root, manifest.name, raw.mcpServers);
   const hooks: Record<string, UserHookFn> = {};
   for (const [claude, event] of Object.entries(events))
     if (hookMap[claude]) {

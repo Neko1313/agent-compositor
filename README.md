@@ -56,6 +56,14 @@ use `/workspace add PATH` or repeated `--add-dir DIR` flags for additional scope
 Tools and independent agents can select an attached project's `cwd`.
 See [internet and multiple projects](docs/workspaces-and-web.md).
 
+## Create your own plugins
+
+Builds after v0.3.0 include the `plugin-author` plugin and `create-plugin` skill.
+Use `/plugin <what the extension should do>` to develop a local command, tool,
+panel, skill or service with the agent. `plugin_dev` supplies installed contracts,
+starter files and non-executing structure checks; `/reload` activates reviewed
+changes between turns. See [plugin authoring](docs/plugin-authoring.md).
+
 ## Chat history
 
 Use `/history`, `/sessions` or `/resume` without an ID to open searchable chat
@@ -129,7 +137,7 @@ Start with [docs/INDEX.md](docs/INDEX.md) — a map of all topics and the decisi
 
 ## Status
 
-Working prototype: streaming agent core, tools, sessions, permissions, compaction, skills, disk plugins and an interactive Ink UI. The app UI uses the versioned core/renderer protocol. See [app usage and configuration](packages/app/README.md), [native Callix setup](plugins/callix/README.md), and [Monty sandbox](plugins/monty/README.md). Workflows execute Python through the selected sandbox; legacy JavaScript journals are preserved for inspection. Marketplace and web rendering remain future work.
+Working prototype: streaming agent core, tools, sessions, permissions, compaction, skills, disk plugins and an interactive Ink UI. The app UI uses the versioned core/renderer protocol. See [app usage and configuration](packages/app/README.md), [native Callix setup](plugins/callix/README.md), and [Monty sandbox](plugins/monty/README.md). Workflows execute Python through the selected sandbox; legacy JavaScript journals are preserved for inspection. Marketplaces distribute installable plugins; native packages can combine agent logic, UI, tools, skills and stdio MCP declarations. See [plugin authoring](docs/plugin-authoring.md) for features in source builds after v0.3.0. A web renderer remains future work.
 
 ## License
 

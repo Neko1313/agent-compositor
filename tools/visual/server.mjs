@@ -1,4 +1,5 @@
 import {workspaceReply} from './workspaces-sample.ts';
+import {authorReply} from './author-sample.ts';
 import {uxTool,uxReply} from './ux-sample.ts';
 import {seedHistory,historyReply} from './history-sample.ts';
 import {questionsSample,questionsReply} from './questions-sample.ts';
@@ -28,6 +29,9 @@ if(process.env.VISUAL_MASCOT_GIF){
   await writeFile(join(cwd,'.agent-compositor/mascot.json'),JSON.stringify({pack:'animations',animations:Object.fromEntries(names.map(name=>[name,'source.gif']))}));
 }
 if(process.env.VISUAL_HISTORY)await seedHistory(cwd);
+if(process.env.VISUAL_AUTHOR){
+  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},compaction:{enabled:false},permissions:{rules:[{tool:'plugin_dev',decision:'allow'},{tool:'write',decision:'allow'},{tool:'mcp_call',decision:'allow'},{tool:'extension_control',decision:'allow'}]}}));
+}
 if(process.env.VISUAL_CONTROLLERS){
   await cp(join(root,'tools/visual/controller-plugin'),join(cwd,'plugins/controller-proof'),{recursive:true});
   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({
@@ -52,7 +56,7 @@ async function start(ws) {
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
     : ['bun', join(import.meta.dir, 'fixture.ts'), cwd];
   const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), ...command],
-    { cwd: root, env:{...process.env,...((process.env.VISUAL_WORKSPACES||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off"}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+    { cwd: root, env:{...process.env,...((process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off"}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
   active = { ws, proc };
   const sendLines = async () => {
     let pending = '';
@@ -83,6 +87,11 @@ const server = Bun.serve({
         const delta=reply.call?{tool_calls:[{index:0,id:reply.call.id,type:'function',function:{name:reply.call.name,arguments:JSON.stringify(reply.call.args)}}]}:{content:reply.text};
         return new Response(`data: ${JSON.stringify({choices:[{delta,finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{delta:{},finish_reason:reply.call?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
       }
+    }
+    if(process.env.VISUAL_AUTHOR&&url.pathname===`/model/${token}/v1/chat/completions`&&request.method==='POST'){
+      const body=await request.json(),reply=authorReply(body.messages);
+      const delta=reply.call?{tool_calls:[{index:0,id:reply.call.id,type:'function',function:{name:reply.call.name,arguments:JSON.stringify(reply.call.args)}}]}:{content:reply.text};
+      return new Response(`data: ${JSON.stringify({choices:[{delta,finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{delta:{},finish_reason:reply.call?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
     }
     if(process.env.VISUAL_CONTROLLERS&&url.pathname===`/model/${token}/v1/chat/completions`&&request.method==='POST'){
       await request.json();return new Response(`data: ${JSON.stringify({choices:[{delta:{content:'CUSTOM RESPONSE: storage and input verified'},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});

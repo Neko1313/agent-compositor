@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2
+
+<!-- plugin-release:auto:start -->
+- warm indexes eagerly and keep large graph queries responsive ([275523f](https://github.com/Neko1313/agent-compositor/commit/275523fe7d3421fa4301f90d969e36b4c8fc1784))
+<!-- plugin-release:auto:end -->
+
 ## 1.1.1
 
 Propagate notification failures through the command hook.

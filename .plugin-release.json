@@ -2,5 +2,118 @@
   "schemaVersion": 1,
   "bootstrap": "0c0f9756101838cb7ea419baaa2e8230478e8e24",
   "repository": "Neko1313/agent-compositor",
-  "plugins": {}
+  "plugins": {
+    "auto-approve": {
+      "version": "1.3.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "background-jobs": {
+      "version": "0.1.0",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "btw": {
+      "version": "1.2.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "callix": {
+      "version": "1.3.0",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "checkpoint-history": {
+      "version": "1.2.0",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "checkpoints": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "cost": {
+      "version": "1.2.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "doctor": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "export": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "guard-scope": {
+      "version": "1.1.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "guard-secrets": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "mascot": {
+      "version": "1.1.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "mcp": {
+      "version": "1.2.0",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "memory": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "monty": {
+      "version": "1.1.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "network-proxy": {
+      "version": "1.1.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "notify-done": {
+      "version": "1.1.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "output-style": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "plan-mode": {
+      "version": "1.2.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "plugin-author": {
+      "version": "1.2.0",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "session-ctl": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "slash-commands": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "todos": {
+      "version": "1.1.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "turn-log": {
+      "version": "1.1.2",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "ui-theme": {
+      "version": "1.1.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "web": {
+      "version": "1.2.1",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    },
+    "workflows": {
+      "version": "1.4.0",
+      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+    }
+  },
+  "catalog": {
+    "version": "1.0.2",
+    "digest": "d8f8cecb35bc2a1d6eb72ae4cb9c4e6ea6976d163235d49af88b9d2b08282dfd"
+  }
 }

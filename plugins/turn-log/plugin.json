@@ -1,7 +1,7 @@
 {
   "name": "turn-log",
-  "version": "1.1.1",
-  "description": "Append-only JSONL journal of every turn (prompt, outcome, error) at .agent-compositor/turn-log.jsonl \u2014 the /stats data source. Drop this folder to remove.",
+  "version": "1.1.2",
+  "description": "Append-only JSONL journal of every turn (prompt, outcome, error) at .agent-compositor/turn-log.jsonl — the /stats data source. Drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [
     "prompt.submit",

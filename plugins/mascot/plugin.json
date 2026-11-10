@@ -1,6 +1,6 @@
 {
   "name": "mascot",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "trust": "trusted",
   "description": "GIF/APNG Ghost companion attached to the message composer; observes agent, tool and dialog activity.",
   "capabilities": [

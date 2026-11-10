@@ -1,7 +1,7 @@
 {
   "name": "btw",
-  "version": "1.2.1",
-  "description": "/btw <question> \u2014 ask a side question answered in isolation by a fresh model call (Claude Code /btw analog: the answer lands as a notification and never enters the conversation). Drop this folder to remove.",
+  "version": "1.2.2",
+  "description": "/btw <question> — ask a side question answered in isolation by a fresh model call (Claude Code /btw analog: the answer lands as a notification and never enters the conversation). Drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [
     "prompt.submit"

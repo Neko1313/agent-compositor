@@ -25,7 +25,7 @@ compositor
 The installer verifies SHA-256 checksums and installs the executable, replaceable
 standard plugins and animation assets under `$HOME/.local`. It leaves settings,
 sessions and custom plugins intact. To update, run the same command again.
-In source builds after v0.3.0, all plugins start off and the repository marketplace
+Since v0.4.0, all plugins start off and the repository marketplace
 is available offline. Use `/marketplace` to install a package in your chosen
 scope, then explicitly enable it with
 `/extensions enable NAME --project` or `--user`, followed by `/reload`.
@@ -64,7 +64,7 @@ See [internet and multiple projects](docs/workspaces-and-web.md).
 
 ## Create your own plugins
 
-Builds after v0.3.0 include the `plugin-author` plugin and `create-plugin` skill.
+Version v0.4.0 includes the `plugin-author` plugin and `create-plugin` skill.
 Use `/plugin <what the extension should do>` to develop a local command, tool,
 panel, skill or service with the agent. `plugin_dev` supplies installed contracts,
 starter files and non-executing structure checks. Explicitly enable the authored
@@ -143,7 +143,7 @@ Start with [docs/INDEX.md](docs/INDEX.md) — a map of all topics and the decisi
 
 ## Status
 
-Working prototype: streaming agent core, tools, sessions, permissions, compaction, skills, disk plugins and an interactive Ink UI. The app UI uses the versioned core/renderer protocol. See [app usage and configuration](packages/app/README.md), [native Callix setup](plugins/callix/README.md), and [Monty sandbox](plugins/monty/README.md). Workflows execute Python through the selected sandbox; legacy JavaScript journals are preserved for inspection. Marketplaces distribute installable plugins; native packages can combine agent logic, UI, tools, skills and stdio MCP declarations. See [plugin authoring](docs/plugin-authoring.md) for features in source builds after v0.3.0. A web renderer remains future work.
+Working prototype: streaming agent core, tools, sessions, permissions, compaction, skills, disk plugins and an interactive Ink UI. The app UI uses the versioned core/renderer protocol. See [app usage and configuration](packages/app/README.md), [native Callix setup](plugins/callix/README.md), and [Monty sandbox](plugins/monty/README.md). Workflows execute Python through the selected sandbox; legacy JavaScript journals are preserved for inspection. Marketplaces distribute installable plugins; native packages can combine agent logic, UI, tools, skills and stdio MCP declarations. See [plugin authoring](docs/plugin-authoring.md) for features available since v0.4.0. A web renderer remains future work.
 
 ## License
 

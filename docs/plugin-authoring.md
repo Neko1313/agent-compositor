@@ -19,7 +19,7 @@ Ordinary requests to create a Compositor extension also match the skill's
 compact description. `/plugin` without arguments displays usage without calling
 a model. The agent loads detailed guidance on demand, asks for missing domain
 requirements when necessary, creates/edits local files and verifies the result.
-This capability is in the source tree after v0.3.0; the published v0.3.0 archive
+This capability ships in v0.4.0 and later; the published v0.3.0 archive
 predates it.
 
 ## Authoring tools

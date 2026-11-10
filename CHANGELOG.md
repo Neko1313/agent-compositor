@@ -2,6 +2,12 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.4.0 - 2026-11-10
+
+### Features
+- Add self-hosted composite plugin authoring ([45e47b2](https://github.com/Neko1313/agent-compositor/commit/45e47b2277ff07885eccaa5c5d2f8e25bb0ec98f))
+- **BREAKING:** Require scoped activation and certify native plugin releases ([da4c60a](https://github.com/Neko1313/agent-compositor/commit/da4c60aece29a6a060b1bdea86b354c9da2f5cd5))
+
 ## v0.3.0 - 2026-11-10
 
 ### Documentation

@@ -21,7 +21,13 @@ The Bun runtime is compiled into the executable. Keep the archive's directories
 together; copying only the executable drops the supplied plugin distribution.
 
 User and project plugin directories take precedence over the distribution's
-defaults. Disable or replace defaults through the existing extension settings.
+supplied packages. Since v0.4.0, plugins remain inactive until explicitly enabled
+in user or project scope; installation alone never activates them. The repository
+marketplace ships offline with the distribution. Existing explicit activation
+settings are preserved. Use `/extensions enable NAME --project` (or `--user`)
+and `/reload`, including for the optional `mascot` and `plugin-author` packages.
+Plugin versions/releases and catalog versions are independent of the host.
+See [plugin standards](plugin-standard.md) and [mandatory testing](plugin-testing.md).
 Monty's bridge needs Node.js 22+ or `AGENT_NODE_BIN`. Callix 1.7.0 is bundled
 under `plugins/callix/bin/`; the installer needs no separate Callix download.
 `CALLIX_BIN` and plugin settings still override the bundled executable. The

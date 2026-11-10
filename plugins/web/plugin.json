@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "trust": "trusted",
   "description": "Bounded web reading and keyless DuckDuckGo or configurable Brave/SearXNG search through normal tool permissions.",
   "capabilities": [

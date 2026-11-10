@@ -1,5 +1,32 @@
 # Project memory
 
+## Verified v0.4.0 publication — 2026-11-10
+
+The user authorized committing, pushing and publishing the host release after CI.
+Feature commit da4c60a introduces explicit scoped activation, independent plugin
+versions/catalog updates and mandatory certification. Release commit 74e76e9
+sets the root/app/lockfile to 0.4.0 and documents the opt-in migration. Annotated
+tag v0.4.0 points to 74e76e9c5ffe6e65c2c2b13b1b7afc43eb8eccda.
+
+Main CI 42822150243 passed on Node 26 and 22.19.0. Release run 42822929225 passed
+verification, native build/installer/model/Monty/Callix smoke on Linux x64/arm64
+and macOS x64/arm64, then publication. GitHub reports v0.4.0 as latest, non-draft,
+non-prerelease, published at 2026-11-10T13:22:18Z. Assets are the four native
+archives, install.sh and SHA256SUMS. Published v0.3.0 assets/tags were not changed.
+
+Before tagging, all 26 full source release certificates passed on the committed
+candidate, including real PTY and live reference cases, and were reverified
+against its source snapshot. Local Linux full distribution smoke passed; the
+Harness2 Python 3.13 environment passed 46 tests. Source evidence is retained in
+reports/certification/summary-release.json and host-v0.4.0.json.
+
+This host release bundles the independently versioned plugin sources and offline
+market. It does not publish separate plugin/* tags/releases or claim complete
+four-platform standalone plugin archive certification. Those independent release
+workflows retain their full gates and reference-service configuration requirement.
+Fresh plugin activation is explicit; enable mascot or plugin-author in the desired
+scope and reload when needed. Existing explicit user/project selections persist.
+
 ## Plugin coverage completion — 2026-11-10
 
 The user asked to close the blocking gaps from the initial certification rollout.

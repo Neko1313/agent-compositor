@@ -2,6 +2,21 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.5.0 - 2026-11-10
+
+### Documentation
+- Record verified v0.4.0 publication ([21f1d0a](https://github.com/Neko1313/agent-compositor/commit/21f1d0ac3f85715fc4f430575892dd41299384f4))
+- Publish Docusaurus documentation on GitHub Pages ([0c0f975](https://github.com/Neko1313/agent-compositor/commit/0c0f9756101838cb7ea419baaa2e8230478e8e24))
+
+
+### Features
+- Automate plugin versions and changelog preparation ([cba392a](https://github.com/Neko1313/agent-compositor/commit/cba392ae9a959a07b6f3248f1998e2a32052fa46))
+- Add background completion wakeups and reasoning effort controls ([45dcbc6](https://github.com/Neko1313/agent-compositor/commit/45dcbc6243cfb4ee5b8b76c179eae6816dafc927))
+
+
+### Fixes
+- Warm indexes eagerly and keep large graph queries responsive ([275523f](https://github.com/Neko1313/agent-compositor/commit/275523fe7d3421fa4301f90d969e36b4c8fc1784))
+
 ## v0.4.0 - 2026-11-10
 
 ### Features

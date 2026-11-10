@@ -1,5 +1,29 @@
 # Project memory
 
+## Verified v0.5.0 publication — 2026-11-11
+
+The user explicitly requested publication and release. Published host v0.5.0
+from immutable tag commit 968b346aaab0f91ca29b4c0a6458a7292ebe4215:
+https://github.com/Neko1313/agent-compositor/releases/tag/v0.5.0
+Release run 42913930683 passed its quality gate, all four native build/installer
+smoke jobs (Linux/macOS x64/arm64), and publication. The non-draft release is
+latest and contains four archives, install.sh and SHA256SUMS.
+
+The first automatic plugin release preparation succeeded end to end. Reviewed
+and merged PR #1 after CI on Node 22.19.0/26 and documentation checks passed.
+Only generated release metadata/references changed; 27 plugin baselines are
+recorded, workflows is 1.4.0, background-jobs is 0.1.0, Callix is 1.3.0 and the
+development catalog is 1.0.2. A clean post-merge plugin:prepare returns no pending
+plugins or writes. Host archives bundle these snapshots; independent plugin
+release tags/archives were not published. GitHub required approval for the first
+bot PR's workflows; these were approved after reviewing the generated diff.
+
+Verification included 837 passing tests (3 optional skips), 87.42% line coverage,
+all 27 deterministic plugin certificates, typecheck, documentation build, real
+PTY checks and a local compiled installer smoke. GitHub Pages serves the updated
+reasoning/workflow/background-job guides and the v0.5.0 CLI reference at
+https://neko1313.github.io/agent-compositor/.
+
 ## Workflow completion and reasoning controls — 2026-11-11
 
 New workflow_run runs default to completion:wake, with notify/none alternatives.

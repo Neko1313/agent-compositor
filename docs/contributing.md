@@ -55,8 +55,13 @@ also assess whether explanations match the changed behavior.
 ## Submit and release
 
 Keep a focused diff, include the checks actually performed and explain observable
-behavior and material limits. Plugin runtime changes need their independent
-version/changelog updates under the [plugin standard](plugin-standard.md).
+behavior and material limits. Use meaningful Conventional Commits: `fix` for
+patches, `feat` for additions, and `!` / `BREAKING CHANGE:` for incompatible
+changes. Include migration details in breaking commit bodies. Plugin versions,
+changelogs and matching development catalog metadata are prepared automatically
+in a release PR after main-branch pushes; do not hand-edit them for routine work.
+Read the [plugin standard](plugin-standard.md#independent-versions-and-releases)
+for review, preparation state and certification.
 
 The main CI validates application behavior. The documentation workflow builds on
 pushes and pull requests, and publishes successful main-branch builds to GitHub

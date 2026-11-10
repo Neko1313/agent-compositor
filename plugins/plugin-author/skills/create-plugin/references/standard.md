@@ -41,8 +41,17 @@ between turns. Project decisions override user defaults. Exact capability
 allowlists remain binding; never replace them to activate your plugin. Provider
 selection remains separate and requires restart when changed.
 
-Increment only the plugin's version for its runtime/skill/contract change and
-update its changelog/catalog entry. Catalog refresh and plugin update are
+Runtime/skill/contract changes need an independent plugin version and changelog.
+In the Compositor source repository, do not hand-bump these fields for routine
+changes: use meaningful Conventional Commits (`fix`, `feat`, and `!` or
+`BREAKING CHANGE:` with migration details). After pushes to main, the automated
+release PR derives versions and changelogs from affected package/bundled files,
+synchronizes development catalog entries, and runs CI/documentation checks.
+`plugin:prepare` previews the plan from a clean committed checkout; generated
+metadata does not replace certification or publish archives. External repositories
+provide their own version/release automation.
+
+Catalog refresh and plugin update are
 separate explicit actions. Managed updates lock source/version/content; never
 edit an existing published version in place. `/extensions rollback <name>` can
 restore a verified backup after an update; reload applies it. Release tags use

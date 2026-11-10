@@ -11,5 +11,6 @@ Use `npm run docs:impact -- BASE_REF` to find related pages.
 ## Validation
 
 List checks actually performed, including `npm run docs:check` when applicable.
-Record material verification limits. Plugin behavior changes need their own
-version, changelog and certification under the plugin standard.
+Record material verification limits. Plugin release metadata is generated after
+merge; use a Conventional Commit title and identify breaking changes/migrations.
+Plugin behavior changes still require certification under the plugin standard.

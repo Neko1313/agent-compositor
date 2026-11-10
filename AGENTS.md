@@ -43,3 +43,16 @@ Keep executable tutorial examples in sync with their tested source files.
 New pages must appear in `tools/docs/structure.mjs`; new packages need a mapping
 in `tools/docs/coverage.json`. Current behavior belongs in maintained guides;
 dated implementation notes and proposals remain clearly labeled as history.
+
+## Plugin release metadata
+
+Do not hand-bump plugin/catalog versions or duplicate commit summaries into plugin
+changelogs for routine changes. Commit meaningful Conventional Commits (`fix`,
+`feat`, and `!` / `BREAKING CHANGE` for incompatible changes). After a main-branch
+push, `plugin-release-preparation` creates or refreshes the generated release PR.
+It derives affected plugins from package files, bundled workspace inputs and
+distribution tooling, updates versions/changelogs and development catalog entries,
+and dispatches CI/documentation checks. Inspect `npm run plugin:prepare` from a
+clean committed checkout when debugging the plan. The generated PR is reviewed
+normally; it does not publish tags/archives or bypass certification. See
+[independent plugin releases](docs/plugin-standard.md#independent-versions-and-releases).

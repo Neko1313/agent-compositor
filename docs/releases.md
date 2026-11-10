@@ -28,11 +28,20 @@ settings are preserved. Use `/extensions enable NAME --project` (or `--user`)
 and `/reload`, including for the optional `mascot` and `plugin-author` packages.
 Plugin versions/releases and catalog versions are independent of the host.
 See [plugin standards](plugin-standard.md) and [mandatory testing](plugin-testing.md).
+Plugin version/changelog preparation is automated by the release PR workflow;
+application version preparation below remains separate. Plugin publication
+extracts only the selected version's notes and retains all certification gates.
 Monty's bridge needs Node.js 22+ or `AGENT_NODE_BIN`. Callix 1.7.0 is bundled
 under `plugins/callix/bin/`; the installer needs no separate Callix download.
 `CALLIX_BIN` and plugin settings still override the bundled executable. The
 already-published v0.1.1 archive predates this addition and needs explicit setup.
 Native third-party plugins may declare additional runtime dependencies.
+
+Independent plugin archives retain license notices for dependencies selected by
+the bundler and separately copied native runtime packages. Unrelated workspace
+dependencies, including the documentation site, are excluded so they do not
+inflate plugin installation inventories. Native Callix provenance and its
+upstream license remain alongside its executable.
 
 The POSIX installer uses curl, tar, awk and sha256sum (or macOS shasum).
 `--prefix` defaults to `$HOME/.local`; `--version` selects a release tag or

@@ -161,7 +161,8 @@ jobs:
           PLUGIN_TAG: ${{ needs.verify.outputs.tag }}
         run: |
           bun tools/plugins/catalog-entry.mjs
-          gh release create "$PLUGIN_TAG" --verify-tag --draft --title "$PLUGIN_TAG" --notes-file "plugins/$PLUGIN_NAME/CHANGELOG.md"
+          bun tools/plugins/release-notes.mjs "$PLUGIN_NAME" dist/plugin-release/release-notes.md
+          gh release create "$PLUGIN_TAG" --verify-tag --draft --title "$PLUGIN_TAG" --notes-file dist/plugin-release/release-notes.md
           find dist/plugin-release -type f -name '*.tar.gz*' -exec gh release upload "$PLUGIN_TAG" {} +
           tar --format=ustar -czf dist/plugin-release/certification.tar.gz -C dist/plugin-release certification
           gh release upload "$PLUGIN_TAG" dist/plugin-release/marketplace-entry.json dist/plugin-release/certification.tar.gz

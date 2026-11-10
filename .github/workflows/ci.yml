@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: 'Base commit for generated release metadata checks'
+        required: false
+        type: string
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -42,10 +48,15 @@ jobs:
       - name: Verify independent plugin version changes
         if: matrix.node == '26'
         env:
-          PLUGIN_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PLUGIN_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base_ref }}
+          PLUGIN_RELEASE_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           if [ -n "$PLUGIN_BASE_SHA" ] && [ "$PLUGIN_BASE_SHA" != '0000000000000000000000000000000000000000' ]; then
-            npm run plugin:changed -- "$PLUGIN_BASE_SHA"
+            if [ "$PLUGIN_RELEASE_BRANCH" = 'automation/plugin-releases' ]; then
+              npm run plugin:changed -- "$PLUGIN_BASE_SHA" --strict
+            else
+              npm run plugin:changed -- "$PLUGIN_BASE_SHA"
+            fi
           fi
       - if: matrix.node == '26'
         run: npm run eval -- --output dist/evals-ci

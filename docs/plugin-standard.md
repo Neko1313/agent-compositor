@@ -144,20 +144,60 @@ to make test setup easier.
 
 ## Independent versions and releases
 
-The host, marketplace metadata and each plugin have separate versions. A plugin
-runtime, skill or contract change increments its own SemVer and changelog;
-documentation/test-only fixes can retain the runtime version. A published catalog `version` must match the released artifact. The working
+The host, marketplace metadata and each plugin have separate versions. For
+first-party packages in this repository, a push to main runs
+`plugin-release-preparation`, which creates or refreshes the
+`automation/plugin-releases` pull request. It prepares plugin SemVer, changelogs,
+relative development catalog versions and the generated plugin reference from
+committed history. Routine contributions do not hand-edit those release fields.
+A published catalog `version` must match the released artifact. The working
 tree may be ahead of a pinned published entry; new plugins can be developed and
 tested before being listed. Relative development entries must match their source
-manifest. CI compares plugin changes with the base commit
-and rejects runtime changes without a version bump. No host version bump is
-needed to publish a compatible plugin update.
+manifest. Normal CI reports versions pending automatic preparation; the generated
+release PR uses strict version checks. No host version bump is needed to publish
+a compatible plugin update.
+
+Commit messages supply the release intent: `fix(callix): ...` selects a patch,
+`feat(callix): ...` a minor, and `!` or a `BREAKING CHANGE:` body a major. Other
+runtime changes default to patch. The highest level in a batch wins per plugin.
+Affected files, rather than the optional commit scope, select the plugin. Include
+migration details in the breaking commit body and review the generated notes.
+Documentation/test-only changes do not bump versions. Changes to bundled
+workspace inputs, selected runtime lockfile dependencies and distribution
+packaging do. Unrelated documentation-site dependencies do not. New plugins
+start at their manifest's initial version. Existing higher development versions
+are preserved during the transition to automation.
+
+`.plugin-release.json` records the bootstrap snapshot and each prepared source
+baseline. Generated version/changelog commits do not cause another release PR;
+new runtime changes accumulate until the open PR is refreshed or merged. The
+catalog metadata version advances once per changed batch. Published archive
+entries remain pinned until the separate certified catalog promotion below.
+
+For local diagnosis, use a clean committed checkout:
+
+```sh
+npm run plugin:prepare             # inspect the deterministic plan
+npm run plugin:prepare -- --write  # apply it locally, normally done by the bot
+```
+
+The generator refuses a dirty checkout and does not stage unrelated developer
+work. GitHub Actions must be allowed to create pull requests. The workflow keeps
+default token permissions read-only, requests write permissions only for its
+preparation job, and explicitly dispatches CI and documentation checks on the
+generated commit: events created with `GITHUB_TOKEN` do not start those workflows
+automatically. No separate personal token is needed. The PR still needs normal
+review/merge; preparation does not create tags, publish artifacts or substitute
+for release certification. Tag validation rejects a plugin with source changes
+still pending automatic version preparation.
+External plugin repositories provide their own release automation.
 
 Use an annotated `plugin/<name>/v<version>` tag after verification. The independent
 `plugin-release` workflow validates identity/version, runs the plugin's behavior
 and lifecycle tests, enforces the complete release matrix, builds and certifies
 four native archives, then publishes that plugin's release with checksums. It never
 moves the application's `latest` release. Manual workflow dispatch builds only.
+Release notes contain only the selected version's changelog entry.
 
 ```sh
 npm run plugin:build -- todos

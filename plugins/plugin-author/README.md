@@ -16,3 +16,7 @@ Run `npm run plugin:test -- plugin-author` from the repository root.
 See [the plugin standard](../../docs/plugin-standard.md) for lifecycle, scope,
 compatibility and independent release requirements. Changes are recorded in
 [CHANGELOG.md](CHANGELOG.md).
+
+The bundled standard guide describes first-party automatic release preparation:
+Conventional Commits feed the repository's generated version/changelog PR.
+External plugin repositories provide their own release automation.

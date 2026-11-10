@@ -1,5 +1,26 @@
 # Project memory
 
+## v0.3.0 release preparation — 2026-11-10
+
+The user authorized committing/pushing the accumulated workspace/web/Harness2
+changes, checking remote CI, and publishing a release only after success.
+Feature commit: 213f9a9. The next version is v0.3.0, reflecting new kernel,
+workspace and web capabilities since v0.2.0. Root/app versions and lockfile must
+match; CHANGELOG.md is generated with the pinned git-cliff. Follow
+docs/releases.md: green CI on the exact release commit, then an annotated tag;
+GitHub's release workflow verifies, builds/smokes four native bundles, and only
+publishes after every gate. Remote run/publication status is authoritative on
+GitHub, not inferred from local checks or this preparation note.
+
+Local release-candidate checks pass: 636 TypeScript tests (3 optional skips),
+44 Python tests, 12/12 scripted Harness2 cases, 5/5 basic evals and 3/3 tool
+evals, proxy smoke, marketplace validation, typecheck, Linux x64 build and
+installed-release smoke. Source and compiled real-PTY workspace/web/resume
+scenarios pass; screenshots inspected. Re-generated schema/events.json to sync
+catalog 0.19 before push. Local artifacts: dist/release-030-* and logs in
+/tmp/release-030-*. Browser checks use an existing compatible Chromium via the
+bench's executable override; no dependency or browser-version pins were changed.
+
 ## Harness² case suite — 2026-11-10
 
 The user requested adding and improving cases through Harness². Added a real

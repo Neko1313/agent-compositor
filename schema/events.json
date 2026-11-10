@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -492,6 +492,51 @@
           }
         }
       }
+    },
+    "workspace.changed": {
+      "since": "0.19.0",
+      "version": 1,
+      "summary": "User-selected filesystem scope for this session. File entries grant only that file; directory entries grant descendants. Replayed on resume.",
+      "namespace": "workspace",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "roots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "file",
+                    "directory"
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "kind"
+              ]
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "roots"
+        ]
+      },
+      "responses": {}
     },
     "session.start": {
       "since": "0.1.0",
@@ -4199,6 +4244,10 @@
               "archive",
               "merge"
             ]
+          },
+          "cwd": {
+            "type": "string",
+            "minLength": 1
           },
           "id": {
             "type": "string"

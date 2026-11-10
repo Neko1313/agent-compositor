@@ -2,6 +2,25 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.3.0 - 2026-11-10
+
+### Documentation
+- Record verified v0.2.0 publication ([019572b](https://github.com/Neko1313/agent-compositor/commit/019572b3a1ab10317893c91eab0486177b76275b))
+
+
+### Features
+- Attach Wisp Soul to the message composer ([86cc4e9](https://github.com/Neko1313/agent-compositor/commit/86cc4e9f33d42c0f1d7b7e960592be47b5cae89e))
+- Play Ghost GIF and APNG in native composer graphics ([6bb30ae](https://github.com/Neko1313/agent-compositor/commit/6bb30ae8d908a7645d0daed83d41a565b181a7a0))
+- Make agent strategies, UI controllers and sessions replaceable ([2766d4b](https://github.com/Neko1313/agent-compositor/commit/2766d4b3c4efd949c0883ff0d6faf8a8fa8319a1))
+- Add scoped multi-project access, web search and Harness2 cases ([213f9a9](https://github.com/Neko1313/agent-compositor/commit/213f9a93c2b1b5642c63eea05410f010ac5926cc))
+
+
+### Fixes
+- Provision ripgrep for release verification ([7a04408](https://github.com/Neko1313/agent-compositor/commit/7a044087b1776c113269e94ea242a13af6762a68))
+- Canonicalize temporary smoke permission paths ([20ed7a5](https://github.com/Neko1313/agent-compositor/commit/20ed7a5170007d81f565b9a12ac5fd2bc8af5ac3))
+- Permit verified publication through repaired pipeline ([f9ea46e](https://github.com/Neko1313/agent-compositor/commit/f9ea46e02f1cca82fc0935e10060fc00dcd6988d))
+- Match the Wisp pixel flame storyboard ([7d1d55f](https://github.com/Neko1313/agent-compositor/commit/7d1d55fc8daed0c9732d8c624994793b061ec92b))
+
 ## v0.2.0 - 2026-11-09
 
 ### Build and maintenance

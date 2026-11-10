@@ -6,6 +6,7 @@
       "layer": "integration",
       "files": [
         "packages/app/test/harness.test.ts",
+        "packages/app/test/workflow-completion.test.ts",
         "packages/app/test/wave2.test.ts",
         "packages/app/test/token-efficiency.test.ts"
       ]

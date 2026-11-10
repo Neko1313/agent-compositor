@@ -46,6 +46,13 @@ export async function probe(app:BuiltApp,name:string,existingCore?:ReturnType<Bu
  }else if(name==='memory'){
   const file=join(app.storage.paths.state,'memory.md'),before=await readFile(file,'utf8').catch(()=>'');
   await core.submit('# certification note');const after=await readFile(file,'utf8');assert.equal(after.split('certification note').length,before.split('certification note').length+1);
+ }else if(name==='background-jobs'){
+  await app.storage.configure('background-jobs.json',{mode:'notify'});
+  const launched=await core.invokeTool('exec',{command:'printf BACKGROUND_CONTRACT',background:true,timeoutMs:2000});assert.equal(launched.ok,true,launched.error??'Background launch failed');
+  const id=(launched.output as any).shellId;let status:any;
+  for(let i=0;i<200;i++){const result=await core.invokeTool('background_jobs',{action:'status',id});assert.equal(result.ok,true,result.error??'Background status failed');status=result.output;if(status.subscription?.delivery==='delivered')break;await new Promise(r=>setTimeout(r,10));}
+  assert.equal(status.subscription?.delivery,'delivered');assert.equal(status.exitCode,0);
+  assert.equal(((await core.invokeTool('exec_output',{id})).output as any).stdout,'BACKGROUND_CONTRACT');
  }else if(name==='notify-done'){
   await core.host.emit('turn.complete',{turnId:'contract'});assert.equal(events.filter(e=>e.input?.plugin===name&&e.input.message==='turn complete').length,1);
  }else if(name==='turn-log'){

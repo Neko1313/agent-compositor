@@ -66,6 +66,14 @@ restoring an independent agent.
 
 ## Native graphics and compiled distributions
 
+`npm run visual:background` exercises the background-jobs plugin in the real PTY.
+It checks Ctrl+C during a busy turn, launches a real background shell, sends a
+second user message while it runs, and leaves an unsent draft in the composer.
+One completion reads the result and preserves that draft. The scripted provider
+records open/closed request lifetimes to reject waiting streams or polling calls.
+Evidence lives under `dist/visual-background/`; this does not certify external
+provider reliability.
+
 The default scenario checks portable text rendering and compact image status. Run
 `VISUAL_GRAPHICS=kitty npm run visual:check` to let the browser bench answer the
 real Kitty query and emulate emitted RGBA upload/placement/deletion commands.
@@ -110,7 +118,7 @@ streams are avoided because the local ImageMagick decoder rejects files below
 ### Native settings scenario
 
 Run `npm run visual:settings` to exercise the Settings toolbar, provider preset,
-editable connection form, masked API key, authenticated proxy form, independent
+editable connection form, reasoning effort selection/persistence/reset, masked API key, authenticated proxy form, independent
 model/tool switches, cancellation and restoration after restart. The real TUI
 runs in the same isolated PTY fixture. It uses fake keys and local dummy
 addresses, and does not contact an external model. Artifacts default to
@@ -125,7 +133,7 @@ transport behavior are also covered by package tests and `npm run eval:proxy`.
 and fixture plugin. Terminal commands launch the real workflow tool, discover
 two workers and hold them at a fixture barrier. Mouse actions pause scheduling;
 a terminal command releases the workers, then resume joins their results. The
-scenario inspects stage detail, restarts the application, verifies persisted
+scenario inspects stage detail and automatic parent-agent completion, restarts the application, verifies persisted
 completion and submits foreground input with the context indicator visible.
 It does not use live credentials. Artifacts default to `dist/visual-workflows/`.
 The fixture plugin is outside shipped plugin directories.

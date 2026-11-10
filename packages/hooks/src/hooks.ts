@@ -29,6 +29,8 @@ export type UserHookFn = (event: any, $: HooksApi) => unknown;
 
 /** The plugin-facing $ object. Services use the event chain; local forms and private settings use guarded host callbacks. */
 export interface HooksApi {
+  /** Trusted plugin lifetime, independent of a foreground turn; revoked on unload. */
+  background():HooksApi;
   readonly plugin: string;
   /** continue the chain, optionally with a rewritten event */
   readonly next: (event?: unknown) => NextHandle;
@@ -192,6 +194,12 @@ export class HooksHost {
     return removed;
   }
 
+  /** Host lifetime lookup for owned follow-ups; configuration snapshots may lag unload. */
+  hasPlugin(name:string,trust?:string):boolean{
+    return this.pluginTrust.has(name)&&(!trust||this.pluginTrust.get(name)===trust)&&!this.pluginLifetimes.get(name)?.signal.aborted;
+  }
+  close():void{for(const name of [...this.pluginTrust.keys()])this.unregisterPlugin(name);}
+
   /** Consume one emission fully; returns the chain result. */
   async emit(
     event: string,
@@ -207,10 +215,10 @@ export class HooksHost {
 
   // ---- $ API ----------------------------------------------------------------
 
-  private buildApi(plugin: string, ctx: HookContext): HooksApi {
+  private buildApi(plugin: string, ctx: HookContext, detached=false): HooksApi {
     const host = this;
     const operation=this.config.signal?.();
-    const signal=AbortSignal.any([ctx.signal,this.pluginLifetimes.get(plugin)!.signal,...(operation?[operation]:[])]);
+    const signal=detached?this.pluginLifetimes.get(plugin)!.signal:AbortSignal.any([ctx.signal,this.pluginLifetimes.get(plugin)!.signal,...(operation?[operation]:[])]);
     const stateGuard = (op: string) => {
       signal.throwIfAborted();
       if (host.rendering.getStore() !== undefined) {
@@ -265,8 +273,9 @@ export class HooksHost {
     };
 
     return {
+      background:()=>{access('service.agent.enqueue');if(this.pluginTrust.get(plugin)!=='trusted')throw Error('Only trusted plugins may retain background capabilities');return host.buildApi(plugin,ctx,true);},
       plugin,
-      next: (event?: unknown) => ctx.next(event),
+      next: (event?: unknown) => {if(detached)throw Error('Background callbacks cannot continue a completed hook');return ctx.next(event);},
       signal,
       session: { ...this.config.session },
       state: {

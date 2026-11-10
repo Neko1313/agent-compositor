@@ -43,6 +43,14 @@ async function collect(provider: NativeProvider) {
   return result;
 }
 describe("native provider protocols", () => {
+  it.each(['anthropic','gemini','openai-responses'] as const)('encodes configured reasoning effort for %s',async(type)=>{
+    const events=type==='anthropic'?[{type:'message_stop'}]:type==='gemini'?[{candidates:[{content:{parts:[{text:'ok'}]},finishReason:'STOP'}]}]:[{type:'response.completed',response:{status:'completed'}}];
+    const f=await fixture(events);await collect(new NativeProvider({type,baseUrl:f.url,apiKey:'',model:'test',reasoningEffort:'high'}));
+    const body=f.captured().body;
+    if(type==='anthropic')expect(body.output_config).toEqual({effort:'high'});
+    else if(type==='gemini')expect(body.generationConfig.thinkingConfig).toEqual({thinkingLevel:'HIGH'});
+    else expect(body.reasoning).toEqual({effort:'high'});
+  });
   it("uses Anthropic messages, accepts initial tool input and includes cache tokens", async () => {
     const f = await fixture([
       {

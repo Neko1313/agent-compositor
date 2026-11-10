@@ -192,7 +192,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     for (const [name, entry] of Object.entries(saved.profiles ?? {})) {
       if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(name) || ['constructor','prototype'].includes(name)) continue;
       if (entry === null) { if (name !== 'default') delete profiles[name]; continue; }
-      try { const saved=profileSettings(entry);profiles[name] = { ...profiles[name], ...saved, contextWindow:saved.contextWindow,maxOutputTokens:saved.maxOutputTokens,timeoutMs:saved.timeoutMs,apiKey: profiles[name]?.apiKey ?? '', fetch: network.fetch('models') }; }
+      try { const saved=profileSettings(entry);profiles[name] = { ...profiles[name], ...saved, contextWindow:saved.contextWindow,maxOutputTokens:saved.maxOutputTokens,timeoutMs:saved.timeoutMs,...(Object.hasOwn(entry as object,'reasoningEffort')?{reasoningEffort:saved.reasoningEffort}:{}),apiKey: profiles[name]?.apiKey ?? '', fetch: network.fetch('models') }; }
       catch { config.warnings.push(`Saved provider profile ${name} is invalid and was skipped`); }
     }
   } catch { config.warnings.push('Saved provider connections could not be loaded'); }
@@ -384,6 +384,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     (!config.config.enabledPlugins || config.config.enabledPlugins.includes(name)) && !source.some(p=>p.manifest.name===name);
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
+  const cores=new Set<AgentCore>();
   const toolOverrides = (source=plugins) => Object.entries(config.config.toolProviders ?? {}).map(([name,owner])=>{
     const tool=source.find(p=>p.manifest.name===owner)?.tools.find(t=>t.name===name);
     if(!tool)throw new Error(`Selected tool provider ${owner} does not supply ${name}`);
@@ -542,7 +543,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       events.length > 0
         ? AgentCore.resume(coreOptions, events)
         : new AgentCore(coreOptions);
-    harnesses.set(core,harness);sessionPlugins.set(core,sessionPlugin);
+    cores.add(core);harnesses.set(core,harness);sessionPlugins.set(core,sessionPlugin);
     hub?.bind({approve:onApproval,ask:onAsk,inputSource:()=>core.isUserInvocation?"user":"agent",resolveWorkspace:value=>core.workspace.resolve(value,{directory:true}),workspace:()=>core.workspace.list().filter(entry=>entry.path!==core.workspace.root)});
     installSessionServices(core, store, options.cwd);
     return core;
@@ -722,9 +723,10 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   return {
     close: async () => {
       await hub?.close();
+      await Promise.allSettled([...cores].map(core=>core.close()));cores.clear();
+      await Promise.allSettled(plugins.map((p) => p.dispose?.()));
       await store.dispose();
       await network.close();
-      await Promise.allSettled(plugins.map((p) => p.dispose?.()));
     },
     storage,
     loadLayout,

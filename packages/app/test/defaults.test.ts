@@ -260,6 +260,7 @@ describe("default market: end-to-end through the assembled app", () => {
     expect(app.pluginErrors).toEqual([]);
     expect(app.plugins.map((p) => p.manifest.name).sort()).toEqual([
       "auto-approve",
+      "background-jobs",
       "btw",
       "callix",
       "checkpoint-history",

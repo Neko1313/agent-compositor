@@ -33,6 +33,14 @@ export class ProviderRouter implements ModelProvider {
   get model(): string {
     return this.selected.model;
   }
+  get reasoningEffort():string|undefined{return this.selected.reasoningEffort;}
+  setReasoningEffort(profile:string,value?:string){
+    if(!this.profiles[profile])throw Error('Unknown provider profile');
+    this.profiles[profile].reasoningEffort=value;
+    if(this.profileName!==profile)return;
+    this.selected={...this.selected,reasoningEffort:value};
+    this.provider=!this.selected.type||this.selected.type==='openai-compat'?new OpenAICompatProvider(this.selected):new NativeProvider({...this.selected,type:this.selected.type});
+  }
   select(name: string): void {
     if (this.profiles[name]) this.profileName = name;
     const profile = this.profiles[name] ?? {

@@ -4,7 +4,7 @@ import type { ProviderProfile, ProviderRouter } from '@agent-compositor/provider
 import { atomicJson, type ProjectStorage } from '@agent-compositor/config';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { availableModels, profileId, profileSettings } from './provider-settings.js';
+import { availableModels, profileId, profileSettings,reasoningOptions } from './provider-settings.js';
 const presets={
   ollama:{label:'Ollama',metadataProvider:'ollama',type:'openai-compat',baseUrl:'http://127.0.0.1:11434/v1',model:''},
   openai:{label:'OpenAI',type:'openai-responses',baseUrl:'https://api.openai.com/v1',model:''},
@@ -21,6 +21,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
   const choose=async(name:string,$:HooksApi)=>{router.select(name);await atomicJson(join(storage.paths.state,'model.json'),name);await $.ui.notify(`Model: ${router.model}`);};
   const show=async($:HooksApi)=>$.ui.view('models','Models & providers',{lines:[
     {text:`Active: ${router.credentialProfile} · ${router.model}`,bold:true},
+    {text:`Reasoning: ${router.reasoningEffort??'provider default'}`,tone:'muted'},
     {text:'[ Add provider ]',action:'add',tone:'accent'},
     {text:'[ Network proxy ]',action:'proxy'},
     {text:'[ Provider access ]',action:'access'},
@@ -29,6 +30,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
       {text:`  ${p.model}${router.active===name?' · active':''}`,action:`use:${name}`,selected:router.active===name},
       {text:'  [ Edit connection ]',action:`edit:${name}`},
       {text:'  [ Discover / choose models ]',action:`discover:${name}`},
+      {text:`  [ Reasoning: ${p.reasoningEffort??'provider default'} ]`,action:`reasoning:${name}`},
       {text:'  [ Test connection ]',action:`test:${name}`},
       ...(name==='default'?[]:[{text:'  [ Remove profile ]',action:`remove:${name}`}]),
     ]),
@@ -55,6 +57,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
         {id:'timeoutMs',label:'Request timeout (milliseconds)',type:'text',value:String(initial.timeoutMs??120000)},
         {id:'scope',label:'Save connection for',type:'select',value:scope,hint:'Project settings override global defaults.',options:[{value:'project',label:'This project (private user storage)'},{value:'global',label:'All projects'}]},
         {id:'contextWindow',label:'Context window (tokens)',type:'text',value:initial.contextWindow?String(initial.contextWindow):'',hint:'Blank detects provider limits; unknown models use a marked conservative fallback.'},
+        {id:'reasoningEffort',label:'Reasoning effort',type:'select',value:initial.reasoningEffort??'',options:reasoningOptions(String(initial.type??'openai-compat') as ProviderProfile['type'],initial.reasoningEffort),hint:'Support depends on the selected model. Provider default omits the setting.'},
       ],actions:[{id:'save',label:'Save profile'},{id:'discover',label:'Test & discover models'},{id:'cancel',label:'Cancel'}]});
       if(!result)return;const v=result.values;id=String(v.id).trim();scope=String(v.scope);clearKey=v.clearKey===true;
       if(v.key)pendingKey=String(v.key);
@@ -72,9 +75,9 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
         }
         if(!model)throw Error('Enter or discover a model ID before saving');
         const saved=profileSettings({...initial,model});
-        await saveProfile(id,{...saved,maxOutputTokens:saved.maxOutputTokens??null,timeoutMs:saved.timeoutMs??null,contextWindow:saved.contextWindow??null},scope);
+        await saveProfile(id,{...saved,maxOutputTokens:saved.maxOutputTokens??null,timeoutMs:saved.timeoutMs??null,contextWindow:saved.contextWindow??null,reasoningEffort:saved.reasoningEffort??null},scope);
         const effective=scope==='global'?profileSettings((await storage.config('providers.json')).profiles[id]):saved;
-        router.profiles[id]={...router.profiles[id],...effective,maxOutputTokens:effective.maxOutputTokens,timeoutMs:effective.timeoutMs,contextWindow:effective.contextWindow,apiKey:router.profiles[id]?.apiKey??'',fetch:fetcher};
+        router.profiles[id]={...router.profiles[id],...effective,maxOutputTokens:effective.maxOutputTokens,timeoutMs:effective.timeoutMs,contextWindow:effective.contextWindow,reasoningEffort:effective.reasoningEffort,apiKey:router.profiles[id]?.apiKey??'',fetch:fetcher};
         if(pendingKey||clearKey||(existing&&existing!==id&&key))await auth.setKey(id,clearKey?'':pendingKey||key);
         await choose(id,$);await show($);return;
       }catch(error){message=(error as Error).message;}
@@ -87,6 +90,15 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
     if(kind==='proxy'){await $.emit('prompt.submit',{text:'/proxy configure'});return;}
     if(kind==='access'){await $.emit('prompt.submit',{text:'/auth'});return;}
     if(!name||!Object.hasOwn(router.profiles,name))return;
+    if(kind==='reasoning'){
+      const profile=router.profiles[name];
+      const result=await $.ui.form({title:`Reasoning effort · ${name}`,description:'Model-dependent setting. Provider default sends no explicit effort.',fields:[{id:'reasoningEffort',label:'Reasoning effort',type:'select',value:profile.reasoningEffort??'',options:reasoningOptions(profile.type,profile.reasoningEffort)},{id:'scope',label:'Save for',type:'select',value:'project',options:[{value:'project',label:'This project'},{value:'global',label:'All projects'}]}],actions:[{id:'save',label:'Save effort'},{id:'cancel',label:'Cancel'}]});
+      if(!result||result.action==='cancel')return;
+      const saved=profileSettings({...profile,reasoningEffort:result.values.reasoningEffort});
+      const scope=String(result.values.scope??'project');await saveProfile(name,{...saved,reasoningEffort:saved.reasoningEffort??null},scope);
+      const effective=profileSettings((await storage.config('providers.json')).profiles[name]);router.setReasoningEffort(name,effective.reasoningEffort);
+      await $.ui.notify(`Reasoning: ${effective.reasoningEffort??'provider default'}`);await show($);return;
+    }
     if(kind==='use'||kind==='model'){await choose(name,$);await show($);return;}
     if(kind==='edit'){await edit(name,$);return;}
     if(kind==='remove'){

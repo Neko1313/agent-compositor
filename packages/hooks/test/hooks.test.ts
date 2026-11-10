@@ -25,6 +25,29 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("HooksHost / $ API", () => {
+  it("retains trusted background services across foreground cancellation and revokes them on unload",async()=>{
+    const foreground=new AbortController();let normal!:HooksApi,background!:HooksApi,writes=0;
+    host=attach(runtime,{session:{id:'origin',cwd:dir},signal:()=>foreground.signal});
+    runtime.setResolver('service.fs.write',()=>{writes++;return{value:true};});
+    host.registerPlugin(manifest('worker'),{'session.start':(_e,$)=>{normal=$;background=$.background();}});
+    await host.emit('session.start',{sessionId:'origin',cwd:dir,plugins:[]});
+    foreground.abort(Error('Foreground interrupted'));
+    await expect(normal.fs.write('blocked','x')).rejects.toThrow('Foreground interrupted');
+    await background.fs.write('allowed','x');expect(writes).toBe(1);
+    expect(background.session.id).toBe('origin');expect(background.signal.aborted).toBe(false);
+    expect(()=>background.next()).toThrow('cannot continue');
+    host.unregisterPlugin('worker');host.registerPlugin(manifest('worker'),{});
+    expect(background.signal.aborted).toBe(true);
+    await expect(background.fs.write('revoked','x')).rejects.toThrow('unloaded');expect(writes).toBe(1);
+  });
+
+  it("does not grant background capabilities to render-only or sandboxed plugins",async()=>{
+    for(const trust of ['render-only','sandboxed'] as const){
+      host.registerPlugin(manifest(trust,trust),{'ui.press':(_e,$)=>{$.background();}});
+    }
+    const result=await host.emit('ui.press',{site:'test',key:'background'});expect(result.faults).toHaveLength(2);
+  });
+
   it("revokes retained API handles on unload even if another instance reuses the name",async()=>{
     let retained:HooksApi|undefined,writes=0;
     runtime.setResolver("service.fs.write",()=>{writes++;return{value:true};});

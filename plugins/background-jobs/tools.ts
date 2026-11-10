@@ -1,0 +1,9 @@
+import type {ToolContext} from '@agent-compositor/tools';
+export default [{
+ name:'background_jobs',
+ description:'Manage completion subscriptions for long-running exec(background:true) shells in this session. Active background-jobs automatically subscribes new shells: no status polling, waiting model call or open model connection is needed. Finish the current turn and continue chatting. On completion the agent resumes with metadata; read logs through exec_output. Use subscribe mode:notify for a user notification without a model request. Start/cancel through the normal exec/exec_kill tools.',
+ usage:{when:'Use exec with background:true and a sufficient timeoutMs for a long build/test. This plugin watches completion automatically. Return control to the user; do not loop over exec_output.',avoid:'Do not use task/subagents, sleep commands or repeated status reads just to wait. A stopped application is not a daemon; background shells end when their session closes.',examples:[{purpose:'Inspect jobs once when needed',args:{action:'list'}},{purpose:'Choose notification without an automatic model follow-up',args:{action:'subscribe',id:'<shellId>',mode:'notify'}},{purpose:'Stop watching a shell without killing it',args:{action:'unsubscribe',id:'<shellId>'}}]},
+ parameters:{type:'object',properties:{action:{type:'string',enum:['list','status','subscribe','unsubscribe']},id:{type:'string',maxLength:100,description:'shellId from exec(background:true)'},mode:{type:'string',enum:['wake','notify']},limit:{type:'integer',minimum:1,maximum:128,description:'Latest jobs returned by list; default 20'}},required:['action']},
+ describe:()=>({tool:'background_jobs'}),
+ async execute(ctx:ToolContext,args:unknown){try{return{ok:true as const,data:await ctx.request('service.background.jobs',args)};}catch(error){return{ok:false as const,error:String(error)};}},
+}];

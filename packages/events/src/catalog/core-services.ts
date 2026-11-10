@@ -388,6 +388,6 @@ export const serviceSkillsLoad = defineEvent({
 export const serviceWorkflowRun = defineEvent({
  name:'service.workflow.run',since:'0.11.0',version:1,
  summary:'Replaceable persistent workflow lifecycle: start, inspect, pause, resume, retry or stop. Host permissions remain in each worker.',
- input:z.object({action:z.enum(['start','list','status','pause','resume','retry','stop']),id:z.string().optional(),stageId:z.string().optional(),title:z.string().optional(),stages:z.array(z.unknown()).optional(),concurrency:z.number().int().min(1).max(8).optional(),maxStages:z.number().int().min(1).max(500).optional(),maxTokensTotal:z.number().int().min(100).max(10000000).optional(),maxTokensPerStage:z.number().int().min(100).max(1000000).optional(),stageTimeoutMs:z.number().int().min(1000).max(3600000).optional(),waitMs:z.number().int().min(0).max(30000).optional()}),
+ input:z.object({action:z.enum(['start','list','status','pause','resume','retry','stop']),id:z.string().optional(),stageId:z.string().optional(),title:z.string().optional(),completion:z.enum(['wake','notify','none']).optional(),stages:z.array(z.unknown()).optional(),concurrency:z.number().int().min(1).max(8).optional(),maxStages:z.number().int().min(1).max(500).optional(),maxTokensTotal:z.number().int().min(100).max(10000000).optional(),maxTokensPerStage:z.number().int().min(100).max(1000000).optional(),stageTimeoutMs:z.number().int().min(1000).max(3600000).optional(),waitMs:z.number().int().min(0).max(30000).optional()}),
  responses:denyValue,frozen:true,
 });

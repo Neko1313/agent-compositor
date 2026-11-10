@@ -23,6 +23,13 @@ describe("event catalog", () => {
         expect(signature.input.required??[]).not.toContain("cwd");
         signature.input=structuredClone(signature.input);delete signature.input.properties.cwd;
       }
+      // Reviewed additive change in 0.20: omitted completion retains the
+      // service shape; the workflows plugin owns the new delivery policy.
+      if(name==='service.workflow.run'){
+        expect(signature.input.properties.completion).toEqual({type:'string',enum:['wake','notify','none']});
+        expect(signature.input.required??[]).not.toContain('completion');
+        signature.input=structuredClone(signature.input);delete signature.input.properties.completion;
+      }
       expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
         `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);
     }

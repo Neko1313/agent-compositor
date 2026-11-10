@@ -1,0 +1,9 @@
+{
+  "name": "background-jobs",
+  "version": "0.1.0",
+  "description": "Event-driven completion subscriptions for background exec shells: wake the originating agent or notify the user without model polling.",
+  "trust": "trusted",
+  "provides": ["service.background.jobs"],
+  "capabilities": ["tool", "shell.completed", "tool.result", "session.start", "session.reload", "session.end"],
+  "compositor": {"standard": 1, "apiVersion": 1}
+}

@@ -82,6 +82,12 @@ Independent agents can also use Git worktrees. Workflow stages coordinate
 bounded workers through a persistent dependency graph. Multiple views of one
 conversation do not create additional agents.
 
+Background shells are owned by their originating core. The host reports process
+completion and provides a bounded follow-up queue; the optional
+[background-jobs plugin](../plugins/background-jobs/README.md) chooses wake or
+notification delivery. Waiting does not keep a model stream open. Commands and
+output retain normal shell permissions, and closing the core drains its workers.
+
 ## Boundaries to preserve
 
 - Standard host-mediated tool calls retain policy, workspace checks and accounting.

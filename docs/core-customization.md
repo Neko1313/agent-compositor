@@ -45,6 +45,10 @@ The assembled application accepts these settings in `agent-compositor.json`:
 - `agent.tools` is the final model-facing allowlist, including extension tools.
   Calls through interactive `invokeTool` also obey it. An empty array means no
   tools; omission permits the composed set.
+  An unknown tool name remains an error. When it exactly matches an action enum
+  on an available tool, the error suggests that tool and its action argument.
+  This is recovery guidance only: no alias is executed, permissions still apply,
+  and excluded tools are not advertised as suggestions.
 - `toolProviders` explicitly replaces a tool's whole definition, including its
   schema and handler, with the named loaded plugin's definition. Missing selected
   definitions raise an error. Ordinary `extraTools` still append without silently
@@ -68,6 +72,37 @@ the disk `SessionStore` are optional. `SessionJournal` is a structural interface
 the selected streaming service may provide the model instead.
 
 ## Replace execution strategies
+
+`service.shell.jobs` inspects core-owned background shell metadata, and
+`shell.completed` reports terminal OS-process events without output/commands.
+Shell IDs and buffers are scoped to each core. Background deadlines are enforced;
+session end, `AgentCore.close()` and application close drain process groups, and
+removing an attached workspace terminates its retained shells.
+Conversation clear ends the old session work and reinitializes active plugins,
+so startup services such as Callix warming resume for the new conversation.
+
+Trusted active plugins can use `service.agent.enqueue` with their plugin name,
+an idempotency key and bounded text to enqueue an agent follow-up. The call
+returns before any model response. Follow-ups run after the current turn, share
+normal permissions/budgets, coalesce nearby messages from the same owner and are
+revoked on owner unload. A user interruption pauses automatic processing.
+Consumers must treat process output as data and fetch it through guarded tools;
+the host does not elevate a background event to user authorization. The optional
+[background-jobs plugin](../plugins/background-jobs/README.md) implements the
+subscription/delivery policy. `registerDefaultResolvers` now returns a shell
+cleanup function with `revalidate()`; custom hosts must call cleanup at teardown.
+`HooksHost.close()` revokes all registered plugin lifetimes, including dynamic
+SDK registrations; `AgentCore.close()` calls it after draining its work.
+
+Trusted hooks can call `const background = $.background()` while the hook is
+active to retain services for asynchronous work. This handle keeps the original
+session identity and plugin lifetime, independent of the launching foreground
+turn's signal. Subscribe to `background.signal` for cancellation, use services
+through the retained handle, and release work in the plugin's disposer. Unload
+revokes old handles even if another instance reuses the name. A background handle
+cannot call `next()` to continue an expired hook; render-only and sandboxed hooks
+cannot acquire it. This is an explicit lifetime choice, not a separate process or
+a bypass of service interception and permission checks.
 
 Trusted plugins use the same service chain as the defaults:
 

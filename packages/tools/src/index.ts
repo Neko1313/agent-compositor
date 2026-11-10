@@ -47,6 +47,8 @@ export const builtinToolRules: Parameters<typeof compileRules>[0] = [
   { decision: "allow", tool: "exec", readOnly:true, reason: "verified project-local read/search command" },
   { decision: "allow", tool: "todo", reason: "task lists are session-local state" },
   { decision: "allow", tool: "exec_output", reason: "reading a shell buffer is a read" },
+  { decision: "allow", tool: "background_jobs", reason: "session-local completion subscriptions; execution/output/cancellation retain separate guarded tools" },
+  { decision: "allow", tool: "workflow_run", readOnly:true, reason: "inspect existing workflow results; scheduling and retries remain guarded" },
   { decision: "ask", tool: "exec_kill", reason: "terminating processes needs approval unless rules allow" },
 ];
 

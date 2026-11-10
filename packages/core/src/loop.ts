@@ -177,7 +177,16 @@ export class AgentCore {
   private contextSource = "fallback";
   private contextWindow = 32768;
   private outputLimit?:number;
-  private promptQueue:{text:string;source:"user"|"agent"}[]=[];
+  private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string}[]=[];
+  private backgroundReceipts=new Set<string>();
+  private queueTimer?:ReturnType<typeof setTimeout>;
+  private draining?:Promise<void>;
+  private activeTurn?:Promise<void>;
+  private closed=false;
+  private resetBackground:Promise<unknown>=Promise.resolve();
+  private resettingBackground=false;
+  private stopShells:()=>Promise<void>=async()=>{};
+  private revalidateShells:()=>Promise<void>=async()=>{};
   private inputSource:"user"|"agent"="user";
   private steerQueue: string[] = [];
   private abort: AbortController = new AbortController();
@@ -234,12 +243,15 @@ export class AgentCore {
       execEnvironment: options.toolEnv,
       auth: options.auth,
       signal: () => this.state==="running" ? this.abort.signal : undefined,
-      onPluginRemoved: (plugin) =>
+      onPluginRemoved: (plugin) => {
+        for(const entry of this.promptQueue)if(entry.owner===plugin&&entry.key)this.backgroundReceipts.delete(entry.key);
+        this.promptQueue=this.promptQueue.filter(entry=>entry.owner!==plugin);
         this.broadcast({
           kind: "catalog",
           event: "ui.pluginRemoved",
           input: { plugin },
-        }),
+        });
+      },
       notify: (message, level, plugin) => {
         options.notify?.(message, level, plugin);
         this.broadcast({
@@ -374,7 +386,7 @@ export class AgentCore {
     );
 
     // core resolvers at the chain end; everything above them can deny/value
-    registerDefaultResolvers(
+    const shells=registerDefaultResolvers(
       {
         on: (service, handler) => {
           this.runtime.setResolver(service, async (payload: unknown) => ({
@@ -387,6 +399,7 @@ export class AgentCore {
         resolvePath:(value,missing)=>this.workspace.resolve(value,{missing}),
         signal: () => this.abort.signal,
         env: options.toolEnv,
+        onBackgroundComplete:async status=>{if(!this.closed)await this.emit('shell.completed',status);},
         onFilesChanged: async (path: string) => {
           await this.emit("project.changed", {
             cwd: options.cwd,
@@ -396,6 +409,20 @@ export class AgentCore {
         },
       }
     );
+    this.stopShells=shells;this.revalidateShells=shells.revalidate;
+    this.runtime.setResolver('session.end',async()=>{this.promptQueue=this.promptQueue.filter(entry=>!entry.owner);await this.stopShells();return undefined;});
+    this.runtime.setResolver('service.agent.enqueue',async({plugin,key,text}:any)=>{
+      if(this.closed)return{deny:'Session is closed'};
+      if(typeof plugin!=='string'||!this.host.hasPlugin(plugin,'trusted'))return{deny:'Follow-up owner must be an active trusted plugin'};
+      if(typeof key!=='string'||!key||key.length>200||typeof text!=='string'||!text||text.length>4096)return{deny:'Invalid background follow-up'};
+      const receipt=plugin+'\0'+key;
+      if(this.backgroundReceipts.has(receipt))return{value:{queued:false,duplicate:true}};
+      if(this.promptQueue.length>=128)return{deny:'Follow-up queue is full'};
+      if(this.backgroundReceipts.size>=1024){const first=[...this.backgroundReceipts].find(id=>!this.promptQueue.some(entry=>entry.key===id));if(first)this.backgroundReceipts.delete(first);else return{deny:'Follow-up receipt limit reached'};}
+      this.backgroundReceipts.add(receipt);this.promptQueue.push({text,source:'agent',owner:plugin,key:receipt});
+      await this.emit('prompt.queued',{text,depth:this.promptQueue.length});this.scheduleQueue();
+      return{value:{queued:true}};
+    });
     this.runtime.setResolver(
       "service.model.stream",
       ({ request }: { request: CompletionRequest }) => ({
@@ -672,6 +699,8 @@ export class AgentCore {
     name: string,
     args: unknown
   ): Promise<{ ok: boolean; output?: unknown; error?: string }> {
+    if(this.resettingBackground)await this.resetBackground;
+    if(this.closed)return{ok:false,error:'Session is closed'};
     if (this.invokingTool || (this.state === "running" && !this.inPromptHook))
       return {
         ok: false,
@@ -723,6 +752,7 @@ export class AgentCore {
       unsubscribe();
       this.invokingTool = false;
       this.state = previous;
+      this.scheduleQueue();
     }
   }
 
@@ -776,7 +806,7 @@ export class AgentCore {
 
   /** Host-only grants originate from explicit user paths, never model-generated attachments. */
   async attachWorkspace(value:string){const before=JSON.stringify(this.workspace.list()),entry=await this.workspace.add(value);if(JSON.stringify(this.workspace.list())!==before)await this.emit("workspace.changed",{sessionId:this.sessionId,roots:this.workspace.list()});return entry;}
-  async removeWorkspace(value:string){const removed=await this.workspace.remove(value);if(removed)await this.emit("workspace.changed",{sessionId:this.sessionId,roots:this.workspace.list()});return removed;}
+  async removeWorkspace(value:string){const removed=await this.workspace.remove(value);if(removed){await this.revalidateShells();await this.emit("workspace.changed",{sessionId:this.sessionId,roots:this.workspace.list()});}return removed;}
   async authorizeAttachment(path:string):Promise<void>{
     const descriptor={tool:"read",path:await this.workspace.resolve(path)};
     const decision=evaluate(descriptor,this.compiledRules,this.approvals);
@@ -819,6 +849,8 @@ export class AgentCore {
 
   /** Renderer entry: send a prompt. If busy, it queues (codex Enter). */
   async submit(text: string,source:"user"|"agent"="user"): Promise<void> {
+    if(this.resettingBackground)await this.resetBackground;
+    if(this.closed)throw Error('Session is closed');
     if (this.state === "running") {
       this.promptQueue.push({text,source});
       await this.emit("prompt.queued", {
@@ -875,19 +907,14 @@ export class AgentCore {
 
   // ---- the turn engine -----------------------------------------------------
 
-  private async runTurn(text: string,source:"user"|"agent"="user"): Promise<void> {
-    this.inputSource=source;
-    try {
-      await this.runTurnUnchecked(text);
-    } catch (error) {
-      this.lastTurnError = String(error);
-      await this.emit("turn.failed", {
-        turnId: this.currentTurnId ?? randomUUID(),
-        error: this.lastTurnError,
-      });
-      this.state = "idle";
-      this.currentTurnId = undefined;
-    }
+  private runTurn(text: string,source:"user"|"agent"="user"): Promise<void> {
+    const run=(async()=>{
+      this.inputSource=source;
+      try {await this.runTurnUnchecked(text);}
+      catch(error){this.lastTurnError=String(error);await this.emit('turn.failed',{turnId:this.currentTurnId??randomUUID(),error:this.lastTurnError});this.state='idle';this.currentTurnId=undefined;}
+    })();
+    this.activeTurn=run;
+    return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
   }
   private async runTurnUnchecked(text: string): Promise<void> {
     const turnId = randomUUID();
@@ -1192,8 +1219,25 @@ export class AgentCore {
 
   /** Drop the conversation, keep the system head (Claude's /clear). */
   clear(): void {
+    this.promptQueue=[];clearTimeout(this.queueTimer);
+    this.resettingBackground=true;
+    this.resetBackground=this.host.emit('session.end',{reason:'clear'}).then(async()=>{
+      if(!this.closed)await this.host.emit('session.start',{sessionId:this.sessionId,cwd:this.options.cwd,plugins:(this.options.plugins??[]).map(p=>({name:p.manifest.name,version:p.manifest.version,tier:p.tier??'user'}))});
+    }).catch(()=>{}).finally(()=>{this.resettingBackground=false;});
     this.messages = this.messages.filter((m) => m.role === "system");
     this.messagesSinceCompaction = this.messages.length;
+  }
+
+  /** Terminal host teardown: no owned process or queued follow-up outlives it. */
+  async close():Promise<void>{
+    if(this.closed)return;
+    this.closed=true;this.interrupt();clearTimeout(this.queueTimer);
+    await this.resetBackground;
+    await Promise.allSettled([this.activeTurn,this.draining]);
+    await this.host.emit('session.end',{reason:'other'});
+    await this.stopShells();
+    this.host.close();
+    this.options.plugins=[];
   }
 
   // ---- subagents (the task tool / service.agent.spawn) --------------------
@@ -1292,16 +1336,27 @@ export class AgentCore {
       throw new Error(`subagent failed: ${error}`);
     } finally {
       unsubscribeReaction();
+      await child.close();
       await Promise.all(usageWrites);
       parentSignal.removeEventListener("abort", interruptChild);
     }
   }
 
-  private async drainQueue(): Promise<void> {
-    while (this.promptQueue.length > 0 && this.state !== "running") {
-      const next = this.promptQueue.shift()!;
-      await this.runTurn(next.text,next.source);
-    }
+  private scheduleQueue(){
+    if(this.queueTimer||this.closed||this.state!=='idle'||!this.promptQueue.length)return;
+    this.queueTimer=setTimeout(()=>{this.queueTimer=undefined;void this.drainQueue().catch(error=>this.options.notify?.(String(error),'error','background-jobs'));},20);
+  }
+  private drainQueue():Promise<void>{
+    if(this.draining)return this.draining;
+    this.draining=(async()=>{
+      while(this.promptQueue.length&&!this.closed&&this.state==='idle'){
+        const next=this.promptQueue.shift()!;
+        if(next.owner&&!this.host.hasPlugin(next.owner,'trusted'))continue;
+        if(next.owner)while(this.promptQueue[0]?.owner===next.owner&&next.text.length+this.promptQueue[0].text.length<4096)next.text+='\n\n'+this.promptQueue.shift()!.text;
+        await this.runTurn(next.text,next.source);
+      }
+    })().finally(()=>{this.draining=undefined;});
+    return this.draining;
   }
 
   private async runToolBatch(
@@ -1347,18 +1402,23 @@ export class AgentCore {
       signal.throwIfAborted();
       let spec = this.toolSpecs.find((t) => t.name === call.name);
       if (!spec) {
+        const suggestions=this.toolSpecs.filter(tool=>{
+          const action=(tool.parameters.properties as Record<string,any>|undefined)?.action;
+          return Array.isArray(action?.enum)&&action.enum.includes(call.name);
+        }).slice(0,3).map(tool=>`${tool.name} with ${JSON.stringify({action:call.name})}`);
+        const error=`unknown tool: ${call.name}`+(suggestions.length?`. This name is an action, not a tool. Use ${suggestions.join(' or ')} and retain the other arguments. No action was executed.`:'');
         this.turnToolRecords.push({name:call.name,args:call.args,ok:false});
         await this.emit("tool.result", {
           callId: call.id,
           tool: call.name,
           ok: false,
-          error: `unknown tool: ${call.name}`,
+          error,
         });
         this.messages.push({
           role: "tool",
           toolCallId: call.id,
           name: call.name,
-          content: `unknown tool: ${call.name}`,
+          content: error,
         });
         continue;
       }
@@ -1548,7 +1608,7 @@ export class AgentCore {
   }
 
   private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean):Promise<void> {
-    this.turnToolRecords.push({name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0),output:result});
+    this.turnToolRecords.push({name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result});
     await this.emit("tool.result", {
       callId: call.id,
       tool: call.name,

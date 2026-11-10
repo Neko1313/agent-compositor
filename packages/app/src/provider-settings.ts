@@ -1,6 +1,11 @@
 import type { ProviderProfile } from '@agent-compositor/provider';
 export const providerTypes = ['openai-compat','openai-responses','anthropic','gemini'] as const;
-export type SavedProfile = Pick<ProviderProfile,'baseUrl'|'model'|'type'|'timeoutMs'|'maxOutputTokens'|'contextWindow'|'metadataProvider'|'metadataUrl'>;
+export type SavedProfile = Pick<ProviderProfile,'baseUrl'|'model'|'type'|'timeoutMs'|'maxOutputTokens'|'contextWindow'|'metadataProvider'|'metadataUrl'|'reasoningEffort'>;
+export function reasoningOptions(type?:ProviderProfile['type'],current?:string){
+  const levels=type==='gemini'?['minimal','low','medium','high']:type==='anthropic'?['low','medium','high','xhigh','max']:['none','minimal','low','medium','high','xhigh','max'];
+  if(current&&!levels.includes(current))levels.push(current);
+  return[{value:'',label:'Provider default'},...levels.map(value=>({value,label:value==='xhigh'?'Extra high':value[0].toUpperCase()+value.slice(1)}))];
+}
 export function profileId(id:string) {
   if(!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(id)||['constructor','prototype'].includes(id))throw Error('Use a profile ID starting with a letter, followed by letters, digits, _ or -');
   return id;
@@ -12,6 +17,10 @@ export function profileSettings(input:any):SavedProfile {
   const model=String(input.model??'').trim();
   if(!model||model.length>200)throw Error('Enter a model ID');
   const result:SavedProfile={type:input.type??'openai-compat',baseUrl:url.href.replace(/\/$/,''),model};
+  if(input.reasoningEffort!==undefined&&input.reasoningEffort!==null&&input.reasoningEffort!==''){
+    if(typeof input.reasoningEffort!=='string'||!(/^[a-z][a-z0-9_-]{0,31}$/i).test(input.reasoningEffort))throw Error('reasoningEffort must be a provider level of 1..32 characters');
+    result.reasoningEffort=input.reasoningEffort.toLowerCase();
+  }
   for(const [name,max]of [['timeoutMs',600000],['maxOutputTokens',1000000],['contextWindow',10000000]] as const)if(input[name]!==undefined&&input[name]!==null&&input[name]!==''){
     const n=Number(input[name]);if(!Number.isSafeInteger(n)||n<1||n>max)throw Error(`${name} must be a positive integer up to ${max}`);result[name]=n;
   }

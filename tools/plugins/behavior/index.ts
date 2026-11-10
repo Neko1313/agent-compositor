@@ -9,7 +9,8 @@ import {checkpoints} from './checkpoints.js';
 import {callix} from './callix.js';
 import {proxy} from './proxy.js';
 import {simple} from './simple.js';
-export function registerBehavior(f:Fixture,book:Casebook){simple(f,book);persisted(f,book);network(f,book);processes(f,book);optionalUi(f,book);author(f,book);workflows(f,book);checkpoints(f,book);callix(f,book);proxy(f,book);}
+import {backgroundJobs} from './background-jobs.js';
+export function registerBehavior(f:Fixture,book:Casebook){simple(f,book);persisted(f,book);network(f,book);processes(f,book);optionalUi(f,book);author(f,book);workflows(f,book);checkpoints(f,book);callix(f,book);proxy(f,book);backgroundJobs(f,book);}
 export async function behavior(name:string,directory?:string){
  const f=await new Fixture(name,directory).init(),book=new Casebook(f);
  try{registerBehavior(f,book);if(!book.checks.size)throw Error('No domain oracles for '+name);await book.run();return book.observations;}finally{await f.close();}

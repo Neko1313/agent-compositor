@@ -88,6 +88,12 @@ to the agent state. Resizing reflows the visible conversation.
 - Ctrl+C interrupts work; when idle it exits.
 - `/reload` reloads disk plugins between turns, resetting plugin state.
 
+Settings → Models & providers (`/model`) includes a Reasoning action per profile.
+Choose the model's supported effort and save it for this project or all projects;
+Provider default clears the explicit setting. It applies to subsequent requests
+and survives restart. See [reasoning effort](../../docs/state-and-network.md#reasoning-effort)
+for protocol support and configuration precedence.
+
 `--plain` forces the legacy line-oriented REPL; redirected input also uses
 that mode. It is retained for existing scripts and does not use the grid
 protocol. The interactive UI is the protocol-based product path.

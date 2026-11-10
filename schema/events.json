@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -537,6 +537,244 @@
         ]
       },
       "responses": {}
+    },
+    "service.agent.enqueue": {
+      "since": "0.20.0",
+      "version": 1,
+      "summary": "Queue a deduplicated plugin-owned agent follow-up without waiting for a model response. Runs after the current turn, pauses after interrupt, and is revoked when the plugin unloads.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "plugin": {
+            "type": "string",
+            "minLength": 1
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "plugin",
+          "key",
+          "text"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Operation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Operation refused",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "service.background.jobs": {
+      "since": "0.20.0",
+      "version": 1,
+      "summary": "Optional background-jobs plugin subscription management. Starting, reading output and cancelling shells remain guarded exec/exec_output/exec_kill operations.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "status",
+              "subscribe",
+              "unsubscribe"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "wake",
+              "notify"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 128
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "responses": {
+        "value": {
+          "summary": "Operation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Operation refused",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "shell.completed": {
+      "since": "0.20.0",
+      "version": 1,
+      "summary": "A host background shell closed. Metadata only: no command, environment or process output. Emitted once per process after output streams close.",
+      "namespace": "shell",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean",
+            "const": true
+          },
+          "exitCode": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "exited",
+              "cancelled",
+              "timed-out"
+            ]
+          },
+          "startedAt": {
+            "type": "number"
+          },
+          "endedAt": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "cwd",
+          "done",
+          "exitCode",
+          "reason",
+          "startedAt",
+          "endedAt",
+          "durationMs"
+        ]
+      },
+      "responses": {
+        "next": {
+          "summary": "Observe completion",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema"
+          }
+        }
+      }
+    },
+    "service.shell.jobs": {
+      "since": "0.20.0",
+      "version": 1,
+      "summary": "Inspect this session’s host-owned background shells without reading command output. An optional id selects one job.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "responses": {
+        "value": {
+          "summary": "Operation result",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        },
+        "deny": {
+          "summary": "Operation refused",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        }
+      }
     },
     "session.start": {
       "since": "0.1.0",
@@ -4831,6 +5069,14 @@
           },
           "title": {
             "type": "string"
+          },
+          "completion": {
+            "type": "string",
+            "enum": [
+              "wake",
+              "notify",
+              "none"
+            ]
           },
           "stages": {
             "type": "array",

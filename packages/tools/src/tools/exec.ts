@@ -30,7 +30,7 @@ export const execTool: ToolSpec<ExecArgs, ExecOutcome> = {
       command: { type: "string", description: "shell command line" },
       cwd: { type: "string" },
       timeoutMs: { type: "number", default: 120_000 },
-      background: { type: "boolean", description: "start detached; returns {shellId} — poll output via the execOutput tool, stop via execKill" },
+      background: { type: "boolean", description: "Return {shellId} immediately. With background-jobs enabled completion wakes the agent automatically; finish the turn instead of polling. Read logs via exec_output, stop via exec_kill. Set timeoutMs for long jobs (maximum 24 hours)." },
     },
     required: ["command"],
   },

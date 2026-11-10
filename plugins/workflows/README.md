@@ -6,6 +6,27 @@ pause/resume/retry/stop. The tool and UI share the selected
 `service.workflow.run` provider, including separately bundled releases.
 Start returns immediately; the conversation stays usable.
 
+New runs default to `completion: "wake"`: completion or failure queues one
+follow-up in the agent session that started the run, after its current turn.
+The parent can finish its turn or keep talking with the user instead of polling.
+`completion: "notify"` only shows a user notification; `"none"` is silent.
+Set this in start arguments or `workflows.json`. Explicit stop only notifies;
+it does not automatically ask the agent to restart cancelled work. Pause is
+not a terminal event. Retry/resume creates a new delivery generation and uses
+the session that requested it. Run status exposes `generation`,
+`deliveredGeneration` and any `completionError`.
+
+The completion envelope contains run ID/status, never stage output. The agent
+reads results through `workflow_run status` and treats them as untrusted data.
+Delivery uses the host's bounded, deduplicated follow-up queue and normal agent
+permissions/budgets. Interruption pauses automatic follow-ups until the user
+continues, while already launched workflow stages keep progressing. No model
+requests are spent merely waiting; worker execution and the completion turn still
+consume their normal budgets. Unload/close cancels live workers and revokes
+delivery. Old completed journals are not replayed as new notifications on restart;
+interrupted runs require explicit resume. This feature requires an updated host
+with `$.background()` and `service.agent.enqueue` support.
+
 A plan contains named stages with self-contained prompts and `dependsOn` IDs.
 Ready stages run concurrently, dependency outputs are passed as data, and a
 `when: {stage, includes}` condition can skip a branch. An `expand: true` discovery
@@ -43,7 +64,8 @@ Defaults: concurrency 2 (maximum 8), 100 stages (maximum 500), 60000 tokens and
 process. Override start arguments or `workflows.json` defaults with `concurrency`,
 `maxStages`, `maxTokensPerStage` and `stageTimeoutMs`. Existing stricter agent
 budgets and tool permissions apply. Workers cannot launch nested background
-workflows. Status accepts `waitMs` up to 30000 to avoid rapid model polling.
+workflows. Status accepts `waitMs` up to 30000 for bounded interactive inspection;
+normal background completion does not require polling.
 
 This is an in-process background scheduler, not a detached operating-system
 service. App shutdown/reload cancels active workers and preserves a paused run.

@@ -169,7 +169,7 @@ export class NativeProvider implements ModelProvider {
         generationConfig: {
           maxOutputTokens: request.maxOutputTokens ?? c.maxOutputTokens ?? 8192,
           ...(c.reasoningEffort
-            ? { thinkingConfig: { thinkingLevel: c.reasoningEffort } }
+            ? { thinkingConfig: { thinkingLevel: c.reasoningEffort.toUpperCase() } }
             : {}),
         },
       };

@@ -18,6 +18,7 @@ versions, test plans, releases, updates and rollback. Nothing here is load-beari
 | `guard-scope` | write/edit outside the workspace cwd → denied | codex sandbox modes |
 | `turn-log` | JSONL journal of every turn at `.agent-compositor/turn-log.jsonl` | Gemini `/stats` data source |
 | `notify-done` | desktop notification on turn complete / failed | Claude Code Notification hook, codex notify |
+| `background-jobs` | Automatic completion subscriptions for background shells; wake the agent or notify without model polling | [Setup](background-jobs/README.md) |
 | `cost` | token tally + `/cost` report | Claude Code `/cost` |
 | `plan-mode` | `/plan` toggle: read-only planning, writes denied | Claude Code plan mode |
 | `todos` | `todo` tool state persisted to `.agent-compositor/todos.json` | Claude Code TodoWrite |

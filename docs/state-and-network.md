@@ -55,6 +55,29 @@ global and project directories. `# note` saves private project memory;
 `#global note` saves global memory owned by the memory plugin. Shared COMPOSITOR.md
 files remain in the project; new notes do not overwrite them.
 
+## Reasoning effort
+
+Open Settings → Models & providers (or `/model`) and choose **Reasoning** under
+the desired profile. It is also available in **Edit connection**. Save for this
+project or all projects; project settings override global defaults. The active
+profile's effort appears above the list and applies to subsequent requests,
+including after restart. Changing effort preserves a manually selected model ID.
+**Provider default** clears the explicit value, including an inherited legacy
+value; it does not mean that the model disables reasoning.
+
+Profiles store the optional `reasoningEffort` in `providers.json`, separately
+from credentials. The UI offers protocol choices, not a guarantee that a selected
+model accepts every choice. Unsupported values can be rejected by the provider;
+choose its supported level or Provider default. Existing custom gateway values
+remain visible when editing.
+
+The transports send OpenAI-compatible `reasoning_effort`, Responses
+`reasoning.effort`, Anthropic `output_config.effort`, or Gemini
+`thinkingConfig.thinkingLevel` (uppercase enum). The available values and model
+restrictions come from the provider: [OpenAI reasoning](https://developers.openai.com/api/docs/guides/reasoning),
+[Anthropic effort](https://platform.claude.com/docs/en/build-with-claude/effort),
+and [Gemini ThinkingLevel](https://googleapis.github.io/js-genai/release_docs/enums/types.ThinkingLevel.html).
+
 ## Plugin API
 
 ```ts

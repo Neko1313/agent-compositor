@@ -20,6 +20,7 @@
     "tools": ["docs/agent-features.md", "docs/workspaces-and-web.md"]
   },
   "paths": {
+    ".plugin-release.json": ["docs/plugin-standard.md"],
     "website/": ["docs/documentation.md"],
     "tools/docs/": ["docs/documentation.md", "docs/contributing.md"],
     "tools/plugins/": ["docs/plugin-standard.md", "docs/plugin-testing.md"],

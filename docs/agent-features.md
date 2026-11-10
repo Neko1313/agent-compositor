@@ -225,6 +225,20 @@ execute on the host under the normal permission policy.
 
 ## Autonomous execution and context budgets
 
+Long-running commands can return control through `exec(background:true)`. Enable
+the optional [background-jobs plugin](../plugins/background-jobs/README.md) to
+subscribe automatically: process completion queues one agent follow-up after the
+current turn, or a user-only notification. No model requests are made merely to
+wait. The user can keep chatting; logs and cancellation remain guarded through
+`exec_output` and `exec_kill`. These are live-session jobs; session close stops
+them, and a single-shot headless command does not become a daemon.
+
+The [workflows plugin](../plugins/workflows/README.md) uses the same follow-up
+queue for new `workflow_run` runs: default `completion:"wake"` resumes the
+originating parent after completion/failure, `"notify"` only notifies the user,
+and `"none"` stays silent. Workers continue independently of an interrupted
+foreground turn; automatic parent continuation waits until the user continues.
+
 The default harness now supplies base instructions through
 `service.agent.instructions`: inspect project evidence, choose tools from their
 schemas, execute authorized work, verify changes and report concrete blockers.

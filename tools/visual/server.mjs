@@ -29,6 +29,7 @@ if(process.env.VISUAL_MASCOT_GIF){
   await writeFile(join(cwd,'.agent-compositor/mascot.json'),JSON.stringify({pack:'animations',animations:Object.fromEntries(names.map(name=>[name,'source.gif']))}));
 }
 if(process.env.VISUAL_HISTORY)await seedHistory(cwd);
+if(process.env.VISUAL_BACKGROUND)await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['background-jobs','todos','slash-commands','session-manager'],agent:{projectContext:false,skills:false},compaction:{enabled:false},permissions:{rules:[{tool:'exec',decision:'allow'}]}}));
 if(process.env.VISUAL_AUTHOR){
   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},compaction:{enabled:false},permissions:{rules:[{tool:'plugin_dev',decision:'allow'},{tool:'write',decision:'allow'},{tool:'mcp_call',decision:'allow'},{tool:'extension_control',decision:'allow'}]}}));
 }

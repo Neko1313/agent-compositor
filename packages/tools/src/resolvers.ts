@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnCommand, stopProcess } from "./execution.js";
 import { confinedPath } from "./project.js";
-import { spawn } from "node:child_process";
+import {backgroundScope,type ShellStatus} from './background.js';
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { TodoItem } from "./tools/todo.js";
@@ -25,8 +25,10 @@ export function registerDefaultResolvers(
     signal?: () => AbortSignal;
     env?: () => Record<string, string>;
     onFilesChanged?: (path: string) => Promise<void>;
+    onBackgroundComplete?:(status:ShellStatus)=>Promise<void>;
   } = {}
-): void {
+): (()=>Promise<void>)&{revalidate:()=>Promise<void>} {
+  const jobs=backgroundScope(options.onBackgroundComplete);
   const locks=fileMutationLocks;
   const original = bus;
   bus = {
@@ -61,14 +63,16 @@ export function registerDefaultResolvers(
   bus.on("service.sandbox.run", async () => {
     throw new Error("No sandbox provider installed");
   });
-  bus.on("service.shell.exec", (payload) => runExec(payload, options));
-  bus.on("service.shell.execOutput", backgroundOutput);
-  bus.on("service.shell.execKill", backgroundKill);
+  bus.on("service.shell.exec", (payload) => (payload as ExecPayload).background?jobs.start(payload as ExecPayload,options.signal?.()):runExec(payload,options));
+  bus.on("service.shell.execOutput", async(payload)=>jobs.output((payload as {id:string}).id));
+  bus.on("service.shell.execKill", async(payload)=>jobs.kill((payload as {id:string}).id));
+  bus.on('service.shell.jobs',async(payload)=>jobs.metadata((payload as {id?:string}).id));
   bus.on("service.todo.update", todoUpdate);
   bus.on("service.file.read", readFileRange);
   bus.on("service.file.readText", readText);
   bus.on("service.file.write", writeFile);
   bus.on("service.file.edit", editFile);
+  return Object.assign(()=>jobs.close(),{revalidate:()=>jobs.revalidate(cwd=>options.resolvePath?options.resolvePath(cwd):Promise.resolve())});
 }
 
 const MAX_OUTPUT = 512 * 1024;
@@ -82,17 +86,6 @@ interface ExecPayload {
   background?: boolean;
 }
 
-interface BackgroundJob {
-  stdout: string;
-  stderr: string;
-  done: boolean;
-  exitCode: number | null;
-  startedAt: number;
-  child: ReturnType<typeof spawn>;
-}
-
-const backgroundJobs = new Map<string, BackgroundJob>();
-let backgroundSeq = 0;
 
 // process-scoped task list for the `todo` tool (one CLI session per process)
 let todoList: TodoItem[] = [];
@@ -112,7 +105,6 @@ async function runExec(
   options: { signal?: () => AbortSignal }
 ): Promise<unknown> {
   const p = payload as ExecPayload;
-  if (p.background) return startBackground(p, options);
   const process = await spawnCommand(p.command, p.cwd, p.env);
   return new Promise((resolve, reject) => {
     const started = Date.now();
@@ -152,61 +144,6 @@ async function runExec(
       });
     });
   });
-}
-
-async function startBackground(p: ExecPayload, options: {}): Promise<unknown> {
-  const process = await spawnCommand(p.command, p.cwd, p.env);
-  return new Promise((resolve, reject) => {
-    const child = process;
-    child.on("error", reject);
-    const id = `shell-${++backgroundSeq}`;
-    const job: BackgroundJob = {
-      stdout: "",
-      stderr: "",
-      done: false,
-      exitCode: null,
-      startedAt: Date.now(),
-      child,
-    };
-    child.stdout.on("data", (d: Buffer) => {
-      job.stdout += d.toString();
-      if (job.stdout.length > MAX_OUTPUT)
-        job.stdout = job.stdout.slice(0, MAX_OUTPUT) + "\n…[truncated]";
-    });
-    child.stderr.on("data", (d: Buffer) => {
-      job.stderr += d.toString();
-      if (job.stderr.length > MAX_OUTPUT)
-        job.stderr = job.stderr.slice(0, MAX_OUTPUT) + "\n…[truncated]";
-    });
-    child.on("close", (code) => {
-      job.done = true;
-      job.exitCode = code ?? -1;
-    });
-    backgroundJobs.set(id, job);
-    resolve({ shellId: id, started: true });
-  });
-}
-
-function backgroundOutput(payload: unknown): Promise<unknown> {
-  const { id } = payload as { id: string };
-  const job = backgroundJobs.get(id);
-  if (!job) throw new Error(`no such background shell: ${id}`);
-  return Promise.resolve({
-    id,
-    stdout: job.stdout,
-    stderr: job.stderr,
-    done: job.done,
-    exitCode: job.exitCode,
-    durationMs: Date.now() - job.startedAt,
-  });
-}
-
-function backgroundKill(payload: unknown): Promise<unknown> {
-  const { id } = payload as { id: string };
-  const job = backgroundJobs.get(id);
-  if (!job) throw new Error(`no such background shell: ${id}`);
-  stopProcess(job.child);
-  return Promise.resolve({ id, killed: true });
 }
 
 interface ReadPayload {

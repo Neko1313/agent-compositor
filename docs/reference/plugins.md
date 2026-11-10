@@ -2,13 +2,14 @@
 
 > Generated from repository sources. Run `npm run docs:gen`; do not edit by hand.
 
-All 26 filesystem plugins start inactive. [Install and explicitly enable](../marketplace.md) a package in user or project scope before using it. Plugin versions are independent of the host.
+All 27 filesystem plugins start inactive. [Install and explicitly enable](../marketplace.md) a package in user or project scope before using it. Plugin versions are independent of the host.
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
 | [auto-approve](../../plugins/auto-approve/README.md) | 1.3.0 | Opt-in risk review for arbitrary console, plugin, MCP and workflow tool actions. Only low-risk decisions pass automatically; explicit denies remain binding. |
+| [background-jobs](../../plugins/background-jobs/README.md) | 0.1.0 | Event-driven completion subscriptions for background exec shells: wake the originating agent or notify the user without model polling. |
 | [btw](../../plugins/btw/README.md) | 1.2.1 | /btw <question> — ask a side question answered in isolation by a fresh model call (Claude Code /btw analog: the answer lands as a notification and never enters the conversation). Drop this folder to remove. |
-| [callix](../../plugins/callix/README.md) | 1.2.0 | Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query. |
+| [callix](../../plugins/callix/README.md) | 1.3.0 | Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query. |
 | [checkpoint-history](../../plugins/checkpoint-history/README.md) | 1.1.1 | Turn snapshots for code and conversation, with conflict-aware restore and review. |
 | [checkpoints](../../plugins/checkpoints/README.md) | 1.1.1 | Pre-write file checkpoints (Claude Code rewind analog): write/edit tool calls snapshot the previous content; /rewind restores the most recent snapshot. Journal: .agent-compositor/checkpoints.json. Drop this folder to remove. |
 | [cost](../../plugins/cost/README.md) | 1.2.0 | /cost and /usage — token accounting from turn.usage events (Claude Code /cost analog). Tally survives across turns in plugin state; drop this folder to remove. |

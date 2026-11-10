@@ -1,5 +1,220 @@
 # Project memory
 
+## Workflow completion and reasoning controls — 2026-11-11
+
+New workflow_run runs default to completion:wake, with notify/none alternatives.
+Each run retains its originating session context; retry/resume adopts the
+requesting session and increments the delivery generation. Completion metadata
+contains no worker output and uses the bounded service.agent.enqueue queue.
+Interrupted foreground turns pause follow-ups while detached workflow stages
+continue. Stopped work only notifies, paused work does not deliver, and loading
+old journals never replays completion. Host shutdown drains cores and plugin
+workers before closing state/network services. This extends the earlier optional
+background-jobs work; workers still consume their normal model/token budgets.
+
+Trusted hooks can acquire $.background() during a live invocation. Its services
+and signal last for that plugin instance rather than a foreground turn; next()
+is forbidden and unload revokes it. This is an explicit trusted SDK capability,
+not isolation or a permission bypass.
+
+The model selector and connection editor now expose profile reasoningEffort,
+project/global persistence and Provider default reset. Reset is stored as null
+to clear inherited legacy values; older saved profiles without the field retain
+legacy inheritance. Changing effort preserves a manual model selection. Gemini
+thinkingLevel is encoded uppercase; other provider fields keep their native
+mapping. Offered protocol levels remain model-dependent, with official source
+links in docs/state-and-network.md. Existing custom gateway levels stay visible.
+
+Verification includes real PTY settings selection/restart/reset and workflow
+parent wake (dist/visual-effort-final, dist/visual-workflow-completion), transport
+fixtures, foreground interruption, per-run delivery, retries and SDK revocation.
+Changes remain local and unpublished; plugin versions/changelogs are owned by
+the automated release preparation workflow rather than hand-bumped here.
+
+## Event-driven background jobs — 2026-11-11
+
+The user requested long-lived background commands with completion subscriptions,
+agent wake-up and continued foreground conversation without polling/model costs.
+New optional background-jobs 0.1.0 observes the existing guarded
+exec(background:true) path and exposes background_jobs list/status/subscribe/
+unsubscribe. Default automatic mode is wake; mode:notify emits only a user
+notification, autoSubscribe:false permits explicit subscriptions. Output and
+cancellation remain separate guarded exec_output/exec_kill tools. No production
+activation, publication or commit/push was performed.
+
+Catalog 0.20 adds service.shell.jobs (metadata), shell.completed (OS close),
+service.agent.enqueue (bounded owner/dedupe queue) and service.background.jobs
+(optional plugin policy). Completion envelopes exclude stdout/stderr, command and
+environment. Follow-ups have agent provenance, run after a busy turn, coalesce
+nearby completions, pause after interruption and are revoked on owner unload.
+Host lifetime checks use actual HooksHost registration, including dynamic SDK
+plugins, rather than a stale composition snapshot. Normal permissions/budgets
+apply; untrusted process output never becomes a user instruction.
+
+Host shells now have per-core UUID identities instead of a global shell map,
+16 concurrent jobs, bounded completed history and 512 KiB output tails per
+stream. Background timeoutMs is enforced (default 120000, max 86400000). Failed
+launches drain native close before rejecting. Clear/end/app close drain process
+groups, workspace revocation kills affected commands, ephemeral subagents close
+their shells, and app close cancels/drains an awakened provider stream. Successful
+background admission no longer counts as an exec failure in harness recovery.
+
+Plugin reload preserves version-1 session subscription records and reattaches
+live jobs. Unknown/corrupt state is rebuilt from live host metadata without
+replaying commands; restart cannot recover unowned OS children. Plugin removal
+revokes subscriptions/queued wakes; host-owned commands continue until their own
+cancel/timeout/session teardown. Single-shot headless runs do not become daemons.
+Older v0.4.0 hosts lack these primitives, so installing this plugin alone there
+is insufficient. The host update is part of this source change.
+
+Initial integration caught a submit() microtask regression affecting immediate
+Ctrl+C: reset waits are now conditional, preserving synchronous busy-state entry.
+Clear reinitializes active plugins after teardown, preserving Callix warming;
+host close also revokes dynamically registered plugin lifetimes.
+Real PTY/browser verification exercises a cancelled busy turn, a background shell,
+foreground chat, closed provider streams during waiting, one output-reading wake,
+and an unchanged unsent draft. Evidence: dist/visual-background; the scripted
+provider's six requests include interruption, launch, chat and result continuation,
+not polling. A first bench attempt clicked before resize acknowledgement; the
+scenario now waits for the actual resized footer. No product input relaxation or
+timeout extension was used. External model reliability remains a separate claim.
+Final package verification includes 825 passing tests (3 optional skips), typecheck,
+the 94-page documentation build and the real PTY scenario at
+dist/visual-background-final. The new-plugin release-plan regression preserves an
+initial manifest byte-for-byte when its version stays unchanged, so formatting
+alone cannot make the generated PR fail strict version checks. Expected missing
+bootstrap manifests are read quietly. Final PR and installed-archive certificates
+passed and match the current source identity; Linux x64 archive smoke passed.
+This is local evidence, and no release has been published.
+
+## Eager Callix warming and automatic plugin release preparation — 2026-11-11
+
+The user requested proactive indexing for active Callix and automatic plugin
+versions/changelogs. Callix now starts its owned primary-root warm immediately
+on session.start/reload, precomputes navigation maps and shares analysis with
+the first query without blocking startup. Debounce applies to later file edits.
+session.end cancels/drains its watcher/build and retained queries. background:false
+still disables warming. Tests cover startup before any query, sharing/cancellation
+and the explicit lazy setting; source/archive behavior checks also exercise warm
+startup without initiating analysis through a diagnostic query.
+
+`.plugin-release.json` bootstraps at 0c0f975 and records each prepared source
+baseline. `plugin:prepare` plans from committed history in a clean checkout;
+`--write` applies metadata. The main-push `plugin-release-preparation` workflow
+creates/refreshes automation/plugin-releases with SemVer, changelog entries,
+relative catalog versions and generated references. fix/other runtime changes
+select patch, feat selects minor and !/BREAKING CHANGE selects major; notes include
+breaking migration bodies and commit links. Inputs include bundled workspace
+code/manifests, selected lockfile dependencies, Monty's copied native variants and
+distribution tooling. Docs/tests-only changes and unrelated docs dependencies do
+not bump plugins. Higher pre-existing development versions survive migration.
+Published archive entries stay pinned until certified catalog promotion.
+
+Normal contribution CI reports pending preparation instead of requiring hand
+bumps; generated release PRs use strict checks. Tag metadata validation rejects
+unprepared runtime changes. Publication extracts only the selected changelog
+entry and retains existing certification gates. Preparation itself does not tag
+or publish. AGENTS.md, contribution docs and plugin-author's served standard guide
+explain the new routine workflow.
+
+GitHub's Actions PR-creation setting was enabled using the authorized gh account;
+the API's combined can_approve_pull_request_reviews flag is true, while default
+workflow permissions remain read. No automatic review/merge is implemented. The
+preparation job explicitly dispatches CI/docs for its generated commit because
+GITHUB_TOKEN-created PR events do not trigger those workflows. No PAT is stored.
+No commit/push has deployed the new workflow yet.
+
+An isolated full-repository snapshot prepared all 26 versions/catalog entries
+successfully (the shared license-packaging fix affects every native artifact).
+Strict checks and marketplace validation passed; after committing the generated
+metadata, re-planning returned no changes and Callix tag validation passed. A
+regression caught and fixed the initial catalog bump edge case when migration
+followed an already raised development catalog version. Local tests also cover
+breaking/patch/minor batches, archive pinning, dirty-checkout protection, actual
+Bun input discovery without entrypoint execution, and release-note extraction.
+Final verification passed 810 package tests (3 optional skips), 37 explicit
+Callix checks, typecheck, docs generation/build, and Callix/plugin-author PR
+certification. Callix's Linux x64 archive passed artifact certification and smoke.
+The isolated generated release batch also passed the full docs check/build,
+including commit summaries with MDX-sensitive braces, strict version checks,
+catalog validation, a no-op repeat and tag-readiness checks. YAML/run-block shell
+syntax was checked locally; the new workflow has not run on GitHub yet.
+
+## Large Callix graph verification — 2026-11-11
+
+The user authorized finding a large local project or cloning Superset to test
+graph-size failures. The replan session recorded repeated `Callix graph exceeds
+output limit` failures for status, symbols and a file-specific outline. Native
+Callix produced a 69950821-byte graph (100610 nodes, 209723 relations) in 8.85s;
+the adapter reproduced its 64 MiB failure in 8.65s. No replan source/configuration
+was modified; diagnostics and isolated caches are under /tmp/compositor-replan-*.
+
+The unreleased 1.3.0 now defaults to a 256 MiB native graph limit (the existing
+maximum). Explicit lower limits remain honored for new builds. Overflow errors
+distinguish full-graph bytes from model-facing maxTokens and suggest recovery.
+Timeout/output limits no longer invalidate completed graph identities; concurrent
+builds retain separate resource/deadline ownership. Earlier v3 disk-cache keys
+remain readable. Disk validation avoids a second full stringify/parse of graphs.
+
+On the same replan query, a cold outline returned 13 symbols in 10.2s, a warm
+query in 65ms, and a fresh process read the disk cache in 352ms even with a 1 KiB
+new-build limit. These are local observations, not general performance claims.
+Tests cover a graph above 64 MiB, compact result budgets, resource-limit changes,
+legacy disk caches and separate concurrent deadlines. The full suite passed 800
+tests (3 optional skips), plus 36 explicit Callix checks, typecheck, documentation
+build and PR/archive certification with archive smoke on Linux x64. Native
+output, parsed graphs and adjacency maps still
+need memory; graphs above 256 MiB require a narrower attached project or text
+tools. This does not implement an unbounded/out-of-core graph database.
+
+## Callix invocation and indexing reliability — 2026-11-11
+
+The user reported that asking an agent to invoke Callix led to a long wait and
+then no usable graph/tool. Their exact installed configuration and error were
+not provided. A native probe on this checkout (632 discovered files) measured
+about 7.9 seconds cold and 10 ms warm; these are one-machine observations.
+
+Reproduced and fixed status triggering analysis, prose/log edits invalidating
+semantic caches, and invalid direct service actions starting a native process.
+Callix 1.3.0 adds readiness/error diagnostics without analysis, source/resolver
+input fingerprints, one timeout across source-change retries, and immediate
+recovery after the last consumer cancels. Last-consumer cancellation also drains
+native process teardown before disposal completes. Attached roots use separate
+disk-cache directories. Removing an attached root cancels its retained queries.
+
+Enabled background mode now returns pending:true/complete:false after queryWaitMs
+(default 10000, range 50..600000), while the owned build continues. Status shows
+availability, selected executable, indexing attempts/time or the last failure.
+glob/grep/read remain usable. Close/reload/disable cancels retained queries;
+background:false retains synchronous bounded behavior. v3 fingerprints rebuild
+older disk entries once. README/help explain code_query versus native callix
+and action values such as read_symbol. No user activation or provider policy
+was changed. Development catalog metadata is 1.0.1; the plugin is 1.3.0.
+
+A real Gemma navigation/edit diagnostic used code_query successfully but first
+invented a read_symbol tool and later exhausted its 80000-token task budget,
+despite correct file effects and executed verification. It is a failed full task,
+not evidence of general model reliability. The generic core now suggests an
+available tool whose action enum exactly matches an unknown tool name; it does
+not execute an alias, bypass policy or reveal excluded tools. A focused source
+inspection task passed with actual code_query calls on Gemma and DeepSeek
+(two requests each). Reports: dist/callix-reliability-live and
+dist/callix-invocation-live. No general quality or speedup claim follows.
+
+Artifact installation also exposed plugin archives copying notices from every
+root dependency, including the documentation site, exceeding the installer's
+directory inventory limit. Plugin builds now select notices from bundler inputs
+and explicitly copied native packages; installer limits remain unchanged. A
+regression verifies bundled notices survive and unrelated packages are excluded.
+
+Local verification includes 797 package tests (3 optional skips), 33 explicit
+native Callix checks, typecheck and documentation build. The package behavior
+scenarios now assert non-indexing status, retained failure diagnostics and
+pending-worker cleanup on the actual source/installed candidate. Independent
+PR and archive certificates passed for the final Linux x64 candidate, along
+with archive smoke. This is not four-platform publication certification. No commit, push
+or release publication was requested for this fix.
+
 ## Docusaurus documentation and GitHub Pages — 2026-11-11
 
 The user authorized building the documentation site and publishing it to GitHub

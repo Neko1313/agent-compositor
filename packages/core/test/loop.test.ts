@@ -90,6 +90,24 @@ describe("turn basics", () => {
     expect(String(result.error)).toContain("unknown tool");
     expect(log.names().at(-1)).toBe("turn.complete");
   });
+
+  it('suggests an available action tool without executing an alias or bypassing its permissions',async()=>{
+    let executions=0;
+    const navigator={name:'navigator',description:'Navigate',parameters:{type:'object',properties:{action:{enum:['read_symbol']}}},
+      describe:()=>({tool:'navigator'}),execute:async()=>{executions++;return {ok:true as const,data:'must not run'};}};
+    const provider=new ScriptedProvider([
+      {toolCalls:[{name:'read_symbol',args:{pattern:'target'}}]},
+      {toolCalls:[{name:'navigator',args:{action:'read_symbol',pattern:'target'}}]},
+      {text:'The requested operation was denied.'},
+    ]);
+    const core=new AgentCore({cwd,provider,tools:[navigator],controlTools:[],rules:[{tool:'navigator',decision:'deny'}]});
+    const log=collect(core);await core.submit('Inspect target');
+    const results=log.events.filter(event=>event.event==='tool.result').map(event=>event.input);
+    expect(results[0]).toMatchObject({ok:false,error:expect.stringContaining('navigator with {"action":"read_symbol"}')});
+    expect(results[1]).toMatchObject({ok:false,error:expect.stringContaining('denied')});
+    expect(executions).toBe(0);
+    expect(provider.requests[1].messages.at(-1)?.content).toContain('No action was executed');
+  });
 });
 
 describe("interception and permissions", () => {

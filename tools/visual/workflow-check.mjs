@@ -24,6 +24,7 @@ try{
  await submit('/workflow-release');await click('Workflows');await wait('Inspect tests · completed');await wait('Inspect source · completed');await wait('Verify combined result · pending');
  await click('[ Resume workflow ]');await wait('Repository audit proof · completed');await click('Verify combined result · completed');await wait('Combined verification complete');await shot('03-completed.png');
  report.checks.push('Actual workflow tool dynamically expands two parallel workers; mouse pause prevents the downstream stage from starting; resume joins results and exposes detail');
+ await page.keyboard.press('Alt+f');await wait('Workflow completion delivered to main agent');await shot('03b-parent-wake.png');report.checks.push('Terminal workflow completion automatically wakes the originating parent agent');
  const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');await page.waitForFunction(g=>visual.generation>g&&visual.frames>0,generation);await wait('Repository audit proof · completed');await shot('04-restored.png');
  await page.keyboard.press('Alt+s');
  await submit('Explain the current status');await wait('Main session remains responsive');await wait('ctx ');await page.waitForFunction(()=>visual.text().split('\n')[38]?.includes('Ready'));await shot('05-context.png');

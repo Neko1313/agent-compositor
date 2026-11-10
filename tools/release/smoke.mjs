@@ -30,7 +30,11 @@ const server = createServer(async (req, res) => {
     const request = JSON.parse(body);
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     const frame = (delta, finish_reason = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\n\n`;
-    if(request.messages.some(m=>m.role==='user'&&m.content.startsWith('WORKFLOW_WORKER_CHECK'))){
+    if(request.messages.filter(m=>m.role==='user').at(-1)?.content.startsWith('MULTIPROJECT_READ')){
+      const last=request.messages.at(-1);
+      if(last?.role==='tool')res.end(frame({content:JSON.parse(last.content).content==='INSTALLED_MULTI_PROJECT_EVIDENCE'?'MULTIPROJECT_READ_OK':'MULTIPROJECT_READ_FAILED'},'stop')+'data: [DONE]\n\n');
+      else res.end(frame({tool_calls:[{index:0,id:'workspace-read-'+request.messages.length,type:'function',function:{name:'read',arguments:JSON.stringify({path:'~/external projects/evidence.txt'})}}]},'tool_calls')+'data: [DONE]\n\n');
+    } else if(request.messages.some(m=>m.role==='user'&&m.content.startsWith('WORKFLOW_WORKER_CHECK'))){
       res.end(frame({content:'WORKFLOW_WORKER_OK'},'stop')+'data: [DONE]\n\n');
     } else if(request.messages.some(m=>m.role==='user'&&m.content==='WORKFLOW_DISTRIBUTION_CHECK')){
       const tool=request.messages.filter(m=>m.role==='tool').at(-1);
@@ -108,6 +112,12 @@ await hooks['session.start']({},api);dispose();if(image?.width!==2||image?.heigh
   assert.match(license.toString('utf8'), /MIT License/);
   const noPath = join(temp, 'empty-path'); await mkdir(noPath);
   const callixOptions = { ...options, timeout: 120000, env: { ...env, CALLIX_BIN: '', PATH: noPath } };
+  const extraProject=join(home,'external projects');await mkdir(extraProject);
+  await writeFile(join(extraProject,'evidence.txt'),'INSTALLED_MULTI_PROJECT_EVIDENCE');
+  const firstWorkspace=JSON.parse((await exec(binary,['--add-dir','~/external projects','-p','MULTIPROJECT_READ','--output-format','json'],callixOptions)).stdout);
+  assert.equal(firstWorkspace.response,'MULTIPROJECT_READ_OK');assert.equal(firstWorkspace.error,undefined);
+  const resumedWorkspace=JSON.parse((await exec(binary,['--resume',firstWorkspace.sessionId,'-p','MULTIPROJECT_READ_AGAIN','--output-format','json'],callixOptions)).stdout);
+  assert.equal(resumedWorkspace.response,'MULTIPROJECT_READ_OK');assert.equal(resumedWorkspace.error,undefined);
   // A selected external kernel extension works without source packages, a
   // fallback model request, coding tools, Node or Bun on PATH.
   const kernelProject=join(temp,'custom-kernel'),kernelPlugin=join(kernelProject,'plugins/kernel-fixture');
@@ -168,7 +178,7 @@ console.log('MONTY_OK');
   await writeFile(marker, 'user state');
   await exec('sh', [installer, '--prefix', prefix], options);
   assert.equal(await readFile(marker, 'utf8'), 'user state');
-  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, external kernel extension/events/exact tools/custom session repository/resume without fallback model or PATH, packaged GIF decoder/license, model response, background workflow, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
+  console.log(`Release smoke passed: ${asset}, checksum rejection, versioned/latest install, default plugins, external kernel extension/events/exact tools/custom session repository/resume without fallback model or PATH, packaged GIF decoder/license, model response, background workflow, --add-dir/home paths/resumed scope without PATH, bundled Callix cross-file analysis and guarded symbol editing without PATH, state preservation`);
 } finally {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   await rm(temp, { recursive: true, force: true });

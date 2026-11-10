@@ -25,9 +25,11 @@ import {
   type Summarizer,
 } from "@agent-compositor/context";
 import {
+  WorkspaceAccess,
   builtinTools,
   createToolHelp,
   execTool,
+  readTool,writeTool,editTool,
   isReadOnlyShell,
   builtinToolRules,
   registerDefaultResolvers,
@@ -56,6 +58,8 @@ export interface CorePlugin {
 }
 
 export interface AgentCoreOptions {
+  homeDir?:string;
+  workspacePaths?:string[];
   uiControllers?:ConstructorParameters<typeof HooksHost>[1]["uiControllers"];
   /** Internal host fallback, inherited by ephemeral children. */
   permissionReview?: (input:Record<string,unknown>)=>Promise<unknown>;
@@ -66,7 +70,7 @@ export interface AgentCoreOptions {
   auth?: ConstructorParameters<typeof HooksHost>[1]["auth"];
   serviceProviders?: Record<string, string>;
   preparePrompt?: (
-    text: string
+    text: string,signal?:AbortSignal,source?:"user"|"agent"
   ) => Promise<string | { text: string; images?: ChatMessage["images"] }>;
   initialImages?: ChatMessage["images"];
   model?: () => string;
@@ -173,7 +177,8 @@ export class AgentCore {
   private contextSource = "fallback";
   private contextWindow = 32768;
   private outputLimit?:number;
-  private promptQueue: string[] = [];
+  private promptQueue:{text:string;source:"user"|"agent"}[]=[];
+  private inputSource:"user"|"agent"="user";
   private steerQueue: string[] = [];
   private abort: AbortController = new AbortController();
   private interruptedByUser = false;
@@ -182,7 +187,9 @@ export class AgentCore {
   private inPromptHook = false;
   private invokingTool = false;
 
+  readonly workspace:WorkspaceAccess;
   constructor(private options: AgentCoreOptions) {
+    this.workspace=new WorkspaceAccess(options.cwd,options.homeDir,options.workspacePaths);
     for (const value of [
       options.maxTokensPerTurn,
       options.maxTokensPerSession,
@@ -222,6 +229,7 @@ export class AgentCore {
       uiControllers:options.uiControllers,
       session: { id: this.sessionId, cwd: options.cwd },
       workspaceRoot: options.cwd,
+      resolveWorkspacePath:(value,missing)=>this.workspace.resolve(value,{missing}),
       storage: options.storage,
       execEnvironment: options.toolEnv,
       auth: options.auth,
@@ -376,6 +384,7 @@ export class AgentCore {
       },
       {
         root: options.cwd,
+        resolvePath:(value,missing)=>this.workspace.resolve(value,{missing}),
         signal: () => this.abort.signal,
         env: options.toolEnv,
         onFilesChanged: async (path: string) => {
@@ -401,7 +410,7 @@ export class AgentCore {
     this.runtime.setResolver("service.agent.batch", async ({calls,context}) => {
       for(const call of calls)await context.execute(call);return{value:true};
     });
-    this.runtime.setResolver("service.context.prepare", async ({text}) => ({value:this.options.preparePrompt ? await this.options.preparePrompt(text) : text}));
+    this.runtime.setResolver("service.context.prepare", async ({text,signal}) => ({value:this.options.preparePrompt ? await this.options.preparePrompt(text,signal,(this.options.subagentDepth??0)>0?"agent":this.inputSource) : text}));
     this.runtime.setResolver("service.context.manage", async () => { await this.manageContextDefault(); return {value:true}; });
     this.runtime.setResolver("service.context.compact", async () => { await this.compactDefault(); return {value:true}; });
     this.runtime.setResolver("service.session.append", async ({event,data}) => { await this.persistDefault(event,data); return {value:true}; });
@@ -546,6 +555,9 @@ export class AgentCore {
   }
 
   getContextWindow(): number { return this.contextWindow; }
+  get promptSource(){return this.inputSource;}
+  get isUserInvocation(){return this.invokingTool||(this.inPromptHook&&this.inputSource==="user");}
+  getToolNames():string[]{return this.toolSpecs.map(tool=>tool.name);}
 
   getState(): CoreState {
     return this.state;
@@ -762,6 +774,20 @@ export class AgentCore {
     this.toolSpecs = this.composeTools(extraTools);
   }
 
+  /** Host-only grants originate from explicit user paths, never model-generated attachments. */
+  async attachWorkspace(value:string){const before=JSON.stringify(this.workspace.list()),entry=await this.workspace.add(value);if(JSON.stringify(this.workspace.list())!==before)await this.emit("workspace.changed",{sessionId:this.sessionId,roots:this.workspace.list()});return entry;}
+  async removeWorkspace(value:string){const removed=await this.workspace.remove(value);if(removed)await this.emit("workspace.changed",{sessionId:this.sessionId,roots:this.workspace.list()});return removed;}
+  async authorizeAttachment(path:string):Promise<void>{
+    const descriptor={tool:"read",path:await this.workspace.resolve(path)};
+    const decision=evaluate(descriptor,this.compiledRules,this.approvals);
+    const check=await this.emit("tool.check",{tool:"read",input:{path:descriptor.path},callId:randomUUID(),isReadOnly:true});
+    if(decision.decision==="deny"||(check as {decision?:string}|undefined)?.decision==="deny")throw Error("Attachment denied by permission policy");
+    if(decision.decision==="ask"||(check as {decision?:string}|undefined)?.decision==="ask"){
+      const answer=await this.onApproval?.({tool:"read",descriptor,reason:"Read user attachment",signal:this.abort.signal});
+      if(answer!==true&&!(answer&&typeof answer==="object"&&answer.allow===true))throw Error("Attachment permission denied");
+    }
+  }
+
   /** Current message history (for introspection / future resume replay). */
   getMessages(): readonly ChatMessage[] {
     return this.messages;
@@ -787,21 +813,21 @@ export class AgentCore {
         version: p.manifest.version,
         tier: p.tier ?? "user",
       })),
-    }).then(() => {});
+    }).then(async()=>{if(this.workspace.list().length>1)await this.emit("workspace.changed",{sessionId:this.sessionId,roots:this.workspace.list()});});
     return this.started;
   }
 
   /** Renderer entry: send a prompt. If busy, it queues (codex Enter). */
-  async submit(text: string): Promise<void> {
+  async submit(text: string,source:"user"|"agent"="user"): Promise<void> {
     if (this.state === "running") {
-      this.promptQueue.push(text);
+      this.promptQueue.push({text,source});
       await this.emit("prompt.queued", {
         text,
         depth: this.promptQueue.length,
       });
       return;
     }
-    await this.runTurn(text);
+    await this.runTurn(text,source);
     await this.drainQueue();
   }
 
@@ -835,6 +861,7 @@ export class AgentCore {
     events: import("@agent-compositor/session").SessionEvent[]
   ): AgentCore {
     const core = new AgentCore(opts);
+    const scope=[...events].reverse().find(event=>event.type==="workspace.changed");if(scope)core.workspace.restore(scope.roots);
     core.spentTokens = events
       .filter((e) => e.type === "model.usage")
       .reduce(
@@ -848,7 +875,8 @@ export class AgentCore {
 
   // ---- the turn engine -----------------------------------------------------
 
-  private async runTurn(text: string): Promise<void> {
+  private async runTurn(text: string,source:"user"|"agent"="user"): Promise<void> {
+    this.inputSource=source;
     try {
       await this.runTurnUnchecked(text);
     } catch (error) {
@@ -1212,6 +1240,7 @@ export class AgentCore {
           : [this.options.systemPrompt,SUBAGENT_SYSTEM_PROMPT].filter(Boolean).join("\n\n"),
       subagentDepth: depth + 1,
     });
+    child.workspace.restore(this.workspace.list());
     const usageWrites: Promise<unknown>[]=[];
     const unsubscribeReaction = child.subscribe((event) => {
       if(event.kind==="catalog" && event.event==="model.usage"){
@@ -1242,7 +1271,7 @@ export class AgentCore {
     parentSignal.addEventListener("abort", interruptChild, { once: true });
     try {
       if (parentSignal.aborted) throw new Error("Interrupted");
-      await child.submit(args.prompt);
+      await child.submit(args.prompt,"agent");
       if (child.getState() === "interrupted") throw new Error("Interrupted");
       if (child.lastTurnError) throw new Error(child.lastTurnError);
       const lastAssistant = [...child.getMessages()]
@@ -1270,7 +1299,7 @@ export class AgentCore {
   private async drainQueue(): Promise<void> {
     while (this.promptQueue.length > 0 && this.state !== "running") {
       const next = this.promptQueue.shift()!;
-      await this.runTurn(next);
+      await this.runTurn(next.text,next.source);
     }
   }
 
@@ -1374,10 +1403,20 @@ export class AgentCore {
           args=intercepted.input ?? {};
         }
         // 2) permissions via tool.check (chain may override with {decision})
-        const descriptor = spec.describe(args);
-        if (descriptor.path && typeof (args as any).path === "string")
-          descriptor.path = resolvePath(this.options.cwd, (args as any).path);
-        if(spec.execute===execTool.execute && spec.describe===execTool.describe)descriptor.readOnly=!(args as any).env&&!(args as any).background&&await isReadOnlyShell((args as any).command,(args as any).cwd??this.options.cwd,this.options.cwd,{...process.env,...this.options.toolEnv?.()});
+        let descriptor: ToolCallDescriptor;
+        try {
+          descriptor = spec.describe(args);
+          if (descriptor.path && typeof (args as any).path === "string") {
+            const selected=spec;
+            const nativeFile=[readTool,writeTool,editTool].some(tool=>selected.execute===tool.execute&&selected.describe===tool.describe);
+            descriptor.path=nativeFile?await this.workspace.resolve((args as any).path,{missing:true}):this.workspace.expand((args as any).path);
+          }
+          if(spec.execute===execTool.execute && spec.describe===execTool.describe){const commandCwd=this.workspace.expand((args as any).cwd??this.options.cwd);descriptor.readOnly=!(args as any).env&&!(args as any).background&&await isReadOnlyShell((args as any).command,commandCwd,this.workspace.rootFor(commandCwd)??this.options.cwd,{...process.env,...this.options.toolEnv?.()});}
+        } catch (caught) {
+          signal.throwIfAborted();
+          await this.finishToolCall(call,args,undefined,`denied: tool preflight failed: ${String(caught)}`,true);
+          continue;
+        }
         let decision = evaluate(descriptor, this.compiledRules, this.approvals);
         let overrideReason: string | undefined;
         const checkRes = await this.emit("tool.check", {
@@ -1502,23 +1541,27 @@ export class AgentCore {
         result = interceptedResult;
       }
 
-      this.turnToolRecords.push({name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0),output:result});
-      await this.emit("tool.result", {
-        callId: call.id,
-        tool: call.name,
-        ok: error === undefined,
-        output: error === undefined ? result : undefined,
-        error,
-        denied: denied || undefined,
-      });
-      this.messages.push({
-        role: "tool",
-        toolCallId: call.id,
-        name: call.name,
-        content: error ? error + (denied ? "\nPermission denied: do not retry equivalent effects through another tool. Report the blocker or continue unrelated authorized work." : "") : this.toolResultText(result),
-      });
+      await this.finishToolCall(call,args,result,error,denied);
       void turnId;
     }
+  }
+
+  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean):Promise<void> {
+    this.turnToolRecords.push({name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0),output:result});
+    await this.emit("tool.result", {
+      callId: call.id,
+      tool: call.name,
+      ok: error === undefined,
+      output: error === undefined ? result : undefined,
+      error,
+      denied: denied || undefined,
+    });
+    this.messages.push({
+      role: "tool",
+      toolCallId: call.id,
+      name: call.name,
+      content: error ? error + (denied ? "\nPermission denied: do not retry equivalent effects through another tool. Report the blocker or continue unrelated authorized work." : "") : this.toolResultText(result),
+    });
   }
 
   private toolResultText(value:unknown):string {
@@ -1530,6 +1573,9 @@ export class AgentCore {
   private buildToolContext(signal=this.abort.signal): ToolContext {
     return {
       cwd: this.options.cwd,
+      homeDir:this.workspace.home,
+      workspaceRoots:()=>this.workspace.list(),
+      resolvePath:(value,options)=>this.workspace.resolve(value,options),
       stateDir: this.options.storage?.paths.state,
       sessionId: this.sessionId,
       env: this.options.toolEnv?.(),

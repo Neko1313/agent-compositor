@@ -3,6 +3,9 @@ import type { ToolCallDescriptor } from "@agent-compositor/permissions";
 /** The $ API handle every tool receives. Wired by the loop to the hooks
  *  dispatcher: plugins see these as service.* events and can intercept. */
 export interface ToolContext {
+  homeDir?:string;
+  workspaceRoots?:()=>import("./workspace.js").WorkspaceEntry[];
+  resolvePath?:(value:string,options?:{missing?:boolean;directory?:boolean})=>Promise<string>;
   settings?: (name: string) => Promise<any>;
   stateDir?: string;
   sessionId?: string;

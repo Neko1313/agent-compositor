@@ -27,3 +27,5 @@ export const authStatus = service("service.auth.status", "Read the selected auth
   z.object({plugin:z.string().optional()}));
 export const sessionAppend = service("service.session.append", "Persist a session event through a replaceable journal implementation.",
   z.object({sessionId:z.string(),cwd:z.string(),event:z.string(),data:z.unknown()}));
+
+export const workspaceChanged=defineEvent({name:"workspace.changed",since:"0.19.0",version:1,summary:"User-selected filesystem scope for this session. File entries grant only that file; directory entries grant descendants. Replayed on resume.",input:z.object({sessionId:z.string(),roots:z.array(z.object({path:z.string(),kind:z.enum(["file","directory"])}))}),responses:[],frozen:true});

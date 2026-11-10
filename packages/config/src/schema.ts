@@ -13,6 +13,7 @@ const placement = z.object({
 
 /** Composition controls fail closed before executable extensions are imported. */
 export const compositionSchema = z.object({
+  workspacePaths:z.array(z.string().min(1)).optional(),
   sessionProvider:z.string().min(1).optional(),
   ui:z.object({controllers:z.record(z.enum(["editor","approval","question","form","placement","history"]),z.string().min(1)).optional()}).passthrough().optional(),
   enabledPlugins: z.array(z.string().min(1)).optional(),
@@ -38,6 +39,7 @@ export const ConfigSchema = z
     enabledPlugins: z.array(z.string()).optional(),
     toolProviders: z.record(z.string(), z.string()).optional(),
     sessionProvider:z.string().optional(),
+    workspacePaths:z.array(z.string().min(1)).optional(),
     model: z.string().optional(),
     small_model: z.string().optional(),
     providers: z.record(z.string(), z.unknown()).optional(),

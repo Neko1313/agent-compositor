@@ -29,6 +29,7 @@ export interface HooksHostConfig {
   session: { id: string; cwd: string };
   /** fs confinement root; defaults to session.cwd */
   workspaceRoot?: string;
+  resolveWorkspacePath?:(value:string,missing?:boolean)=>Promise<string>;
   execEnvironment?: () => Record<string, string>;
   storage?: {
     configure?(name: string, value: Record<string, unknown>, scope: "project" | "global"): Promise<void>;

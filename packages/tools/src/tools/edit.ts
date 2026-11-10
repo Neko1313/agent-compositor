@@ -44,8 +44,8 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
   },
   describe: (args) => ({ tool: "edit", path: path.resolve(args.path) }),
   async execute(ctx, args): Promise<ToolResult<EditOutcome>> {
-    const target = path.resolve(ctx.cwd, args.path);
     try {
+      const target = ctx.resolvePath?await ctx.resolvePath(args.path):path.resolve(ctx.cwd,args.path);
       const outcome = await ctx.request<EditOutcome>("service.file.edit", {
         path: target,
         oldText: args.oldText,

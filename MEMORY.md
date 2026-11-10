@@ -1,5 +1,132 @@
 # Project memory
 
+## Harness² case suite — 2026-11-10
+
+The user requested adding and improving cases through Harness². Added a real
+upstream BenchmarkAdapter in tools/evals/harness2_bench.py, using the existing
+CompositorSubstrate and upstream core.judge.judge_one. Optional Python 3.12/3.13
+dependencies pin upstream commit 6868817518876de8fd170c6a8354daca273b6191;
+package commands are eval:harness2 and test:harness2 (activate that environment).
+
+The suite has 12 cases (5 train, 7 test): evidence, quoted home references,
+multiple attached projects, search plus source/artifact, denied mutation, exact
+file versus sibling scope, symlink escape, redirect boundary, denied attachment,
+verified code fix, delegated grant boundary and untrusted page instructions.
+Both splits were inspected during development; this is not an unseen benchmark.
+The default scripted HTTP provider drives the actual CLI and loopback web tools;
+live model runs are separate. Scripts/expectations/captures stay outside native
+filesystem scope. Grade actual effects, correlated tool observations, no private
+fixture leakage, request logs and budgets. Code artifacts also run independent
+hidden Node checks. Canonical home/absolute spellings and write/edit alternatives
+are accepted where appropriate. Failed/missing/duplicate/error final results and
+timeouts fail; upstream judge exceptions remain ungraded and fail the runner.
+
+New regression traces reproduced a core defect: native path preflight rejected
+an out-of-scope path by terminating the entire turn without a tool result. Core
+now reports a correlated denied result with normal no-bypass feedback, allowing
+the model to report the boundary. Two assembly tests cover sibling and symlink
+failures. Shared result recording keeps the normal and preflight paths aligned.
+
+Rollouts use fresh temporary HOME/cwd, scrub host keys/proxies/preloads, bound
+process execution and kill the group on deadline. Execution occurs outside the
+report directory to avoid inherited parent-project config; only after exit are
+artifacts archived under output/captures. Original roots remain in metadata for
+canonical grading. Idempotent runs reject changed tasks/harness/model/runtime/
+runner/configuration; manifests and fingerprints support trace inspection.
+Trusted code and approved shell remain ordinary processes, not an OS sandbox.
+
+Validation: 44 Python tests including protocol materialisation, false-positive
+judging, deadline/launch failures, real two-process scope resume and hostile
+report-parent configuration; 24/24 scripted episodes (two repetitions); 636
+TypeScript tests passed, 3 optional checks skipped, 85.35% lines. Typecheck,
+existing deterministic evals 5/5, Linux x64 build and release smoke pass. Final
+suite evidence: dist/harness2-verified/report.json and
+dist/harness2-tests/junit.xml. Live development runs before archive-layout
+hardening passed Gemma 12/12 and DeepSeek 10/12; loopback web sources, one run per
+case, not public search/model rankings. DeepSeek used a denied shell probe instead
+of the symlink read and exceeded the delegated-case call bound; private fixtures
+were not leaked. Reports: dist/harness2-current-{gemma,deepseek}/report.json.
+No commit/push was requested for this follow-up.
+
+## Harness test hardening — 2026-11-10
+
+The user requested more tests. Added 44 cases: bounded HTTP streams and real
+in-flight cancellation, redirect/error cleanup, search provider/key routing,
+unsafe/malformed result links, CAPTCHA false positives, path alias revocation,
+symlink retargeting, invalid saved scope, reference quoting/budgets/images,
+queued input provenance, disabled references and delegated workspace commands.
+New files: packages/app/test/web-network.test.ts, project-context.test.ts and
+packages/tools/test/workspace.test.ts; assembly cases extend web-workspaces.test.ts.
+
+The regression tests first reproduced four defects, now fixed:
+- Inherited task hooks closed over the parent core and could run /workspace add
+  against it. Grants require a matching requesting session as well as user origin.
+- Relative saved paths could grant the process cwd on resume. Restore accepts
+  canonical absolute-path records only; missing/malformed entries are skipped.
+- Cancellation during attachment authorization returned stale content. Preparation
+  rechecks cancellation across asynchronous boundaries and passes signals to reads.
+- CAPTCHA in ordinary result text was mistaken for a human challenge. Detection
+  now recognizes challenge container markup rather than matching arbitrary text.
+
+Validation: 634 passed, 3 optional native checks skipped in 77 files; overall line
+coverage 85.36%, all gates passed. Workspace lines 100%/branches 90%; reference
+preparation lines 98.63%; web tool lines 97.22%. Typecheck, Linux x64 build and
+installed-binary smoke passed. The compiled real PTY search/attachment/resume
+scenario passes; screenshots inspected. Current evidence:
+dist/harness-test-hardening-report/report.json and
+dist/harness-test-hardening-binary/report.json. No commit/push or release
+publication was performed for this follow-up.
+
+## Harness internet and multiple projects — 2026-11-10
+
+The user requested internet/search capability and simultaneous work across
+projects using arbitrary file/directory references such as @~/proj. Implemented:
+
+- Optional web plugin 1.1 defaults to keyless DuckDuckGo HTML search, preserves
+  Brave-key/SearXNG selection and explicit provider errors, reports human
+  challenges honestly, and returns bounded titles/URLs/snippets. web_fetch adds
+  title and safe outgoing links; /web reports setup. The harness advertises actual
+  web capability and source-citation guidance only when its tools are present.
+- Shared WorkspaceAccess resolves ~/relative/absolute/parent paths, canonical
+  symlinks, exact file grants and directory grants. @ references accept spaces
+  and JSON escapes; @. lists the root. Suggestions browse a prefix without
+  granting access. Tab completes; Enter submits a typed reference unless the
+  user navigated to a suggestion. Scoped tool paths/cwd work across projects.
+- /workspace list/add/remove, repeatable --add-dir, and workspacePaths config.
+  Startup and dynamic grants are journaled as workspace.changed and restored
+  on resume. Removing a directory removes nested grants; conversation content
+  already read is not erased. Read denials apply to attachments, and mutation/
+  shell/network policy remains binding. Tool response source directories are
+  explicit; a file-only grant does not imply a whole-project navigation grant.
+- Task agents inherit scope. submit carries a protected host origin through its
+  queue; model-authored references and /workspace commands cannot add scope.
+  Independent agents accept cwd at creation and can run concurrently in distinct
+  attached projects. Relative parent grants are passed canonically instead of
+  being reinterpreted under the child cwd; agent records retain projectCwd for
+  restore and correct-repository worktree merges.
+- Local filesystem enforcement applies to standard file tools/resolvers. A
+  selected replacement resource tool retains its own path semantics and is not
+  forced through the local filesystem resolver. Trusted JS is still in-process.
+
+Catalog 0.19 adds workspace.changed and the reviewed optional cwd input on
+service.agent.control. The frozen 0.17 baseline is unchanged; compatibility checks
+explicitly validate/remove only this optional field before comparing old shapes.
+Contracts/examples: docs/workspaces-and-web.md. This is server-text HTTP fetching,
+not interactive browser automation; public HTML search can require a human check.
+
+Validation: 590 tests passed, 3 optional native checks skipped in 74 files; line
+coverage 85.25%, all gates passed. Typecheck/gen, 26-entry plugin catalog, scripted
+5/5 and tools 3/3 evals, and proxy smoke passed. Actual public search returned
+TypeScript documentation, and fetching its official page succeeded. Installed
+Linux x64 smoke covers --add-dir, home paths and resumed scope without Node/Bun
+on PATH. Source and compiled PTY scenarios cover completion, quotes, cross-project
+read, loopback search/fetch and restart/resume at 60 columns; standard PTY also
+passes. Final evidence: dist/harness-web-workspaces-report/report.json; live
+probe: dist/harness-web-workspaces-report/live-web.json. Failed diagnostic
+captures under earlier dist/visual-web-workspaces and dist/web-workspaces-binary
+led to a history selection synchronization fix and HTTP-fixture tool-call name
+lookup; they are not current passing evidence. No release was published.
+
 ## Accepted replacement boundary — 2026-11-10
 
 After reviewing the concept audit, the user chose that every part except tiling

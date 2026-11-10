@@ -13,6 +13,7 @@ This is the router file: reading starts here. It links to topics and records sig
 | 5 | [05-prior-art.md](05-prior-art.md) | Prior art: architecture of Claude Code, VS Code, Neovim, Sway, Linux; what we adopt | accepted |
 | 6 | [06-core-blueprint.md](06-core-blueprint.md) | Core blueprint: best-of harvest from 8 local reference codebases; subsystem → reference → what we take | proposal |
 | 7 | [agent-features.md](agent-features.md) | Implemented agent plan: commands, providers, auto, checkpoints, worktrees, extensions, usage and setup limits | implemented |
+| 10 | [workspaces-and-web.md](workspaces-and-web.md) | Keyless internet tools, attached projects, path completion, scope and concurrent agents | implemented |
 | 9 | [ui-controllers.md](ui-controllers.md) | Private editor/dialog/history/placement controllers and full session repositories | implemented |
 | 8 | [core-customization.md](core-customization.md) | Domain-independent composition, replaceable execution/context strategies, tool selection and extension events | implemented; see companion UI/storage contracts |
 

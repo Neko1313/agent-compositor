@@ -39,7 +39,7 @@ export const execTool: ToolSpec<ExecArgs, ExecOutcome> = {
     try {
       const outcome = await ctx.request<ExecOutcome>("service.shell.exec", {
         command: args.command,
-        cwd: args.cwd ?? ctx.cwd,
+        cwd: ctx.resolvePath?await ctx.resolvePath(args.cwd??ctx.cwd,{directory:true}):args.cwd??ctx.cwd,
         timeoutMs: args.timeoutMs ?? 120_000,
         env: args.env,
         background: args.background,

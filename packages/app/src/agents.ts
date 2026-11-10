@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
@@ -14,6 +14,7 @@ type RecordEntry = {
   id: string;
   name: string;
   cwd: string;
+  projectCwd?:string;
   sessionId: string;
   branch?: string;
   archived?: boolean;
@@ -29,6 +30,9 @@ type RuntimeEntry = {
   close: () => Promise<void>;
 };
 type Channels = {
+  inputSource?:()=>"user"|"agent";
+  resolveWorkspace?:(value:string)=>Promise<string>;
+  workspace?:()=>import("@agent-compositor/tools").WorkspaceEntry[];
   approve: NonNullable<AgentCoreOptions["onApproval"]>;
   ask?: AgentCoreOptions["onAsk"];
 };
@@ -106,10 +110,10 @@ export async function agentManager(
   async function load(record: RecordEntry) {
     if (entries.has(record.id)) return entries.get(record.id)!;
     if (!channels) throw new Error("No interactive host channels");
-    await confinedPath(
-      record.branch ? join(stateDir, "worktrees") : cwd,
-      record.cwd
-    );
+    if(record.branch)await confinedPath(join(stateDir,"worktrees"),record.cwd);
+    else if(record.projectCwd){
+      if(await realpath(record.cwd)!==await realpath(record.projectCwd))throw Error("Agent directory does not match its saved project");
+    }else await confinedPath(cwd,record.cwd);
     const managed = await factory(record, channels);
     const core = managed.core;
     const entry: RuntimeEntry = {
@@ -221,7 +225,10 @@ export async function agentManager(
         throw new Error("Agent count limit reached");
       const id = randomUUID(),
         worktree = args.worktree !== false;
-      let directory = cwd,
+      const projectCwd=typeof args.cwd==='string'
+        ? channels?.resolveWorkspace?await channels.resolveWorkspace(args.cwd):await confinedPath(cwd,args.cwd)
+        : cwd;
+      let directory = projectCwd,
         branch: string | undefined;
       if (worktree) {
         directory = join(stateDir, "worktrees", id);
@@ -242,13 +249,14 @@ export async function agentManager(
             directory,
             "HEAD",
           ],
-          { cwd, timeout: 30000, maxBuffer: 1000000 }
+          { cwd:projectCwd, timeout: 30000, maxBuffer: 1000000 }
         );
       }
       const record: RecordEntry = {
         id,
         name: args.name || `Agent ${records.length + 1}`,
         cwd: directory,
+        projectCwd,
         branch,
         sessionId: randomUUID(),
         maxSteps: args.maxSteps ?? 12,
@@ -286,7 +294,7 @@ export async function agentManager(
         throw new Error("Prompt is required");
       // Core queues follow-up messages if another turn is running.
       const previous = entry.run;
-      const pending = entry.core.submit(args.prompt);
+      const pending = entry.core.submit(args.prompt,provided.inputSource?.()??"agent");
       entry.run = Promise.all([previous, pending])
         .then(() => {})
         .finally(async () => {
@@ -328,7 +336,7 @@ export async function agentManager(
           "--no-edit",
           record.branch,
         ],
-        { cwd, maxBuffer: 1000000, timeout: 30000 }
+        { cwd:record.projectCwd??cwd, maxBuffer: 1000000, timeout: 30000 }
       );
       return { merged: record.branch, output: result.stdout };
     }
@@ -445,7 +453,7 @@ export async function agentManager(
   const tool: ToolSpec = {
     name: "agent_control",
     description:
-      "Manage independent persisted agents with separate conversations, optional Git worktrees and token/step budgets. Send messages asynchronously, list states, stop, archive or merge committed worktree changes.",
+      "Manage independent persisted agents with separate conversations in selected attached project directories (cwd), optional Git worktrees and token/step budgets. Send messages asynchronously, list states, stop, archive or merge committed worktree changes.",
     parameters: {
       type: "object",
       properties: {
@@ -455,6 +463,7 @@ export async function agentManager(
         },
         id: { type: "string" },
         name: { type: "string" },
+        cwd:{type:"string",description:"Attached project directory for a new agent. Accepts absolute paths and ~/path. Defaults to the primary project; worktree:false works directly in this directory."},
         prompt: { type: "string" },
         worktree: { type: "boolean" },
         maxSteps: { type: "integer", minimum: 1, maximum: 100 },

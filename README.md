@@ -47,6 +47,15 @@ Extract the entire archive and keep `compositor` beside its `plugins/` and
 `node_modules/` directories. See [release maintenance](docs/releases.md) for
 building, verification and publishing with git-cliff.
 
+## Internet and multiple projects
+
+With the standard web plugin, `web_search` works without an API key and
+`web_fetch` reads sources with URLs and outgoing links. `/web` shows setup.
+Attach projects with `@~/proj`, absolute paths or `@"~/a project/file.ts"`;
+use `/workspace add PATH` or repeated `--add-dir DIR` flags for additional scope.
+Tools and independent agents can select an attached project's `cwd`.
+See [internet and multiple projects](docs/workspaces-and-web.md).
+
 ## Chat history
 
 Use `/history`, `/sessions` or `/resume` without an ID to open searchable chat

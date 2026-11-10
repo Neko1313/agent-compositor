@@ -1,3 +1,4 @@
+import { activeReference } from "./project-context.js";
 import { ControllerDialog } from "./controller-dialog.js";
 import { type UiControllerFactory, UiControllerLease, type UiControllerInput, type UiControllerView, type UiEditorState, type UiEditorIntent } from "@agent-compositor/hooks";
 import { ApprovalDialog } from "./approval.js";
@@ -72,6 +73,8 @@ export class AppUI {
   private reportedFocus = "";
   private activeAgentPane?: string;
   private fileCatalog?: string[];
+  private filePrefix?:string;
+  private fileRevision=0;
   private loadingFiles = false;
   private draft = "";
   private cursor = 0;
@@ -185,7 +188,7 @@ export class AppUI {
         ask: NonNullable<AgentCoreOptions["onAsk"]>
       ) => Promise<AgentCore>;
       edit?: (draft: string) => Promise<string>;
-      files?: () => Promise<string[]>;
+      files?: (prefix?:string) => Promise<string[]>;
       saveLayout?: (layout: unknown) => Promise<void>;
     } = {}
   ) {
@@ -237,7 +240,7 @@ export class AppUI {
       try{this.editor=this.core.host.controllers.create('editor',{
         sessionId:this.core.sessionId,
         commands:()=>{capabilities.signal.throwIfAborted();return structuredClone(this.commandList());},
-        files:this.panelOptions.files?async()=>{capabilities.signal.throwIfAborted();const files=await this.panelOptions.files!();capabilities.signal.throwIfAborted();return files;}:undefined,
+        files:this.panelOptions.files?async(prefix?:string)=>{capabilities.signal.throwIfAborted();const files=await this.panelOptions.files!(prefix);capabilities.signal.throwIfAborted();return files;}:undefined,
       },fallback,()=>this.draw(),state,this.uiLifetime.signal);
         this.editor.signal.addEventListener('abort',()=>capabilities.abort(),{once:true});
       }
@@ -920,7 +923,7 @@ export class AppUI {
         data.key === "tab" ||
         (data.key === "enter" &&
           !data.modifiers?.includes("shift") &&
-          (this.commandNavigated || this.draft !== selected.name))
+          (this.commandNavigated || (!activeReference(this.draft,this.cursor) && this.draft !== selected.name)))
       ) {
         this.complete(selected);
         return;
@@ -1051,25 +1054,7 @@ export class AppUI {
       this.draft =
         this.draft.slice(0, this.cursor) + text + this.draft.slice(this.cursor);
       this.cursor += text.length;
-      if (
-        this.draft.includes("@") &&
-        !this.fileCatalog &&
-        !this.loadingFiles &&
-        this.panelOptions.files
-      ) {
-        this.loadingFiles = true;
-        this.track(
-          this.panelOptions
-            .files()
-            .then((files) => {
-              this.fileCatalog = files;
-            })
-            .finally(() => {
-              this.loadingFiles = false;
-              this.draw();
-            })
-        );
-      }
+
     } else if (
       (data.key === "enter" && data.modifiers?.includes("shift")) ||
       (data.key === "j" && data.modifiers?.includes("ctrl"))
@@ -1139,7 +1124,16 @@ export class AppUI {
           : this.core.submit(text);
       this.track(task);
     }
+    this.refreshReferenceFiles();
     this.draw();
+  }
+  private refreshReferenceFiles():void {
+    const reference=activeReference(this.draft,this.cursor),prefix=reference?.prefix;
+    if(prefix===this.filePrefix)return;
+    this.filePrefix=prefix;this.fileCatalog=undefined;const revision=++this.fileRevision,core=this.core;
+    if(prefix===undefined||!this.panelOptions.files)return;
+    this.loadingFiles=true;
+    this.track(this.panelOptions.files(prefix).then(files=>{if(this.core===core&&this.fileRevision===revision)this.fileCatalog=files;},()=>{}).finally(()=>{if(this.fileRevision===revision){this.loadingFiles=false;this.draw();}}));
   }
   private track(task: Promise<void>): void {
     const safe = task.catch((error) => {
@@ -1236,6 +1230,7 @@ export class AppUI {
         this.core.host.controllers.disposeAll();
         this.core.host.setFormHandler(undefined);
         this.core = next;
+        this.filePrefix=undefined;this.fileCatalog=undefined;this.fileRevision++;
         this.bindForms();
         this.draft=editorState.text;this.cursor=editorState.cursor;this.bindControllers();
         this.unsubscribe = next.subscribe((event) => this.event(event));
@@ -1615,17 +1610,10 @@ export class AppUI {
       this.windows.focused !== "input"
     )
       return [];
-    const file = /@(?:"([^"]*)|([^\s"]*))$/.exec(
-      this.draft.slice(0, this.cursor)
-    );
-    if (file)
-      return (this.fileCatalog ?? [])
-        .filter((path) => path.startsWith(file[1] ?? file[2]))
-        .slice(0, 100)
-        .map((path) => ({
-          name: `@${path.includes(" ") ? JSON.stringify(path) : path}`,
-          description: "Attach project file",
-        }));
+    const file=activeReference(this.draft,this.cursor);
+    if(file)return(this.fileCatalog??[]).filter(path=>path.startsWith(file.prefix)).slice(0,100).map(path=>({
+      name:`@${/[\s"\\]/.test(path)?JSON.stringify(path):path}`,description:path.endsWith('/')?'Attach directory or continue its path':'Attach file',
+    }));
     if (!/^\/[^\s]*$/.test(this.draft)) return [];
     return [
       ...this.commandList().filter((command) => command.name !== "/plugins"),
@@ -1675,13 +1663,13 @@ export class AppUI {
   }
   private complete(command: { name: string; usage?: string }): void {
     if (command.name.startsWith("@")) {
-      const start = this.draft.lastIndexOf("@", this.cursor - 1);
-      this.draft =
-        this.draft.slice(0, start) +
-        command.name +
-        " " +
-        this.draft.slice(this.cursor);
-      this.cursor = start + command.name.length + 1;
+      const reference=activeReference(this.draft,this.cursor);if(!reference)return;
+      const quoted=command.name[1]==='"',directory=command.name.endsWith('/')||command.name.endsWith('/"');
+      const suffix=directory?'':' ';
+      this.draft=this.draft.slice(0,reference.start)+command.name+suffix+this.draft.slice(reference.end);
+      this.cursor=reference.start+command.name.length+(directory&&quoted?-1:suffix.length);
+      if(directory){this.completionDismissed=false;this.commandNavigated=false;this.refreshReferenceFiles();this.draw();return;}
+
     } else {
       this.draft = command.name + (command.usage ? " " : "");
       this.cursor = this.draft.length;

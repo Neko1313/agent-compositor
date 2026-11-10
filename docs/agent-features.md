@@ -208,9 +208,13 @@ Device flow follows [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628).
 up to 50000 characters are returned to the model. Redirects require a separate
 fetch and approval. Web content is marked untrusted.
 
-`web_search` uses BRAVE_SEARCH_API_KEY or a SearXNG endpoint from
-`.agent-compositor/web.json`: `{"searchUrl":"https://search.example.org/search"}`.
-SearXNG must enable JSON format. Results are limited to 10 with bounded snippets.
+`web_search` defaults to keyless DuckDuckGo HTML search. BRAVE_SEARCH_API_KEY
+selects Brave when no provider is explicitly configured; a SearXNG endpoint in
+`.agent-compositor/web.json` (`{"searchUrl":"https://search.example.org/search"}`)
+remains supported. SearXNG must enable JSON format. Results are limited to 10 with
+bounded snippets. `/web` shows setup. See [multiple projects and internet](workspaces-and-web.md)
+for provider selection, home/absolute references, `--add-dir`, `/workspace` and
+concurrent agents in selected project directories.
 Protocols: [Brave Search](https://api-dashboard.search.brave.com/api-reference/web/search/get),
 [SearXNG Search API](https://docs.searxng.org/dev/search_api.html).
 

@@ -335,3 +335,13 @@ conversation, tools, status or plugin views. `ui.invalidate` refreshes cached
 views. Unloading removes a plugin's appearance contribution. Input and
 permission decisions remain host-owned. See [the UI plugin contract](../../docs/ui-theming.md)
 for examples, ordering and rendering constraints.
+
+## Internet and attached projects
+
+Use `@~/proj`, `@/absolute/path` or `@"~/project with spaces/file.ts"` to attach
+files/directories to the current session. `/workspace add PATH` and repeated
+`--add-dir DIR` select additional project directories; `/workspace` lists scope.
+Scope survives resume and is shared with delegated work. Independent agents can
+select an attached `cwd` when created. The optional `web` plugin provides keyless
+search and bounded HTTP source reading; `/web` shows provider setup.
+See [configuration, examples and limits](../../docs/workspaces-and-web.md).

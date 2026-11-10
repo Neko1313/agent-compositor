@@ -106,6 +106,7 @@ export const serviceAgentControl = defineEvent({
     "Manage independent persisted agents and optional Git worktrees; messages run asynchronously with separate budgets.",
   input: z.object({
     action: z.enum(["list", "create", "send", "stop", "archive", "merge"]),
+    cwd: z.string().min(1).optional(),
     id: z.string().optional(),
     name: z.string().max(100).optional(),
     prompt: z.string().max(100000).optional(),

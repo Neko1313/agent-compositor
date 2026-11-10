@@ -40,7 +40,10 @@
     "visual:questions": "node tools/visual/questions-check.mjs",
     "visual:history": "node tools/visual/history-check.mjs",
     "visual:ux": "node tools/visual/ux-check.mjs",
-    "visual:controllers": "node tools/visual/controllers-check.mjs"
+    "visual:controllers": "node tools/visual/controllers-check.mjs",
+    "visual:workspaces": "node tools/visual/workspaces-check.mjs",
+    "eval:harness2": "python3 tools/evals/harness2_bench.py",
+    "test:harness2": "python3 -m pytest -c tools/evals/tests/pytest.ini"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

@@ -55,3 +55,4 @@ export { spawnCommand, stopProcess } from "./execution.js";
 export {createToolHelp,toolUsage,type ToolUsage} from "./guidance.js";
 
 export {isReadOnlyShell} from "./read-only-shell.js";
+export { WorkspaceAccess, type WorkspaceEntry } from "./workspace.js";

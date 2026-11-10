@@ -6,7 +6,7 @@ import type { PluginWindow } from "./plugin-panel.js";
 
 /** Private request.data contracts supplied by the assembled terminal host. */
 export interface AppUiControllerData {
-  editor:{sessionId:string;commands():{name:string;description:string;usage?:string}[];files?:()=>Promise<string[]>};
+  editor:{sessionId:string;commands():{name:string;description:string;usage?:string}[];files?:(prefix?:string)=>Promise<string[]>};
   approval:Omit<Parameters<NonNullable<AgentCoreOptions["onApproval"]>>[0],"signal">;
   question:Omit<Parameters<NonNullable<AgentCoreOptions["onAsk"]>>[0],"signal">;
   form:UiForm;

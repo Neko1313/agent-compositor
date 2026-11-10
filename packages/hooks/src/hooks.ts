@@ -519,7 +519,7 @@ export class HooksHost {
           throw Error("Storage file exceeds read limit");
         return { value: text };
       }
-      const abs = confine(path);
+      const abs = this.config.resolveWorkspacePath?await this.config.resolveWorkspacePath(path):confine(path);
       const st = await stat(abs);
       if (st.size > this.fsReadMax)
         throw new Error(`file exceeds read limit (${this.fsReadMax} bytes)`);
@@ -537,7 +537,7 @@ export class HooksHost {
           await this.config.storage.legacyWrite(path, content);
           return { value: undefined };
         }
-        const abs = confine(path);
+        const abs = this.config.resolveWorkspacePath?await this.config.resolveWorkspacePath(path,true):confine(path);
         await mkdir(dirname(abs), { recursive: true });
         await writeFile(abs, content, "utf8");
         return { value: undefined };

@@ -1,1 +1,16 @@
-{"name":"web","version":"1.0.0","trust":"trusted","description":"Bounded web fetch and configurable Brave/SearXNG search through normal tool permissions.","capabilities":["tool"]}
+{
+  "name": "web",
+  "version": "1.1.0",
+  "trust": "trusted",
+  "description": "Bounded web reading and keyless DuckDuckGo or configurable Brave/SearXNG search through normal tool permissions.",
+  "capabilities": [
+    "tool"
+  ],
+  "commands": [
+    {
+      "name": "/web",
+      "description": "Show internet search setup and available web tools"
+    }
+  ],
+  "main": "hooks.ts"
+}

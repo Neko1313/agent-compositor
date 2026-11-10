@@ -21,6 +21,7 @@ export function registerDefaultResolvers(
   bus: ResolverBus,
   options: {
     root?: string;
+    resolvePath?:(value:string,missing?:boolean)=>Promise<string>;
     signal?: () => AbortSignal;
     env?: () => Record<string, string>;
     onFilesChanged?: (path: string) => Promise<void>;
@@ -33,9 +34,9 @@ export function registerDefaultResolvers(
       original.on(service, async (payload) => {
         const value = payload as { path?: string; cwd?: string };
         if (options.root && value.path && service.startsWith("service.file."))
-          await confinedPath(options.root, value.path, true);
+          if(options.resolvePath)value.path=await options.resolvePath(value.path,true);else await confinedPath(options.root, value.path, true);
         if (options.root && value.cwd)
-          await confinedPath(options.root, value.cwd);
+          if(options.resolvePath)value.cwd=await options.resolvePath(value.cwd);else await confinedPath(options.root, value.cwd);
         if (service === "service.shell.exec" && options.env)
           (payload as any).env = { ...options.env(), ...(payload as any).env };
         const mutation=["service.file.write","service.file.edit"].includes(service)&&value.path;

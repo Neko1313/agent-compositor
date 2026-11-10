@@ -195,3 +195,12 @@ restart/search/resume checks persistence and a 60-column viewport. Artifacts def
 to `dist/visual-controllers/`. `VISUAL_EXECUTABLE` checks a compiled distribution
 using the token-scoped loopback model. Inspect the PNGs and `report.json`; raw input
 captures contain only fake credentials. The fixture backend is not production code.
+
+### Internet and attached-project scenario
+
+`npm run visual:workspaces` uses a separate temporary home and real PTY to check
+`@~/proj` completion, directory submission, quoted external files, cross-project
+read, `/workspace`, a loopback search/fetch chain, and scope restoration after
+restart/resume at 60 columns. `VISUAL_EXECUTABLE` checks the compiled distribution.
+Inspect `report.json` and PNGs in `dist/visual-web-workspaces/`. The loopback fixture
+uses no live credentials or search account; live-provider probes are separate.

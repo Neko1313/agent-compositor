@@ -16,6 +16,13 @@ describe("event catalog", () => {
       expect(entry.version,`${name}: preserve the published version`).toBe(old.version);
       expect(entry.aliases).toEqual(expect.arrayContaining(old.aliases));
       const signature={input:entry.input,responses:Object.fromEntries(Object.entries(entry.responses).map(([key,response])=>[key,(response as any).schema]))};
+      // Reviewed additive change in 0.19: existing calls omit cwd and keep their
+      // original behavior. Check that this is the only change to the old shape.
+      if(name==="service.agent.control"){
+        expect(signature.input.properties.cwd).toEqual({type:"string",minLength:1});
+        expect(signature.input.required??[]).not.toContain("cwd");
+        signature.input=structuredClone(signature.input);delete signature.input.properties.cwd;
+      }
       expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
         `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);
     }

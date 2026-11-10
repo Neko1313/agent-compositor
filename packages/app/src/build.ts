@@ -46,6 +46,7 @@ export interface ProviderSettings {
 
 export interface BuildAppOptions {
   inheritedConfig?: LoadedConfig;
+  workspacePaths?:string[];
   /** Independent agents resume only if the selected repository contains their session. */
   resumeIfPresent?: boolean;
   inheritedSettings?: (name: string) => Promise<any>;
@@ -308,12 +309,13 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           async (record, channels) => {
             const child = await buildApp({
               ...options,
-              inheritedConfig: config,
+              inheritedConfig:{...config,config:{...config.config,workspacePaths:[]}},
               inheritedSettings: (name) => storage.config(name),
               env: { ...env, AGENT_MODEL: router.active },
               agentHub: false,
               cwd: record.cwd,
               sessionId: record.sessionId,
+              workspacePaths:[],
               resumeSessionId: record.sessionId,
               resumeIfPresent: true,
               pluginDirs: [...new Set(dirs)],
@@ -327,10 +329,9 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
                 .filter(Boolean)
                 .join("\n\n"),
             });
-            return {
-              core: child.createCore(channels.approve, channels.ask),
-              close: child.close,
-            };
+            const managed=child.createCore(channels.approve,channels.ask);
+            for(const entry of channels.workspace?.()??[])await managed.attachWorkspace(entry.path);
+            return {core:managed,close:child.close};
           },
           Math.min(
             16,
@@ -392,7 +393,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
         yield* router.complete(request);
       },
     };
-    const harness = harnessControls(storage,config.config.agent??{},()=>core.sessionId);
+    const harness = harnessControls(storage,config.config.agent??{},()=>core.sessionId,()=>core);
     const builtinNames=config.config.agent?.builtinTools;
     if(builtinNames!==undefined && (!Array.isArray(builtinNames) || builtinNames.some(name=>!builtinTools.some(t=>t.name===name))))
       throw new Error("agent.builtinTools must list known built-in tool names");
@@ -402,6 +403,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     sessionApprovals.restore(approvals.session.list());
     const coreOptions: ConstructorParameters<typeof AgentCore>[0] = {
       cwd: options.cwd,
+      homeDir:env.HOME??env.USERPROFILE,
+      workspacePaths:[...(options.workspacePaths??[]),...(config.config.workspacePaths??[])],
       storage,
       toolEnv: () => network.environment(),
       fetch: network.fetch("tools"),
@@ -422,7 +425,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           : undefined),
       initialImages: options.images,
       model: () => router.model,
-      preparePrompt: config.config.agent?.fileReferences===false ? undefined : (text) => expandReferences(options.cwd, text),
+      preparePrompt: config.config.agent?.fileReferences===false ? undefined : (text,signal,source) => expandReferences(options.cwd,text,{workspace:core.workspace,attach:source==="agent"?undefined:path=>core.attachWorkspace(path),authorize:path=>core.authorizeAttachment(path),signal}),
       services: {
         ...(hostEnabled("agent-harness") ? harness.services : {}),
         "service.network.configure": async ({ config }: { config: any }) => ({
@@ -438,6 +441,9 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
                 value: await hub.control(args, {
                   approve: onApproval,
                   ask: onAsk,
+                  inputSource:()=>core.isUserInvocation?"user":"agent",
+                  resolveWorkspace:value=>core.workspace.resolve(value,{directory:true}),
+                  workspace:()=>core.workspace.list().filter(entry=>entry.path!==core.workspace.root),
                 }),
               }),
             }
@@ -511,7 +517,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
         ? AgentCore.resume(coreOptions, events)
         : new AgentCore(coreOptions);
     harnesses.set(core,harness);sessionPlugins.set(core,sessionPlugin);
-    hub?.bind({ approve: onApproval, ask: onAsk });
+    hub?.bind({approve:onApproval,ask:onAsk,inputSource:()=>core.isUserInvocation?"user":"agent",resolveWorkspace:value=>core.workspace.resolve(value,{directory:true}),workspace:()=>core.workspace.list().filter(entry=>entry.path!==core.workspace.root)});
     installSessionServices(core, store, options.cwd);
     return core;
   };
@@ -599,7 +605,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               ] as const,
             ]
           : []),
-        ...['/settings', '/providers', '/models', '/tasks', '/continue'].map(name => [name, {name,description:name==='/tasks'?'Show saved task progress':name==='/continue'?'Continue unfinished work':'Manage model providers and connections',usage:name}] as const),
+        ...['/workspace','/settings', '/providers', '/models', '/tasks', '/continue'].map(name => [name, {name,description:name==='/workspace'?'List or attach working directories':name==='/tasks'?'Show saved task progress':name==='/continue'?'Continue unfinished work':'Manage model providers and connections',usage:name}] as const),
         ...["/auth", "/login", "/logout"].map(
           (name) =>
             [
@@ -650,7 +656,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     ].filter(command=> {
       if(plugins.some(p=>p.commands?.some(c=>c.name===command.name)))return true;
       const owners:Record<string,string>={
-        '/tasks':'agent-harness','/continue':'agent-harness',
+        '/workspace':'agent-harness','/tasks':'agent-harness','/continue':'agent-harness',
         '/settings':controls.manifest.name,'/providers':controls.manifest.name,'/models':controls.manifest.name,'/model':controls.manifest.name,
         '/auth':auth.plugin.manifest.name,'/login':auth.plugin.manifest.name,'/logout':auth.plugin.manifest.name,
         '/extensions':extensions.plugin.manifest.name,'/marketplace':market.plugin.manifest.name,

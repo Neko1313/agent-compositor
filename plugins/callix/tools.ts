@@ -1,6 +1,9 @@
+import { isAbsolute, relative, sep } from "node:path";
+import { stat } from "node:fs/promises";
 import type { ToolContext } from "@agent-compositor/tools";
 
 const properties = {
+  cwd:{type:"string",description:"Attached project directory; accepts absolute paths and ~/path. Defaults to the primary project."},
   action: {
     type: "string",
     enum: [
@@ -33,14 +36,20 @@ const properties = {
 const execute =
   (action?: string) => async (ctx: ToolContext, args: unknown) => {
     try {
-      return {
-        ok: true,
-        data: await ctx.request("service.project.query", {
-          ...(args as object),
-          ...(action ? { action } : {}),
-          cwd: ctx.cwd,
-        }),
-      };
+      const input=args as Record<string,any>;
+      let cwd=ctx.resolvePath?await ctx.resolvePath(input.cwd??ctx.cwd,{directory:true}):input.cwd??ctx.cwd;
+      let path=input.path;
+      if(ctx.resolvePath&&typeof path==='string'&&(isAbsolute(path)||path.startsWith('~/'))){
+        const target=await ctx.resolvePath(path);
+        if((await stat(target)).isDirectory()){cwd=target;path=undefined;}
+        else{
+          const root=ctx.workspaceRoots?.().filter(entry=>entry.kind==='directory'&&(target===entry.path||target.startsWith(entry.path+sep))).sort((a,b)=>b.path.length-a.path.length)[0]?.path;
+          if(!root)throw Error('For project search/navigation attach the containing directory; an individual file can be read with read.');
+          cwd=root;path=relative(root,target);
+        }
+      }
+      const data=await ctx.request<Record<string,unknown>>("service.project.query",{...input,path,...(action?{action}:{}),cwd});
+      return{ok:true,data:{...data,cwd}};
     } catch (error) {
       return { ok: false, error: String(error) };
     }
@@ -63,6 +72,7 @@ export default [
     parameters: {
       type: "object",
       properties: {
+        cwd:properties.cwd,
         pattern: { type: "string" },
         path: { type: "string" },
         regex: { type: "boolean" },

@@ -159,3 +159,11 @@ NAV_MODELS, NAV_OUTPUT or CALLIX_TEST_BIN to change the run. See
 [the evaluation guide](../../docs/evals.md#navigation-method-comparison) for
 measured results and limits; these are comparisons of methods, not branded
 assistant benchmarks.
+
+### Attached projects
+
+`glob`, `grep` and `code_query` accept `cwd` for an attached project, including
+`~/path`. Absolute/home `path` filters select an attached directory or a file
+inside a selected project. Returned results include the resolved `cwd`; relative
+result paths belong to that project. A single-file attachment permits `read`,
+while project navigation requires its containing directory to be attached.

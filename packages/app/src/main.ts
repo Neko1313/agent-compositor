@@ -39,7 +39,8 @@ export async function main(options: MainOptions = {}): Promise<number> {
   if (argv.length === 1 && ["--help", "-h"].includes(argv[0])) {
     stdout.write(`Usage: compositor [options]
 
-  --cwd DIR               Project directory
+  --cwd DIR               Primary project directory
+  --add-dir DIR           Attach another working directory (repeatable)
   --plugins DIR           Additional plugin directory (repeatable)
   --resume [ID]           Resume a session or open interactive history
   --history               Open interactive chat history
@@ -57,6 +58,7 @@ export async function main(options: MainOptions = {}): Promise<number> {
   }
 
   const pluginDirs: string[] = [];
+  const workspacePaths:string[]=[];
   let plain = false;
   let historyPicker = false;
   let prompt: string | undefined, schemaFile: string | undefined;
@@ -73,6 +75,7 @@ export async function main(options: MainOptions = {}): Promise<number> {
     } else if (arg === '--output-schema') { schemaFile = argv[++i]; if (!schemaFile) return fail(stdout, '--output-schema needs a JSON schema file');
     } else if (arg === '--max-steps') { maxSteps = Number(argv[++i]); if (!Number.isInteger(maxSteps) || maxSteps < 1) return fail(stdout, '--max-steps must be a positive integer');
     } else if (arg === '--model') { model = argv[++i]; if (!model) return fail(stdout, '--model needs a model name');
+    } else if(arg==='--add-dir'){const dir=argv[++i];if(!dir)return fail(stdout,'--add-dir needs a directory');workspacePaths.push(dir);
     } else if (arg === "--plain") { plain = true;
     } else if (arg === "--plugins") {
       const dir = argv[++i];
@@ -101,7 +104,7 @@ export async function main(options: MainOptions = {}): Promise<number> {
     const bytes = await readFile(path); if (bytes.length > 10 * 1024 * 1024) throw new Error('Image exceeds 10MB');
     return { mimeType, data: bytes.toString('base64') };
   }));
-  const app = await buildApp({ cwd, images, env: model ? { ...env, AGENT_MODEL: model } : env, pluginDirs, resumeSessionId, provider: options.provider, maxSteps });
+  const app = await buildApp({ cwd,workspacePaths, images, env: model ? { ...env, AGENT_MODEL: model } : env, pluginDirs, resumeSessionId, provider: options.provider, maxSteps });
   if (prompt !== undefined) { try { return await runHeadless(app, prompt, format, text => { stdout.write(text); }, schemaFile); } finally { await app.close(); } }
 
   if (!plain && stdin.isTTY && stdout.isTTY) {

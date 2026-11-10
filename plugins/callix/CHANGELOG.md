@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.3.0
+
+Start background warming immediately at session startup/reload, prebuild adjacency
+maps, share that build with the first semantic query and drain it on session end.
+Keep debounce for subsequent file changes only.
+
+Raise the default full-graph limit from 64 to 256 MiB and distinguish it from
+model response budgets in overflow diagnostics. Reuse valid graphs after timeout
+or output-limit changes, including older v3 disk caches. Validate disk graphs
+without serializing and parsing them a second time.
+
+Add non-indexing readiness/error diagnostics through `code_query` status. Slow
+semantic calls return explicit pending results after ten seconds while the
+owned background build continues; local text tools remain available. Configure
+`queryWaitMs` to change that wait, or `background:false` to retain synchronous
+operation. Unload/close cancels and drains retained queries.
+
+Avoid reindexing for prose, logs and unrelated generated files. Bound all
+source-change retries by one analysis deadline and allow immediate retry after
+cancellation. Keep attached-project disk caches separate, validate actions
+before analysis and provide exact model-facing invocation examples. Status
+reports missing executables, active builds and the last native error without
+mistaking an incomplete graph for a completed navigation result.
+
 ## 1.2.0
 
 Adopt Compositor plugin standard 1, declare host API compatibility and a repeatable

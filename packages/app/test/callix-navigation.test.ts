@@ -86,6 +86,85 @@ describe('graph query precision and result budgets', () => {
     });
 });
 describe('index freshness and ownership', () => {
+    it('reuses a graph when build limits change, including an older v3 disk cache',async()=>{
+        const cwd=await temp();await writeFile(join(cwd,'a.ts'),'function x(){}');
+        const executable=await fake(cwd,graph([node('id','x')])),cacheDir=join(cwd,'.agent-compositor/cache');
+        const first=await indexProject(cwd,false,undefined,{settings:{executable,timeoutMs:2000},cacheDir});
+        const changed={settings:{executable,timeoutMs:500,maxOutputBytes:1024},cacheDir};
+        expect(await indexProject(cwd,false,undefined,changed)).toBe(first);
+        // Evict the in-memory entry so the next query must inspect the saved file.
+        for(let i=0;i<4;i++){const other=await temp(),binary=await fake(other,graph([]));await indexProject(other,false,undefined,{settings:{executable:binary}});}
+        const stored=JSON.parse(await readFile(join(cacheDir,'index.json'),'utf8'));
+        const parts=stored.cacheKey.split('\0');parts[2]=JSON.stringify({executable,timeoutMs:120000,maxOutputBytes:67108864});stored.cacheKey=parts.join('\0');
+        await writeFile(join(cacheDir,'index.json'),JSON.stringify(stored));
+        expect(await query({cwd,action:'symbols',...changed})).toMatchObject({symbols:[{id:'id'}]});
+        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n');
+    });
+    it('accepts a native graph above the former 64 MiB limit and keeps warm results bounded',async()=>{
+        const cwd=await temp();await mkdir(join(cwd,'.agent-compositor'));await writeFile(join(cwd,'a.ts'),'function x(){}');
+        const executable=join(cwd,'.agent-compositor/large.mjs');
+        await writeFile(executable,`#!/usr/bin/env node\nimport{appendFileSync}from'node:fs';appendFileSync('.agent-compositor/calls','1\\n');process.stdout.write(JSON.stringify({schema_version:1,nodes:[${JSON.stringify(node('id','x'))}],relations:[],metadata:{resolver_status:'degraded',padding:'x'.repeat(64*1024*1024)}}));`,{mode:0o700});
+        const first=await query({cwd,action:'symbols',settings:{executable},maxTokens:512});
+        expect(first.symbols).toMatchObject([{id:'id'}]);expect(estimateTokens(JSON.stringify(first))).toBeLessThanOrEqual(512);
+        const warm=await query({cwd,action:'symbols',settings:{executable,maxOutputBytes:1024},maxTokens:512});
+        expect(warm.metrics.cache).toBe('warm');expect(warm.symbols).toEqual(first.symbols);
+        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n');
+        await expect(query({cwd,action:'symbols',settings:{executable,maxOutputBytes:1024},refresh:true})).rejects.toThrow(/1024 bytes.*maxTokens does not change/);
+    },20000);
+    it('keeps concurrent build deadlines independent while sharing completed graphs',async()=>{
+        const cwd=await temp(),executable=await fake(cwd,graph([]),300);
+        const short=indexProject(cwd,true,undefined,{settings:{executable,timeoutMs:100}});
+        const long=indexProject(cwd,true,undefined,{settings:{executable,timeoutMs:2000}});
+        const results=await Promise.allSettled([short,long]);
+        expect(results[0]).toMatchObject({status:'rejected',reason:expect.any(Error)});
+        expect(results[1]).toMatchObject({status:'fulfilled',value:{graph:{nodes:[]}}});
+        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n1\n');
+    });
+    it('reports missing executables and retains an indexing failure without retrying it from status',async()=>{
+        const cwd=await temp();
+        expect(await query({cwd,action:'status',settings:{executable:join(cwd,'missing')}})).toMatchObject({available:false,state:'unavailable'});
+        const executable=await fake(cwd,graph([]),1000),options={cwd,settings:{executable,timeoutMs:150}};
+        await expect(query({...options,action:'symbols'})).rejects.toThrow(/exceeded/);
+        expect(await query({...options,action:'status'})).toMatchObject({available:true,state:'error',error:expect.stringContaining('exceeded')});
+        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n');
+    });
+    it('uses one timeout across source-change retries',async()=>{
+        const cwd=await temp();await mkdir(join(cwd,'.agent-compositor'));
+        await writeFile(join(cwd,'a.ts'),'before');
+        const executable=join(cwd,'.agent-compositor/changing.mjs');
+        await writeFile(executable,`#!/usr/bin/env node\nimport {writeFileSync} from 'node:fs';writeFileSync('a.ts',String(Date.now()));setTimeout(()=>console.log(${JSON.stringify(JSON.stringify(graph([node('a','a')])))}),150);`,{mode:0o700});
+        await expect(indexProject(cwd,false,undefined,{settings:{executable,timeoutMs:250}})).rejects.toThrow(/exceeded/);
+    });
+    it('reports cold and in-flight status without starting or waiting for analysis', async () => {
+        const cwd = await temp();
+        await writeFile(join(cwd, 'a.ts'), 'function a(){}');
+        const executable = await fake(cwd, graph([node('a', 'a')]), 500);
+        const options = {cwd,settings:{executable}};
+        expect(await query({...options,action:'status'})).toMatchObject({available:true,state:'not-indexed'});
+        await expect(readFile(join(cwd,'.agent-compositor/calls'))).rejects.toThrow();
+        const indexing = indexProject(cwd,false,undefined,options);
+        await vi.waitFor(async()=>expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n'));
+        expect(await query({...options,action:'status'})).toMatchObject({state:'indexing'});
+        await indexing;
+        expect(await query({...options,action:'status'})).toMatchObject({state:'ready',nodes:1});
+        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n');
+    });
+    it('does not rebuild a semantic graph after documentation or diagnostic-output changes', async () => {
+        const cwd = await temp();
+        await writeFile(join(cwd,'a.ts'),'function a(){}');
+        await writeFile(join(cwd,'README.md'),'Before');
+        const executable=await fake(cwd,graph([node('a','a')]));
+        const first=await indexProject(cwd,false,undefined,{settings:{executable}});
+        await writeFile(join(cwd,'README.md'),'After');
+        await writeFile(join(cwd,'diagnostic.log'),'New output');
+        expect(await indexProject(cwd,false,undefined,{settings:{executable}})).toBe(first);
+        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n');
+    });
+    it('rejects unsupported service actions before running a native process', async () => {
+        const cwd=await temp(),executable=await fake(cwd,graph([]));
+        await expect(query({cwd,action:'find_symbol',settings:{executable}})).rejects.toThrow(/action/i);
+        await expect(readFile(join(cwd,'.agent-compositor/calls'))).rejects.toThrow();
+    });
     it('shares a build between cancelled and live consumers without cancelling the survivor', async () => {
         const cwd = await temp();
         await writeFile(join(cwd, 'a.ts'), 'function a(){}');

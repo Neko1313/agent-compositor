@@ -16,10 +16,12 @@ const platform=`${process.platform}-${process.arch}`,output=join(root,'dist/plug
 await rm(stage,{recursive:true,force:true});await mkdir(stage,{recursive:true});
 const exists=path=>access(path).then(()=>true,()=>false);
 const metadata={...manifest};
+const bundledInputs=new Set();
 async function bundle(entry,target){
- const result=await Bun.build({entrypoints:[join(directory,entry)],target:'bun',format:'esm'});
+ const result=await Bun.build({entrypoints:[join(directory,entry)],target:'bun',format:'esm',metafile:true});
  if(!result.success)throw new AggregateError(result.logs,'Plugin compilation failed');
  if(result.outputs.length!==1)throw Error('Unexpected plugin build assets');
+ for(const input of Object.keys(result.metafile.inputs))bundledInputs.add(input);
  await writeFile(join(stage,target),Buffer.from(await result.outputs[0].arrayBuffer()));
 }
 const entry=manifest.main??manifest.entry??(await (async()=>{for(const path of ['hooks.ts','hooks.js','index.ts','index.js','index.mjs'])if(await exists(join(directory,path)))return path;})());
@@ -30,10 +32,10 @@ await copyPluginResources(directory,stage,metadata);
 if(name==='callix')await installCallix({destination:stage,platform,archivePath:process.env.CALLIX_RELEASE_ARCHIVE});
 if(name==='monty'){
  const queue=['@pydantic/monty',`@pydantic/monty-${platform}${process.platform==='linux'?'-gnu':''}`],seen=new Set();
- for(const dependency of queue){if(seen.has(dependency))continue;seen.add(dependency);const source=join(root,'node_modules',dependency);await cp(source,join(stage,'node_modules',dependency),{recursive:true,dereference:true});queue.push(...Object.keys(JSON.parse(await readFile(join(source,'package.json'),'utf8')).dependencies??{}));}
+ for(const dependency of queue){if(seen.has(dependency))continue;seen.add(dependency);const source=join(root,'node_modules',dependency);await cp(source,join(stage,'node_modules',dependency),{recursive:true,dereference:true});bundledInputs.add(join(source,'package.json'));queue.push(...Object.keys(JSON.parse(await readFile(join(source,'package.json'),'utf8')).dependencies??{}));}
 }
 await cp(join(root,'LICENSE'),join(stage,'LICENSE'));
-await copyLicenseNotices(root,join(stage,'licenses'));
+await copyLicenseNotices(root,join(stage,'licenses'),bundledInputs);
 await writeFile(join(stage,'release.json'),JSON.stringify({plugin:name,version:manifest.version,tag,platform,hostApi:manifest.compositor.apiVersion,certification:await identity(root,name)},null,2)+'\n');
 const archive=join(output,`${name}-${manifest.version}-${platform}.tar.gz`);
 execFileSync('tar',['--format=ustar','-czf',archive,'-C',join(output,platform),name],{stdio:'inherit',env:{...process.env,COPYFILE_DISABLE:'1'}});

@@ -1,8 +1,10 @@
-import { budgetResult } from "./navigation.js";
-import { query, indexProject } from "./adapter.ts";
+import { budgetResult, graphIndex } from "./navigation.js";
+import { query, indexProject, isIndexInput } from "./adapter.ts";
 import { queryProject } from "@agent-compositor/tools";
 import { watch, type FSWatcher } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
+import { createHash } from 'node:crypto';
+import { realpath } from 'node:fs/promises';
 const watchers = new Map<
   string,
   {
@@ -15,48 +17,39 @@ const watchers = new Map<
     config: any;
   }
 >();
-async function options($: any) {
+const queries=new Set<{controller:AbortController;promise:Promise<unknown>;cwd:string;sessionId:string}>();
+async function options($: any,cwd=$.session.cwd) {
+  const root=await realpath(cwd),primary=await realpath($.session.cwd);
   return {
     settings: $.storage?.config
       ? await $.storage.config("callix.json")
       : undefined,
     cacheDir: $.storage?.paths
-      ? join($.storage.paths.state, "cache", "callix")
+      ? join($.storage.paths.state, "cache", "callix",...(root===primary?[]:['projects',createHash('sha256').update(root).digest('hex').slice(0,20)]))
       : undefined,
   };
+}
+async function warm(entry: NonNullable<ReturnType<typeof watchers.get>>) {
+  if(entry.abort.signal.aborted)return;
+  if(entry.running){entry.dirty=true;return;}
+  entry.dirty=false;
+  entry.running=(async()=>{
+    const indexed=await indexProject(entry.$.session.cwd,false,entry.abort.signal,await options(entry.$));
+    if(!entry.abort.signal.aborted)graphIndex(indexed.graph);
+  })();
+  try{await entry.running;}catch(error){
+    if(!entry.abort.signal.aborted)await entry.$.telemetry.log('callix.index.error',{error:String(error)}).catch(()=>{});
+  }finally{entry.running=undefined;if(entry.dirty&&!entry.abort.signal.aborted)schedule(entry);}
 }
 function schedule(entry: ReturnType<typeof watchers.get>) {
   if (!entry) return;
   clearTimeout(entry.timer);
   entry.dirty = true;
-  entry.timer = setTimeout(async () => {
-    if (entry.abort.signal.aborted) return;
-    if (entry.running) {
-      schedule(entry);
-      return;
-    }
-    entry.dirty = false;
-    entry.running = (async () =>
-      indexProject(
-        entry.$.session.cwd,
-        false,
-        entry.abort.signal,
-        await options(entry.$)
-      ))();
-    try {
-      await entry.running;
-    } catch (e) {
-      if (!entry.abort.signal.aborted)
-        await entry.$.telemetry.log("callix.index.error", { error: String(e) });
-    } finally {
-      entry.running = undefined;
-      if (entry.dirty) schedule(entry);
-    }
-  }, Math.max(100, Math.min(Number(entry.config.debounceMs) || 750, 10000)));
+  entry.timer = setTimeout(()=>{void warm(entry);}, Math.max(100, Math.min(Number(entry.config.debounceMs) || 750, 10000)));
   entry.timer.unref?.();
 }
 async function start(_: unknown, $: any) {
-  stop($.session.id);
+  await endSession(undefined,$);
   const config = $.storage?.config ? await $.storage.config("callix.json") : {};
   if (config.background === false) return;
   const entry = {
@@ -87,15 +80,13 @@ async function start(_: unknown, $: any) {
           return;
         }
         if (
-          /(^|[\\/])(node_modules|\.agent-compositor|\.git|dist|build|coverage)([\\/]|$)/.test(
+          /(^|[\\/])(node_modules|\.agent-compositor|\.git|dist|build|coverage|\.docusaurus|\.content|\.next|\.cache|\.venv|venv|target)([\\/]|$)/.test(
             path
           )
         )
           return;
         if (
-          !/\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|c|cpp|h|cs|rb|php|json)$/.test(
-            path
-          )
+          !isIndexInput(path.replaceAll('\\','/'))
         )
           return;
         schedule(entry);
@@ -113,7 +104,16 @@ async function start(_: unknown, $: any) {
   } catch (e) {
     await $.telemetry.log("callix.watch.unavailable", { error: String(e) });
   }
-  schedule(entry);
+  // Startup is eager; debounce applies only to subsequent source changes.
+  // Keep ownership in entry.running, without blocking the session's first prompt.
+  void warm(entry);
+}
+async function endSession(_:unknown,$:any) {
+  const running=watchers.get($.session.id)?.running;
+  const retained=[...queries].filter(operation=>operation.sessionId===$.session.id);
+  stop($.session.id);
+  for(const operation of retained)operation.controller.abort();
+  await Promise.allSettled([running,...retained.map(operation=>operation.promise)]);
 }
 function stop(id: string) {
   const e = watchers.get(id);
@@ -126,14 +126,22 @@ function stop(id: string) {
 }
 export async function dispose() {
   const pending = [...watchers.values()].map((e) => e.running);
+  for(const operation of queries){operation.controller.abort();pending.push(operation.promise);}
   for (const id of watchers.keys()) stop(id);
   await Promise.allSettled(pending);
 }
 export default {
   "session.start": start,
   "session.reload": start,
+  'session.end':endSession,
   "project.changed": async (e: any, $: any) => {
-    if (e.cwd === $.session.cwd) schedule(watchers.get($.session.id));
+    if (resolve(e.cwd) === resolve($.session.cwd) && (!e.paths?.length || e.paths.some((path:string)=>isIndexInput(path.replaceAll('\\','/'))||path.startsWith('.git/')))) schedule(watchers.get($.session.id));
+  },
+  'workspace.changed':async(e:any)=>{
+    const revoked=[...queries].filter(operation=>operation.sessionId===e.sessionId&&
+      !e.roots.some((root:any)=>root.kind==='directory'&&(operation.cwd===root.path||operation.cwd.startsWith(root.path+sep))));
+    for(const operation of revoked)operation.controller.abort();
+    await Promise.allSettled(revoked.map(operation=>operation.promise));
   },
   "service.project.query": async (e: any, $: any) => {
     try {
@@ -144,7 +152,27 @@ export default {
         out.truncated=out.truncated||count<result[key].length;if(out.truncated)out.nextOffset=(e.offset??0)+count;
         return{value:budgetResult(out,e.maxTokens??2000)};
       }
-      return {value:await query({ ...e, ...(await options($)) }, $.signal)};
+      const config=await options($,e.cwd);
+      if(e.action==='status')return {value:await query({...e,...config},$.signal)};
+      const waitMs=config.settings?.queryWaitMs??10000;
+      if(!Number.isInteger(waitMs)||waitMs<50||waitMs>600000)throw Error('Callix queryWaitMs must be 50..600000 milliseconds');
+      const queryRoot=await realpath(e.cwd);
+      const controller=new AbortController(),promise=query({...e,...config},AbortSignal.any([$.signal,controller.signal]));
+      const operation={controller,promise,cwd:queryRoot,sessionId:$.session.id};queries.add(operation);
+      void promise.finally(()=>queries.delete(operation)).catch(()=>{});
+      if(config.settings?.background===false)return {value:await promise};
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      try {
+        const result=await Promise.race([
+          promise.then(value=>({finished:true as const,value})),
+          new Promise<{finished:false}>(accept=>{timer=setTimeout(()=>accept({finished:false}),waitMs);}),
+        ]);
+        if(result.finished)return {value:result.value};
+        const status=await query({...e,...config,action:'status'},$.signal);
+        if(status.state==='error'||status.state==='unavailable')throw Error(status.error);
+        return {value:budgetResult({...status,pending:true,complete:false,requestedAction:e.action,
+          hint:'The semantic result is not ready; indexing continues in the background. Use glob/grep/read now. Check code_query action:status later and repeat the original query after state:ready. Do not force refresh or busy-poll.'},e.maxTokens??2000)};
+      }finally{clearTimeout(timer);}
     } catch (error) {
       return { deny: String(error) };
     }

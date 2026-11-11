@@ -1,5 +1,67 @@
 # Project memory
 
+## Cache estimates and first fresh-process recovery — 2026-11-11
+
+The user reports roughly $2 actual account spend for the earlier evaluations;
+this is user-provided billing evidence, not an independently queried invoice.
+The old $38.66391 was a conservative admission bound with $30/M input and $60/M
+output, not actual spend. Keep the authorized total at $50 and retain every old
+charge/reservation. No reset, credit or extra allowance was authorized.
+
+The evaluator now stores cache read/write counts on new reported charges and
+exposes a separate standardPriceEstimate with its dated Standard/global policy,
+covered and unavailable request counts. Official GPT-6.1 Sol model/caching docs
+were fetched on 2026-11-11: $2/M ordinary input, $0.10/M cached input, $2.50/M
+cache writes, $10/M output, with documented long-context multipliers. This
+estimate does not reduce the conservative admission balance; old charges lack
+cache details and are not retroactively repriced. Provider integration tests
+check actual cache fields; invalid/overlapping counts retain reservations.
+Tests/typecheck and documentation checks/build pass (950 tests, three optional
+skips). No public plugin, UI, execution or event contracts changed in this step.
+
+Ran a real saved-profile development task through buildApp/core in two separate
+Bun processes. The small checkout fixture had a discount bug and required a new
+post-discount fee argument with finite/nonnegative validation. The first worker
+exited 130 immediately after a successful edit's tool.result had been persisted,
+before turn completion. A fresh process opened the exact same session/project,
+explicitly requested real-model compaction, re-read current files and completed
+the second implementation file and both project checks. This uses the actual
+application composition/tool/session path, not the native CLI binary or a
+multi-hour autonomous session. Compaction was requested explicitly, not induced
+by natural context pressure or a truncated summary.
+
+Independent grading reran both frozen checks and a separate parameter-grid/API/
+invalid-fee probe, checked frozen package/check/NOTES hashes and the pre-existing
+subtotal comment, and verified exactly one successful math mutation across both
+trajectories. The same session ID and context.compacted event are retained.
+Evidence: dist/resume-development-20261111/{context.json,prepare.py,worker.ts,
+interrupt.jsonl,checkpoint.json,resume.jsonl,resume-result.json,grade.py,
+review.json,candidate-math.mjs,candidate-checkout.mjs}. The report passes.
+
+Ten new reported requests, no pending reservations. The cumulative conservative
+bound is now $39.25365 (176 reported requests); the separate Standard/global
+estimate covers only these ten calls at $0.03443, with 166 historical requests
+explicitly unavailable. This is not an invoice or an estimate of total account
+spend. Automatic pressure, truncated-summary retry on a live model, broader
+repositories/model families and multi-hour recovery remain open 1.0 gates.
+
+Observed prior main 8d5b164 CI: documentation and plugin preparation succeeded,
+but Node 22.19.0 timed out in the queued-background-wake/unload test; Node 26
+passed. That test used sleep 0.1 to assume the human turn started first. It now
+holds the real background process on an explicit fixture signal, starts and
+verifies the held user request, then releases the process and waits for the
+specific automated-completion queue event before unloading its owner. The
+production runtime, test timeout and permission policy are unchanged.
+
+The final full coverage suites pass all 950 tests with three optional skips on
+both actual Node 22.19.0 and Node 26. Node 22 was downloaded from its pinned
+official release and SHA256-verified under dist/runtime-node22 after the npm
+executor unexpectedly resolved Node 26. Separate coverage directories preserve
+each run; the first overlapping coverage attempt correctly refused a shared
+report-directory lock. Logs: /tmp/compositor-node22-actual-ci.log and
+/tmp/compositor-node26-ci-check.log. Typecheck and the 98-page documentation
+check/build pass. No additional paid requests followed the recovery episode.
+
 ## Explicit UI command routing — 2026-11-11
 
 Native command declarations accept optional ui:{site:'main'}. buildApp qualifies

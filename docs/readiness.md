@@ -37,14 +37,14 @@ use. This scope does not raise the authorized live-model spending limit.
 
 | Gate | Required evidence | Current assessment |
 | --- | --- | --- |
-| Real development | Repeated end-to-end bug fixes, feature work, refactoring and plugin development on realistic repositories; independent behavior checks, preserved user changes and successful project verification | Small development suites and one live Compositor-authored production fix have passed independent checks. A sustained self-hosted development workflow and broader task coverage remain unverified. |
+| Real development | Repeated end-to-end bug fixes, feature work, refactoring and plugin development on realistic repositories; independent behavior checks, preserved user changes and successful project verification | Live Compositor-authored fixes, a guided plugin review and a multi-file form refactor have independent artifact checks. The form episode also exposed a harness typing defect and reported it truthfully. Sustained self-hosted development and broader task coverage remain unverified. |
 | Model independence | Contract tests for every supported protocol, plus repeated real-model development runs across different model families. Unknown capabilities, invalid tool calls and weak tool use must degrade with bounded recovery | HTTP fixtures cover the supported transports. Saved-profile OpenAI evaluations are available. A broad live quality matrix remains incomplete. |
 | Tool cooperation | File discovery, semantic/text navigation, precise edits, test execution, shell jobs and delegation reach verified artifacts without unnecessary retries or denied-action bypass | Individual tools and regression suites exist. End-to-end efficiency and recovery need wider scenario evidence. |
 | Long-running execution | Context pressure/compaction, interruption, steering, queued work, restart/resume and failures at effect boundaries preserve the task, scope and truthful completion state | One live known task passed process-death/resume/explicit-compaction checks. A second known task recovered from a failed summary and passed three automatic compactions in a configured 8192-token window with independent artifact checks. A controlled live API truncation probe also passed. Multi-hour development and broader repositories remain required. |
-| Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | The reviewed Git review plugin passes source, lifecycle, real UI and installed-archive certification on Linux x64. Other platforms and a successful autonomous authoring session remain required. |
+| Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review and Project checks have source, lifecycle, real UI and installed-archive certification on Linux x64. A guided review iteration completed, but other native plugin platforms and a completed autonomous initial delivery remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
-| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | v0.6.1 passed its release gates. That evidence predates future changes and does not prove the gates above. |
+| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | Candidate a9f99c9 passed Node 22/26 CI and four-platform native build/install smoke. The subsequent form refactor needs its own exact-revision checks. Candidate smoke does not prove the other gates. |
 
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
@@ -74,6 +74,22 @@ See [evaluation commands and limitations](evals.md),
 [execution contracts](core-customization.md) and [release gates](releases.md).
 
 ## Current development focus
+
+A subsequent multi-file form refactor used `project_check` to discover and run
+real project verification scripts. The model preserved the frozen acceptance
+file and controlled user draft, passed 68 behavioral checks and explicitly
+reported a compiler failure caused by the acceptance fixture's unsupported
+`String.isWellFormed` type. An equivalent fixture assertion restored compiler
+compatibility; independent checks passed without changing the authored source
+or making a paid rerun. This is development and truthful-error-reporting evidence,
+not an all-green autonomous episode under the original defective harness.
+
+The previous immutable candidate
+[a9f99c9](https://github.com/Neko1313/agent-compositor/commit/a9f99c99009f082f64cd66e9f9ffca4e4da1a5d2)
+has [green CI](https://github.com/Neko1313/agent-compositor/actions/runs/43046489076)
+and [four-platform candidate build/install smoke](https://github.com/Neko1313/agent-compositor/actions/runs/43046640227).
+That build-only workflow did not publish a new application release.
+
 
 The first work toward this goal strengthens the evaluation foundation: explicit
 preserved fixtures, independently rerun original checks, correlated verification

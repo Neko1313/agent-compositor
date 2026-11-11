@@ -1,13 +1,17 @@
 import type { UiForm, UiFormResult } from '@agent-compositor/events';
 import type { WireMessage } from '@agent-compositor/protocol';
 import { textRows, type Row } from './presentation.js';
+import { previousGraphemeBoundary, nextGraphemeBoundary, floorGraphemeBoundary, truncateGraphemes } from './text-edit.js';
 type Input=Extract<WireMessage,{type:'input'}>['data'];
 /** Private drafts never enter prompt history, ui.render hooks, or catalog events. */
 export class FormDialog {
   values:Record<string,string|boolean>={}; focus=0; cursor=0; scroll=0; error=''; selectAll=false;
   private hits: Array<{row:number;end:number;index:number}>=[];
   constructor(readonly request:UiForm) {
-    for(const field of request.fields) this.values[field.id]=field.type==='toggle'?field.value===true:field.type==='password'?'':String(field.value??field.options?.[0]?.value??'');
+    for(const field of request.fields) {
+      const value=field.type==='toggle'?field.value===true:field.type==='password'?'':String(field.value??field.options?.[0]?.value??'');
+      this.values[field.id]=field.type==='text'||field.type==='url'?truncateGraphemes(String(value),4096):value;
+    }
     this.move(0);
   }
   private move(index:number) {this.focus=(index+this.request.fields.length+this.request.actions.length)%(this.request.fields.length+this.request.actions.length);const f=this.request.fields[this.focus];this.cursor=f?String(this.values[f.id]).length:0;this.selectAll=false;}
@@ -31,8 +35,10 @@ export class FormDialog {
       if(f.type==='toggle')content=this.values[f.id]?'[x] Enabled':'[ ] Disabled';
       if(f.type==='select')content=`‹ ${f.options?.find(o=>o.value===value)?.label??value} ›`;
       if(['text','password','url'].includes(f.type)) {
-        const start=active?Math.max(0,this.cursor-columns+6):0;
-        content=content.slice(start,start+Math.max(1,columns-4));
+        const offset=active?Math.max(0,this.cursor-columns+6):0;
+        // Segment the displayed value so password clipping never reads plaintext.
+        const start=floorGraphemeBoundary(content,offset);
+        content=truncateGraphemes(content.slice(start),Math.max(1,columns-4));
         if(active) {const c=this.cursor-start;content=content.slice(0,c)+'▏'+content.slice(c);}
       }
       rows.push({text:`${active?'›':' '} ${content||'…'}`,selected:active});
@@ -88,17 +94,26 @@ export class FormDialog {
       if(input.kind==='key'&&['enter','left','right','space'].includes(input.key)){const options=field.options??[],current=options.findIndex(o=>o.value===this.values[field.id]);if(options.length)this.values[field.id]=options[(current+(input.key==='left'?-1:1)+options.length)%options.length].value;}return;
     }
     let value=String(this.values[field.id]);
-    if(input.kind==='text') {const text=input.text.replace(/[\x00-\x1f\x7f]/g,' ');if(this.selectAll){value='';this.cursor=0;}value=value.slice(0,this.cursor)+text+value.slice(this.cursor);this.cursor=Math.min(4096,this.cursor+text.length);this.selectAll=false;}
+    if(input.kind==='text') {const text=input.text.replace(/[\x00-\x1f\x7f]/g,' ');if(this.selectAll){value='';this.cursor=0;}value=value.slice(0,this.cursor)+text+value.slice(this.cursor);this.cursor+=text.length;this.selectAll=false;}
     if(input.kind==='key') {
       if(input.modifiers?.includes('ctrl')&&input.key==='a'){this.selectAll=true;return;}
       if(input.modifiers?.includes('ctrl')&&input.key==='u'){value='';this.cursor=0;}
       if(input.key==='enter'){this.move(this.focus+1);return;}
-      if(input.key==='left')this.cursor=Math.max(0,this.cursor-1);
-      if(input.key==='right')this.cursor=Math.min(value.length,this.cursor+1);
+      if(input.key==='left')this.cursor=previousGraphemeBoundary(value,this.cursor);
+      if(input.key==='right')this.cursor=nextGraphemeBoundary(value,this.cursor);
       if(input.key==='home')this.cursor=0;if(input.key==='end')this.cursor=value.length;
-      if(['backspace','delete'].includes(input.key)){if(this.selectAll){value='';this.cursor=0;this.selectAll=false;}else if(input.key==='backspace'&&this.cursor){value=value.slice(0,this.cursor-1)+value.slice(this.cursor);this.cursor--;}else if(input.key==='delete')value=value.slice(0,this.cursor)+value.slice(this.cursor+1);}
+      if(['backspace','delete'].includes(input.key)) {
+        if(this.selectAll){value='';this.cursor=0;this.selectAll=false;}
+        else if(input.key==='backspace'&&this.cursor) {
+          const previous=previousGraphemeBoundary(value,this.cursor);
+          value=value.slice(0,previous)+value.slice(this.cursor);this.cursor=previous;
+        } else if(input.key==='delete')value=value.slice(0,this.cursor)+value.slice(nextGraphemeBoundary(value,this.cursor));
+      }
     }
-    this.values[field.id]=value.slice(0,4096);
+    value=truncateGraphemes(value,4096);
+    // Insertions and deletions can also join neighboring graphemes.
+    this.cursor=floorGraphemeBoundary(value,Math.min(this.cursor,value.length));
+    this.values[field.id]=value;
   }
   clear(){this.values={};}
 }

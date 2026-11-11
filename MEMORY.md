@@ -1,5 +1,69 @@
 # Project memory
 
+## Live form refactor through Project checks — 2026-11-12
+
+The preceding goal turn made concrete progress: a9f99c9 is pushed with green
+Node 22.19.0/26 CI (43046489076), all 29 plugin PR certificates and successful
+four-platform native candidate build/install smoke (43046640227). The build-only
+workflow skipped publication. Project checks release/source and installed Linux
+x64 archive certificates also passed for that source snapshot. Retained checkpoint:
+dist/goal-checkpoint-20261112.json. These are scoped candidate checks, not 1.0.
+
+A subsequent real multi-file task asked Compositor to share grapheme editing
+between message input and text/URL/password settings fields. The isolated worktree
+starts at a9f99c9 and includes an immutable check:unicode npm script and a controlled
+user-owned README annotation. Tools were limited to read/write/edit/navigation,
+tool_help and the enabled project_check plugin: no raw exec tool was exposed.
+The parent process loaded the saved budgeted Sol provider/proxy first, then used
+the minimal evaluationEnvironment for the CLI and all owned npm subprocesses.
+Provider/proxy credentials stayed in parent closures, not the process environment.
+This is environment hygiene, not OS containment.
+
+The initial frozen oracle reproduced 25 failures / one privacy pass before the
+model ran. The model authored text-edit.ts and refactored ui.ts and form.ts, ran
+check:unicode successfully (68 tests) through project_check and reported typecheck
+failure truthfully. The compiler error was in the frozen harness: its
+String.isWellFormed call was absent from the existing TypeScript library. The
+model correctly left the test, config and user draft unchanged instead of
+bypassing checks. Normal agent exit 0 does not mean all project verification
+passed. Original evidence is in dist/selfhost-form-unicode-20261112/ and detached
+authored snapshot b55bfb84e4554f4880708fe4aa1276f5b9ca0cb2.
+
+The run lasted 171006ms, with 15 main steps, 23 reported model requests and three
+automatic compactions. Total usage was 135952 input / 7219 output. It exercised
+actual script discovery, success and failure through the same guarded tool the
+human panel uses. Original oracle, package.json and user README hashes were
+preserved. independent-review.json correlates calls/results and preservation.
+
+The original oracle is retained as oracle-v1.ts.snapshot. The corrected v2 uses
+an equivalent UTF-8 round-trip well-formedness assertion, without a library
+upgrade or weaker outcome; oracle-correction.json records hashes and the defect.
+Independent reruns passed all 68 checks and typecheck, plus 20 retained probes for
+limits, narrow rendered Unicode, selection and clear behavior. There was no paid
+rerun and no post-run change to the model-authored source. This is a successful
+independently verified artifact with a documented harness correction, not an
+all-green autonomous episode under the original harness or an unseen benchmark.
+
+Main integrates the authored three-file refactor unchanged, plus corrected tests
+and canonical controls documentation. Text/URL defaults and edited form values
+respect the 4096 UTF-16-unit limit at grapheme boundaries. Password input remains
+private/masked, and public editor cursor offsets remain UTF-16. Custom editor
+providers and other question/input implementations retain their own contracts.
+The real network-proxy PTY scenario now edits a joined emoji in username and
+password, saves, and verifies stored private values without printing them.
+Evidence: dist/form-unicode-pty-20261112/report.json; the masked form screenshot
+was inspected. Unrelated user's actual proxy configuration is unchanged by this
+isolated scripted bench.
+
+1029 tests pass with three optional skips, typecheck and the 100-page docs
+check/build pass, and all 29 native plugins pass PR certification on the unchanged
+final source tree. Remote CI and native archives for the new revision remain
+separate evidence. The conservative guard bound is $49.693673, 294 reported / one
+pending (the old direct 403), with the original $50 authorization. The separate
+30m Standard estimate covers 128 requests at $1.247307 and leaves 166 historical
+requests unavailable. No invoice total, refund, ledger reset or wider billing
+authorization is inferred. Broader 1.0 readiness gates remain open.
+
 ## Completed live plugin review and Unicode message editing — 2026-11-12
 
 The previous goal turn made concrete progress: proxy routing was fixed and pushed

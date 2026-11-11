@@ -42,6 +42,6 @@ if(process.env.VISUAL_CERT_PLUGIN){
  const selected=app.plugins.find(p=>p.manifest.name===process.env.VISUAL_CERT_PLUGIN);
  if(!selected)throw Error('Certification package was not loaded');
  if(process.env.VISUAL_PLUGIN_DIR&&resolve(selected.dir)!==resolve(process.env.VISUAL_PLUGIN_DIR))throw Error('UI scenario loaded a different package copy');
- await writeFile(join(process.env.VISUAL_OUTPUT!,'fixture-identity.json'),JSON.stringify({plugin:selected.manifest.name,version:selected.manifest.version,directory:selected.dir,cwd:app.storage.paths.project}));
+ await writeFile(join(process.env.VISUAL_OUTPUT!,'fixture-identity.json'),JSON.stringify({plugin:selected.manifest.name,version:selected.manifest.version,directory:selected.dir,cwd:app.storage.paths.project,state:app.storage.paths.state}));
 }
 await runTui(app, process.stdin, process.stdout, process.env.VISUAL_START_HISTORY?"/history":undefined);

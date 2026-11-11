@@ -372,3 +372,9 @@ real npm child without completing the main turn. The scenario also checks draft
 preservation during terminal resize and reopening the panel. Input goes through
 xterm keyboard/mouse events. `VISUAL_PLUGIN_DIR` selects the exact source or
 unpacked archive; `fixture-identity.json` records which copy was loaded.
+
+The `network-proxy` plugin scenario also edits a joined emoji in username and
+password fields, checks that Backspace removes the complete grapheme, saves the
+form and verifies the isolated stored values without printing the secret. The
+wire text and screenshots must keep the password masked. This tests the shared
+built-in form editor; it does not change the user's proxy configuration.

@@ -43,15 +43,10 @@ import {
 } from "./presentation.js";
 import { QuestionDialog, type QuestionRequest } from "./question.js";
 
-// Keep public cursor offsets in UTF-16 while editing whole visible graphemes.
-const draftSegments = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-function previousDraftBoundary(text: string, cursor: number): number {
-  return draftSegments.segment(text).containing(Math.max(0, cursor - 1))?.index ?? 0;
-}
-function nextDraftBoundary(text: string, cursor: number): number {
-  const segment = draftSegments.segment(text).containing(cursor);
-  return segment ? segment.index + segment.segment.length : text.length;
-}
+import {
+  previousGraphemeBoundary as previousDraftBoundary,
+  nextGraphemeBoundary as nextDraftBoundary,
+} from "./text-edit.js";
 
 type MouseInput = Extract<
   Extract<WireMessage, { type: "input" }>["data"],

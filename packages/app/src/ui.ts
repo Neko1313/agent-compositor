@@ -70,6 +70,7 @@ export class AppUI {
   private viewCache = new Map<string, { key: string; rows?: Row[]; view?: UiTextView }>();
   private hitRows = new Map<string, Row[]>();
   private savedLayout = "";
+  private pendingTextDraw?: ReturnType<typeof setTimeout>;
   private reportedFocus = "";
   private activeAgentPane?: string;
   private fileCatalog?: string[];
@@ -384,6 +385,9 @@ export class AppUI {
     this.draw();
   }
   private event(event: LoopEvent): void {
+    // The subsequent text notification contains the rewritten delta. Rendering
+    // its catalog precursor would draw the previous transcript a second time.
+    if(event.kind==='catalog'&&event.event==='assistant.text')return;
     if (event.kind === "text") {
       let block = this.transcript.at(-1);
       if (block?.kind !== "assistant") {
@@ -615,7 +619,9 @@ export class AppUI {
         });
       }
     }
-    this.draw();
+    if(event.kind==='text'){
+      this.pendingTextDraw??=setTimeout(()=>{this.pendingTextDraw=undefined;this.draw();},16);
+    }else this.draw();
   }
   receive(message: WireMessage): void {
     if (this.closed) return;
@@ -1717,9 +1723,6 @@ export class AppUI {
       },
       viewport: { columns: width, rows: height },
     };
-    const defaultView = uiTextViewSchema.safeParse({ raster: props.raster, lines: input.props.lines }).data;
-    const key = JSON.stringify(input);
-    let cached = this.viewCache.get(surface);
     const send = (content: Row[], view?: UiTextView) => {
       this.hitRows.set(surface, content.slice(0, height));
       if (!this.closed)
@@ -1735,6 +1738,12 @@ export class AppUI {
           ...(this.nativeRaster && props.attachmentRaster ? {raster:props.attachmentRaster as NonNullable<Extract<WireMessage,{type:"render"}>["raster"]>} : this.nativeRaster && view ? { raster: rasterForView(view, width, height) } : {}),
         });
     };
+    // Host-owned input has no ui.render override. In particular, do not stringify
+    // the composer's full RGBA image into a cache key on every animation frame.
+    if(surface==='input'){send(rows);return;}
+    const defaultView = uiTextViewSchema.safeParse({ raster: props.raster, lines: input.props.lines }).data;
+    const key = JSON.stringify(input);
+    let cached = this.viewCache.get(surface);
     if (cached?.key === key) {
       send(cached.rows ?? rows, cached.view ?? defaultView);
       return;
@@ -1742,8 +1751,6 @@ export class AppUI {
     cached = { key };
     this.viewCache.set(surface, cached);
     send(rows, defaultView);
-    // Approval and text input remain host-owned. Plugins style them via configure.
-    if (surface === "input") return;
     const entry = cached;
     const task = this.core.host
       .emit("ui.render", input)
@@ -1800,6 +1807,7 @@ export class AppUI {
     return {lines:inputRows};
   }
   private draw(): void {
+    clearTimeout(this.pendingTextDraw);this.pendingTextDraw=undefined;
     if (this.windows.focused.startsWith("plugin-agent-hub-agent-"))
       this.activeAgentPane = this.windows.focused.slice(
         "plugin-agent-hub-agent-".length
@@ -2040,7 +2048,7 @@ export class AppUI {
     if (formActive) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
     if(attachmentWidth){
       const art=this.composer()![1].view;
-      const left=gridFrom(viewRows(art,attachmentWidth-2,this.composerRows()),this.theme,attachmentWidth-2,true);
+      const left=gridFrom(viewRows(art,attachmentWidth-2,this.composerRows(),this.nativeRaster),this.theme,attachmentWidth-2,true);
       // Solid blocks use cell backgrounds so font baselines cannot stripe the art.
       for(const row of left)for(const cell of row)if(cell.ch==="█"){cell.ch=" ";cell.bg=cell.fg;}
       const right=gridFrom(inputRows,this.theme,inputWidth,true);
@@ -2078,6 +2086,7 @@ export class AppUI {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    clearTimeout(this.pendingTextDraw);this.pendingTextDraw=undefined;
     this.closePanel();
     this.uiLifetime.abort(new Error("UI closed"));this.editor?.dispose();this.controllerUnsubscribe?.();
     for(const id of this.composerViews.keys())this.removeComposer(id);

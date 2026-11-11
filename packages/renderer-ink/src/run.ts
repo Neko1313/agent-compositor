@@ -90,9 +90,17 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     graphics.response(control,payload);
     if(graphics.enabled&&graphics.backend==='sixel'&&before!==`${graphics.cell.width}:${graphics.cell.height}:${graphics.background}`){graphics.beforeUpdate();graphics.paint(store.state);}
   }) : undefined;
-  const measure=()=>{if(graphics.enabled&&graphics.backend==='sixel')graphics.measure();};
-  stdout.on('resize',measure);
-  if (mouseEnabled) stdout.write("\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h");
+  let resizeSync=false;
+  const measure=()=>{
+    // Ink clears the old frame before its own synchronized resize repaint.
+    // Start synchronization before that clear, including the no-repaint case.
+    if(mouseEnabled){resizeSync=true;stdout.write('\x1b[?2026h');queueMicrotask(()=>{if(resizeSync){resizeSync=false;stdout.write('\x1b[?2026l');}});}
+    if(graphics.enabled&&graphics.backend==='sixel')graphics.measure();
+  };
+  stdout.prependListener('resize',measure);
+  // Absolute full-screen geometry must not scroll when terminal glyph widths
+  // differ from layout's Unicode widths (notably ZWJ emoji in VTE).
+  if (mouseEnabled) stdout.write("\x1b[?1049h\x1b[?7l\x1b[?1000h\x1b[?1003h\x1b[?1006h");
   const pointerTerminal=pointerControl(process.env,(["on","off","x11"].includes(process.env.AGENT_POINTER??"")?process.env.AGENT_POINTER:"auto") as PointerMode);
   let pointer: PointerShape | undefined;
   let cleaned = false;
@@ -100,9 +108,10 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     if (cleaned) return; cleaned = true;
     process.off("exit", cleanup);
     stdout.off('resize',measure);
+    if(resizeSync){resizeSync=false;stdout.write('\x1b[?2026l');}
     graphics.dispose();
     mouse?.dispose();
-    if (mouseEnabled) stdout.write(pointerTerminal.sequence("default") + "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1049l");
+    if (mouseEnabled) stdout.write(pointerTerminal.sequence("default") + "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?7h\x1b[?1049l");
   };
 
   if (mouseEnabled) process.once("exit", cleanup);
@@ -139,6 +148,7 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
       ...(opts.stderr ? { stderr: opts.stderr } : {}),
       onRender: () => {graphics.paint(store.state);pendingTextPaint=false;},
       maxFps: 60,
+      incrementalRendering: true,
       exitOnCtrlC: false, // ctrl+c is protocol input, not a silent kill
     },
   ); } catch (error) { cleanup(); throw error; }
@@ -193,10 +203,10 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
         graphics.suspended = true;
         graphics.clear();
         mouse?.pause();
-        if (mouseEnabled) stdout.write('\x1b[?1000l\x1b[?1003l\x1b[?1006l\x1b[?1049l');
+        if (mouseEnabled) stdout.write('\x1b[?1000l\x1b[?1003l\x1b[?1006l\x1b[?7h\x1b[?1049l');
         try { await callback(); }
         finally {
-          if (mouseEnabled) stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1003h\x1b[?1006h');
+          if (mouseEnabled) stdout.write('\x1b[?1049h\x1b[?7l\x1b[?1000h\x1b[?1003h\x1b[?1006h');
           mouse?.resume();
           graphics.suspended = false;
         }

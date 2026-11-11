@@ -196,7 +196,8 @@ export function rasterForView(view: UiTextView, columns: number, height: number)
 export function viewRows(
   view: UiTextView,
   columns: number,
-  height: number
+  height: number,
+  nativeRaster = false
 ): Row[] {
   const text = view.lines.flatMap((row) =>
     wrap(row.text, columns).map((text) => ({ ...row, text }))
@@ -204,6 +205,9 @@ export function viewRows(
   const image = view.raster;
   const available = Math.max(0, height - text.length);
   if (!image || !available) return text;
+  // Native graphics already carry the source pixels. Reserve their rectangle
+  // without decoding/downsampling the same RGBA frame into disposable text art.
+  if(nativeRaster)return [...Array.from({length:rasterForView(view,columns,height)?.rows??0},()=>({text:''})),...text];
   const rgba = Buffer.from(image.rgba, "base64");
   if (rgba.length !== image.width * image.height * 4) return text;
   const scale = Math.min(

@@ -71,6 +71,22 @@ protocol. The renderer draws and translates input. It does not own agent state
 or execute extension modules. [UI controller contracts](ui-controllers.md) and
 [appearance hooks](ui-theming.md) describe the two extension mechanisms.
 
+Streaming text updates are composed on a 16 ms timer instead of rebuilding the
+Markdown transcript for every provider delta. The catalog's `assistant.text`
+precursor is still available to plugins; the UI consumes the subsequent rewritten
+text notification. Input and lifecycle changes draw immediately and flush pending
+text, including turn completion. The Ink renderer enables incremental output.
+Native composer images reserve their cell rectangle without also decoding a
+portable text-art copy or serializing the RGBA payload into an unused input-view
+cache key. The portable image path remains available to its other consumers.
+The interactive alternate screen disables terminal autowrap to keep glyph-width
+differences from scrolling the entire layout. Autowrap is restored for external
+editors and terminal cleanup. Unicode shaping remains terminal-dependent.
+Resize clearing is included in synchronized output before Ink clears its previous
+frame, avoiding a blank intermediate paint on terminals supporting DEC 2026.
+See the [performance bench](../tools/visual/README.md#render-performance) for
+observed input/hover latency, output volume and terminal-state comparisons.
+
 ## Persistence and independent work
 
 The default store journals conversations in project-scoped private storage.

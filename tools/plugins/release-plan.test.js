@@ -128,3 +128,18 @@ it('refuses ambiguous, mutable and mismatched candidate selections before certif
   {PLUGIN_CANDIDATE_SHA:sha.slice(0,7)}, {PLUGIN_CANDIDATE_SHA:'a'.repeat(40)},
  ])expect(()=>execFileSync('bun',[metadata],{cwd:root,encoding:'utf8',stdio:'pipe',env:{...base,...override}})).toThrow();
 });
+
+it('excludes packaging history predating a new plugin from its initial release',async()=>{
+ const root=await fixture();await file(root,'tools/plugins/build.mjs','export const oldPackaging=1;');const older=commit(root,'feat!: replace historical packaging');
+ await file(root,'plugins/charlie/plugin.json',{name:'charlie',version:'0.1.0'});await file(root,'plugins/charlie/hooks.ts','export default {};');const created=commit(root,'feat(charlie): introduce CI inspection');
+ const result=await prepareReleases(root,{write:true,inputs}),entry=result.plugins.find(p=>p.name==='charlie');
+ expect(entry).toMatchObject({previous:null,version:'0.1.0',level:'minor',commits:[created]});expect(entry.paths).not.toContain('tools/plugins/build.mjs');
+ const notes=await readFile(join(root,'plugins/charlie/CHANGELOG.md'),'utf8');expect(notes).toContain('introduce CI inspection');expect(notes).not.toContain(older.slice(0,7));expect(notes).not.toContain('historical packaging');
+});
+it('includes bundled changes after a new plugin is introduced while excluding earlier helper history',async()=>{
+ const root=await fixture();await file(root,'packages/shared.ts','export const shared=2;');const older=commit(root,'fix: old helper repair');
+ await file(root,'plugins/charlie/plugin.json',{name:'charlie',version:'0.1.0'});await file(root,'plugins/charlie/hooks.ts','export default {};');const created=commit(root,'feat(charlie): introduce helper client');
+ await file(root,'packages/shared.ts','export const shared=3;');const later=commit(root,'fix: new helper repair');
+ const result=await prepareReleases(root,{write:true,inputs:async(_,name)=>name==='charlie'?['packages/shared.ts']:[]}),entry=result.plugins.find(p=>p.name==='charlie');
+ expect(entry.commits).toEqual([created,later]);expect(entry.paths).toContain('packages/shared.ts');const notes=await readFile(join(root,'plugins/charlie/CHANGELOG.md'),'utf8');expect(notes).toContain('new helper repair');expect(notes).not.toContain(older.slice(0,7));expect(notes).not.toContain('old helper repair');
+});

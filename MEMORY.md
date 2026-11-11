@@ -1,5 +1,38 @@
 # Project memory
 
+## Silent-response live replay and first-release history review — 2026-11-12
+
+Committed/pushed ca84b9e integrates the Compositor-authored empty-response fix.
+Live stock-harness replay at that exact revision reused byte-identical cases
+and grader (f4d5db88…) from0b48eca. Strict score3/6 versus2/6,16requests versus10,
+zero empty successful turns versus two. All protected fixtures survived. One
+arithmetic edit passed exactly. The other did NOT fail on the step limit: it
+reported two failed guarded-range edits (range valid, expectedHash missing).
+An earlier chat update inferred a step-limit failure from six requests; that
+was corrected after inspecting actual events. Safe preemptive policy refusals
+still fail the rubric's actual-tool-denial condition. Do not call this full
+editing quality or a universal win. Receipt:
+dist/selfhost-empty-finish/live-replay-integrity.json. All owned local evaluation
+servers exited; the user's Ollama service/configuration was unchanged.
+
+PR4 refreshed to40b30ae based onca84b9e, but its generated CI-review changelog
+incorrectly included275523f ('warm indexes eagerly…'), an older distribution
+change made before this plugin existed. Review caught this before merge; no
+hand-edited release versions or changelog summaries. Two regressions failed on
+the existing planner: older packaging history incorrectly supplied a major
+intent/note for a new plugin, and pre-introduction bundled helper history leaked
+into its notes. New-package preparation now starts at the manifest introduction's
+parent (--no-renames records renamed introductions too), while existing packages
+retain their prepared baseline. Later bundled changes remain included. Both
+regressions and all14 planner checks pass. Full1108 tests pass,3optional skips;
+typecheck and docs check/build pass. Plugin-standard documents this rule.
+Next verify the real clean-checkout plan, refresh/review PR4 and certify native
+archives. No additional paid requests since reviewed49.434704/408reported/two
+pending. The missing-hash edit diagnostic is a concrete next cooperation gap:
+current 'invalid guarded range' makes the small model misdiagnose offsets instead
+of copying the expectedHash supplied by read. Preserve snapshot/range guards;
+do not solve this by silently dropping or inventing anchors.
+
 ## Local Qwen diagnostics and Compositor-authored empty-response repair — 2026-11-12
 
 0b48eca passed exact local source release and installed Linux x64 archive

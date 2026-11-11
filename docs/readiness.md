@@ -111,8 +111,12 @@ for a useful answer, then fail if the model remains silent. Disabled verificatio
 and replacement policies remain supported. Six model steps/requests completed
 with the frozen five-case acceptance suite and typecheck passing independently;
 all 732 protected files survived. The integrated change passes 1106 maintained
-tests with three optional skips. Live replay and remote release certification
-remain separate; this is another known development case, not 1.0 completion.
+tests with three optional skips. A live replay with the unchanged stock-harness cases and grader at ca84b9e
+passed 3/6, with zero empty successful turns versus two before the repair. One
+edit passed exactly; another correctly reported failed guarded-range edits.
+This fixes silent feedback, not general editing quality. Remote release
+certification remains separate; this is another known development case, not
+1.0 completion.
 
 Git review revision
 [c98b3ce](https://github.com/Neko1313/agent-compositor/commit/c98b3cee4a47f2f61930287c5a8d8d45c23b3ba3)

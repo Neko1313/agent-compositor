@@ -197,7 +197,10 @@ migration details in the breaking commit body and review the generated notes.
 Documentation/test-only changes do not bump versions. Changes to bundled
 workspace inputs, selected runtime lockfile dependencies and distribution
 packaging do. Unrelated documentation-site dependencies do not. New plugins
-start at their manifest's initial version. Existing higher development versions
+start at their manifest's initial version. Their first release history begins
+with the manifest's introduction commit; earlier shared-code and packaging
+changes do not become notes for a package that did not yet exist. Later bundled
+changes remain included. Existing higher development versions
 are preserved during the transition to automation.
 
 `.plugin-release.json` records the bootstrap snapshot and each prepared source

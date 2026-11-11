@@ -78,10 +78,16 @@ export async function prepareReleases(root,{write=false,inputs=bundleInputs}={})
   const manifestPath=`plugins/${name}/plugin.json`,manifest=at(root,head,manifestPath);
   if(!manifest)continue;
   if(manifest.name!==name||!SEMVER.test(manifest.version))throw Error('Invalid plugin manifest: '+name);
-  const baseline=state.plugins[name]?.commit??state.bootstrap;
+  let baseline=state.plugins[name]?.commit??state.bootstrap;
   if(!/^[a-f0-9]{40}$/.test(baseline))throw Error('Invalid release baseline');
   git(root,'merge-base','--is-ancestor',baseline,head);
   const before=at(root,baseline,manifestPath),previous=state.plugins[name]?.version??before?.version;
+  if(previous===undefined){
+   // A new package must not inherit older shared-code or packaging history.
+   const introduced=git(root,'log','-1','--format=%H','--diff-filter=A','--no-renames',`${baseline}..${head}`,'--',manifestPath).trim();
+   if(!introduced)throw Error('Cannot locate the new plugin introduction: '+name);
+   baseline=git(root,'rev-parse',`${introduced}^`).trim();
+  }
   const changed=git(root,'diff','--name-only','-z',baseline,head).split('\0').filter(Boolean);
   const own=changed.filter(path=>path.startsWith(`plugins/${name}/`)&&!excluded.test(path)&&
    (path!==manifestPath||stable(withoutVersion(before))!==stable(withoutVersion(manifest))));

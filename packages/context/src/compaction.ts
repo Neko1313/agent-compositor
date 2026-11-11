@@ -63,11 +63,11 @@ export async function compactTranscript(
     }
   }
   let lastUser=-1;
-  for(let index=messages.length-1;index>=0;index--)if(messages[index].role==='user'){lastUser=index;break;}
+  for(let index=messages.length-1;index>=0;index--)if(messages[index].role==='user'&&messages[index].origin!=='harness'){lastUser=index;break;}
   const pin=opts.preserveLastUser&&lastUser>=headCount&&lastUser<tailStart?lastUser:-1;
 
   // nothing worth compacting: head + tail already covers everything
-  if (tailStart - headCount - (pin>=0?1:0) < 2) {
+  if (tailStart - headCount - (pin>=0?1:0) < 1) {
     return {
       messages,
       summary: "",

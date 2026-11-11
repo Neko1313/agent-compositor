@@ -19,6 +19,8 @@ export function estimateTokens(text: string): number {
 }
 
 export interface MessageLike {
+  /** Host-generated continuation feedback must not replace the user task. */
+  origin?: "harness";
   images?: { data: string }[];
   role: string;
   content: string;

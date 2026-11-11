@@ -11,6 +11,8 @@ export interface ChatToolCall {
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
+  /** Host-generated continuation feedback, not a new user task. */
+  origin?: "harness";
   content: string;
   images?: { mimeType: string; data: string }[];
   metadata?: Record<string, unknown>;

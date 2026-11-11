@@ -346,8 +346,13 @@ summaries are discarded; cancellation, provider errors and streams lacking a
 completion event do not trigger this retry. System instructions
 and recent complete tool-call/result groups survive when they fit the retained
 tail budget. Oversized recent groups can be folded into the summary as a whole;
-their calls/effects are not retried. The latest user request remains verbatim,
-including when its working context is folded. Failed/empty/non-shrinking summaries retain the original
+their calls/effects are not retried. The latest user request remains verbatim
+when its working context is folded, including after completion/recovery feedback
+was added by the harness.
+Such feedback carries an explicit host-origin marker and remains working context;
+it does not replace the task reference. Real user steering still updates that
+reference, even if its text begins with the same words as a harness message.
+Failed/empty/non-shrinking summaries retain the original
 history. A context-overflow error permits one compaction-and-retry, never a
 partial tool execution. If fixed instructions, schemas, the preserved user
 request or the resulting summary still cannot fit, execution stops with an

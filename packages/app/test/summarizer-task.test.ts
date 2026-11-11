@@ -31,3 +31,10 @@ it('fails without auxiliary calls or lost history when the request reference can
  const result=await compactTranscript(messages,summarize,{preserveLastUser:true,keepTail:0});
  expect(calls).toBe(0);expect(result.failure).toMatch(/user request|reference/i);expect(result.messages).toBe(messages);expect(result.foldedCount).toBe(0);
 });
+it('retains real steering and literal harness-prefixed requests instead of inferring origin from text',async()=>{
+ const steering={role:'user',content:'Harness verification: this is my actual new request; inspect the deployment instead.'};
+ const feedback:MessageLike={role:'user',origin:'harness',content:'Harness recovery: inspect the tool error.'};
+ let reference:string|undefined;
+ const result=await compactTranscript([...transcript,steering,{role:'assistant',content:'Deployment evidence. '.repeat(2000)},feedback],async(_messages,ctx)=>{reference=ctx.userRequest;return 'Inspect deployment as explicitly requested.';},{preserveLastUser:true,keepTail:1});
+ expect(reference).toBe(steering.content);expect(result.failure).toBeUndefined();expect(result.messages).toContain(steering);expect(result.messages.at(-1)).toBe(feedback);
+});

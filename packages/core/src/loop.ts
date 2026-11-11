@@ -816,7 +816,7 @@ export class AgentCore {
 
   private latestUserTask():string|undefined {
     const operation=this.userOperation.getStore();if(operation)return `User tool operation: ${operation.tool}`;
-    for(let i=this.messages.length-1;i>=0;i--)if(this.messages[i].role==="user")return this.messages[i].content.slice(0,2000);
+    for(let i=this.messages.length-1;i>=0;i--)if(this.messages[i].role==="user"&&this.messages[i].origin!=="harness")return this.messages[i].content.slice(0,2000);
     return undefined;
   }
 
@@ -1214,7 +1214,7 @@ export class AgentCore {
         await this.runToolBatch(turnId, batch);
         let failures=0;for(const r of [...this.turnToolRecords].reverse()){if(r.ok)break;failures++;}
         if(failures>=(this.options.maxConsecutiveToolFailures??6)){failed="Repeated tool failures without progress. Resolve the reported permission/configuration error before continuing; progress is saved.";break;}
-        if(failures>=3)this.messages.push({role:"user",content:"Harness recovery: repeated tool failures produced no progress. Inspect the errors and available tool schemas. Do not repeat denied actions or bypass policy. Use permitted read-only tools for authorized investigation, or report a concrete blocker."});
+        if(failures>=3)this.messages.push({role:"user",origin:"harness",content:"Harness recovery: repeated tool failures produced no progress. Inspect the errors and available tool schemas. Do not repeat denied actions or bypass policy. Use permitted read-only tools for authorized investigation, or report a concrete blocker."});
         if (step === this.maxSteps - 1) {
           failed = `Step limit (${this.maxSteps}) reached; progress saved. Continue this session to resume.`;
           break;
@@ -1226,7 +1226,7 @@ export class AgentCore {
       const decision=await this.emit("service.agent.finish",{text:fullText,steps:step+1,tools}) as {value?:{complete?:boolean;continue?:string}};
       if(decision?.value?.continue && finishChecks++<2){
         if(fullText)this.messages.push({role:"assistant",content:fullText,metadata});
-        this.messages.push({role:"user",content:"Harness verification: "+decision.value.continue});fullText="";metadata=undefined;
+        this.messages.push({role:"user",origin:"harness",content:"Harness verification: "+decision.value.continue});fullText="";metadata=undefined;
         if(step===this.maxSteps-1)failed=`Step limit (${this.maxSteps}) reached; progress saved. Continue this session to resume.`;
         continue;
       }

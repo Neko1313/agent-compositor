@@ -1,5 +1,34 @@
 # Project memory
 
+## Harness feedback must not replace the user's task — 2026-11-12
+
+Two new actual-core regressions reproduced task-reference replacement after
+completion feedback and after three failed tool calls. Both automatically
+compact under8192-token pressure. Host continuations used role=user and were
+therefore mistaken for the user's latest task by compaction/permission context.
+Messages now carry optional origin=harness, set only at the two host insertion
+sites. Task lookup and compaction skip that origin without inspecting text;
+real steering, including literal 'Harness verification:' text, remains a task.
+Compaction snapshots/replay retain the marker. Correct pinning also exposed the
+old minimum-two-message folding rule: one oversized assistant draft between a
+pinned task and feedback could not compact. One-message folding now proceeds,
+still requiring actual token reduction and preserving history on failure.
+
+Both core regressions plus steering/prefix regression pass; full1114 tests,
+3optional skips, types, generators and docs check/build pass. No paid model
+requests. This is deterministic evidence, not a new live-model quality score.
+Include this repair before publishing host0.7.2;14655ca is an earlier candidate.
+
+CI-review candidate43106650734 at14655ca passed full source plus all four native
+installed archives. Independent audit verified5certificates/131evidence files,
+four archive sidecars/embedded identities and source/workspace/plan identity.
+Receipt dist/ci-review-native-14655ca/integrity.json; inspected macARM concurrent
+settings and macIntel cancellation screenshots. Candidate publication skipped.
+The old unpublished failed plugin tag is still atfbd69d6 at this checkpoint.
+Node22/26 CI43106630382 was cancelled by the later documentation-only main push,
+not a failed test result. Host candidate43106643838 still verifying all plugin
+contracts on last poll; inspect that handle rather than restarting it blindly.
+
 ## Prepared 0.7.2 candidates — 2026-11-12
 
 Main14655ca2cb528b6a5325716ff27ba5708601453f prepares host0.7.2: root/app/lock

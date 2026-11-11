@@ -7,7 +7,7 @@ await mkdir(output,{recursive:true});
 const report={ok:false,mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[]};
 let server,browser,page;
 try {
-  server=spawn('bun',['tools/visual/server.mjs'],{env:{...process.env,VISUAL_MARKETPLACE:'1',VISUAL_OUTPUT:output},stdio:['ignore','pipe','inherit']});
+  server=spawn('bun',['tools/visual/server.mjs'],{env:{...process.env,VISUAL_MARKETPLACE:'1',VISUAL_MARKETPLACE_BUSY:'1',VISUAL_OUTPUT:output},stdio:['ignore','pipe','inherit']});
   const url=await new Promise((done,fail)=>{
     let text='';const timer=setTimeout(()=>fail(Error('Server timeout')),15000);
     server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);done(match[1]);}});
@@ -63,9 +63,32 @@ try {
   await clickText('Extensions');await page.keyboard.press('Alt+f');
   const pluginVersion=JSON.parse(await readFile('plugins/auto-approve/plugin.json','utf8')).version;
   await wait('auto-approve  v'+pluginVersion+' · off');await clickText('auto-approve');
-  await wait('Manage auto-approve');await page.keyboard.press('Tab');await page.keyboard.press('ArrowRight');await wait('All my projects');await shot('07-manage-scope-form.png');await clickText('Apply');
+  await wait('Manage auto-approve');await page.keyboard.press('Tab');await wait('All my projects');await shot('07-manage-scope-form.png');await clickText('Apply');
   await wait('Enabled auto-approve · user');await shot('08-managed-user.png');
   report.checks.push('Terminal mouse actions browse the catalog, install inactive through a scope form, and explicitly enable through the management form');
+  await page.keyboard.press('Alt+f');
+  await send('Work while I manage plugins');await wait('AGENT_BUSY');
+  await clickText('[Plugins]');await wait('enabled ·');
+  await clickText('Browse marketplace');await clickText('agent-compositor · bundled');await wait('Search plugins');
+  await page.keyboard.type('cost');await wait('Search: cost');
+  await page.waitForFunction(()=>visual.text().includes('1 plugins')&&!visual.text().includes('mascot  v'));
+  await shot('09-search-while-working.png');
+  await clickText('cost  v');await wait('Install cost@agent-compositor');await clickText('Install inactive');
+  await wait('Installed cost');await clickText('Enable installed plugin');await wait('Manage cost');await clickText('Apply');
+  await wait('Enabled cost');await shot('10-enabled-while-working.png');
+  await clickText('Apply plugin changes');await wait('plugins pending');
+  await shot('11-reload-pending.png');
+  await clickInput();await page.keyboard.press('Control+c');
+  await wait('Reloaded 2 plugins.');await shot('12-applied-after-interrupt.png');
+  report.checks.push('During a held model turn, toolbar navigation, live catalog search, scoped install and enable stay usable; reload waits until the turn stops');
+  await send('Ask before continuing');await wait('AGENT_QUESTION');
+  await clickText('[Plugins]');await wait('enabled ·');
+  await clickText('Browse marketplace');await clickText('agent-compositor · bundled');await wait('Search plugins');
+  await page.keyboard.type('no-such-plugin');await wait('No matching plugins');
+  await shot('13-catalog-while-question-pending.png');
+  await clickText('[Settings]');await wait('Network proxy');
+  await shot('14-settings-while-question-pending.png');
+  report.checks.push('An unanswered agent question stays docked while marketplace search and provider settings accept input');
   report.ok=report.errors.length===0;
 } catch(error){report.errors.push(String(error));await page?.screenshot({path:resolve(output,'failure.png')}).catch(()=>{});}
 finally{

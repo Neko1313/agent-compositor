@@ -13,7 +13,8 @@ import { z } from "zod";
 import { atomicJson } from "@agent-compositor/config";
 import { contained } from "@agent-compositor/loader";
 import {bundledMarketplaceRoot,DEFAULT_MARKETPLACE,DEFAULT_MARKETPLACE_REPOSITORY} from './bundled-marketplace.js';
-import {marketplaceView,extensionView} from './extension-views.js';
+import {managementResult} from './plugin-services.js';
+import {marketplaceView,extensionView,pendingManagementView} from './extension-views.js';
 const exec = promisify(execFile);
 const name = z.string().regex(/^[a-z0-9][a-z0-9._-]*$/);
 export const marketplaceSchema = z
@@ -131,6 +132,8 @@ export async function marketplaces(
   globalRoot = join(home, ".agent-compositor"),
   snapshotRoot?:string,
 ) {
+  let selectedMarket='',query='',selectedIndex=0;
+  let browseRows:{name:string}[]=[];
   const builtinRoot=snapshotRoot??await bundledMarketplaceRoot();
   const shipped=!!builtinRoot&&await readFile(join(builtinRoot,'VERSION'),'utf8').then(()=>true,error=>{if(error.code!=='ENOENT')throw error;return false;});
   const builtin:Record<string,Registration>=builtinRoot?{[DEFAULT_MARKETPLACE]:{source:DEFAULT_MARKETPLACE_REPOSITORY,ref:'main',root:builtinRoot,name:DEFAULT_MARKETPLACE,scope:'user',builtin:true}}:{};
@@ -357,6 +360,20 @@ export async function marketplaces(
       }
     },
   };
+  const browse=async($:any)=>{
+    const reg=(await registrations())[selectedMarket];if(!reg)return;
+    const data=await catalog(reg),needle=query.toLowerCase();
+    const rows=data.plugins.filter(p=>`${p.name} ${p.description??''}`.toLowerCase().includes(needle));
+    browseRows=rows;selectedIndex=Math.min(selectedIndex,Math.max(0,rows.length-1));
+    await $.ui.view('marketplaces','Marketplaces',{hint:'↑↓ select plugin · Enter install · Ctrl+U clear search',input:{id:'search',value:query,placeholder:'Search plugins'},lines:[
+      {text:selectedMarket,bold:true},{text:'Installed plugins',action:'navigate:extensions'},
+      {text:'All marketplaces',action:'navigate:marketplace'},
+      {text:'Choose a plugin to install. Installation leaves it off.',tone:'muted'},
+      {text:`${rows.length} plugins`,tone:'muted'},
+      ...rows.map((p,index)=>({selected:index===selectedIndex,text:`${p.name}  v${p.version??'unversioned'}${p.description?' · '+(p.description.length>96?p.description.slice(0,93)+'…':p.description):''}`,action:'install:'+p.name+'@'+selectedMarket})),
+      ...(rows.length?[]:[{text:'No matching plugins. Clear or change the search.',tone:'muted'}]),
+    ]},{site:'sidebar',size:.5,focus:true});
+  };
   const plugin: any = {
     manifest: {
       name: "marketplace-manager",
@@ -380,22 +397,52 @@ export async function marketplaces(
           "marketplaces",
           "Marketplaces",
           marketplaceView(result),
-          { site: "inspector" }
+          { site: "sidebar", size: .5, focus: true }
         );
         return { drop: "marketplace: handled" };
       },
+      'ui.change':async(e:any,$:any)=>{if(e.site==='plugin-marketplace-manager-marketplaces'&&e.id==='search'){query=String(e.value);selectedIndex=0;await browse($);}},
       'ui.press':async(e:any,$:any)=>{
         if(e.site!=='plugin-marketplace-manager-marketplaces')return;
+        if(['up','down'].includes(e.key)){
+          selectedIndex=(selectedIndex+(e.key==='up'?-1:1)+browseRows.length)%Math.max(1,browseRows.length);await browse($);return;
+        }
+        if(e.key==='enter'){
+          const selected=browseRows[selectedIndex];if(!selected)return;
+          e={...e,key:'install:'+selected.name+'@'+selectedMarket};
+        }
+        if(e.key==='escape'){await $.ui.view('marketplaces','Marketplaces',marketplaceView(await managementResult($,'service.marketplace.control',{action:'list'})),{site:'sidebar',size:.5,focus:true});return;}
+        if(e.key==='add'){
+          const form=await $.ui.form({title:'Add marketplace',fields:[{id:'source',label:'Repository or local directory',type:'text',value:'',required:true},{id:'ref',label:'Git revision (optional)',type:'text',value:''},{id:'scope',label:'Scope',type:'select',value:'project',options:[{value:'project',label:'This project'},{value:'user',label:'All my projects'}]}],actions:[{id:'add',label:'Add marketplace'},{id:'cancel',label:'Cancel'}]});
+          if(!form||form.action!=='add')return;
+          await $.ui.view('marketplaces','Marketplaces',pendingManagementView('add',form.values.source),{site:'sidebar',size:.5,focus:true});
+          const result=await managementResult($,'service.marketplace.control',{action:'add',...form.values,ref:form.values.ref||undefined});
+          await $.ui.view('marketplaces','Marketplaces',marketplaceView(result),{site:'sidebar',size:.5,focus:true});return;
+        }
+        if(e.key.startsWith('refresh:')||e.key.startsWith('remove:')){
+          const [kind,name]=e.key.split(':');
+          if(kind==='remove'){
+            const form=await $.ui.form({title:`Remove marketplace ${name}`,description:'Installed plugins are retained.',fields:[],actions:[{id:'remove',label:'Remove marketplace'},{id:'cancel',label:'Cancel'}]});
+            if(!form||form.action!=='remove')return;
+          }
+          await $.ui.view('marketplaces','Marketplaces',pendingManagementView(kind==='refresh'?'update':'remove',name),{site:'sidebar',size:.5,focus:true});
+          const result=await managementResult($,'service.marketplace.control',{action:kind==='refresh'?'update':'remove',name});
+          await $.ui.view('marketplaces','Marketplaces',marketplaceView(result),{site:'sidebar',size:.5,focus:true});return;
+        }
+        if(e.key.startsWith('command:')){
+          const words=e.key.slice(8).trim().split(/\s+/),[cmd,action='list',source,ref]=words.filter((word:string)=>!word.startsWith('--'));
+          const result=await managementResult($,'service.marketplace.control',{action,...(action==='add'?{source,ref,scope:words.includes('--project')?'project':'user'}:{name:source})});
+          await $.ui.view('marketplaces','Marketplaces',marketplaceView(result),{site:'sidebar',size:.5,focus:true});return;
+        }
         if(e.key.startsWith('catalog:')){
-          const market=e.key.slice(8),reg=(await registrations())[market];if(!reg)return;
-          const data=await catalog(reg);
-          await $.ui.view('marketplaces','Marketplaces',{lines:[{text:market,bold:true},{text:'Choose a plugin to install. Installation leaves it off.',tone:'muted'},...data.plugins.map(p=>({text:`${p.name}  v${p.version??'unversioned'}`,action:'install:'+p.name+'@'+market}))]},{site:'inspector'});
+          selectedMarket=e.key.slice(8);query='';await browse($);
         }else if(e.key.startsWith('install:')){
           const name=e.key.slice(8);
           const form=await $.ui.form({title:`Install ${name}`,fields:[{id:'scope',label:'Scope',type:'select',value:'project',options:[{value:'project',label:'This project'},{value:'user',label:'All my projects'}]}],actions:[{id:'install',label:'Install inactive'},{id:'cancel',label:'Cancel'}]});
           if(!form||form.action!=='install')return;
-          const result=await $.agent.tool('extension_control',{action:'install',name,scope:form.values.scope});
-          await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'inspector'});
+          await $.ui.view('marketplaces','Marketplaces',pendingManagementView('install',name),{site:'sidebar',size:.5,focus:true});
+          const result=await managementResult($,'service.extension.control',{action:'install',name,scope:form.values.scope});
+          await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'sidebar',size:.5,focus:true});
         }
       },
     },

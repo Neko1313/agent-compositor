@@ -77,7 +77,7 @@ x = rect.x + (column + 0.5) * rect.width / terminal.cols
 Rows and columns are zero-based. Use browser mouse down/move/up at these
 coordinates. Drag titles onto an edge to split or the center to swap; drag
 separators to resize; drop titles onto workspace numbers to move them.
-Click `[Plugins]` for placement rules, `[F]` to toggle fullscreen, and `[x]`
+Press `Alt+p` for placement rules, `[F]` to toggle fullscreen, and `[x]`
 to close. The shipped smoke scenario assumes its 100×30 fixture; recompute
 coordinates from current terminal geometry for other sizes.
 

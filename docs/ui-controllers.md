@@ -87,6 +87,12 @@ can pass the draft to the next instance, even when disposal erases local state.
 Configuration selection follows existing restart behavior; `/reload` reloads
 implementations under the current configuration.
 
+Approval and question controllers occupy the input dock rather than locking
+other windows. Their keyboard input is routed when the dock has focus; mouse
+input outside the dock can focus and operate other panes and the toolbar. A
+settings form may coexist in the main area. The agent remains suspended until
+the dock receives an answer, denial or cancellation.
+
 ## Requests and results
 
 | Kind | Private data | Result from `handle` |

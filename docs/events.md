@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.20.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.21.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -92,6 +92,8 @@
 | `context.prepared` | 0.8.0 | 1 | Final user content after project context and explicit file references have been expanded. | — | — |
 | `assistant.metadata` | 0.8.0 | 1 | Provider reasoning continuation metadata for faithful session replay. | — | — |
 | `service.session.control` | 0.8.0 | 1 | List, search, name, fork, archive or resume local sessions. Resume requires an interactive host. | `deny`, `value` | — |
+| `service.extension.control` | 0.21.0 | 1 | Manage plugin installation and activation from user UI independently of model turns. Busy file mutations wait for explicit application at idle. | `deny`, `value` | — |
+| `service.marketplace.control` | 0.21.0 | 1 | List, register, refresh or remove plugin marketplaces from user UI independently of model turns. | `deny`, `value` | — |
 | `service.session.store` | 0.8.0 | 1 | Local session storage operations used by interactive session hosts. | `deny`, `value` | — |
 | `service.shell.exec` | 0.5.0 | 1 | Core exec tool: run a shell command (session cwd, timeout, env). With background: true it returns immediately with a shell id and keeps running. | `deny`, `value` | — |
 | `service.shell.execOutput` | 0.5.0 | 1 | Read a backgrounded shell's buffered output (BashOutput analog). | `deny`, `value` | — |
@@ -106,7 +108,7 @@
 
 ## Domains
 
-- **service**: `service.agent.batch`, `service.agent.clear`, `service.agent.compact`, `service.agent.run`, `service.agent.tools`, `service.auth.status`, `service.context.compact`, `service.context.manage`, `service.context.prepare`, `service.session.append`, `service.agent.enqueue`, `service.background.jobs`, `service.shell.jobs`, `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.questionnaire`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
+- **service**: `service.agent.batch`, `service.agent.clear`, `service.agent.compact`, `service.agent.run`, `service.agent.tools`, `service.auth.status`, `service.context.compact`, `service.context.manage`, `service.context.prepare`, `service.session.append`, `service.agent.enqueue`, `service.background.jobs`, `service.shell.jobs`, `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.questionnaire`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.extension.control`, `service.marketplace.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
 - **workspace**: `workspace.changed`
 - **shell**: `shell.completed`
 - **session**: `session.start`, `session.reload`, `session.end`, `session.compact`

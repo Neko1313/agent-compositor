@@ -136,6 +136,8 @@ export class AppUI {
   private pointer?: Extract<WireMessage, { type: "pointer" }>["shape"];
   private contextIndicator = "";
   private status = "Ready";
+  private pendingReload = false;
+  private reloading = false;
   private inputTitle = "Message";
   private statusNavigationRows = 1;
   private statusActionsVisible = true;
@@ -290,10 +292,47 @@ export class AppUI {
     if(intent.type==='scroll'&&Number.isFinite(intent.rows)){this.offset=Math.max(0,this.offset+intent.rows);return;}
     if((intent.type==='submit'||intent.type==='steer')&&typeof intent.text==='string'&&intent.text.trim()) {
       const text=intent.text;this.transcript.push({kind:'user',text});
-      if(text==='/plugins'){this.openPanel();return;}
-      if(text==='/reload'&&this.reload){this.track(this.reload(this.core).then(text=>{this.transcript.push({kind:'notice',text});this.viewCache.clear();this.draw();}));return;}
+      if(this.managementCommand(text))return;
       this.track(intent.type==='steer'?this.core.steer(text):this.core.submit(text));
     }
+  }
+  /** Host management does not enter the model prompt queue or borrow its tool turn. */
+  private managementCommand(text:string):boolean {
+    const command=text.trim().split(/\s+/)[0];
+    if(command==='/reload'&&this.reload){
+      this.pendingReload=true;
+      if(this.core.getState()==='running')this.transcript.push({kind:'notice',text:'Plugin changes queued. They will apply when the agent and queued prompts finish.'});
+      this.applyPendingReload();return true;
+    }
+    if(command==='/placement'){this.openPanel();return true;}
+    if(['/settings','/models','/providers'].includes(command)){this.track(this.press('plugin-model-selector-models','settings'));return true;}
+    const owner=command==='/plugins'||command==='/extensions'?'extension-manager-extensions':command==='/marketplace'?'marketplace-manager-marketplaces':undefined;
+    if(!owner)return false;
+    for(const id of ['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces'])if(id!=='plugin-'+owner)this.windows.forget(id);
+    this.track(this.press('plugin-'+owner,'command:'+(command==='/plugins'?'/extensions':text)));
+    return true;
+  }
+  private async press(site:string,key:string):Promise<void> {
+    const manager=['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces'].includes(site);
+    if(manager&&key.startsWith('navigate:')){
+      const target=key.slice(9);
+      if(['extensions','marketplace','reload','placement'].includes(target))this.managementCommand('/'+target);
+      return;
+    }
+    // Result views keep the original surface, but management belongs to Extensions.
+    if(manager&&(key.startsWith('manage:')||key==='updates')){
+      if(site!=='plugin-extension-manager-extensions')this.windows.forget(site);
+      site='plugin-extension-manager-extensions';
+    }
+    const result=await this.core.host.emit('ui.press',{site,key});
+    if(result.faults.length)throw Error('Plugin action failed: '+JSON.stringify(result.faults));
+  }
+  private applyPendingReload():void {
+    if(!this.pendingReload||this.reloading||this.closed||this.form||this.core.getState()==='running'||!this.reload)return;
+    this.pendingReload=false;this.reloading=true;
+    this.track(this.reload(this.core).then(text=>{
+      this.transcript.push({kind:'notice',text});this.viewCache.clear();
+    }).finally(()=>{this.reloading=false;this.draw();}));
   }
   private formResult(request:UiForm,value:unknown):UiFormResult|null {
     const result=value as UiFormResult;
@@ -328,9 +367,11 @@ export class AppUI {
           if(settled)return;settled=true;
           signal.removeEventListener('abort', abort);dialog.lease.signal.removeEventListener('abort',abort);
           if (this.form?.dialog === dialog) this.form = undefined;
+          if(this.windows.focused==='settings-form')this.windows.focused='input';
           dialog.clear(); resolve(result); this.draw();
         };
         this.form = { dialog, finish };
+        this.windows.focused='settings-form';
         signal.addEventListener('abort', abort, { once: true });
         dialog.lease.signal.addEventListener('abort',abort,{once:true});
         this.cancelDrag(); this.draw();
@@ -543,6 +584,7 @@ export class AppUI {
           this.draw(); return;
         }
         this.removeComposer(id);
+        if(!view.success||!view.data.input)this.viewInputs.delete(id);
         if(view.success&&view.data.input&&this.viewInputs.get(id)?.id!==view.data.input.id)
           this.viewInputs.set(id,{id:view.data.input.id,value:view.data.input.value});
         this.panes.set(id, {
@@ -666,17 +708,15 @@ export class AppUI {
     }
     if (this.approval && data.kind==='mouse') {
       const start=this.rows-this.dockHeight()+2;
-      if(data.row>=start&&data.row<this.rows-2&&data.col>=2&&data.col<this.columns-2)
-        this.handleApproval({...data,row:data.row-start,col:data.col-2});
-      else this.updatePointer();
-      return;
+      if(data.row>=start&&data.row<this.rows-2&&data.col>=2&&data.col<this.columns-2){
+        this.windows.focused='input';this.handleApproval({...data,row:data.row-start,col:data.col-2});return;
+      }
     }
     if (this.question && !this.approval && data.kind === "mouse") {
       const start = this.rows - this.dockHeight() + 2;
-      if (data.row >= start && data.row < this.rows - 2 && data.col >= 2 && data.col < this.columns - 2)
-        this.handleQuestion({ ...data, row: data.row - start, col: data.col - 2 });
-      else this.updatePointer();
-      return;
+      if (data.row >= start && data.row < this.rows - 2 && data.col >= 2 && data.col < this.columns - 2){
+        this.windows.focused='input';this.handleQuestion({ ...data, row: data.row - start, col: data.col - 2 });return;
+      }
     }
     if (
       data.kind === "mouse" &&
@@ -690,16 +730,17 @@ export class AppUI {
       }
       return;
     }
-    if (this.form && !this.approval && !this.question) {
+    if (this.form && (!(this.approval||this.question)||this.windows.focused!=='input'||data.kind==='mouse')) {
       if (data.kind === 'mouse' && (data.row < 2 || data.row >= this.rows - this.dockHeight() - 1 || data.col < 2 || data.col >= this.columns - 2)) return;
       const input = data.kind === 'mouse' ? { ...data, row: data.row - 2, col: data.col - 2 } : data;
+      this.windows.focused='settings-form';
       const current=this.form;
       this.dispatchController(current.dialog.lease,input,result=>{
         if(this.form!==current)return;
         if(result)current.finish(result==='cancel'?null:this.formResult(current.dialog.request,result));
       });return;
     }
-    if (this.panel && !this.approval && !this.question) {
+    if (this.panel) {
       const lease=this.placementController!;
       this.dispatchController(lease,data,result=>{
         if(this.placementController!==lease)return;
@@ -709,10 +750,6 @@ export class AppUI {
       return;
     }
     if (data.kind === "mouse") {
-      if (this.approval || this.question) {
-        this.cancelDrag();
-        return;
-      } // Human dialogs retain focus until answered.
       if (this.drag) this.cancelDrag();
       if (data.button === "left" && data.row >= this.rows - 2) {
         if(data.row>=this.rows-2+this.statusNavigationRows)return;
@@ -729,7 +766,7 @@ export class AppUI {
           return;
         }
         if (this.statusActionsVisible && buttonStart+9<=wrap && position >= buttonStart && position < buttonStart + 9) {
-          this.openPanel();
+          this.managementCommand('/plugins');
           this.draw();
           return;
         }
@@ -797,9 +834,7 @@ export class AppUI {
         ) {
           this.actionFocus.set(hit.surface,action);
           this.track(
-            this.core.host
-              .emit("ui.press", { site: hit.surface, key: action })
-              .then(() => {})
+            this.press(hit.surface,action)
           );
           this.draw();
           return;
@@ -878,7 +913,7 @@ export class AppUI {
       } else this.close();
       return;
     }
-    if (this.question && !this.approval) {
+    if (this.question && !this.approval && this.windows.focused==='input' && !(data.kind==='key'&&data.modifiers?.includes('meta'))) {
       this.handleQuestion(data);
       return;
     }
@@ -898,7 +933,7 @@ export class AppUI {
       );
       return;
     }
-    if (this.approval) {
+    if (this.approval && this.windows.focused==='input' && !(data.kind==='key'&&data.modifiers?.includes('meta'))) {
       this.handleApproval(data);
       return;
     }
@@ -999,10 +1034,9 @@ export class AppUI {
         this.scroll.set(site, 0);
         this.track(this.core.host.emit("ui.change", { site, id: field.id, value: field.value }).then(() => {}));
       } else if (data.kind === "key") {
-        this.track(this.core.host.emit("ui.press", { site, key: data.key }).then(() => {}));
+        this.track(this.core.host.emit("ui.press", {site,key:data.key}).then(()=>{}));
       }
-      this.draw();
-      return;
+      this.draw();return;
     }
     if (data.kind === "key" && data.key === "escape") {
       this.windows.focused = this.windows.ids()[0] ?? "input";
@@ -1024,7 +1058,7 @@ export class AppUI {
         const offset=this.scroll.get(site)??0;
         if(target<offset)this.scroll.set(site,target);
         else if(target>=offset+room)this.scroll.set(site,target-room+1);
-        if(data.key==='enter')this.track(this.core.host.emit('ui.press',{site,key:action}).then(()=>{}));
+        if(data.key==='enter')this.track(this.press(site,action));
         this.draw();return;
       }
     }
@@ -1113,19 +1147,8 @@ export class AppUI {
       this.historyIndex = -1;
       this.historyDraft = "";
       this.transcript.push({ kind: "user", text });
-      if (text === "/plugins") {
-        this.openPanel();
-        this.draw();
-        return;
-      }
-      const task =
-        text === "/reload" && this.reload
-          ? this.reload(this.core).then((result) => {
-              this.transcript.push({ kind: "notice", text: result });
-              this.viewCache.clear();
-              this.draw();
-            })
-          : data.key === "tab"
+      if (this.managementCommand(text)) {this.draw();return;}
+      const task = data.key === "tab"
           ? this.core.steer(text)
           : this.core.submit(text);
       this.track(task);
@@ -1152,7 +1175,7 @@ export class AppUI {
       this.draw();
     });
     this.tasks.add(safe);
-    void safe.finally(() => this.tasks.delete(safe));
+    void safe.finally(() => {this.tasks.delete(safe);this.applyPendingReload();});
   }
   private requestApproval(
     req: Parameters<NonNullable<AgentCoreOptions["onApproval"]>>[0]
@@ -1192,7 +1215,6 @@ export class AppUI {
       dialog.lease.signal.addEventListener('abort',abort,{once:true});
       if (this.approval || this.question) this.approvalQueue.push(entry);
       else this.approval = entry;
-      this.windows.focused = "input";
       this.draw();
     });
   }
@@ -1320,8 +1342,6 @@ export class AppUI {
       this.questionQueue.push(entry);
       this.question ??= this.questionQueue.shift();
       this.cancelDrag();
-      this.closePanel();
-      this.windows.focused = "input";
       this.draw();
     });
   }
@@ -1342,14 +1362,14 @@ export class AppUI {
     const mouse = this.lastMouse;
     this.hoveredTitle = undefined;
     let shape: Extract<WireMessage, { type: "pointer" }>["shape"] = "default";
-    if(mouse&&this.approval){
+    if(mouse&&this.approval&&mouse.row>=this.rows-this.dockHeight()+2&&mouse.row<this.rows-2){
       const row=mouse.row-(this.rows-this.dockHeight()+2);
       shape=mouse.col>=2&&mouse.col<this.columns-2&&this.approval.dialog.interactiveRow(row)?'pointer':'default';
-    } else if (mouse && this.question && !this.approval) {
+    } else if (mouse && this.question && !this.approval && mouse.row>=this.rows-this.dockHeight()+2 && mouse.row<this.rows-2) {
       const row = mouse.row - (this.rows - this.dockHeight() + 2);
       shape = mouse.col >= 2 && mouse.col < this.columns - 2 && this.question.dialog.interactiveRow(row)
         ? "pointer" : "default";
-    } else if (mouse && !this.approval && !this.question) {
+    } else if (mouse) {
       if (this.drag?.kind === "resize")
         shape =
           this.drag.handle.node.axis === "horizontal"
@@ -1362,7 +1382,7 @@ export class AppUI {
           this.drag.workspace === undefined
             ? "not-allowed"
             : "grabbing";
-      else if (this.form && !this.approval && !this.question)
+      else if (this.form)
         shape = this.form.dialog.lease.pointer(mouse.row-2,mouse.col-2);
       else if (this.panel)
         shape = this.placementController?.pointer(mouse.row,mouse.col)??"default";
@@ -1623,7 +1643,8 @@ export class AppUI {
     if (!/^\/[^\s]*$/.test(this.draft)) return [];
     return [
       ...this.commandList().filter((command) => command.name !== "/plugins"),
-      { name: "/plugins", description: "Place plugin windows" },
+      { name: "/plugins", description: "Install, enable and update plugins" },
+      { name: "/placement", description: "Arrange plugin windows" },
     ].filter((command) => command.name.startsWith(this.draft));
   }
   private visibleCompletions() {
@@ -1836,8 +1857,8 @@ export class AppUI {
     }
     this.updatePointer();
     const dock = this.dockHeight();
-    const formActive = this.form && !this.approval && !this.question;
-    const panelActive = !formActive && this.panel && !this.approval && !this.question;
+    const formActive = this.form;
+    const panelActive = !formActive && this.panel;
     const frames = formActive ? [{surface:"settings-form",x:0,y:0,width:this.columns,height:this.rows-dock}] : panelActive
       ? [
           {
@@ -1901,7 +1922,7 @@ export class AppUI {
       });
     this.sink?.({
       type: "focus",
-      surface: formActive ? "settings-form" : panelActive ? "plugin-placement" : this.windows.focused,
+      surface: formActive && !(this.windows.focused==='input'&&(this.approval||this.question)) ? "settings-form" : panelActive ? "plugin-placement" : this.windows.focused,
     });
     for(const [id,contribution] of this.composerViews){
       const selected=this.composer()?.[0]===id;
@@ -2045,7 +2066,7 @@ export class AppUI {
       inputRows = this.approval.dialog.visible(inputWidth,dock-5);
     else if (this.question)
       inputRows = this.question.dialog.visible(inputWidth, dock - 5);
-    if (formActive) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
+    if (formActive && !this.approval && !this.question) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
     if(attachmentWidth){
       const art=this.composer()![1].view;
       const left=gridFrom(viewRows(art,attachmentWidth-2,this.composerRows(),this.nativeRaster),this.theme,attachmentWidth-2,true);
@@ -2063,13 +2084,13 @@ export class AppUI {
     const waiting=this.approval?'Approval needed':this.question?'Answer needed':formActive?'Settings form':this.status;
     const protectedInput=!!(this.approval||this.question||formActive);
     const tabs=this.workspaceTabs().map(tab=>tab.label).join(' ');
-    const showControls=!protectedInput&&tabs.length+3+23+waiting.length<=barWidth;
-    let bar=`${tabs} | ${showControls?'[Plugins]  [Settings]  ':''}${waiting}`;
+    const showControls=!formActive&&!panelActive&&tabs.length+3+23+waiting.length<=barWidth;
+    let bar=`${tabs} | ${showControls?'[Plugins]  [Settings]  ':''}${waiting}${this.pendingReload?' · plugins pending':''}`;
     const hidden=Math.max(0,this.windows.ids().length-frames.filter(f=>this.windows.ids().includes(f.surface)).length);
     for(const part of [this.contextIndicator,this.windows.fullscreen?' · FULLSCREEN':'',!protectedInput&&hidden?` · ${hidden} hidden`:''])if(bar.length+part.length<=barWidth)bar+=part;
     const pane=this.panes.get(this.windows.focused),narrow=this.columns<70;
-    const hint=this.approval?this.approval.dialog.hint??(narrow?'Y once · N deny · PgDn details':'↑↓ scopes · Enter select · PgUp/PgDn details · Esc deny')
-      :this.question?this.question.dialog.hint??(this.question.dialog.review?'↑↓ edit · Enter select/submit · Esc cancel':narrow?'↑↓ choose · Space toggle · Tab · Enter next · Esc cancel':'↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel')
+    const hint=this.windows.focused==='input'&&this.approval?this.approval.dialog.hint??(narrow?'Y once · N deny · PgDn details':'↑↓ scopes · Enter select · PgUp/PgDn details · Esc deny')
+      :this.windows.focused==='input'&&this.question?this.question.dialog.hint??(this.question.dialog.review?'↑↓ edit · Enter select/submit · Esc cancel':narrow?'↑↓ choose · Space toggle · Tab · Enter next · Esc cancel':'↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel')
       :formActive?this.form?.dialog.hint??'Tab / Shift+Tab fields · Enter next · Esc cancel'
       :this.panel?this.placementController?.lastView?.hint??'Tab / ↑↓ fields · ←→ change · Esc close'
       :this.drag?this.dragHint()
@@ -2130,7 +2151,8 @@ Alt+= / Alt+-: resize focused split
 Alt+1..9: switch workspace
 Alt+Shift+1..9: move window to workspace
 Alt+i: focus message input
-Alt+p or /plugins: place plugin windows
+Alt+p or /placement: place plugin windows
+/plugins: install, enable and update plugins
 Escape: focus first window
 PageUp/PageDown: scroll window content
 Enter: send or queue · Tab: steer

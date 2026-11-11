@@ -47,7 +47,13 @@ The Zod event catalog defines inputs, response forms, aliases and versions.
 The runtime dispatches onion handler chains ordered by tier and priority. Hooks
 can pass through, await a downstream result, transform an event, answer it or
 deny an operation. Runtime budgets and lifecycle signals bound cooperative
-asynchronous work.
+asynchronous work. User management actions in the TUI travel through `ui.press`
+and `ui.change`, independently of the model prompt queue and tool turn. The
+built-in managers use replaceable `service.extension.control` and
+`service.marketplace.control` chains for explicit user operations, keeping model
+history and foreground cancellation intact. Plugin file changes requested while
+busy are staged until explicit application at idle; plugin reload remains a
+composition boundary.
 
 The `$` API exposes host services through these contracts. Private controller
 requests carry editor and dialog state only to the selected implementation.

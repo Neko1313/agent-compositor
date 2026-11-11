@@ -1,5 +1,43 @@
 # Project memory
 
+## Concurrent plugin management UI — 2026-11-11
+
+The user reported that plugin install/enable/update and marketplace/configuration
+workflows were unusable while an agent worked. The TUI now routes explicit
+management commands and toolbar actions through a separate user lane. Plugins
+opens the manager; catalog search, scoped inactive install, enable, update
+checks, rollback/remove and Apply plugin changes are connected by action rows.
+Placement remains on Alt+p, /placement and Arrange plugin windows. The manager
+and marketplace reuse the management area when navigating; ordinary window
+placement rules still apply. Existing model-facing tool turns retain their
+permission, history and busy behavior.
+
+Catalog 0.21 adds replaceable service.extension.control and
+service.marketplace.control services, including guard denial and provider
+selection. User ui.press/ui.change hooks retain hook budgets and plugin unload
+cancellation independently of foreground cancellation. Questions and approvals
+stay docked; other windows and settings forms remain interactive and do not
+answer or cancel the agent's pending decision. New requests preserve pane focus.
+
+The default manager saves installation/activation decisions while busy. File
+updates, rollbacks and removals are deferred in memory until explicit application
+at idle; closing the process discards those unapplied operations. /reload or
+Apply queues reload behind the active turn and queued prompts. Loading, errors,
+empty search and saved-selection messages explain the state. Managed package
+files are not replaced under a running turn. These guarantees are for the TUI
+user services, not concurrent arbitrary model tools or the plain REPL.
+
+Verification: 854 tests passed with 3 optional skips; typecheck, event/reference
+generation and the 95-page documentation check/build passed. New integration
+coverage holds a real core provider while managing plugins, tests a real
+1.0.0-to-1.1.0 deferred update/removal, guard denial, and management forms alongside
+both approvals and questions. Real Ink/PTY browser scenarios marketplace,
+settings and placement passed; inspected screenshots show catalog search and
+settings beside an unanswered agent question. Evidence lives under
+dist/visual-marketplace-flow-complete, dist/visual-settings-flow-complete and
+dist/visual-placement-flow-final. No plugin or marketplace release versions were bumped.
+
+
 ## Journal failures and incomplete replay — 2026-11-11
 
 The user authorized fixing the two reproduced harness-study observations.

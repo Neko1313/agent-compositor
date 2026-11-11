@@ -25,7 +25,8 @@ import {
 import { atomicJson } from "@agent-compositor/config";
 import {pluginSelection} from './plugin-activation.js';
 import {pluginDigest} from './plugin-digest.js';
-import {extensionView} from './extension-views.js';
+import {managementResult} from './plugin-services.js';
+import {extensionView,pendingManagementView} from './extension-views.js';
 import {installPluginArchive} from './plugin-archive.js';
 import type { CorePlugin } from "@agent-compositor/core";
 import type { ToolSpec } from "@agent-compositor/tools";
@@ -439,6 +440,24 @@ export async function extensionManager(
       }
     },
   };
+  let runtimeBusy=()=>false;
+  let userFetch:typeof fetch=fetch;
+  const pending=new Map<string,any>();
+  const applyPending=async()=>{
+    if(runtimeBusy())throw Error('Wait for running agents before applying plugin changes');
+    if(busy)throw Error('Another extension operation is in progress; retry Apply when it finishes');
+    for(const [key,args]of pending){await control(args,AbortSignal.timeout(300000),userFetch);pending.delete(key);}
+  };
+  const userControl = async (args:any, signal:AbortSignal) => {
+    if(runtimeBusy()&&['update','rollback','remove'].includes(args.action)){
+      const name=String(args.name??'').split('@')[0],scope=args.scope??installed()[name]?.scope??'user';
+      if(!/^[a-z0-9][a-z0-9._-]*$/.test(name)||!['user','project'].includes(scope))return{ok:false,error:'Choose a valid installed plugin and scope'};
+      pending.set(`${scope}:${name}`,{...args,name,scope});
+      return {ok:true,data:{name,scope,queued:true}};
+    }
+    try { return {ok:true,data:await control(args,signal,userFetch)}; }
+    catch(error) { return {ok:false,error:String(error)}; }
+  };
   const plugin: CorePlugin = {
     manifest: { name: "extension-manager", version: "1.1.0", trust: "trusted",hookTimeouts:{'ui.press':300000,'prompt.submit':300000} },
     hooks: {
@@ -464,26 +483,39 @@ export async function extensionManager(
           "extensions",
           "Extensions",
           extensionView(action,result),
-          { site: "inspector" }
+          { site: "sidebar", size: .5, focus: true }
         );
         return { drop: "extension-manager: handled" };
       },
       'ui.press':async(event,$)=>{
-        if(event.site!=='plugin-extension-manager-extensions'||!event.key.startsWith('manage:'))return;
+        if(event.site!=='plugin-extension-manager-extensions')return;
+        if(event.key.startsWith('command:')){
+          const words=event.key.slice(8).trim().split(/\s+/);
+          const [,action='list',name,ref]=words.filter((word:string)=>!word.startsWith('--'));
+          if(!['list','check-updates'].includes(action))await $.ui.view('extensions','Extensions',pendingManagementView(action,name),{site:'sidebar',size:.5,focus:true});
+          const result=await managementResult($,'service.extension.control',{action,name,ref,scope:words.includes('--project')?'project':words.includes('--user')?'user':undefined,dependencies:words.includes('--dependencies')});
+          await $.ui.view('extensions','Extensions',extensionView(action,result),{site:'sidebar',size:.5,focus:true});
+          return;
+        }
+        if(event.key==='updates'){
+          await $.ui.view('extensions','Extensions',extensionView('check-updates',await managementResult($,'service.extension.control',{action:'check-updates'})),{site:'sidebar',size:.5,focus:true});return;
+        }
+        if(!event.key.startsWith('manage:'))return;
         const name=event.key.slice(7);
         const bundled=(await inventory()).find(plugin=>plugin.name===name)?.bundled;
         const form=await $.ui.form({title:`Manage ${name}`,fields:[
           {id:'action',label:'Action',type:'select',value:bundled?'install':'enable',options:[...(bundled?['install']:[]),'enable','disable','update','rollback','remove'].map(value=>({value,label:value}))},
-          {id:'scope',label:'Scope',type:'select',value:'project',options:[{value:'project',label:'This project'},{value:'user',label:'All my projects'}]},
+          {id:'scope',label:'Scope',type:'select',value:installed()[name]?.scope??'project',options:[{value:'project',label:'This project'},{value:'user',label:'All my projects'}]},
         ],actions:[{id:'apply',label:'Apply'},{id:'cancel',label:'Cancel'}]});
         if(!form||form.action!=='apply')return;
         const action=String(form.values.action),scope=String(form.values.scope);
-        const result=await $.agent.tool('extension_control',{action,name:action==='install'?name+'@agent-compositor':name,scope});
-        await $.ui.view('extensions','Extensions',extensionView(action,result),{site:'inspector'});
+        await $.ui.view('extensions','Extensions',pendingManagementView(action,name),{site:'sidebar',size:.5,focus:true});
+        const result=await managementResult($,'service.extension.control',{action,name:action==='install'?name+'@agent-compositor':name,scope});
+        await $.ui.view('extensions','Extensions',extensionView(action,result),{site:'sidebar',size:.5,focus:true});
       },
     },
   };
-  return { tool, plugin, disabled, enabled,activationScope,selectedPath,projectDirectory,
+  return { tool, plugin, userControl, applyPending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch)=>{runtimeBusy=busy;userFetch=fetcher;}, disabled, enabled,activationScope,selectedPath,projectDirectory,
     boundDirectories:()=>enabled().flatMap(name=>{const path=selectedPath(name);return path?[path]:[];}),
     refresh:async()=>{states.user=await read(files.user);states.project=await read(files.project);},
     setAvailable:(read:typeof available)=>{available=read;} };

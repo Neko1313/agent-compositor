@@ -1,3 +1,4 @@
+import {installPluginServices} from './plugin-services.js';
 import {createSummarizer} from "./summarizer.js";
 import {PluginLoader} from '@agent-compositor/loader';
 import type {HooksHost} from '@agent-compositor/hooks';
@@ -385,6 +386,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
   const cores=new Set<AgentCore>();
+  extensions.setUserRuntime(()=>[...cores].some(core=>core.getState()==='running'),network.fetch("tools"));
   const toolOverrides = (source=plugins) => Object.entries(config.config.toolProviders ?? {}).map(([name,owner])=>{
     const tool=source.find(p=>p.manifest.name===owner)?.tools.find(t=>t.name===name);
     if(!tool)throw new Error(`Selected tool provider ${owner} does not supply ${name}`);
@@ -546,6 +548,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     cores.add(core);harnesses.set(core,harness);sessionPlugins.set(core,sessionPlugin);
     hub?.bind({approve:onApproval,ask:onAsk,inputSource:()=>core.isUserInvocation?"user":"agent",resolveWorkspace:value=>core.workspace.resolve(value,{directory:true}),workspace:()=>core.workspace.list().filter(entry=>entry.path!==core.workspace.root)});
     installSessionServices(core, store, options.cwd);
+    installPluginServices(core,extensions.userControl,(args,signal)=>market.tool.execute({signal},args));
     return core;
   };
 
@@ -558,6 +561,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const reloadPlugins = async (core: AgentCore): Promise<string> => {
     if (core.getState() === "running")
       return "Wait until the current turn finishes before /reload.";
+    await extensions.applyPending();
     await extensions.refresh();
     const next = await loadPluginsFromDisk([...new Set([...dirs,...extensions.boundDirectories()])], disabled(), extensions.enabled(), accepts);
     next.plugins = next.plugins.filter(

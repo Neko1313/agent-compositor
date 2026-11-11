@@ -155,11 +155,11 @@ describe("plugin placement integration", () => {
 });
 
 describe("plugin placement panel", () => {
-  it("opens with the bar button, applies settings immediately and saves the exact plugin identity", async () => {
+  it("opens with Alt+p, applies settings immediately and saves the exact plugin identity", async () => {
     const saved: unknown[] = [];
     const { ui, key, messages } = setup(undefined, () => [], {}, { save: async rule => { saved.push(rule); return "project-config"; } });
     await ui.core.host.emit("service.ui.surface", { plugin: "cost", id: "usage", title: "Usage", text: "10 tokens" });
-    ui.receive({ type: "input", surface: "status", data: { kind: "mouse", row: 22, col: 16, button: "left" } });
+    key("p", ["meta"]);
     expect(messages.filter(m => m.type === "layout").at(-1)?.frames[0].surface).toBe("plugin-placement");
     key("down"); key("right"); // site sidebar
     key("down"); key("right"); // workspace 2
@@ -184,9 +184,9 @@ describe("plugin placement panel", () => {
     expect(rendered(messages)).toContain("Save failed"); expect(ui.windows.workspaceOf("plugin-cost-usage")).toBe(1);
     ui.close();
   });
-  it("handles an empty surface list and opens /plugins without calling the model", async () => {
+  it("handles an empty surface list and opens /placement without calling the model", async () => {
     const { ui, key, text, messages, provider } = setup();
-    text("/plugins"); key("enter"); await ui.settled();
+    text("/placement"); key("enter"); await ui.settled();
     expect(rendered(messages)).toContain("No plugin windows"); expect(provider.requests).toHaveLength(0);
     key("escape"); ui.close();
   });
@@ -198,7 +198,7 @@ describe("placement panel mouse controls", () => {
     const { ui, key } = setup(undefined, () => [], {}, { save: async rule => { saved.push(rule); return "project-config"; } });
     for (const id of ["first", "second"]) await ui.core.host.emit("service.ui.surface", { plugin: "widgets", id, title: id, text: "content" });
     const click = (row: number, col = 3) => ui.receive({ type: "input", surface: "plugin-placement", data: { kind: "mouse", row, col, button: "left" } });
-    click(22, 16); // open panel
+    key("p", ["meta"]); // open placement panel
     click(2); // choose second surface
     click(3); // sidebar
     click(4); // workspace 2

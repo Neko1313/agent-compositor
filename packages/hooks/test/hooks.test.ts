@@ -25,6 +25,17 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("HooksHost / $ API", () => {
+  it("keeps user UI actions independent of foreground cancellation and revokes them on unload",async()=>{
+    const foreground=new AbortController();let press!:HooksApi,change!:HooksApi,nested!:HooksApi;
+    host=attach(runtime,{session:{id:'ui-session',cwd:dir},signal:()=>foreground.signal});
+    host.registerPlugin(manifest('settings'),{'ui.press':async(_e,$)=>{press=$;await $.emit('service.extension.control',{action:'list'});},'ui.change':(_e,$)=>{change=$;},'service.extension.control':(_e,$)=>{nested=$;return{value:{}};}});
+    await host.emit('ui.press',{site:'settings',key:'open'});
+    await host.emit('ui.change',{site:'settings',id:'search',value:'test'});
+    foreground.abort();
+    expect(press.signal.aborted).toBe(false);expect(change.signal.aborted).toBe(false);expect(nested.signal.aborted).toBe(false);
+    host.unregisterPlugin('settings');
+    expect(press.signal.aborted).toBe(true);expect(change.signal.aborted).toBe(true);expect(nested.signal.aborted).toBe(true);
+  });
   it("retains trusted background services across foreground cancellation and revokes them on unload",async()=>{
     const foreground=new AbortController();let normal!:HooksApi,background!:HooksApi,writes=0;
     host=attach(runtime,{session:{id:'origin',cwd:dir},signal:()=>foreground.signal});

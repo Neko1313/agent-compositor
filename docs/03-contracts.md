@@ -107,7 +107,23 @@ Replaceable service providers declare `provides` in their manifest. The app's
 hooks remain in the chain. `disabledPlugins` removes a plugin and its tools.
 For example, `callix` provides `service.project.query` through the native CLI's
 JSON graph. Trusted providers may declare bounded `hookTimeouts` for slow
-operations; cancellation is exposed through `$.signal`.
+operations; cancellation is exposed through `$.signal`. User `ui.press` and
+`ui.change` chains, including nested service calls, use their own hook budgets
+and plugin lifetimes, independently
+of the foreground agent's cancellation signal. Plugin unload still aborts them;
+agent-turn hooks retain foreground cancellation.
+
+Catalog 0.21 adds `service.extension.control` and `service.marketplace.control`
+for the TUI management lane. They accept the corresponding control tool's
+arguments plus an optional cancellation signal and return `{value: data}` or
+`{deny: reason}`. Extension data is the inventory for `list`, `{updates}` for
+checks, or the operation result (`name`/`changed`/`removed`, `scope`, optional
+`version`, `reloadRequired`, `unchanged`); a busy deferred file operation returns
+`{name,scope,queued:true}`. Marketplace data is a registration list or a refresh/
+removal result. Guard hooks can deny operations; `serviceProviders` and a
+provider manifest's `provides` can replace either service. Model-facing control
+tools keep their ordinary permission, journal and tool-turn path. UI management
+does not create model messages or tool-result messages.
 
 Reload = reverse teardown (hooks + per-plugin state) + cache-busted re-import. State does not survive a reload — `session.reload` with the new composition is the documented recovery point.
 

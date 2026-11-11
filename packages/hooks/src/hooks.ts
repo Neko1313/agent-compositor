@@ -130,6 +130,7 @@ export class HooksHost {
   setFormHandler(handler?: UiFormHandler) { this.formHandler = handler; }
   private readonly pluginState = new Map<string, Map<string, unknown>>();
   private readonly rendering = new AsyncLocalStorage<string>();
+  private readonly uiInteraction = new AsyncLocalStorage<boolean>();
   private readonly workspaceRoot: string;
 
   /** The workspace the $ API confines fs/exec to. */
@@ -165,13 +166,14 @@ export class HooksHost {
     for (const [name, fn] of Object.entries(hooks)) {
       const isUiRender = name === "ui.render";
       wrapped[name] = (event: any, ctx: HookContext) => {
-        const api=this.buildApi(manifest.name,ctx);
-        if (["service.agent.run","service.agent.batch","service.context.manage","service.context.compact"].includes(name) && typeof event.context?.withSignal === "function")
-          event = {...event,context:event.context.withSignal(api.signal)};
-        if (!isUiRender) return fn(event, api);
-        return this.rendering.run(manifest.name, () =>
-          fn(event, api)
-        );
+        const execute=()=>{
+          const api=this.buildApi(manifest.name,ctx);
+          if (["service.agent.run","service.agent.batch","service.context.manage","service.context.compact"].includes(name) && typeof event.context?.withSignal === "function")
+            event = {...event,context:event.context.withSignal(api.signal)};
+          if (!isUiRender) return fn(event, api);
+          return this.rendering.run(manifest.name, () => fn(event, api));
+        };
+        return ["ui.press","ui.change"].includes(name)?this.uiInteraction.run(true,execute):execute();
       };
     }
     validateControllers(controllers);
@@ -217,7 +219,8 @@ export class HooksHost {
 
   private buildApi(plugin: string, ctx: HookContext, detached=false): HooksApi {
     const host = this;
-    const operation=this.config.signal?.();
+    // User interface actions outlive the foreground model turn.
+    const operation=this.uiInteraction.getStore()?undefined:this.config.signal?.();
     const signal=detached?this.pluginLifetimes.get(plugin)!.signal:AbortSignal.any([ctx.signal,this.pluginLifetimes.get(plugin)!.signal,...(operation?[operation]:[])]);
     const stateGuard = (op: string) => {
       signal.throwIfAborted();

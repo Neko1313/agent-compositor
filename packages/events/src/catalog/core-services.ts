@@ -391,3 +391,17 @@ export const serviceWorkflowRun = defineEvent({
  input:z.object({action:z.enum(['start','list','status','pause','resume','retry','stop']),id:z.string().optional(),stageId:z.string().optional(),title:z.string().optional(),completion:z.enum(['wake','notify','none']).optional(),stages:z.array(z.unknown()).optional(),concurrency:z.number().int().min(1).max(8).optional(),maxStages:z.number().int().min(1).max(500).optional(),maxTokensTotal:z.number().int().min(100).max(10000000).optional(),maxTokensPerStage:z.number().int().min(100).max(1000000).optional(),stageTimeoutMs:z.number().int().min(1000).max(3600000).optional(),waitMs:z.number().int().min(0).max(30000).optional()}),
  responses:denyValue,frozen:true,
 });
+
+/** Explicit user management; model tools retain their normal permission and turn path. */
+export const serviceExtensionControl = defineEvent({
+  name:'service.extension.control',since:'0.21.0',version:1,
+  summary:'Manage plugin installation and activation from user UI independently of model turns. Busy file mutations wait for explicit application at idle.',
+  input:z.object({action:z.enum(['list','check-updates','install','update','rollback','enable','disable','remove']),name:z.string().optional(),ref:z.string().optional(),scope:z.enum(['user','project']).optional(),dependencies:z.boolean().optional(),signal:z.unknown().optional()}),
+  responses:denyValue,frozen:true,
+});
+export const serviceMarketplaceControl = defineEvent({
+  name:'service.marketplace.control',since:'0.21.0',version:1,
+  summary:'List, register, refresh or remove plugin marketplaces from user UI independently of model turns.',
+  input:z.object({action:z.enum(['list','add','update','remove']),name:z.string().optional(),source:z.string().optional(),ref:z.string().optional(),scope:z.enum(['user','project']).optional(),signal:z.unknown().optional()}),
+  responses:denyValue,frozen:true,
+});

@@ -51,6 +51,15 @@ explicit operations; application startup does not fetch remote code.
 /reload
 ```
 
+The TUI **[Plugins]** manager connects catalog search, scoped installation,
+explicit enable, update checks and application without requiring slash commands.
+Management remains available while the agent runs or waits for an answer. TUI
+updates, rollbacks and removals requested while busy remain deferred in memory
+until **Apply plugin changes** (or `/reload`); running package files are retained
+until idle. See [the terminal flow](../packages/app/README.md#manage-plugins-while-the-agent-works)
+for cancellation, restart and queued-application behavior. The line-based
+interface retains its existing turn-based command handling.
+
 `--project` changes this project; `--user` changes the user's defaults across
 projects. Project decisions override user decisions, including project enable
 over user disable. A user-scoped grant selects shared code; a project-local copy

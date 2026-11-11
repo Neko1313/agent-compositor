@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -4695,6 +4695,152 @@
           },
           "includeArchived": {
             "type": "boolean"
+          },
+          "signal": {}
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        }
+      }
+    },
+    "service.extension.control": {
+      "since": "0.21.0",
+      "version": 1,
+      "summary": "Manage plugin installation and activation from user UI independently of model turns. Busy file mutations wait for explicit application at idle.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "check-updates",
+              "install",
+              "update",
+              "rollback",
+              "enable",
+              "disable",
+              "remove"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "user",
+              "project"
+            ]
+          },
+          "dependencies": {
+            "type": "boolean"
+          },
+          "signal": {}
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "responses": {
+        "deny": {
+          "summary": "refuse the call",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "deny": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deny"
+            ]
+          }
+        },
+        "value": {
+          "summary": "answer without executing",
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "value": {}
+            }
+          }
+        }
+      }
+    },
+    "service.marketplace.control": {
+      "since": "0.21.0",
+      "version": 1,
+      "summary": "List, register, refresh or remove plugin marketplaces from user UI independently of model turns.",
+      "namespace": "service",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "add",
+              "update",
+              "remove"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "user",
+              "project"
+            ]
           },
           "signal": {}
         },

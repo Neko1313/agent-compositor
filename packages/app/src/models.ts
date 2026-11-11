@@ -34,7 +34,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
       {text:'  [ Test connection ]',action:`test:${name}`},
       ...(name==='default'?[]:[{text:'  [ Remove profile ]',action:`remove:${name}`}]),
     ]),
-  ]},{site:'inspector',focus:true});
+  ]},{site:'sidebar',size:.5,focus:true});
   async function pickModel(models:string[],current:string,$:HooksApi){
     if(!models.length)throw Error('No models returned; enter a model ID manually');
     const result=await $.ui.form({title:'Available models',description:'Choose a model returned by this provider. You can also enter a model ID in the connection editor.',fields:[{id:'model',label:'Model',type:'select',value:models.includes(current)?current:models[0],options:models.map(value=>({value,label:value}))}],actions:[{id:'use',label:'Use selected model'},{id:'cancel',label:'Cancel'}]});

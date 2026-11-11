@@ -328,3 +328,9 @@ scenario protocol. Interactive actions travel through terminal input. The proxy
 password fixture is private and must never appear in visible cells, model context
 or ordinary plugin events/logs. Screenshots verify masking; deterministic privacy
 cases additionally inspect the receiver and excluded channels.
+
+The marketplace scenario also holds a scripted model turn while real terminal
+mouse/keyboard input opens Plugins, searches a catalog, installs and enables a
+package and queues reload. It verifies application after interruption, then
+keeps an agent question pending while catalog search and provider settings are
+used. No live model or credentials are involved.

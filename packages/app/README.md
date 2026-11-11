@@ -274,9 +274,37 @@ undo manual moves and resizing. External configuration edits apply after app res
 can apply and save individual plugin rules during a running session.
 
 
+## Manage plugins while the agent works
+
+Click **[Plugins]** or submit **/plugins** to open the plugin manager. Choose
+**Browse marketplace**, open a catalog, and type in its search field. Up/Down
+selects a matching plugin; Enter or a mouse click opens the installation form.
+Choose **This project** or **All my projects** and **Install inactive**. The result
+provides **Enable installed plugin** and **Apply plugin changes**. The manager
+also provides update checks, update/rollback/disable/remove actions, and links
+back to installed plugins and catalogs. Catalog registration and refresh are
+explicit actions. The management form defaults to the installation's scope.
+
+These TUI controls and `/extensions`, `/marketplace`, `/settings`, `/models` and
+`/providers` run independently of the model's prompt queue. They do not submit a
+new model request or interrupt the current one. An agent question or approval
+stays in the input dock; click another window or a toolbar button to keep
+working, then click the dock to answer. Settings forms use the main area while
+the pending agent question remains visible below.
+
+Installation and activation choices can be saved during a turn. Updates,
+rollbacks and removals requested through the TUI while an agent is running are
+held in this app session so its loaded package files stay unchanged. Choose
+**Apply plugin changes** or `/reload` to apply them: if busy, the status shows
+**plugins pending**, and application waits for the current turn and queued
+prompts to finish. Reload errors are reported; retry after resolving them.
+Closing the app discards unapplied deferred file operations. Saved installation
+and activation choices survive restart. Ordinary model prompts still queue;
+this management path does not permit concurrent arbitrary model tool turns.
+
 ## Manage plugin placement in the UI
 
-Click **[Plugins]** in the bottom bar, press **Alt+p**, or submit **/plugins**.
+Choose **Arrange plugin windows** in the plugin manager, press **Alt+p**, or submit **/placement**.
 The panel lists surfaces already published by plugins, including closed
 windows that can be reopened by applying placement. Plugins without a UI
 surface are not listed; the empty state explains this.
@@ -302,7 +330,7 @@ plugin surfaces automatically.
 The default `todos` plugin now supplies a real plugin window. It opens at
 startup, restores tasks from `.agent-compositor/todos.json`, and updates
 when the agent uses `todo`. Use `/todos` to reopen it after closing.
-In **Plugins**, select **todos / Todos** to apply or save its placement.
+In the placement panel, select **todos / Todos** to apply or save its placement.
 Markers: `[ ]` pending, `[~]` in progress, `[x]` completed.
 
 
@@ -324,7 +352,7 @@ Message input and the system bar remain docked. Plugin placement controls,
 permission prompts and slash suggestions react only to mouse presses, so
 releasing a drag does not trigger a second action. Dragging changes the
 current session's tiling layout; it does not automatically save placement
-rules. Use **Plugins → Save rule + apply** for explicit plugin rules.
+rules. Use **Arrange plugin windows → Save rule + apply** for explicit plugin rules.
 
 
 Mouse hover is reported without holding a button. The compositor requests

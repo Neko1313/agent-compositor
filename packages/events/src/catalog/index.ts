@@ -96,6 +96,8 @@ export const catalog: readonly EventDef[] = [
   coreServices.contextPrepared,
   coreServices.assistantMetadata,
   coreServices.serviceSessionControl,
+  coreServices.serviceExtensionControl,
+  coreServices.serviceMarketplaceControl,
   coreServices.serviceSessionStore,
   coreServices.serviceShellExec,
   coreServices.serviceShellExecOutput,

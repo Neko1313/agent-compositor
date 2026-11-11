@@ -26,6 +26,13 @@ shared service events and tool.call let other handlers replace them.
 | MCP / workflows | `/mcp`, `/workflows` |
 | Sessions | `/history`, `/sessions`, `/resume`, `/fork`, `/rename`, `/archive`, `/unarchive` |
 
+## Interactive plugin management
+
+The terminal plugin manager supports catalog search, scoped inactive install,
+explicit enable, update checks and deferred application while the agent works.
+Agent questions and approvals stay docked while other windows remain usable.
+See [the management flow](../packages/app/README.md#manage-plugins-while-the-agent-works).
+
 ## Auto review
 
 Enable the mode explicitly for the current session. Approvals return to manual

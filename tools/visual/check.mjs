@@ -158,7 +158,7 @@ try {
   report.checks.push(
     "Scripted model invoked the real todo tool and the plugin updated its window"
   );
-  await click(16, 28);
+  await page.keyboard.press("Alt+p");
   await waitText("Plugins · placement");
   await click(3, 3); // sidebar -> inspector
   await click(3, 4); // workspace 1 -> 2

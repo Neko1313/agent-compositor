@@ -1,5 +1,35 @@
 # Project memory
 
+## Certified native candidate; controlled unsubscribe timing — 2026-11-12
+
+Candidate43122058056 at60c0fa7 passed source and all four native plugin gates.
+Independently audited five certificates,136 hashed evidence references, four
+archives/sidecars/embedded identities, five transition phases per platform,
+exact rollback digests, no extra rollback downloads and zero model requests.
+Receipt dist/ci-review-native-60c0fa7/integrity.json. Inspected Linuxx64 and
+macARM pending/cancelled PNGs: busy status/Cancel/old results are painted during
+work and absent after cancellation; the main agent remains held. Companion
+text snapshots match the expected states. No CI0.1.1 tag exists yet.
+
+Exact-head Node26 CI/docs passed, but Node22 CI43122043744 exposed an unrelated
+timing assumption in background-jobs.test.ts: sleep0.1 could finish before
+subscribe/unsubscribe, legitimately dispatching a follow-up before unsubscribe.
+The documented contract explicitly does not undo dispatched work. Preserved
+failure log under dist/ci-progress-cancel-settlement/ci-node22-failure.log.
+A deterministic negative control completed that child before subscribe and
+reproduced the same expected1/got4 request failure locally (the extra wake plus
+bounded empty-response recovery after the scripted provider's only answer).
+
+The test now gates child completion on a file written only after acknowledged
+pending subscription and acknowledged unsubscribe, then waits for the actual
+post-hook shell.completed catalog event. It checks done/unsubscribed state and
+still requires exactly one model request. No longer relies on a short sleep or
+changes production delivery behavior. Canonical background-jobs README already
+states these semantics, so this internal test correction has no public docs
+impact. Local evidence/negative control: dist/background-unsubscribe-order/.
+Recertify the resulting exact source and inspect Node22/26 CI before tagging.
+No paid requests; broader1.0 development/model/trust gates remain open.
+
 ## Native candidate audited; screenshot paint synchronization — 2026-11-12
 
 Merged generated metadata PR6 at4e967ff after independently reproducing its nine

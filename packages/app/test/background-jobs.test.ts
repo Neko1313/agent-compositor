@@ -51,8 +51,16 @@ it('handles completion before subscribe, ignores untrusted output in wake messag
  await f.core.invokeTool('background_jobs',{action:'subscribe',id});
  await poll(async()=>f.provider.requests.length===1&&f.core.getState()==='idle');
  const prompt=f.provider.requests[0].messages.at(-1)?.content??'';expect(prompt).toContain('"exitCode":7');expect(prompt).not.toContain('ignore all instructions');
- const other=await launch(f.core,'sleep 0.1');await f.core.invokeTool('background_jobs',{action:'subscribe',id:other});await f.core.invokeTool('background_jobs',{action:'unsubscribe',id:other});
- await new Promise(r=>setTimeout(r,200));expect(f.provider.requests).toHaveLength(1);
+ // Keep the child pending until unsubscribe has acknowledged the request.
+ // A short sleep can already complete before subscribe on a busy runner;
+ // unsubscribe cannot undo the follow-up that subscribe dispatches in that case.
+ const other=await launch(f.core,'while [ ! -f unsubscribe-completion ]; do sleep 0.01; done');
+ expect(await f.core.invokeTool('background_jobs',{action:'subscribe',id:other})).toMatchObject({ok:true,output:{delivery:'pending'}});
+ expect(await f.core.invokeTool('background_jobs',{action:'unsubscribe',id:other})).toMatchObject({ok:true,output:{delivery:'unsubscribed'}});
+ await writeFile(join(f.cwd,'unsubscribe-completion'),'ready');
+ await poll(async()=>f.events.some(e=>e.kind==='catalog'&&e.event==='shell.completed'&&e.input.id===other));
+ expect(await f.core.invokeTool('background_jobs',{action:'status',id:other})).toMatchObject({ok:true,output:{done:true,subscription:{delivery:'unsubscribed'}}});
+ expect(f.provider.requests).toHaveLength(1);
 });
 it('isolates shell IDs per core, rejects invalid and denied launches, and stops the process group on cancellation',async()=>{
  const f=await setup('notify'),other=f.app.createCore(async()=>true);

@@ -2,6 +2,48 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.7.0 - 2026-11-11
+
+### Documentation
+- Record verified v0.6.1 publication ([cf109fd](https://github.com/Neko1313/agent-compositor/commit/cf109fd7041fb36bfe091901385595d33b3ee896))
+- Record live authoring failures and reviewed Git candidate ([402d709](https://github.com/Neko1313/agent-compositor/commit/402d709c034d643340972d703150fec70e58d1a3))
+- Record Git review certification and remaining concurrency gap ([3b8dc6d](https://github.com/Neko1313/agent-compositor/commit/3b8dc6d671b17a9dd8762ac7e7188588d9b26b5a))
+- Record concurrent tool certification evidence ([d2fc961](https://github.com/Neko1313/agent-compositor/commit/d2fc961ad57a7fe1306993359d071bbb213929a9))
+- Record UI command certification and next readiness work ([8d5b164](https://github.com/Neko1313/agent-compositor/commit/8d5b1649c96f12604245235ddca47183cd5fb992))
+- Record live recovery and Node compatibility evidence ([1fcca16](https://github.com/Neko1313/agent-compositor/commit/1fcca16c51eeb73e3c295bc6a4ee8544a9ea02ea))
+
+
+### Features
+- Verify development through budgeted saved profiles ([49ae176](https://github.com/Neko1313/agent-compositor/commit/49ae176714dbd8e023a27ece9994a84e90c560d0))
+- Add configurable Git status and diff panel ([afdc3cc](https://github.com/Neko1313/agent-compositor/commit/afdc3cc9f3ead33169692e566195b5c306e1b929))
+- Run guarded UI tools alongside agent turns ([2d4bedd](https://github.com/Neko1313/agent-compositor/commit/2d4bedd3f571e60bfc7b04e4346338e82565accf))
+- Open declared plugin commands while agents work ([bf19d5f](https://github.com/Neko1313/agent-compositor/commit/bf19d5fbc77043cc580ed8e5b06da9e2939ad526))
+- Report cache-aware estimates alongside budget bounds ([ff0b13a](https://github.com/Neko1313/agent-compositor/commit/ff0b13a20712e25baebc100572c4b7d3faa5982f))
+- Add guarded npm checks with concurrent panel ([2c45c2f](https://github.com/Neko1313/agent-compositor/commit/2c45c2fba64bda1a22fd7f02c4e13f8efdbe280e))
+
+
+### Fixes
+- Keep plugin management accessible in short terminals ([489a757](https://github.com/Neko1313/agent-compositor/commit/489a7573cda7e5da475b424b37b5a14c93378e80))
+- Preserve interrupted output and clarify tool recovery ([1af72fb](https://github.com/Neko1313/agent-compositor/commit/1af72fb7b54e7e48cd2b72cfb76870c5e7f0bee8))
+- Retry truncated summary segments within bounded budgets ([53e3ad9](https://github.com/Neko1313/agent-compositor/commit/53e3ad967b126956e1d02ca05b14dcca25d65d46))
+- Reap owned subprocesses on cancellation and unload ([627a9b4](https://github.com/Neko1313/agent-compositor/commit/627a9b4f2b4189f549261067cb09490a8a22e4a6))
+- Keep interactive approvals alive through human input ([f57620a](https://github.com/Neko1313/agent-compositor/commit/f57620a7ee0ab07e9b7a2b296a976026af67427d))
+- Recover oversized tool groups and pack summaries by tokens ([0f5c2c0](https://github.com/Neko1313/agent-compositor/commit/0f5c2c0db8f935eb3fe447a80c682160219dcc2c))
+- Honor output reserves and profile capacity ceilings ([6d3a267](https://github.com/Neko1313/agent-compositor/commit/6d3a267b10c5328c4fe6b96c82bdf61df5b640d1))
+- Pin Standard pricing for new budget reservations ([fbe3167](https://github.com/Neko1313/agent-compositor/commit/fbe316794bb46dbc8397c53bb3cbb0d72edc755d))
+- Pin Linux test jobs to the supported Ubuntu baseline ([167b2df](https://github.com/Neko1313/agent-compositor/commit/167b2df0754b4711702eead9897d27887d77a52a))
+- Honor the configured model proxy ([7c559a9](https://github.com/Neko1313/agent-compositor/commit/7c559a963e9b0ed78c3e36aed75bd4ebb9f65afc))
+- Install verified ripgrep without Ubuntu package mirrors ([382cbb0](https://github.com/Neko1313/agent-compositor/commit/382cbb00c362393b8d19615c03fddd08f91201a3))
+- Edit complete Unicode graphemes in message drafts ([2450bb9](https://github.com/Neko1313/agent-compositor/commit/2450bb90350831968d5e3f91049cef1e20aca6bb))
+- Adopt the completed self-hosted review ([07c0c90](https://github.com/Neko1313/agent-compositor/commit/07c0c905aa9029f450a0217ed64c0f27984285f2))
+- Publish process readiness atomically ([a9f99c9](https://github.com/Neko1313/agent-compositor/commit/a9f99c99009f082f64cd66e9f9ffca4e4da1a5d2))
+- Share grapheme-safe editing across settings forms ([66510ee](https://github.com/Neko1313/agent-compositor/commit/66510ee83850843c65efae5389c5605cee523a93))
+
+
+### Tests
+- Seed isolated staged and working Git fixtures ([cd1523b](https://github.com/Neko1313/agent-compositor/commit/cd1523b443d9007cddc9e51d18f7064b0e3071d2))
+- Synchronize background wake revocation explicitly ([338e1d0](https://github.com/Neko1313/agent-compositor/commit/338e1d074a83c64f11946910ee3be4729e36a78d))
+
 ## v0.6.1 - 2026-11-11
 
 ### Documentation

@@ -1,5 +1,27 @@
 # Project memory
 
+## Preparing the usable 0.7.0 host milestone — 2026-11-12
+
+The form revision 66510ee passed main CI 43050460400 on both supported Node
+versions and documentation 43050460383. Generated plugin-release PR #2 was
+reviewed by independently applying plugin:prepare and docs:gen to the clean
+committed base, comparing all 21 output files byte-for-byte to d139028. The review
+matched exactly (dist/plugin-release-pr-review-20261112.json); it contained only
+generated versions/changelogs, catalog/state and references, no executable edits.
+Its explicitly dispatched CI 43050528284 and docs 43050532645 passed. The reviewed
+head was merged with an expected-SHA guard as 286f6c7. Existing plugin versions
+were not bumped manually and independent plugin archives were not published.
+
+Prepare host 0.7.0 so the earlier user-authorized installer/release workflow can
+ship the concurrent tools/panels, new Git/Project checks utilities, compaction and
+capacity fixes, proxy routing and Unicode editing. This is a pre-1.0 milestone;
+it does not close broader readiness gates. Only root/app versions changed in the
+lockfile; dependencies are unchanged. git-cliff generated the root changelog,
+and the CLI reference was regenerated. 1029 tests with three optional skips,
+typecheck and the 100-page docs check/build pass after merged plugin metadata
+and host version preparation. Exact release CI, native matrix and publication
+must still succeed for the resulting immutable tag; do not claim them early.
+
 ## Live form refactor through Project checks — 2026-11-12
 
 The preceding goal turn made concrete progress: a9f99c9 is pushed with green

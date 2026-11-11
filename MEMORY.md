@@ -1,5 +1,50 @@
 # Project memory
 
+## Standard evaluation admission and a region refusal — 2026-11-12
+
+The previous goal turn made concrete progress: Project checks source was pushed
+as 2c45c2f; its source release and installed Linux x64 archive certificates both
+passed afterward. Artifact PTY screenshots were inspected. Evidence remains in
+reports/certification/project-checks/{release,artifact}/linux-x64/. Other native
+platforms and publication are not established by those certificates.
+
+New paid-profile requests now explicitly select Responses service_tier default.
+The reviewed sol-standard-2026-11-12 per-charge policy reserves $5/M input,
+including 12h cache writes, and $10/M output. Settlement discounts only confirmed
+cached reads to $0.10/M; all other input retains the $5/M ceiling. Terminal SSE
+metadata must confirm default before settlement; missing/unexpected tiers retain
+the charge and persistently halt further admission across profile/process
+restarts. New charges retain input/output token ceilings and refuse usage
+outside them. Old root ledger identity and all historical charge amounts remain
+unchanged at their prior $30/$60 policy. The total authorization stays $50.
+The separate Standard estimate explicitly assumes 30m cache writes and is not an
+upper bound when retention is unknown. Canonical docs/evals.md explains both.
+
+Two negative controls reproduced excessive new-request reservation before the
+change (/tmp/compositor-standard-before.log). Twenty budget/profile tests now
+cover historical preservation, new ceilings, concurrent/missing settlement,
+cache accounting, invalid policies, token envelopes, tier mismatches, fragmented
+SSE metadata and persistent halt after restart. 990 repository tests pass with
+three optional skips; typecheck and the 100-page docs check/build pass.
+
+A new isolated review iteration was prepared from original authored snapshot
+0e1356a with both frozen oracle files unchanged. This runner correctly configures
+maxTokensPerTurn and maxTokensPerSession (300000), 24 steps, a 24576-token context
+and 4096 output reserve. Evidence: dist/selfhost-checks-review-20261112/. Its sole
+HTTP request returned 403 unsupported_country_region_territory before any model
+work. The episode is a provider refusal, not a completed review or a successful
+live Standard/cache-price validation. Do not retry it through an alternate route.
+The $0.10078 reservation is retained: guard bound $48.68110, 240 reported and one
+pending request. No old amounts were changed and no billing refund was inferred.
+
+The local Ollama service is reachable but has only cloud stubs
+(deepseek-v4.1-flash:1017-cloud and gemma4:31b-cloud), not local model weights.
+Current official cloud pricing is usage-credit based, so no unmetered paid
+fallback was used. Free integration work remains available; the broad goal is
+active, not blocked or complete. Documentation and plugin preparation for 2c45c2f
+passed. Its main CI failed again before tests on Ubuntu 26.04's package mirrors
+with DNS failures while installing ripgrep; investigate the rolling runner image.
+
 ## Self-authored Project checks candidate and review — 2026-11-12
 
 The active 1.0 scope includes useful missing plugins developed through Compositor

@@ -85,24 +85,37 @@ ledgers stop admission. Requests over 200,000 serialized bytes or 8,192 output
 tokens are refused by this evaluation adapter. Broader context/output scenarios
 need an explicitly reviewed envelope rather than silently increasing it.
 
-The dated policy uses $30 per million input tokens and $60 per million output
-tokens as a conservative ceiling over GPT-6.1 Sol's documented processing/cache
-prices, checked on 2026-11-11. This is not the standard price, an invoice or an
-account-wide OpenAI spending cap. Reports expose `committedUpperBoundUsd` and
-pending/reported request counts, not an asserted billed cost. Pricing changes
-require a new reviewed policy. See [official model pricing](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
-and [processing tiers](https://developers.openai.com/api/docs/pricing).
+New profile requests explicitly set `service_tier: "default"` instead of inheriting
+Project tier settings. The dated `sol-standard-2026-11-12` admission policy reserves
+$5/M input (including the higher 12h cache-write rate) and $10/M output. Once the
+response confirms Standard processing, reported cached reads use $0.10/M; all
+remaining input stays charged at $5/M, even when a cheaper ordinary-input or
+shorter cache-write rate could apply. This remains a ceiling, not an invoice.
+The byte/output envelope stays below long-input pricing; reported usage outside
+the reserved token envelope is refused without refund. Terminal stream metadata
+must confirm `service_tier: "default"` before settlement. Missing/unexpected tier
+metadata retains the reservation and persistently halts further requests for
+that ledger, including restarted processes, pending review.
 
-New reported requests also retain cached-input and cache-write counts and expose
-`standardPriceEstimate`: a dated Standard/global estimate at $2/M ordinary input,
-$0.10/M cached input, $2.50/M cache writes and $10/M output. Long-context
-multipliers are included if applicable. This estimate never discounts or resets
-the conservative admission balance. `coveredRequests` and `unavailableRequests`
-make partial historical coverage explicit: old charges without cache details are
-not retroactively repriced. Missing cache counts are treated as zero; unknown
-usage retains its reservation and contributes no reported estimate. Processing
-tiers, regional premiums, negotiated pricing and unrelated account usage can
-make the actual invoice differ. See the official
+Existing charges retain the original $30/M input and $60/M output policy and
+amounts. Each new Standard charge stores its own policy and reserved token
+ceilings. Nothing retroactively reprices old charges, resets history or raises
+the authorized total. The ledger's original root policy remains its compatibility
+identity. Reports expose `committedUpperBoundUsd` and pending/reported counts,
+not an asserted billed cost. Pricing changes require a reviewed policy. See
+[processing and cache prices](https://developers.openai.com/api/docs/pricing) and
+[service tier selection](https://developers.openai.com/api/reference/resources/responses/methods/create).
+
+Reported requests with cache details also expose `standardPriceEstimate`: a
+separate dated Standard/global **30m-write assumption**, at $2/M ordinary input,
+$0.10/M cached reads, $2.50/M cache writes and $10/M output, including long-context
+multipliers if applicable. Aggregate write counts do not establish retention;
+12h writes cost more, so this estimate is not an upper bound or invoice. It does
+not determine admission. `coveredRequests` and `unavailableRequests` show partial
+historical coverage; old charges without cache details remain unavailable.
+Missing cache counts use zero in this estimate; unknown usage retains its entire
+reservation and contributes no reported estimate. Regional premiums, negotiated
+pricing and unrelated account usage can also make an invoice differ. See the
 [cache accounting formula](https://developers.openai.com/api/docs/guides/prompt-caching).
 
 ## Artifact and verification grading

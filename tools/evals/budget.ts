@@ -8,9 +8,12 @@ import {atomicJson} from '../../packages/config/src/storage.js';
 // This is an admission/accounting bound, not an invoice or account-wide spending limit.
 const INPUT_MICRO_USD=30,OUTPUT_MICRO_USD=60;
 export const EVAL_BUDGET_POLICY='sol-2026-11-11-input30-output60';
+export const STANDARD_BUDGET_POLICY='sol-standard-2026-11-12';
 type Charge={microUsd:number;status:'reserved'|'reported';inputTokens?:number;outputTokens?:number;
+ pricingPolicy?:typeof STANDARD_BUDGET_POLICY;
+ inputTokenCeiling?:number;outputTokenCeiling?:number;
  cachedInputTokens?:number;cacheWriteInputTokens?:number;estimatedStandardMicroUsd?:number};
-type Ledger={version:1;policy:string;profile:string;model:string;limitMicroUsd:number;charges:Record<string,Charge>};
+type Ledger={version:1;policy:string;profile:string;model:string;limitMicroUsd:number;halted?:'unconfirmed-response-pricing';charges:Record<string,Charge>};
 export class EvalBudget {
  constructor(readonly file:string,readonly profile:string,readonly model:string,readonly maxUsd:number){
   if(!Number.isFinite(maxUsd)||maxUsd<=0||!Number.isSafeInteger(Math.round(maxUsd*1e6)))throw Error('max-usd must be a positive finite USD limit');
@@ -19,8 +22,10 @@ export class EvalBudget {
   let data:Ledger;
   try{data=JSON.parse(await readFile(this.file,'utf8'));}
   catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;return{version:1,policy:EVAL_BUDGET_POLICY,profile:this.profile,model:this.model,limitMicroUsd:Math.round(this.maxUsd*1e6),charges:{}};}
-  if(data.version!==1||data.policy!==EVAL_BUDGET_POLICY||data.profile!==this.profile||data.model!==this.model||data.limitMicroUsd!==Math.round(this.maxUsd*1e6)||!data.charges||
+  if(data.version!==1||data.policy!==EVAL_BUDGET_POLICY||data.profile!==this.profile||data.model!==this.model||data.limitMicroUsd!==Math.round(this.maxUsd*1e6)||!data.charges||(data.halted!==undefined&&data.halted!=='unconfirmed-response-pricing')||
     Object.values(data.charges).some(c=>!Number.isSafeInteger(c.microUsd)||c.microUsd<0||!['reserved','reported'].includes(c.status)||
+      (c.pricingPolicy!==undefined&&c.pricingPolicy!==STANDARD_BUDGET_POLICY)||
+      (c.pricingPolicy===STANDARD_BUDGET_POLICY&&(!Number.isSafeInteger(c.inputTokenCeiling)||c.inputTokenCeiling!<4096||c.inputTokenCeiling!>204096||!Number.isSafeInteger(c.outputTokenCeiling)||c.outputTokenCeiling!<1||c.outputTokenCeiling!>8192))||
       (c.estimatedStandardMicroUsd!==undefined&&(!Number.isSafeInteger(c.estimatedStandardMicroUsd)||c.estimatedStandardMicroUsd<0))))throw Error('Budget ledger mismatch or corruption; refusing paid requests');
   return data;
  }
@@ -32,16 +37,21 @@ export class EvalBudget {
   try{const data=await this.read(),result=update(data);await atomicJson(this.file,data);return result;}
   finally{await handle.close();await unlink(lock);}
  }
- async reserve(requestBytes:number,maxOutputTokens:number):Promise<string>{
+ async reserve(requestBytes:number,maxOutputTokens:number,pricing:'legacy'|'standard'='legacy'):Promise<string>{
+  if(!['legacy','standard'].includes(pricing))throw Error('Unknown evaluation pricing policy');
   if(!Number.isSafeInteger(requestBytes)||requestBytes<0||requestBytes>200000||!Number.isSafeInteger(maxOutputTokens)||maxOutputTokens<1||maxOutputTokens>8192)throw Error('Request exceeds the bounded evaluation profile');
   // UTF-8 bytes conservatively bound tokenized request content; allow template overhead.
-  const microUsd=(requestBytes+4096)*INPUT_MICRO_USD+maxOutputTokens*OUTPUT_MICRO_USD;
+  // Standard's $5/M ceiling includes 12h cache writes, with $10/M output.
+  // The serialized envelope stays below the long-input pricing threshold.
+  const microUsd=(requestBytes+4096)*(pricing==='standard'?5:INPUT_MICRO_USD)+maxOutputTokens*(pricing==='standard'?10:OUTPUT_MICRO_USD);
   return this.change(data=>{
+   if(data.halted)throw Error('Evaluation stopped: unconfirmed response pricing requires review');
    const used=Object.values(data.charges).reduce((n,c)=>n+c.microUsd,0);
    if(used+microUsd>data.limitMicroUsd)throw Error('Evaluation USD budget exhausted before request admission');
-   const id=randomUUID();data.charges[id]={microUsd,status:'reserved'};return id;
+   const id=randomUUID();data.charges[id]={microUsd,status:'reserved',...(pricing==='standard'?{pricingPolicy:STANDARD_BUDGET_POLICY,inputTokenCeiling:requestBytes+4096,outputTokenCeiling:maxOutputTokens}:{})};return id;
   });
  }
+ async halt():Promise<void>{await this.change(data=>{data.halted='unconfirmed-response-pricing';});}
  async reported(id:string,inputTokens:number,outputTokens:number,cache?:{cachedInputTokens?:number;cacheWriteInputTokens?:number}):Promise<void>{
   if(![inputTokens,outputTokens].every(n=>Number.isSafeInteger(n)&&n>=0))throw Error('Invalid provider usage; reservation retained');
   const cached=cache?.cachedInputTokens??0,written=cache?.cacheWriteInputTokens??0;
@@ -49,18 +59,23 @@ export class EvalBudget {
   await this.change(data=>{
    const charge=data.charges[id];if(!charge)throw Error('Missing budget reservation');
    if(charge.status==='reported')throw Error('Usage already settled');
-   const microUsd=inputTokens*INPUT_MICRO_USD+outputTokens*OUTPUT_MICRO_USD;
+   if(charge.pricingPolicy===STANDARD_BUDGET_POLICY&&(inputTokens>charge.inputTokenCeiling!||outputTokens>charge.outputTokenCeiling!))throw Error('Provider usage exceeds its token envelope; reservation retained');
+   // Unknown non-read input remains charged at the longest cache-write ceiling.
+   const microUsd=charge.pricingPolicy===STANDARD_BUDGET_POLICY
+    ?Math.ceil((inputTokens-cached)*5+cached/10+outputTokens*10)
+    :inputTokens*INPUT_MICRO_USD+outputTokens*OUTPUT_MICRO_USD;
    if(microUsd>charge.microUsd)throw Error('Provider usage exceeds its reservation; refusing settlement');
    // Dated Standard/global estimate only; never discounts the admission bound.
    // Rates per million: ordinary $2, cache reads $0.10, writes $2.50, output $10.
    const inputMultiplier=inputTokens>272000?2:1,outputMultiplier=inputTokens>272000?1.5:1;
    const estimate=Math.ceil(((inputTokens-cached-written)*20+cached+written*25)*inputMultiplier/10+outputTokens*10*outputMultiplier);
-   data.charges[id]={microUsd,status:'reported',inputTokens,outputTokens,...(cache?{cachedInputTokens:cached,cacheWriteInputTokens:written,estimatedStandardMicroUsd:estimate}:{})};
+   data.charges[id]={...charge,microUsd,status:'reported',inputTokens,outputTokens,...(cache?{cachedInputTokens:cached,cacheWriteInputTokens:written,estimatedStandardMicroUsd:estimate}:{})};
   });
  }
  async status(){
   const data=await this.read(),charges=Object.values(data.charges);
   return{limitUsd:data.limitMicroUsd/1e6,committedUpperBoundUsd:charges.reduce((n,c)=>n+c.microUsd,0)/1e6,
+   ...(data.halted?{halted:data.halted}:{}),
    pendingRequests:charges.filter(c=>c.status==='reserved').length,reportedRequests:charges.filter(c=>c.status==='reported').length,
    standardPriceEstimate:{policy:'sol-2026-11-11-standard-global',usd:charges.reduce((n,c)=>n+(c.estimatedStandardMicroUsd??0),0)/1e6,
     coveredRequests:charges.filter(c=>c.estimatedStandardMicroUsd!==undefined).length,

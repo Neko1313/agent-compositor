@@ -15,8 +15,8 @@ async function events(provider:Awaited<ReturnType<typeof evaluationProfile>>['pr
 it('routes through Responses with parent-only credentials and settles reported usage',async()=>{
  const fake=vi.fn(async(url,init)=>{
   expect(url).toBe('https://api.openai.com/v1/responses');expect(init.headers.authorization).toBe('Bearer test-only-key');expect(init.redirect).toBe('error');
-  expect(JSON.parse(init.body)).toMatchObject({model:'gpt-6.1-sol',store:false,max_output_tokens:128});
-  return new Response('data: {"type":"response.output_text.delta","delta":"READY"}\n\ndata: {"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":5,"input_tokens_details":{"cached_tokens":8,"cache_write_tokens":1}}}}\n\n');
+  expect(JSON.parse(init.body)).toMatchObject({model:'gpt-6.1-sol',store:false,max_output_tokens:128,service_tier:'default'});
+  return new Response('data: {"type":"response.output_text.delta","delta":"READY"}\n\ndata: {"type":"response.completed","response":{"service_tier":"default","usage":{"input_tokens":10,"output_tokens":5,"input_tokens_details":{"cached_tokens":8,"cache_write_tokens":1}}}}\n\n');
  });vi.stubGlobal('fetch',fake);
  const profile=await evaluationProfile('test',1),rows=await events(profile.provider);
  expect(rows).toContainEqual({type:'text_delta',text:'READY'});expect(fake).toHaveBeenCalledTimes(1);
@@ -39,4 +39,15 @@ it('retains the reservation for an interrupted stream without reported usage',as
 it('rejects an unpriced or substituted model rather than reusing this cost authorization',async()=>{
  await writeFile(join(root,'providers.json'),JSON.stringify({profiles:{test:{type:'openai-responses',baseUrl:'https://api.openai.com/v1',model:'other-model'}}}));
  await expect(evaluationProfile('test',1)).rejects.toThrow('gpt-6.1-sol');
+});
+it.each(['priority',undefined])('retains the reservation and stops further requests when actual tier is %s',async tier=>{
+ const fake=vi.fn(async()=>new Response('data: '+JSON.stringify({type:'response.completed',response:{service_tier:tier,usage:{input_tokens:10,output_tokens:5}}})+'\n\n'));vi.stubGlobal('fetch',fake);
+ const profile=await evaluationProfile('test',1),rows=await events(profile.provider);
+ expect(rows.at(-1)).toMatchObject({type:'finish',reason:'error'});expect((await profile.budget.status()).pendingRequests).toBe(1);
+ await events(profile.provider);const restarted=await evaluationProfile('test',1);await events(restarted.provider);expect(fake).toHaveBeenCalledTimes(1);expect(await profile.budget.status()).toMatchObject({pendingRequests:1,halted:'unconfirmed-response-pricing'});
+});
+it('checks tier metadata split across UTF-8 stream chunks before accepting usage',async()=>{
+ const payload='data: '+JSON.stringify({type:'response.completed',response:{service_tier:'default',usage:{input_tokens:10,output_tokens:5}}})+'\n\n';
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(new ReadableStream({start(controller){for(const byte of new TextEncoder().encode(payload))controller.enqueue(new Uint8Array([byte]));controller.close();}}))));
+ const profile=await evaluationProfile('test',1);await events(profile.provider);expect(await profile.budget.status()).toMatchObject({reportedRequests:1,pendingRequests:0});
 });

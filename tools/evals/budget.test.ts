@@ -53,3 +53,36 @@ it('retains reservations when cache details overlap or are invalid',async()=>{
  for(const cache of [{cachedInputTokens:60,cacheWriteInputTokens:50},{cachedInputTokens:-1},{cacheWriteInputTokens:NaN}])await expect(budget.reported(id,100,1,cache)).rejects.toThrow('Invalid cache');
  expect(await budget.status()).toEqual(before);
 });
+it('uses the explicitly selected Standard ceiling for new requests without repricing historical charges',async()=>{
+ const budget=new EvalBudget(file,'test','gpt-6.1-sol',1),old=await budget.reserve(10000,1000);
+ await budget.reported(old,10000,1000,{cachedInputTokens:8000,cacheWriteInputTokens:1000});
+ const before=JSON.parse(await (await import('node:fs/promises')).readFile(file,'utf8'));
+ const id=await budget.reserve(10000,1000,'standard');
+ expect((await budget.status()).committedUpperBoundUsd).toBe(.44048);
+ await budget.reported(id,10000,1000,{cachedInputTokens:8000,cacheWriteInputTokens:1000});
+ expect((await budget.status()).committedUpperBoundUsd).toBe(.3808);
+ const after=JSON.parse(await (await import('node:fs/promises')).readFile(file,'utf8'));
+ expect(after.charges[old]).toEqual(before.charges[old]);expect(after.limitMicroUsd).toBe(before.limitMicroUsd);
+ expect(after.charges[id].pricingPolicy).toBe('sol-standard-2026-11-12');
+});
+it('keeps unreported Standard attempts fully reserved across restarts',async()=>{
+ const budget=new EvalBudget(file,'test','gpt-6.1-sol',.1);await budget.reserve(10000,1000,'standard');
+ expect((await new EvalBudget(file,'test','gpt-6.1-sol',.1).status()).committedUpperBoundUsd).toBe(.08048);
+ await expect(budget.reserve(10000,1000,'standard')).rejects.toThrow('budget exhausted');
+});
+it('bounds Standard non-read input by the 12h write rate even without cache details',async()=>{
+ const budget=new EvalBudget(file,'test','gpt-6.1-sol',1),id=await budget.reserve(1000,100);
+ await budget.reported(id,1000,100);const before=(await budget.status()).committedUpperBoundUsd;
+ const fresh=await budget.reserve(1000,100,'standard');await budget.reported(fresh,1000,100);
+ expect((await budget.status()).committedUpperBoundUsd-before).toBeCloseTo(.006);
+});
+it('refuses Standard usage outside the reserved token envelope even when cached',async()=>{
+ const budget=new EvalBudget(file,'test','gpt-6.1-sol',1),id=await budget.reserve(10,100,'standard'),before=await budget.status();
+ await expect(budget.reported(id,300000,1,{cachedInputTokens:300000})).rejects.toThrow('token envelope');
+ await expect(budget.reported(id,1,101)).rejects.toThrow('token envelope');expect(await budget.status()).toEqual(before);
+});
+it('refuses unrecognized per-request pricing policies in a persisted ledger',async()=>{
+ const budget=new EvalBudget(file,'test','gpt-6.1-sol',1),id=await budget.reserve(1,1);
+ const fs=await import('node:fs/promises'),data=JSON.parse(await fs.readFile(file,'utf8'));data.charges[id].pricingPolicy='free';await fs.writeFile(file,JSON.stringify(data));
+ await expect(budget.reserve(1,1)).rejects.toThrow('corruption');
+});

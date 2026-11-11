@@ -1,6 +1,6 @@
 {
   "name": "mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "MCP client: expose stdio MCP servers' tools to the model through the mcp_call gateway. Servers come from AGENT_MCP_CONFIG (JSON, Claude-style mcpServers) or <cwd>/.agent-compositor/mcp.json.",
   "trust": "trusted",
   "capabilities": [
@@ -15,7 +15,9 @@
       }
     }
   ],
-  "hookTimeouts": {"ui.press": 300000},
+  "hookTimeouts": {
+    "ui.press": 300000
+  },
   "compositor": {
     "standard": 1,
     "apiVersion": 1

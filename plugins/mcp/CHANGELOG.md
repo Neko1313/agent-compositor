@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+<!-- plugin-release:auto:start -->
+- prepare plugin versions ([b7c7cfc](https://github.com/Neko1313/agent-compositor/commit/b7c7cfcf665d40a1f842875616e56fe5ea772da7))
+- manage plugins independently of active agent turns ([3dbe2c1](https://github.com/Neko1313/agent-compositor/commit/3dbe2c1c72c859ddf0b903477044d56455403350))
+- run guarded UI tools alongside agent turns ([2d4bedd](https://github.com/Neko1313/agent-compositor/commit/2d4bedd3f571e60bfc7b04e4346338e82565accf))
+- open declared plugin commands while agents work ([bf19d5f](https://github.com/Neko1313/agent-compositor/commit/bf19d5fbc77043cc580ed8e5b06da9e2939ad526))
+- keep interactive approvals alive through human input ([f57620a](https://github.com/Neko1313/agent-compositor/commit/f57620a7ee0ab07e9b7a2b296a976026af67427d))
+- honor output reserves and profile capacity ceilings ([6d3a267](https://github.com/Neko1313/agent-compositor/commit/6d3a267b10c5328c4fe6b96c82bdf61df5b640d1))
+<!-- plugin-release:auto:end -->
+
 ## 1.2.0
 
 <!-- plugin-release:auto:start -->

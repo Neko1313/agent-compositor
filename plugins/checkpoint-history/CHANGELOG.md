@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+
+<!-- plugin-release:auto:start -->
+- preserve interrupted output and clarify tool recovery ([1af72fb](https://github.com/Neko1313/agent-compositor/commit/1af72fb7b54e7e48cd2b72cfb76870c5e7f0bee8))
+<!-- plugin-release:auto:end -->
+
 ## 1.2.0
 
 <!-- plugin-release:auto:start -->

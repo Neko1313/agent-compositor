@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0
+
+<!-- plugin-release:auto:start -->
+- manage plugins independently of active agent turns ([3dbe2c1](https://github.com/Neko1313/agent-compositor/commit/3dbe2c1c72c859ddf0b903477044d56455403350))
+- reap owned subprocesses on cancellation and unload ([627a9b4](https://github.com/Neko1313/agent-compositor/commit/627a9b4f2b4189f549261067cb09490a8a22e4a6))
+- run guarded UI tools alongside agent turns ([2d4bedd](https://github.com/Neko1313/agent-compositor/commit/2d4bedd3f571e60bfc7b04e4346338e82565accf))
+- open declared plugin commands while agents work ([bf19d5f](https://github.com/Neko1313/agent-compositor/commit/bf19d5fbc77043cc580ed8e5b06da9e2939ad526))
+- honor output reserves and profile capacity ceilings ([6d3a267](https://github.com/Neko1313/agent-compositor/commit/6d3a267b10c5328c4fe6b96c82bdf61df5b640d1))
+<!-- plugin-release:auto:end -->
+
 ## 1.2.0
 
 <!-- plugin-release:auto:start -->

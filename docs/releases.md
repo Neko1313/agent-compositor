@@ -130,8 +130,10 @@ The v0.6.0 tag was not published: native smoke checks exposed a journal payload
 containing a live AbortSignal in a custom repository. Bun rejects cloning that
 capability. The corrected core serializes detached JSON records before the
 journal service chain, retaining fail-closed writes and live execution signals.
-The next candidate is v0.6.1; v0.6.0 stays immutable and is ignored by git-cliff so
-its unpublished feature/fix commits remain in the next release notes.
+The corrected release is [v0.6.1](https://github.com/Neko1313/agent-compositor/releases/tag/v0.6.1),
+which passed all four native build and installer smoke gates. v0.6.0 stays
+immutable and is ignored by git-cliff so its unpublished feature/fix commits
+appear in the v0.6.1 release notes.
 
 ## v0.1.1 dependency audit
 

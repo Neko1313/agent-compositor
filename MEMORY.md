@@ -1,5 +1,25 @@
 # Project memory
 
+## Verified v0.6.1 publication — 2026-11-11
+
+The user requested push and release of concurrent plugin management. Published
+host v0.6.1 as latest from b28983d6da6a82c34ac3fe338f7885c474796da0:
+https://github.com/Neko1313/agent-compositor/releases/tag/v0.6.1
+Release workflow 42957091632 passed quality, certification, all four Linux/macOS
+x64/arm64 native build/installer smoke jobs and publication. Main CI,
+documentation and plugin release preparation passed too. The generated plugin
+release PR remains subject to its normal review; no plugin tags were published.
+
+Verified non-draft/non-prerelease latest status, four platform archives,
+install.sh and SHA256SUMS. All listed checksums match GitHub asset digests.
+Downloaded the public Linux x64 archive and installer, checked their hashes,
+and ran the extracted binary: compositor 0.6.1. Publication evidence is saved
+under dist/release/v0.6.1-publication.json. All 855 local tests passed with three
+optional skips; typecheck, documentation and local native smoke passed.
+The unpublished v0.6.0 candidate stays immutable and is excluded from git-cliff
+release boundaries so these feature/fix commits appear in the v0.6.1 notes.
+
+
 ## Native release journal regression — 2026-11-11
 
 The requested host publication tagged v0.6.0, but native smoke gates correctly
@@ -16,8 +36,8 @@ it. A regression test checks detached JSON records while prompt preparation
 retains a live signal. All 855 tests pass with 3 optional skips; typecheck and
 a locally built native archive's full installer/kernel/custom-repository/resume
 smoke passed. v0.6.0 remains an immutable unpublished candidate. git-cliff ignores
-that tag so its changes remain in the v0.6.1 notes; the corrected candidate will
-run the complete native publication gates again.
+that tag so its changes remain in the v0.6.1 notes; the corrected v0.6.1 candidate passed
+the complete native publication gates.
 
 
 ## Concurrent plugin management UI — 2026-11-11

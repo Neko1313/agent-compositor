@@ -1,5 +1,18 @@
 # Project memory
 
+## Refreshed host 0.7.2 source verification — 2026-11-12
+
+Merged dependency metadata plus the permission-context regression and published
+CI-plugin evidence. Refreshed git-cliff0.7.2 notes include the origin repair.
+Full1115pass/3optional skips, docs/build, marketplace31entries and generators
+pass. Typecheck caught a fixture-only ToolResult shape error (missing data);
+corrected the new test to the declared result shape, reran all three affected
+core cases and typecheck successfully. The unpublished local test commit was
+amended before push and notes regenerated to the actual SHA2b25f78.
+No product semantics or earlier acceptance checks were weakened. Next certify
+this refreshed host source on all four platforms; the older successful14655ca
+build omits the origin repair. Keep the goal active; no host0.7.2 publication yet.
+
 ## Published CI review and merged context dependency metadata — 2026-11-12
 
 CI tagged run43107581688 succeeded source/four native packages/publication.

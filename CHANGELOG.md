@@ -7,6 +7,7 @@ All notable changes are generated from Conventional Commits with git-cliff.
 ### Documentation
 - Record verified v0.7.1 publication and public update ([1969092](https://github.com/Neko1313/agent-compositor/commit/1969092f63507db283bec52008555e58c7f9b1d4))
 - Record CI release failure and verified repairs ([b56268d](https://github.com/Neko1313/agent-compositor/commit/b56268dd69182afba44c576e5d4c925f3ba4f542))
+- Record authoring limits and release candidate evidence ([713a0e2](https://github.com/Neko1313/agent-compositor/commit/713a0e2e44c17e284de491c7891e053735cdb5db))
 
 
 ### Features
@@ -21,11 +22,13 @@ All notable changes are generated from Conventional Commits with git-cliff.
 - Exclude history predating a new plugin ([0e47abe](https://github.com/Neko1313/agent-compositor/commit/0e47abe2279d6f20a8fd290ffa033dc74152aef4))
 - Explain missing guarded edit snapshot hashes ([c31c430](https://github.com/Neko1313/agent-compositor/commit/c31c4307e62ff467b84b07507d5eb40e91ce9434))
 - Exclude plugin tags from host changelog ([8757290](https://github.com/Neko1313/agent-compositor/commit/875729067a8180012636046091603f66e09cfc46))
+- Preserve user tasks across harness feedback ([5cd6204](https://github.com/Neko1313/agent-compositor/commit/5cd620464809473925e0f56ce8947708882f39e8))
 
 
 ### Tests
 - Verify CI configuration while the agent works ([0b48eca](https://github.com/Neko1313/agent-compositor/commit/0b48eca9a8d276b58972262af4f53ee2d76e0fa0))
 - Wait for the matching CI refresh response ([b87356a](https://github.com/Neko1313/agent-compositor/commit/b87356a13141048af7d16e826caa47342269b302))
+- Verify permission task after harness feedback ([2b25f78](https://github.com/Neko1313/agent-compositor/commit/2b25f78638eded769bb3d74cb6e2b143d5604576))
 
 ## v0.7.1 - 2026-11-11
 

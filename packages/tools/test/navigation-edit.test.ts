@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile, rm, mkdir, symlink } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { editTool, registerDefaultResolvers, UndoStore, queryProject, projectFiles, type ToolContext } from '../src/index.js';
+import { readTool, editTool, registerDefaultResolvers, UndoStore, queryProject, projectFiles, type ToolContext } from '../src/index.js';
 const roots: string[] = [];
 afterEach(async () => { for (const p of roots.splice(0))
     await rm(p, { recursive: true, force: true }); });
@@ -11,6 +11,22 @@ async function temp() { const p = await mkdtemp(join(tmpdir(), 'navigation-edit-
 function context(cwd: string): ToolContext { const handlers = new Map<string, (p: any) => Promise<any>>(); registerDefaultResolvers({ on: (s, h) => { handlers.set(s, h); } }, { root: cwd }); return { cwd, signal: new AbortController().signal, undo: new UndoStore(), request: async (s, p) => handlers.get(s)!(p) }; }
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 describe('guarded exact editing', () => {
+    it.each(['replace','insert'] as const)('explains a missing hash for a guarded %s and recovers with the read anchor', async mode => {
+        const cwd = await temp(), ctx = context(cwd), text = 'export const sum = (a: number, b: number) => a - b;\n';
+        await writeFile(join(cwd, 'sum.ts'), text);
+        const read = await readTool.execute(ctx, { path: 'sum.ts' });
+        if (!read.ok || !read.data.edit) throw Error('A real read must supply an edit anchor');
+        const anchor = read.data.edit;
+        const args = { ...anchor, range: mode === 'insert' ? { start: 0, end: 0 } : anchor.range, oldText: mode === 'insert' ? '' : 'a - b', newText: mode === 'insert' ? '// header\n' : 'a + b' };
+        const missing = await editTool.execute(ctx, { ...args, expectedHash: undefined });
+        expect(missing).toMatchObject({ ok: false, error: expect.stringMatching(/expectedHash/) });
+        if (!missing.ok) expect(missing.error).toMatch(/read/);
+        expect(await readFile(join(cwd, 'sum.ts'), 'utf8')).toBe(text);
+        expect(ctx.undo.pop()).toBeUndefined();
+        expect((await editTool.execute(ctx, args)).ok).toBe(true);
+        expect(await readFile(join(cwd, 'sum.ts'), 'utf8')).toBe(mode === 'insert' ? '// header\n' + text : text.replace('a - b', 'a + b'));
+    });
+
     it('edits only the selected duplicate block and records a guarded inverse without leaking it in output', async () => {
         const cwd = await temp(), ctx = context(cwd), text = '// 👻 café\r\nfunction first(){ return 1; }\r\nfunction second(){ return 1; }\r\n';
         await writeFile(join(cwd, 'code.ts'), text);

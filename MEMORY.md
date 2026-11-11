@@ -1,5 +1,32 @@
 # Project memory
 
+## Missing snapshot hash now has an actionable edit diagnostic — 2026-11-12
+
+The failed Qwen edit at ca84b9e supplied valid range offsets but omitted
+expectedHash. The resolver grouped this with invalid offsets; the model then
+reread and repeated the same omission. Two new real read→edit regressions fail
+before the repair: guarded replacement reports 'invalid guarded range', and
+insertion wrongly points only to oldText. The resolver now rejects a missing
+hash before that ambiguity and asks for the complete fresh read/read_symbol
+anchor. It never invents a hash, discards a range, or relaxes stale/offset checks.
+Both cases verify no write/undo entry before rejection, then succeed with the
+actual read anchor and preserve all other bytes. Existing stale/concurrent/
+out-of-range/symlink/undo checks remain unchanged. Tool parameter descriptions
+now name ordinary read anchors as well as read_symbol and state the hash/range
+dependency. Canonical agent-features documents this recovery.
+
+All9 navigation-edit tests pass; full1110 pass with3optional skips, typecheck,
+event/reference generators and docs check/build pass. Generators have no drift.
+No paid requests were made; reviewed budget remains49.434704,408reported/two
+pending. Next run the unchanged local stock-harness cases at the committed
+revision to inspect actual recovery rather than assume better model quality.
+
+PR4 refreshed to f44f6b4 on0e47abe. Reviewed diff confirms that the old275523f
+packaging/index note is gone from new CI-review's changelog; only its457b7e7
+introduction remains. The PR also prepares Callix1.3.2/catalog1.0.5 as expected.
+It is not merged yet: the incoming tools-source change needs normal preparation
+and exact source checks before immutable candidate certification.
+
 ## Silent-response live replay and first-release history review — 2026-11-12
 
 Committed/pushed ca84b9e integrates the Compositor-authored empty-response fix.

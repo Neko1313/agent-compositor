@@ -200,6 +200,7 @@ interface EditPayload {
 
 async function editFile(payload: unknown): Promise<unknown> {
   const p = payload as EditPayload;
+  if(p.range&&!p.expectedHash)throw Error('edit: guarded range requires expectedHash. Copy the complete edit anchor (path, expectedHash, range, strict) from read/read_symbol; re-read if the snapshot may have changed.');
   if (!p.oldText && !(p.expectedHash && p.range && p.range.start===p.range.end)) throw new Error("edit: oldText must be non-empty outside a guarded insertion");
   const content = await fs.readFile(p.path, "utf8");
 
@@ -207,7 +208,7 @@ async function editFile(payload: unknown): Promise<unknown> {
     if(!/^[a-f0-9]{64}$/.test(p.expectedHash)||createHash('sha256').update(content).digest('hex')!==p.expectedHash)throw Error('edit: stale file snapshot; read the symbol/file again before editing');
   }
   if(p.range){
-    if(!p.expectedHash||!Number.isSafeInteger(p.range.start)||!Number.isSafeInteger(p.range.end)||p.range.start<0||p.range.end<p.range.start||p.range.end>content.length)throw Error('edit: invalid guarded range');
+    if(!Number.isSafeInteger(p.range.start)||!Number.isSafeInteger(p.range.end)||p.range.start<0||p.range.end<p.range.start||p.range.end>content.length)throw Error('edit: invalid guarded range');
     const chunk=content.slice(p.range.start,p.range.end),count=p.oldText?countOccurrences(chunk,p.oldText):1;
     if(!p.oldText&&chunk)throw Error('edit: insertion requires an empty guarded range');
     if(!count||(!p.replaceAll&&count!==1))throw Error('edit: text is missing or ambiguous inside the selected range');

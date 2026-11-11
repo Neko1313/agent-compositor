@@ -399,6 +399,14 @@ and materialized Harness² `toolguide.md` remain ways to tune general behavior.
 The default policy favors narrow read/search, guarded edits, bounded delegation,
 minimal polling and stopping equivalent retries after a permission denial.
 
+A guarded `edit` must preserve the complete anchor returned by `read` or
+`code_query read_symbol`: `path`, `expectedHash`, `range` and `strict`. A missing
+hash is reported separately from invalid offsets, including for insertions;
+copy the complete fresh anchor before retrying. The runtime never fills in a
+hash or drops the range automatically. Stale hashes still require a new read,
+and rejected edits do not change the file or add an undo entry. See
+[semantic navigation and edit anchors](../plugins/callix/README.md#precise-navigation-and-guarded-edits).
+
 Auto review remains opt-in (`/auto on`) with a dedicated profile in `auto.json`.
 Ephemeral children inherit the parent's enabled mode and shared review budget;
 turning it off stops subsequent inherited approvals. Review responses may be a

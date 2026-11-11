@@ -329,6 +329,14 @@ password fixture is private and must never appear in visible cells, model contex
 or ordinary plugin events/logs. Screenshots verify masking; deterministic privacy
 cases additionally inspect the receiver and excluded channels.
 
+For a Git-reviewing candidate, `VISUAL_GIT_FIXTURE=1` seeds the isolated PTY
+project with a real local Git repository, one commit, and distinct staged and
+working changes in `review.txt`. It requires Git on PATH, ignores global/system
+Git configuration, and uses no remote. With `VISUAL_CERT_PLUGIN`, this fixture
+explicitly allows the fixed read-only `git_review` tool; it is a test grant, not
+a production permission default. `VISUAL_PLUGIN_DIR` still selects and verifies
+the exact candidate directory.
+
 The marketplace scenario also holds a scripted model turn while real terminal
 mouse/keyboard input opens Plugins, searches a catalog, installs and enables a
 package and queues reload. It verifies application after interruption, then

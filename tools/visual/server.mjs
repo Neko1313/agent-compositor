@@ -19,6 +19,17 @@ if(process.env.VISUAL_PERFORMANCE)await writeFile(join(output,'terminal.events.j
 await mkdir(join(cwd, 'plugins'));
 for (const name of ['todos', 'slash-commands', 'ui-theme']) await cp(join(root, 'plugins', name), join(cwd, 'plugins', name), { recursive: true });
 await mkdir(join(cwd, '.agent-compositor'));
+if(process.env.VISUAL_GIT_FIXTURE){
+  const git=(...args)=>{
+    const result=Bun.spawnSync(['git',...args],{cwd,env:{PATH:process.env.PATH,HOME:workspaceHome,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}});
+    if(result.exitCode!==0)throw Error('Git fixture failed: '+result.stderr.toString());
+  };
+  git('-c','init.defaultBranch=main','init');
+  await writeFile(join(cwd,'review.txt'),'Original content\n');git('add','review.txt');
+  git('-c','user.name=Visual fixture','-c','user.email=fixture@example.test','commit','-m','Initial fixture');
+  await writeFile(join(cwd,'review.txt'),'STAGED_REVIEW_EVIDENCE\n');git('add','review.txt');
+  await writeFile(join(cwd,'review.txt'),'WORKING_REVIEW_EVIDENCE\n');
+}
 await writeFile(join(cwd, '.agent-compositor/todos.json'), JSON.stringify([
   { content: 'Inspect project', status: 'pending' }, { content: 'Build interactive UI', status: 'pending' },
   { content: 'Verify drag and persistence', status: 'pending' },
@@ -62,7 +73,7 @@ if(!process.env.VISUAL_MARKETPLACE){
 }
 if(process.env.VISUAL_CERT_PLUGIN){
  const name=process.env.VISUAL_CERT_PLUGIN;
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager'],compaction:{enabled:false}}));
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager'],compaction:{enabled:false},...(process.env.VISUAL_GIT_FIXTURE?{permissions:{rules:[{tool:'git_review',decision:'allow'}]}}:{})}));
  if(name==='cost')await writeFile(join(cwd,'.agent-compositor/usage-visual-certification.json'),JSON.stringify({in:42,out:7,turns:1}));
  if(name==='workflows')for(const [id,label]of [['a'.repeat(40),'WORKFLOW_ALPHA'],['b'.repeat(40),'WORKFLOW_BETA']]){const dir=join(cwd,'.agent-compositor/workflows',id);await mkdir(dir,{recursive:true});await writeFile(join(dir,'journal.json'),JSON.stringify([{prompt:label,result:'Verified journal evidence'}]));}
  if(name==='checkpoint-history'){

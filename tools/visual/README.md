@@ -414,4 +414,6 @@ terminal output. Screenshot capture waits for an xterm render event and browser
 paint frames, and retains a companion text snapshot. Pending/cancelled captures
 also assert their expected terminal state before and after the screenshot so a
 previous painted frame cannot silently stand in for the requested state.
+Cancellation waits for both the error and removal of the panel's busy state;
+the conversation's earlier tool-error event alone does not acknowledge cleanup.
 These checks do not establish live GitHub network reliability.

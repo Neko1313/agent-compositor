@@ -99,7 +99,11 @@ try{
    let pid=0;for(let i=0;i<200&&!pid;i++){pid=Number(await readFile(join(fixture.cwd,'ci-worker.pid'),'utf8').catch(()=>''));if(!pid)await new Promise(done=>setTimeout(done,10));}
    assert.ok(pid>0,'A real gh fixture subprocess must start');return pid;
   }
-  const pid=await slow();await shot('01-ci-running',{includes:['CI operation in progress','Cancel','CI_AGENT_WORKING','CI_FIXTURE_FAILED #5']});await clickText('Cancel');await wait('CI review cancelled.');assert.throws(()=>process.kill(pid,0));await working();assert.ok(!(await text()).includes('CI operation in progress'),'Settled cancellation must remove the busy status');await shot('01-ci-cancelled',{includes:['CI review cancelled.','CI_AGENT_WORKING'],excludes:['CI operation in progress']});
+  const pid=await slow();await shot('01-ci-running',{includes:['CI operation in progress','Cancel','CI_AGENT_WORKING','CI_FIXTURE_FAILED #5']});await clickText('Cancel');
+  // The conversation receives the tool error before the panel's finally view.
+  // Cancellation is settled only after the pending panel state disappears.
+  await page.waitForFunction(()=>visual.text().includes('CI review cancelled.')&&!visual.text().includes('CI operation in progress'));
+  assert.throws(()=>process.kill(pid,0));await working();assert.ok(!(await text()).includes('CI operation in progress'),'Settled cancellation must remove the busy status');await shot('01-ci-cancelled',{includes:['CI review cancelled.','CI_AGENT_WORKING'],excludes:['CI operation in progress']});
   const closed=await slow();await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh runs'));
   for(let i=0;i<200;i++){try{process.kill(closed,0);}catch{break;}await new Promise(done=>setTimeout(done,10));}assert.throws(()=>process.kill(closed,0));await working();await rm(join(fixture.cwd,'.ci-slow'));
   const calls=(await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));assert.equal(calls.length,7);assert.ok(calls.every(args=>args.at(-2)==='--repo'&&args.at(-1)==='fixture/repo'));assert.equal(calls[4][calls[4].indexOf('--limit')+1],'3','The next request must use the concurrently saved limit');

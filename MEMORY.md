@@ -26,6 +26,16 @@ OpenAI budget and broader1.0 gates remain unchanged/open. Saved proxy was alread
 enabled for model/tools; verified OpenAI unauthenticated401, GitHub200 and gh
 through explicit child proxy environment, with no secrets printed/paid calls.
 
+The refreshed candidate43121490546 exposed a second acknowledgment race on
+Linuxx64: the conversation tool-error appeared before the panel's finally view,
+so the immediate busy-removal assertion ran too soon. Failed job130863290036
+logs and diagnostics are retained under dist/ci-progress-paint-{after,linux-failure}.
+The failure screenshot shows the pending panel alongside the earlier conversation
+error. Kept the assertion/process/main-agent checks and now await both the error
+and absent panel busy state; no timeout increase or blind rerun. Local actual
+PTY verification repeated in dist/ci-progress-cancel-settlement. Recertify the
+resulting exact commit; neither4e nor e35 artifacts authorize publication yet.
+
 ## Real previous-release transitions are mandatory per native archive — 2026-11-12
 
 d998964 pushed the Compositor-authored busy row and its frozen progress tests.

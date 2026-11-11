@@ -112,21 +112,34 @@ describe('index freshness and ownership', () => {
         await expect(query({cwd,action:'symbols',settings:{executable,maxOutputBytes:1024},refresh:true})).rejects.toThrow(/1024 bytes.*maxTokens does not change/);
     },20000);
     it('keeps concurrent build deadlines independent while sharing completed graphs',async()=>{
-        const cwd=await temp(),executable=await fake(cwd,graph([]),300);
-        const short=indexProject(cwd,true,undefined,{settings:{executable,timeoutMs:100}});
+        const cwd=await temp();await mkdir(join(cwd,'.agent-compositor'));
+        const executable=join(cwd,'.agent-compositor/controlled.mjs'),release=join(cwd,'.agent-compositor/release');
+        await writeFile(executable,`#!/usr/bin/env node\nimport{appendFileSync,existsSync}from'node:fs';appendFileSync('.agent-compositor/calls','1\\n');const timer=setInterval(()=>{if(existsSync('.agent-compositor/release')){clearInterval(timer);console.log(${JSON.stringify(JSON.stringify(graph([])))});}},5);`,{mode:0o700});
+        let longSettled=false;
         const long=indexProject(cwd,true,undefined,{settings:{executable,timeoutMs:2000}});
-        const results=await Promise.allSettled([short,long]);
-        expect(results[0]).toMatchObject({status:'rejected',reason:expect.any(Error)});
-        expect(results[1]).toMatchObject({status:'fulfilled',value:{graph:{nodes:[]}}});
-        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n1\n');
+        const outcome=long.then(value=>{longSettled=true;return {value};},error=>{longSettled=true;return {error};});
+        try{
+            await vi.waitFor(async()=>expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n'));
+            await expect(indexProject(cwd,true,undefined,{settings:{executable,timeoutMs:100}})).rejects.toThrow(/exceeded/);
+            expect(longSettled).toBe(false);
+            await writeFile(release,'');
+            const result=await outcome;if('error' in result)throw result.error;
+            expect(result.value).toMatchObject({graph:{nodes:[]}});
+            const calls=await readFile(join(cwd,'.agent-compositor/calls'),'utf8');
+            expect(await indexProject(cwd,false,undefined,{settings:{executable,timeoutMs:100}})).toBe(result.value);
+            expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe(calls);
+        }finally{await writeFile(release,'');await outcome;}
     });
     it('reports missing executables and retains an indexing failure without retrying it from status',async()=>{
         const cwd=await temp();
         expect(await query({cwd,action:'status',settings:{executable:join(cwd,'missing')}})).toMatchObject({available:false,state:'unavailable'});
         const executable=await fake(cwd,graph([]),1000),options={cwd,settings:{executable,timeoutMs:150}};
         await expect(query({...options,action:'symbols'})).rejects.toThrow(/exceeded/);
+        // A deadline may expire before the child reaches its first JS statement.
+        const calls=()=>readFile(join(cwd,'.agent-compositor/calls'),'utf8').catch(error=>{if(error.code==='ENOENT')return '';throw error;});
+        const before=await calls();
         expect(await query({...options,action:'status'})).toMatchObject({available:true,state:'error',error:expect.stringContaining('exceeded')});
-        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n');
+        expect(await calls()).toBe(before);
     });
     it('uses one timeout across source-change retries',async()=>{
         const cwd=await temp();await mkdir(join(cwd,'.agent-compositor'));

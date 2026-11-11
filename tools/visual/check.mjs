@@ -247,6 +247,29 @@ try {
   await page.keyboard.press("Backspace");
   await page.keyboard.press("Backspace");
   await waitText("Describe your task");
+  for (const value of ['😀', '👩🏽‍💻', 'e\u0301', '🇯🇵']) {
+    await page.keyboard.insertText('A' + value + 'B');
+    await waitText('A' + value + 'B');
+    if (value === '👩🏽‍💻') {
+      await page.evaluate(() => visual.terminal.resize(48, 18));
+      await waitText('A' + value + 'B');
+      await screenshot('11-unicode-narrow.png');
+      await page.evaluate(() => visual.terminal.resize(100, 30));
+      await page.waitForFunction(() => visual.text().split('\n')[28]?.includes('[1]'));
+    }
+    await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('Delete');await page.keyboard.insertText('C');
+    await page.keyboard.press('ArrowRight');await page.keyboard.insertText('D');
+    await waitText('› ACBD');
+    for (let n = 0; n < 4; n++) await page.keyboard.press('Backspace');
+    await waitText('Describe your task');
+    await page.keyboard.insertText('A' + value);await waitText('A' + value);
+    await page.keyboard.press('Backspace');
+    await page.waitForFunction(() => visual.text().split('\n').some(line => /› A▏?\s*│/.test(line)));
+    await page.keyboard.press('Backspace');await waitText('Describe your task');
+  }
+  await screenshot('11-unicode-edited.png');
+  report.checks.push('Arrow keys, Delete and Backspace edit whole emoji, ZWJ, flag and combining-mark graphemes; Unicode drafts survive a narrow terminal');
   await page.keyboard.type("Plan the change");
   await page.keyboard.press("Control+j");
   await page.keyboard.type("Then verify it");

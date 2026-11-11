@@ -301,3 +301,14 @@ it('keeps hover feedback without Pointer capability (GNOME/VTE fallback)',()=>{
   expect(messages.filter(m=>m.type==='pointer')).toHaveLength(count);
   expect(ui.windows.focused).toBe('input');ui.close();
 });
+
+describe('Unicode draft editing',()=>{
+  it.each(['😀','👩🏽‍💻','e\u0301','🇯🇵'])('removes the complete grapheme %s with Backspace',async value=>{
+    const {ui,text,key,provider}=setup();
+    try{text('A'+value);key('backspace');text('B');key('enter');await ui.settled();expect(provider.requests[0].messages[0].content).toBe('AB');}finally{ui.close();}
+  });
+  it.each(['😀','👩🏽‍💻','e\u0301','🇯🇵'])('moves across and deletes the complete grapheme %s',async value=>{
+    const {ui,text,key,provider}=setup();
+    try{text('A'+value+'B');key('left');key('left');key('delete');text('C');key('right');text('D');key('enter');await ui.settled();expect(provider.requests[0].messages[0].content).toBe('ACBD');}finally{ui.close();}
+  });
+});

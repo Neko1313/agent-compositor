@@ -43,6 +43,16 @@ import {
 } from "./presentation.js";
 import { QuestionDialog, type QuestionRequest } from "./question.js";
 
+// Keep public cursor offsets in UTF-16 while editing whole visible graphemes.
+const draftSegments = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+function previousDraftBoundary(text: string, cursor: number): number {
+  return draftSegments.segment(text).containing(Math.max(0, cursor - 1))?.index ?? 0;
+}
+function nextDraftBoundary(text: string, cursor: number): number {
+  const segment = draftSegments.segment(text).containing(cursor);
+  return segment ? segment.index + segment.segment.length : text.length;
+}
+
 type MouseInput = Extract<
   Extract<WireMessage, { type: "input" }>["data"],
   { kind: "mouse" }
@@ -1154,18 +1164,19 @@ export class AppUI {
     } else if (data.key === "pageup") this.offset += this.rows;
     else if (data.key === "pagedown")
       this.offset = Math.max(0, this.offset - this.rows);
-    else if (data.key === "left") this.cursor = Math.max(0, this.cursor - 1);
+    else if (data.key === "left") this.cursor = previousDraftBoundary(this.draft, this.cursor);
     else if (data.key === "right")
-      this.cursor = Math.min(this.draft.length, this.cursor + 1);
+      this.cursor = nextDraftBoundary(this.draft, this.cursor);
     else if (data.key === "home") this.cursor = 0;
     else if (data.key === "end") this.cursor = this.draft.length;
     else if (data.key === "backspace" && this.cursor > 0) {
+      const previous = previousDraftBoundary(this.draft, this.cursor);
       this.draft =
-        this.draft.slice(0, this.cursor - 1) + this.draft.slice(this.cursor);
-      this.cursor--;
+        this.draft.slice(0, previous) + this.draft.slice(this.cursor);
+      this.cursor = previous;
     } else if (data.key === "delete")
       this.draft =
-        this.draft.slice(0, this.cursor) + this.draft.slice(this.cursor + 1);
+        this.draft.slice(0, this.cursor) + this.draft.slice(nextDraftBoundary(this.draft, this.cursor));
     else if (
       (data.key === "enter" || data.key === "tab") &&
       this.draft.trim()

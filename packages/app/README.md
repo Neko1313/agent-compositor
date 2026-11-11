@@ -82,7 +82,10 @@ to the agent state. Resizing reflows the visible conversation.
 
 - Enter submits a message or queues it while the agent is working.
 - Tab injects a steering message at the next model step.
-- Left/Right, Home/End, Backspace/Delete edit the input.
+- Left/Right, Home/End, Backspace/Delete edit the input. The default message
+  editor moves over and removes complete Unicode graphemes, including emoji
+  sequences, flags and combining accents. Public editor cursor offsets remain
+  UTF-16 indices.
 - PageUp/PageDown scroll the conversation.
 - Y/N answers tool permission requests (once per call).
 - Ctrl+C interrupts work; when idle it exits.

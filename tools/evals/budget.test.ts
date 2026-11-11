@@ -40,3 +40,16 @@ it('rejects unbounded requests without creating a charge',async()=>{
  await expect(budget.reserve(200001,1)).rejects.toThrow('bounded');await expect(budget.reserve(1,8193)).rejects.toThrow('bounded');
  expect((await budget.status()).committedUpperBoundUsd).toBe(0);
 });
+it('records a separate cache-aware Standard estimate without refunding the conservative bound',async()=>{
+ const budget=new EvalBudget(file,'test','gpt-6.1-sol',50),id=await budget.reserve(10000,1000);
+ await budget.reported(id,10000,1000,{cachedInputTokens:8000,cacheWriteInputTokens:1000});
+ const state=await budget.status();expect(state.committedUpperBoundUsd).toBe(.36);
+ expect(state.standardPriceEstimate).toMatchObject({usd:.0153,coveredRequests:1,unavailableRequests:0});
+ const second=await budget.reserve(100,200);await budget.reported(second,50,10);
+ expect((await budget.status()).standardPriceEstimate.unavailableRequests).toBe(1);
+});
+it('retains reservations when cache details overlap or are invalid',async()=>{
+ const budget=new EvalBudget(file,'test','gpt-6.1-sol',1),id=await budget.reserve(100,200),before=await budget.status();
+ for(const cache of [{cachedInputTokens:60,cacheWriteInputTokens:50},{cachedInputTokens:-1},{cacheWriteInputTokens:NaN}])await expect(budget.reported(id,100,1,cache)).rejects.toThrow('Invalid cache');
+ expect(await budget.status()).toEqual(before);
+});

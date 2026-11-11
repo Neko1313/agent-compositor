@@ -93,6 +93,18 @@ pending/reported request counts, not an asserted billed cost. Pricing changes
 require a new reviewed policy. See [official model pricing](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
 and [processing tiers](https://developers.openai.com/api/docs/pricing).
 
+New reported requests also retain cached-input and cache-write counts and expose
+`standardPriceEstimate`: a dated Standard/global estimate at $2/M ordinary input,
+$0.10/M cached input, $2.50/M cache writes and $10/M output. Long-context
+multipliers are included if applicable. This estimate never discounts or resets
+the conservative admission balance. `coveredRequests` and `unavailableRequests`
+make partial historical coverage explicit: old charges without cache details are
+not retroactively repriced. Missing cache counts are treated as zero; unknown
+usage retains its reservation and contributes no reported estimate. Processing
+tiers, regional premiums, negotiated pricing and unrelated account usage can
+make the actual invoice differ. See the official
+[cache accounting formula](https://developers.openai.com/api/docs/guides/prompt-caching).
+
 ## Artifact and verification grading
 
 Verification grading excludes user-operation calls/results carrying

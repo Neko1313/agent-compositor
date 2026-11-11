@@ -16,11 +16,12 @@ it('routes through Responses with parent-only credentials and settles reported u
  const fake=vi.fn(async(url,init)=>{
   expect(url).toBe('https://api.openai.com/v1/responses');expect(init.headers.authorization).toBe('Bearer test-only-key');expect(init.redirect).toBe('error');
   expect(JSON.parse(init.body)).toMatchObject({model:'gpt-6.1-sol',store:false,max_output_tokens:128});
-  return new Response('data: {"type":"response.output_text.delta","delta":"READY"}\n\ndata: {"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":5}}}\n\n');
+  return new Response('data: {"type":"response.output_text.delta","delta":"READY"}\n\ndata: {"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":5,"input_tokens_details":{"cached_tokens":8,"cache_write_tokens":1}}}}\n\n');
  });vi.stubGlobal('fetch',fake);
  const profile=await evaluationProfile('test',1),rows=await events(profile.provider);
  expect(rows).toContainEqual({type:'text_delta',text:'READY'});expect(fake).toHaveBeenCalledTimes(1);
  expect(await profile.budget.status()).toMatchObject({reportedRequests:1,pendingRequests:0});
+ expect((await profile.budget.status()).standardPriceEstimate).toMatchObject({usd:.000056,coveredRequests:1,unavailableRequests:0});
  expect(JSON.stringify(rows)).not.toContain('test-only-key');
 });
 it('refuses an unaffordable completion before the HTTP request',async()=>{

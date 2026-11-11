@@ -27,7 +27,7 @@ export async function evaluationProfile(name:string,maxUsd:number):Promise<{mode
   const native=new NativeProvider({type:'openai-responses',baseUrl:profile.baseUrl,model:profile.model,apiKey,
    timeoutMs:profile.timeoutMs??120000,maxOutputTokens:8192,retries:0,reasoningEffort:profile.reasoningEffort,fetch:boundedFetch});
   for await(const event of native.complete({...request,model:profile.model,maxOutputTokens:Math.min(request.maxOutputTokens??profile.maxOutputTokens??8192,8192)})){
-   if(event.type==='usage'&&reservation)await budget.reported(reservation,event.inputTokens,event.outputTokens);
+   if(event.type==='usage'&&reservation)await budget.reported(reservation,event.inputTokens,event.outputTokens,{cachedInputTokens:event.cachedInputTokens,cacheWriteInputTokens:event.cacheWriteInputTokens});
    yield event;
   }
  }};

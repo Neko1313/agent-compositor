@@ -104,8 +104,27 @@ failed a PTY synchronization assertion, so publication was skipped. The scenario
 now waits for the specific refresh response to render before issuing another
 request; its previous process-start/old-result predicate could accept stale UI.
 The corrected real PTY flow and full local source certification pass at 8757290.
-New native candidate certification and independent publication remain required.
+The corrected [14655ca candidate](https://github.com/Neko1313/agent-compositor/actions/runs/43106650734)
+passed source and all four native archives, with five certificates and 131
+evidence files independently verified. The failed unpublished tag was moved to
+that certified revision after checking release absence; the subsequent
+[tagged verification and publication](https://github.com/Neko1313/agent-compositor/actions/runs/43107581688)
+passed. [CI review 0.1.0](https://github.com/Neko1313/agent-compositor/releases/tag/plugin/ci-review/v0.1.0)
+is published independently. A public Linux x64 download through the saved proxy
+passed checksum verification, inactive installation, explicit activation, `/ci`
+without a model request and disable. This supplements native archive checks; it
+does not establish public installation on every user's machine.
 This repair is not part of immutable v0.7.1.
+
+Further actual-core regressions exposed task-reference replacement by host
+completion/recovery feedback during compaction. An explicit harness-origin
+marker now keeps those messages as working context while preserving the actual
+user task for summaries and permission review; real steering still changes the
+task. This includes literal user text beginning with the harness's wording.
+One oversized message can be folded when it is the only remaining middle entry,
+subject to the existing reduction/failure guards. Automatic-compaction, replay
+and permission-context regressions pass. This source repair remains separate
+from the published host and requires a new exact-candidate release check.
 
 Local Qwen3 1.7B CPU diagnostics at 0b48eca used three fixed small tasks with
 two repeats each. Default thinking passed 4/6 strict cases; explicit

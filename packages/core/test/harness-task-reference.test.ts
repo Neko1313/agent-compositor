@@ -24,3 +24,14 @@ it.each(['verification','recovery'] as const)('preserves the actual task when %s
   expect(effects).toBe(mode==='recovery'?3:0);
  }finally{await core.close();}
 });
+
+it('reviews a tool against the actual task after completion feedback without compaction',async()=>{
+ const task='Inspect CI evidence without changing the repository.';let reviewedTask:unknown,checks=0,effects=0;
+ const provider=new ScriptedProvider([{text:'Intermediate response.'},{toolCalls:[{name:'inspect',args:{}}]},{text:'Evidence inspected.'}]);
+ const core=new AgentCore({cwd:process.cwd(),provider,tools:[{name:'inspect',description:'Read controlled evidence',parameters:{type:'object'},describe:()=>({tool:'inspect',readOnly:true}),execute:async()=>{effects++;return{ok:true,data:{evidence:'CI result'}};}}],rules:[{tool:'inspect',decision:'ask'}]});
+ core.host.registerPlugin({name:'task-review-fixture',version:'1.0.0',trust:'trusted'},{
+  'service.agent.finish':()=>({value:++checks===1?{complete:false,continue:'Inspect the requested evidence first.'}:{complete:true}}),
+  'service.permission.review':(input)=>{reviewedTask=input.context.task;return{value:{decision:'allow',risk:'low',reason:'Controlled read-only fixture'}};},
+ });
+ try{await core.submit(task);expect(core.failure).toBeUndefined();expect(reviewedTask).toBe(task);expect(effects).toBe(1);}finally{await core.close();}
+});

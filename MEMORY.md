@@ -1,5 +1,56 @@
 # Project memory
 
+## Published CI review and merged context dependency metadata — 2026-11-12
+
+CI tagged run43107581688 succeeded source/four native packages/publication.
+Release plugin/ci-review/v0.1.0 is public, draft=false, published2026-11-11T22:01:45Z,
+bound to14655ca. Ten public assets include four archives/sidecars, certification
+tar and marketplace entry. Never move this now-published tag. Public Linuxx64
+installation through saved NetworkClient proxy verified entry/sidecar checksum,
+normal archive installation, inactive discovery, explicit extension_control
+activation/reload, /ci with zero model requests, disable/reload. Report:
+dist/ci-review-public-install/report.json. Its first diagnostic script assumed
+an incorrect artifacts field; inspected published source.assets and corrected
+the script before the actual successful installation, not product/schema code.
+Temporary installation/home cleaned and network closed; no real GitHub CLI calls.
+
+PR5 exact8f934d2 dispatched CI43107613013 bothNode22/26 passed; docs43107617001
+passed. Independent generation matched all five changed file bytes. Merged via
+connector with expected head, result8d578d7efc2ff68deee1f4f7dbde67ebc254c918,
+then fast-forwarded local main. Callix1.3.3/catalog1.0.6 are generated metadata.
+The added permission-context regression is tested separately; prior full suite
+1114pass/3skip predates this one extra test. Prepare refreshed0.7.2 notes and
+exact native candidate including5cd6204 before publishing any host tag.
+
+## CI plugin publication retry and metadata review — 2026-11-12
+
+5cd6204 is pushed. Additional actual-core permission-review regression confirms
+the original task is supplied after finish feedback without compaction; it passes
+alongside both automatic-compaction cases. No further public behavior changes.
+
+Verified gh release view returned exactly 'release not found' before moving the
+failed unpublished plugin/ci-review/v0.1.0 tag fromfbd69d6 to the fully certified
+14655ca. Compared remote peeled revision and used force-with-lease against its
+exact old annotated-tag object6671a65; replacement objecte436f79. No published
+tag or existing release was moved. Tagged run43107581688 independently passed
+source and Linuxx64/ARM64/macARM archives on last poll; macIntel still npmci.
+Inspect this same run and release state; publication is not yet established.
+
+Earlier host build-only43106643838 at14655ca finished all four native smoke jobs
+successfully, publication intentionally skipped. It lacks the new origin fix and
+must not be used to claim that fix is released. Host0.7.2 tag still absent.
+
+Generated PR5 head8f934d2 (base5cd6204) prepares only Callix1.3.3/catalog1.0.6,
+matching bundled context inputs. All five changed file bytes were independently
+regenerated in isolated worktree/tmp/compositor-metadata-pr5-NDEeSA with workspace
+dependency links retargeted there. Receipt:
+dist/plugin-metadata-pr5/generated-tree-integrity.json. Initial root node_modules
+symlink was correctly rejected as untracked by clean-checkout preparation;
+replaced it with an actual ignored directory and dependency links before success.
+PR docs dispatched43107617001 passed; CI43107613013 Node22passed,Node26still
+certifying all plugins on last poll. PR-triggered duplicates action_required;
+use the explicit exact-head dispatch results. Do not merge until checks complete.
+
 ## Harness feedback must not replace the user's task — 2026-11-12
 
 Two new actual-core regressions reproduced task-reference replacement after

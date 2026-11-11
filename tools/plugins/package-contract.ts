@@ -66,6 +66,11 @@ export async function probe(app:BuiltApp,name:string,existingCore?:ReturnType<Bu
   const file=join(app.storage.paths.project,'plan.txt');await rm(file,{force:true});await core.submit('/plan');
   assert.equal((await core.invokeTool('write',{path:file,content:'denied'})).ok,false);await assert.rejects(readFile(file));
   await core.submit('/plan');assert.equal((await core.invokeTool('write',{path:file,content:'allowed'})).ok,true);assert.equal(await readFile(file,'utf8'),'allowed');
+ }else if(name==='project-checks'){
+  await writeFile(join(app.storage.paths.project,'package.json'),JSON.stringify({scripts:{check:'node -e "console.log(123)"'}}));
+  const listed=await core.invokeTool('project_check',{action:'list'});assert.equal(listed.ok,true,listed.error??'Discovery failed');assert.equal((listed.output as any).scripts[0].name,'check');
+  const result=await core.invokeTool('project_check',{action:'run',name:'check'});assert.equal(result.ok,true,result.error??'Check failed');assert.match((result.output as any).stdout,/123/);
+  await core.submit('/checks');assert.ok(events.some(e=>e.event==='ui.surface'&&e.input.title==='Project checks'));
  }else if(name==='git-review'){
   await exec('git',['init'],{cwd:app.storage.paths.project});
   await writeFile(join(app.storage.paths.project,'git-review-evidence.txt'),'Read-only package lifecycle');

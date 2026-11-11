@@ -5,7 +5,7 @@ import {mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const name=process.argv[2],output=resolve(process.env.VISUAL_OUTPUT??'dist/plugin-visual/'+name);await mkdir(output,{recursive:true});
 const report={plugin:name,ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
-const entries={'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto status','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
+const entries={'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto status','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
 assert.ok(entries[name],'Unknown UI profile');
 try{
  const{NO_COLOR,...env}=process.env;
@@ -61,6 +61,31 @@ try{
   await command('Continue after review');await wait('GIT_AGENT_DONE');
   report.checks.push('user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup');
 
+ }else if(name==='project-checks'){
+  await clickText('Refresh scripts');await wait('Run check');
+  await clickText('Run check');await wait('passed (exit 0)');await wait('PROJECT_CHECK_OUTPUT');await shot('01-check-pass');
+  await clickText('Run fail');await wait('failed (exit 7)');await wait('PROJECT_CHECK_FAILURE');await shot('01-check-fail');
+  await clickText('Configure limits');await wait('Configure project checks');await page.keyboard.press('Control+a');await page.keyboard.type('2000');
+  await page.keyboard.press('Tab');await page.keyboard.press('Control+a');await page.keyboard.type('2000');
+  await page.keyboard.press('Tab');await page.keyboard.press('ArrowRight');await wait('All projects');await clickText('[ Save ]');await wait('Settings saved');await wait('timeoutMs 2000');
+  await clickText('Configure limits');await wait('Configure project checks');await wait('2000');await shot('01-check-settings');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure project checks'));await wait('Settings saved');
+  await command('Work while I run checks');await wait('CHECK_AGENT_WORKING');await command('/checks');await wait('Refresh scripts');
+  await clickText('Run check');await wait('PROJECT_CHECK_OUTPUT');
+  assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'The main model remains active during a check');
+  const fixture=JSON.parse(await readFile(join(output,'fixture-identity.json'),'utf8'));
+  async function slow(){
+   await rm(join(fixture.cwd,'check-worker.pid'),{force:true});await clickText('Run slow');await wait('Cancel run');
+   let pid=0;for(let i=0;i<200&&!pid;i++){pid=Number(await readFile(join(fixture.cwd,'check-worker.pid'),'utf8').catch(()=>''));if(!pid)await new Promise(done=>setTimeout(done,10));}
+   assert.ok(pid>0,'A real npm child must start');return pid;
+  }
+  const pid=await slow();await shot('01-check-running');await clickText('Cancel run');await wait('cancelled');assert.throws(()=>process.kill(pid,0));
+  assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'Check cancellation leaves the main model running');
+  const closedPid=await slow();await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh scripts'));
+  for(let i=0;i<200;i++){try{process.kill(closedPid,0);}catch{break;}await new Promise(done=>setTimeout(done,10));}
+  assert.throws(()=>process.kill(closedPid,0));assert.ok(!(await text()).includes('Refresh scripts'),'Settlement must not reopen the panel');
+  await command('/checks');await wait('Refresh scripts');await shot('01-check-cancelled');
+  await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');await command('Continue after checks');await wait('CHECK_AGENT_DONE');
+  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup','user-tool.close-cleanup');
  }else if(name==='auto-approve'){
   await wait('Mode: manual');await command('/auto on');await wait('Mode: auto');await clickText('Disable auto');await wait('Mode: manual');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
  }else if(name==='mcp'){
@@ -78,13 +103,13 @@ try{
  await shot('02-interacted');
  await clickText('›');await page.keyboard.type('Draft survives terminal resize');await wait('Draft survives terminal resize');
  await page.evaluate(()=>visual.terminal.resize(60,24));await wait('Draft survives terminal resize');await wait(entries[name][1]);await shot('03-narrow');
- await page.evaluate(()=>visual.terminal.resize(100,30));await wait('Draft survives terminal resize');for(const _ of 'Draft survives terminal resize')await page.keyboard.press('Backspace');await page.waitForFunction(()=>!visual.text().includes('Draft survives terminal resize'));
+ await page.evaluate(()=>visual.terminal.resize(100,30));await wait('Draft survives terminal resize');for(const _ of 'Draft survives terminal resize')await page.keyboard.press('Backspace');await wait('Describe your task');
  report.checks.push('view.narrow');
  if(name!=='mascot'&&name!=='ui-theme'){await closePane(entries[name][1]);await command(entries[name][0]);await wait(entries[name][1]);}else if(name==='mascot'){await command('/mascot off');await page.waitForFunction(()=>!visual.text().includes('Message ·'));await command('/mascot on');await wait('Message ·');}
  report.checks.push('ui.cancel');
  if(name==='network-proxy'){await command('/proxy configure');await wait('Configure network proxy');}
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(g=>visual.generation>g,generation);await wait('›');await command(entries[name][0]);await wait(entries[name][1]);
- if(name==='git-review'){await wait('Choose an action');await clickText('Configure output');await wait('Configure Git review');await wait('8000');await page.keyboard.press('Escape');}if(name==='auto-approve')await wait('Mode: manual');if(name==='todos')await wait('Inspect project');if(name==='cost')await wait('42 input');if(name==='network-proxy')await wait('127.0.0.1:7890');
+ if(name==='project-checks'){await wait('Refresh scripts');await clickText('Configure limits');await wait('Configure project checks');await wait('2000');await page.keyboard.press('Escape');}if(name==='git-review'){await wait('Choose an action');await clickText('Configure output');await wait('Configure Git review');await wait('8000');await page.keyboard.press('Escape');}if(name==='auto-approve')await wait('Mode: manual');if(name==='todos')await wait('Inspect project');if(name==='cost')await wait('42 input');if(name==='network-proxy')await wait('127.0.0.1:7890');
  await shot('04-restarted');report.checks.push('ui.restart');assert.equal(report.errors.length,0);report.ok=true;
 }catch(error){report.errors.push(String(error));await page?.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
 finally{await browser?.close();if(server&&server.exitCode===null){const end=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await end;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

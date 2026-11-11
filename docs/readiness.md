@@ -86,6 +86,14 @@ exercise interruption/resume, context pressure, parallel agents and plugin
 creation as complete development workflows. Use failures in those runs to drive
 runtime and tool changes, and verify those changes against unchanged criteria.
 
+A second authoring episode produced the [Project checks](../plugins/project-checks/README.md)
+plugin through Compositor. Its unchanged six-test acceptance suite and five
+agent-added regressions passed, but the turn ended at the conservative USD guard
+before a final response. Independent review found and corrected metadata bounds,
+settings scope leakage, command usage, cancellation placement and hook-expiry
+cleanup. The original candidate and traces remain separate from the reviewed
+integration. This does not satisfy the completed autonomous authoring gate.
+
 Git review adds a concrete tool/panel/configuration workflow and exposed a host
 subprocess cancellation leak, now covered by real process-group tests. The next
 runtime work adds concurrent guarded UI tool execution with separate operation

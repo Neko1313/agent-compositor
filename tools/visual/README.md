@@ -361,3 +361,14 @@ used. No live model or credentials are involved.
 At 48×18 it also opens management with Alt+o / Alt+,, checks the compact pending
 question, expands it with a mouse click before answering, and verifies that
 later keyboard navigation preserves an unsent message draft.
+
+### Project checks panel
+
+`node tools/visual/plugin-check.mjs project-checks` runs the real Ink panel in an
+isolated npm project. It discovers scripts, runs passing/failing checks, saves
+output/timeout limits globally and verifies them after restart. A held scripted
+model stays active while checks run; cancellation and panel Close must reap the
+real npm child without completing the main turn. The scenario also checks draft
+preservation during terminal resize and reopening the panel. Input goes through
+xterm keyboard/mouse events. `VISUAL_PLUGIN_DIR` selects the exact source or
+unpacked archive; `fixture-identity.json` records which copy was loaded.

@@ -261,6 +261,15 @@
       }
     },
     {
+      "name": "project-checks",
+      "source": "./plugins/project-checks",
+      "description": "Discover and run guarded local npm script checks from a tool or panel.",
+      "version": "0.1.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
       "name": "portable-example",
       "source": "./examples/plugins/portable-example",
       "description": "Portable namespaced command example for Claude Code and Agent Compositor.",

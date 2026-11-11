@@ -1,5 +1,60 @@
 # Project memory
 
+## Self-authored Project checks candidate and review — 2026-11-12
+
+The active 1.0 scope includes useful missing plugins developed through Compositor
+and complete convenient UI flows while the main agent works. Project checks is
+a second concrete authoring episode: discover local npm scripts, run an exact
+existing name through guarded owned exec, configure scoped output/time limits,
+and use the same tool from the model or an independent human panel.
+
+Original authoring evidence is preserved under
+dist/selfhost-project-checks-20261112/. The isolated checkout based on 6d3a267 is
+/tmp/compositor-project-checks-eoa0w24h/repo; detached snapshot 0e1356a preserves
+the original artifact and frozen acceptance suite. The six frozen tests were red
+before implementation and passed unchanged afterward; five agent-added tests
+and typecheck also passed. The turn then failed at the conservative evaluation
+USD request-admission guard before a final response. Do not count this as a
+completed autonomous plugin delivery or certification. The runner's agent.maxTokens
+key was unsupported; effective episode bounds were the 26-step limit, context
+settings and persistent USD guard, not a claimed 140000-token limit. Original
+ignored test copies now use .snapshot suffixes to preserve their bytes without
+Vitest accidentally collecting evidence files as repository suites.
+
+Independent review reproduced four defects before corrections: unbounded script
+metadata, copying merged project settings into global scope, silent invalid UI
+command arguments and Cancel buried below the script list. The reviewed source
+also replaces stale success output with running status and clears active state
+after the initiating hook expires, using a retained trusted cleanup capability.
+The model's lightweight hook mock now implements that public capability. Five
+review cases include actual app boundaries and hook-expiry recovery. Tool help
+now supplies schema-shaped discovery/run examples. Catalog initial version is
+0.1.0; existing plugin versions are unchanged. Full standard source/archive
+lifecycle, domain, mutation, persistence and PTY scenarios are bound in its plan.
+
+982 repository tests pass with three optional skips; typecheck and the 100-page
+docs check/build pass. Real PTY evidence in dist/project-checks-review-pty-4/
+passes keyboard/mouse, actual npm success/failure, global settings and restart,
+held-agent concurrency, cancel and Close process reaping, narrow layout and draft
+preservation. Screenshots were inspected. Earlier PTY attempts exposed an input
+synchronization error in the bench: it proceeded after deleting one draft
+character. The bench now waits for the empty prompt placeholder before closing
+a pane. No host input fix was justified by that evidence.
+
+The persistent guard remains $48.58032 for 240 reported requests with no pending
+requests. This is an intentionally pessimistic bound, not an invoice. The user
+reported only about $2 actual spend due to cache at the earlier checkpoint. The
+separate Standard/global estimate covers only 74 recent requests ($0.630362),
+with 166 historical requests unavailable; aggregate cache-write counts cannot
+distinguish retention pricing. No paid requests were made during this independent
+review, no ledger reset occurred and the $50 authorization remains unchanged.
+All further integration/certification work here uses free scripted/local checks.
+All 29 native plugins pass PR certification against the unchanged reviewed source
+snapshot; report reports/certification/summary-pr.json. The previous 6d3a267 CI
+failed before npm/tests while Ubuntu package hosts failed DNS resolution; failed
+jobs were rerun. Its documentation and plugin preparation workflows passed.
+Broader models, sustained development and native platform publication remain open.
+
 ## Output reserves and profile-specific capacity — 2026-11-12
 
 The previous live traces exposed unset main maxOutputTokens for an injected

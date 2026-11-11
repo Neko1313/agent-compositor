@@ -81,7 +81,12 @@ if(!process.env.VISUAL_MARKETPLACE){
 }
 if(process.env.VISUAL_CERT_PLUGIN){
  const name=process.env.VISUAL_CERT_PLUGIN;
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager',...(process.env.VISUAL_GIT_FIXTURE?['git-review-delay']:[])],compaction:{enabled:false},...(process.env.VISUAL_GIT_FIXTURE?{permissions:{rules:[{tool:'git_review',decision:'allow'}]}}:{})}));
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager',...(process.env.VISUAL_GIT_FIXTURE?['git-review-delay']:[])],compaction:{enabled:false},...(['git-review','project-checks'].includes(name)?{permissions:{rules:[{tool:name==='git-review'?'git_review':'project_check',decision:'allow'}]}}:{})}));
+ if(name==='project-checks')await writeFile(join(cwd,'package.json'),JSON.stringify({scripts:{
+  check:'node -e '+JSON.stringify('console.log("PROJECT_CHECK_OUTPUT")'),
+  fail:'node -e '+JSON.stringify('console.error("PROJECT_CHECK_FAILURE");process.exit(7)'),
+  slow:'node -e '+JSON.stringify('require("node:fs").writeFileSync("check-worker.pid",String(process.pid));setInterval(()=>{},1000)'),
+ }}));
  if(name==='cost')await writeFile(join(cwd,'.agent-compositor/usage-visual-certification.json'),JSON.stringify({in:42,out:7,turns:1}));
  if(name==='workflows')for(const [id,label]of [['a'.repeat(40),'WORKFLOW_ALPHA'],['b'.repeat(40),'WORKFLOW_BETA']]){const dir=join(cwd,'.agent-compositor/workflows',id);await mkdir(dir,{recursive:true});await writeFile(join(dir,'journal.json'),JSON.stringify([{prompt:label,result:'Verified journal evidence'}]));}
  if(name==='checkpoint-history'){

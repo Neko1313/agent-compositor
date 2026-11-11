@@ -1,0 +1,10 @@
+{
+  "name": "project-checks",
+  "version": "0.1.0",
+  "description": "Discover and run guarded local npm script checks from a tool or panel.",
+  "trust": "trusted",
+  "compositor": { "standard": 1, "apiVersion": 1 },
+  "main": "hooks.ts",
+  "commands": [{ "name": "/checks", "description": "Open Project checks", "ui": { "site": "main" } }],
+  "hookTimeouts": { "ui.press": 300000 }
+}

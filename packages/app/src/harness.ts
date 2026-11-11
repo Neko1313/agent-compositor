@@ -58,6 +58,8 @@ export function harnessControls(storage: ProjectStorage, config: Record<string, 
             'service.agent.finish': async (e: any) => {
                 if (config.verifyCompletion === false)
                     return { value: { complete: true } };
+                if (!e.text.trim())
+                    return { value: { complete: false, continue: 'Your final response was empty or blank. Provide a useful answer to the user based on the conversation and any tool results, including concrete results or blockers. Do not repeat completed tool work just to produce a final response.' } };
                 const workflowStates=new Map<string,string>();
             for(const t of e.tools)if(t.ok&&t.name==='workflow_run'&&t.output?.id)workflowStates.set(t.output.id,t.output.status);
             if([...workflowStates.values()].some(s=>s==='running'||s==='paused')&&!e.text.includes('[workflow running]'))return{value:{complete:false,continue:'A workflow is still running or paused. Inspect it with workflow_run status (waitMs is available), resolve failures, and verify results before claiming completion. If handing ongoing background work back to the user, state that it is unfinished and include [workflow running].'}};

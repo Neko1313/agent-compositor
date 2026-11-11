@@ -43,7 +43,7 @@ describe('multiple attached projects',()=>{
   });
 
   it.each(['user','agent'] as const)('preserves %s origin for references queued behind another turn',async source=>{
-    const f=await fixture({},[{hold:true},{text:'Queued turn completed'}]);
+    const f=await fixture({},[{text:'First turn completed',hold:true},{text:'Queued turn completed'}]);
     const running=f.core.submit('Hold the first turn',source==='user'?'agent':'user');
     await vi.waitFor(()=>expect(f.provider.requests).toHaveLength(1));
     await f.core.submit('Inspect @"~/other project/hello.txt"',source);

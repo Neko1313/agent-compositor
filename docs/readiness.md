@@ -95,6 +95,25 @@ GitHub CLI requests through the saved proxy also pass with zero model requests.
 Four-platform installed-archive certification and publication are still pending.
 This repair is not part of immutable v0.7.1.
 
+Local Qwen3 1.7B CPU diagnostics at 0b48eca used three fixed small tasks with
+two repeats each. Default thinking passed 4/6 strict cases; explicit
+`reasoning_effort: none` passed 2/6, both with minimal instructions and with the
+stock agent harness. All protected fixtures survived. Preemptive refusal of the
+known forbidden write was safe but did not exercise the rubric's actual host
+denial requirement. The edit cases exposed output-limit stops, an unnecessary
+rewrite that lost a trailing newline, and empty successful-looking final turns.
+These are controlled small-model diagnostics, not autonomous development or a
+broad model-family quality result.
+
+A fresh Sol bug-fix run through Compositor then repaired empty final responses
+in the replaceable finish policy: the existing two bounded continuations ask
+for a useful answer, then fail if the model remains silent. Disabled verification
+and replacement policies remain supported. Six model steps/requests completed
+with the frozen five-case acceptance suite and typecheck passing independently;
+all 732 protected files survived. The integrated change passes 1106 maintained
+tests with three optional skips. Live replay and remote release certification
+remain separate; this is another known development case, not 1.0 completion.
+
 Git review revision
 [c98b3ce](https://github.com/Neko1313/agent-compositor/commit/c98b3cee4a47f2f61930287c5a8d8d45c23b3ba3)
 passed [full source and four native installed-archive certification](https://github.com/Neko1313/agent-compositor/actions/runs/43067043375).

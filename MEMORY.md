@@ -1,5 +1,86 @@
 # Project memory
 
+## Local Qwen diagnostics and Compositor-authored empty-response repair — 2026-11-12
+
+0b48eca passed exact local source release and installed Linux x64 archive
+certification with 74 verified evidence references, matching source/workspace/
+plan identity and archive sidecar/embedded metadata. Archive SHA256:
+483c93b69a6689c97e7bbbe2d0913179c6e98e74681ca45554ff101e61340d6a.
+Receipt: dist/ci-review-live/local-certification-0b48eca-integrity.json. New
+concurrent-settings and cancellation archive screenshots were inspected.
+The prior457b7e7 certificates were copied to dist/ci-review-457b7e7-certification
+before reports were replaced; their archive was later rebuilt for0b48eca.
+
+Prepared an isolated local Ollama server and Qwen3 1.7B Q4_K_M cache under ignored
+dist/local-qwen-eval/models, separate from the user's11434 service/cloud stubs.
+NVML reports a driver/library mismatch; no driver/service configuration changed.
+Runtime /api/ps confirms CPU (sizeVram0), context8192, roughly2.43GB loaded size.
+The public model tensor is1359279776bytes; all five OCI layers were verified by
+size/SHA256 before use and independently rehashed at evaluator startup. Ordinary
+Ollama pulls failed with EOF. A bounded four-worker Range downloader reused the
+219679665-byte verified-download prefix and verified the assembled full hash.
+Private proxy values stayed parent/server-environment-only and were not logged.
+
+The first download supervisor was intentionally stopped before inference after
+review found that injected provider requests would retain the host's default
+cloud model name. Explicit local AGENT_MODEL and a pre-transport model guard now
+refuse that route. Both owned PIDs3154161/3154186 were confirmed gone; no model
+request occurred. Two subsequent ordinary pulls terminated with EOF and cleaned
+up their owned server. Direct proxy manifest/Range probes passed. These setup
+failures are not model task failures. Signed URLs/credentials were not printed.
+
+All three diagnostic configurations use byte-identical frozen cases and grader
+source SHA256 f4d5db8847a07400658d8c21c707fe662312582a871cf8d3fe43eec9b776c446.
+Real-app scripted preflight proves absent behavior fails and known correct
+behavior passes before inference. Three tasks, two repeats each: exact evidence
+read, arithmetic-only edit preserving other bytes, and actual policy-denied
+write without bypass. Local-only route, output768/request, six requests/case,
+8192 estimated context guard, two CPU threads, seed17 and no paid API requests.
+Default thinking scored4/6 with10requests; none scored2/6 with12requests; none
+plus stock agent-harness scored2/6 with10requests. All protected fixtures survived.
+Preemptive refusal in none mode is safe but fails the stricter actual-tool-denial
+criterion; do not describe it as a permission bypass. Edits hit the default
+output cap or were unfinished; one none attempt edited correctly then rewrote
+the file without its trailing newline. Empty final turns were falsely quiet
+successes. None mode is faster in these runs but is not a universal quality win.
+Evidence: dist/local-qwen-eval{,-none,-coding-harness}/ and
+all-comparison-integrity.json. This is a small development diagnostic matrix,
+not full model independence or an unseen model-quality benchmark.
+
+Used real Compositor/Sol to repair the empty final-response policy from a fresh
+source0b48eca checkout. Five frozen acceptance cases: whitespace recovery,
+post-read empty recovery without repeating the read, bounded failure without
+turn.complete, disabled verification and replacement policy. Baseline3fail/2pass,
+strict baseline types pass; a separate validation clone passes5/5 before live
+execution. Only packages/app/src/harness.ts writable. The live run completed in
+six steps/requests,27.374s, no compactions; checks and final response delivered.
+Independent5/5 + typecheck pass, all732 protected files and oracle bytes intact.
+Evidence: dist/selfhost-empty-finish/{execution,context,preservation}.json and
+trajectory.jsonl. This is a completed known-task bug fix, not fresh plugin delivery.
+
+Integrated the authored two-line finish guard and unchanged oracle. The default
+agent-harness uses existing shared two completion continuations, step/token and
+permission limits; it does not auto-repeat tools. Explicit verifyCompletion:false
+and replacement completion services keep their behavior. Updated three unrelated
+scripted fixtures to give actual final text rather than accidentally empty
+stops; their routing/origin assertions and request-count expectations remain.
+1106 tests pass, three optional skips; typecheck and docs check/build pass.
+Canonical agent-features documents the behavior. No generator contract changed.
+The stale docs/evals claim that remote CI had never run was replaced with an
+explicit reference to source-bound readiness evidence.
+
+Budget now reviewed49.434704/raw53.536584,408reported/two pending, originalUSD50
+unchanged; no pending reservation released. Local model runs cost no API calls.
+Current remote0b48eca CI43096012116/docs43096012200/preparation43096012092 remain
+queued with no jobs. Six attempts to cancel older superseded runs were rejected
+with 'Cannot cancel a workflow run that is completed', while GET still reports
+queued; do not claim those runs were cancelled or terminal. A cache-bypassed
+read through the saved proxy confirms latest preparation still queued. PR4 still
+has oldb27eef8 head and must be refreshed before review/native candidate dispatch.
+Next: live stock-harness replay of the silent-response repair, exact committed
+checks, refreshed metadata review and four-platform native certification. All
+broad1.0/model/self-development/long-running gates remain open.
+
 ## CI package checkpoint and concurrent configuration proof — 2026-11-12
 
 Source integration 457b7e7 was pushed, followed by 8e0050b adding the missing

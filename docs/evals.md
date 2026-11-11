@@ -48,8 +48,10 @@ deterministic eval and Bun proxy smoke checks. Reports are retained as artifacts
 Tests use Vitest 5 and require Node >=22.19.0. CI runs typechecking and the
 coverage suite on the minimum Node 22.19.0 and primary Node 26; the deterministic
 evals, proxy smoke checks and generated-artifact checks run once on Node 26.
-Local commands match CI. Cloud credentials are unnecessary for CI. The GitHub Actions workflow itself was not
-run remotely during this work.
+Local commands match CI. Cloud credentials are unnecessary for CI. Exact
+remote source revisions and retained workflow results belong in the
+[readiness evidence](readiness.md); local output alone does not establish that
+a remote workflow passed.
 
 Held `ScriptedProvider` steps register their release before emitting events, so a
 consumer may call `release()` while handling the first text/tool event. Release

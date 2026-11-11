@@ -13,7 +13,7 @@ async function fixture(git=true,decision='allow'){
  const run=(...args:string[])=>execFileSync('git',args,{cwd,env:{PATH:process.env.PATH,HOME:home,LANG:'C.UTF-8',GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'},encoding:'utf8',stdio:['ignore','pipe','pipe']});
  if(git){run('init');run('config','user.email','fixture@example.test');run('config','user.name','Fixture');await writeFile(join(cwd,'tracked.txt'),'original\n');run('add','tracked.txt');run('commit','-m','Initial fixture');}
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false,skills:false},permissions:{rules:[{tool:'extension_control',decision:'allow'},{tool:'git_review',decision}]}}));
- const provider=new ScriptedProvider([]);
+ const provider=new ScriptedProvider([{text:'Unrelated input reached the model.'}]);
  const app=await buildApp({cwd,env:{HOME:home},provider,agentHub:false,pluginDirs:[resolve('plugins/git-review')]});apps.push(app);
  const core=app.createCore(async()=>false);
  const enabled=await core.invokeTool('extension_control',{action:'enable',name:'git-review',scope:'project'});expect(enabled.ok,enabled.error).toBe(true);

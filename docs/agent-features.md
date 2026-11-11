@@ -277,8 +277,12 @@ current conversation and saved plan. Subagents inherit project instructions and
 have separate plans and fresh context budgets.
 
 Before accepting a final answer, `service.agent.finish` can request a concrete
-continuation. The default refuses to finish a current plan with pending/running
-items. For planned edits it requests a successful verification command (exit 0),
+continuation. The default asks for a useful final answer when the model stops
+with empty or whitespace-only text, including after tool execution. Repeated
+empty replies fail after the existing two completion continuations; normal
+step/token limits and tool permissions still apply. This reminder does not
+repeat a completed tool automatically. The default also refuses to finish a
+current plan with pending/running items. For planned edits it requests a successful verification command (exit 0),
 or an explicit `[verification unavailable]` / `[checks not applicable]` report.
 `agent.verifyCompletion=true` extends that reminder to unplanned file edits;
 `false` disables the default checker. A started workflow must be inspected, or

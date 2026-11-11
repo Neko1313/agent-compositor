@@ -146,6 +146,8 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
       stdin: mouse?.input ?? stdin,
       ...(opts.stdout ? { stdout: opts.stdout } : {}),
       ...(opts.stderr ? { stderr: opts.stderr } : {}),
+      // A real terminal stays interactive even with inherited CI flags.
+      interactive: Boolean((stdout as NodeJS.WriteStream).isTTY),
       onRender: () => {graphics.paint(store.state);pendingTextPaint=false;},
       maxFps: 60,
       incrementalRendering: true,

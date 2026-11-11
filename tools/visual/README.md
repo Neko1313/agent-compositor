@@ -19,6 +19,11 @@ installation may require `npx playwright install --with-deps chromium` on
 minimal Linux hosts. An existing compatible Chromium can be selected with
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/absolute/path/to/chrome`.
 
+Run `CI=1 npm run visual:check` to exercise the same real PTY with inherited CI
+flags. The fixture preserves them: interactive output must appear before exit,
+just as it does outside CI. Renderer regressions separately check that piped
+output remains static.
+
 For manual inspection:
 
 ```sh

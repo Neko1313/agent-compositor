@@ -1,5 +1,39 @@
 # Project memory
 
+## Live TTY repaint with inherited CI flags — 2026-11-12
+
+The browser preparation repair 74438b2 passed exact main CI 43062715844 and docs
+43062715919. New Project checks / Git review candidate runs 43062758790 and
+43062769066 successfully installed and launched locked Chromium 158 without apt.
+Both then failed only terminal-flow; all other source certification cases passed.
+The retained failure PNG shows a blank terminal, ANSI contains only initial
+control probes, and no user interactions occurred. Failed certificates and traces
+are retained under dist/plugin-candidate-20261112/*-74438b2-failed/.
+
+A local CI=1 real-PTY run reproduced the identical blank first frame. Ink's
+import-time CI detection defaults even a TTY to noninteractive mode and emits
+only the final frame at unmount. The renderer now explicitly selects interactive
+mode from stdout.isTTY. This preserves live terminal output under inherited CI /
+CONTINUOUS_INTEGRATION without clearing those variables, and retains static final
+frames for redirected renderer output. No scenario timeout or expectation changed.
+
+Fresh-process regressions initialize Ink with both CI flags and verify a frame
+before a held source exits, plus final-only output through a pipe. The first
+fails against the old renderer while the pipe case passes. Both now pass.
+Complete real Project checks and Git review PTY flows also pass under CI=1,
+including concurrent tool work/cancel, real subprocess cleanup, keyboard/mouse,
+narrow layout and restart. Broad visual:check passes under the same flags.
+Evidence is retained in dist/plugin-candidate-20261112/ci-{pty,git-review,broad}-after/;
+ci-pty-before retains the failed reproduction. Narrow/running Project checks and
+the broad independent-agent screenshots were inspected. Local browser checks use
+the documented compatible Chromium override; remote certificates remain separate.
+
+1043 tests pass with three optional skips; typecheck and the 100-page docs
+check/build pass. Canonical renderer/bench docs explain TTY vs redirected output.
+No event, CLI or plugin metadata inputs changed; no generated files or plugin
+versions were edited. The repaired runtime still needs exact-source remote
+certification on all four native platforms. Broader 1.0 gates remain open.
+
 ## Plugin certification browser preparation repair — 2026-11-12
 
 The previous goal turn made concrete progress: 6f18153 introduced immutable-source

@@ -69,7 +69,7 @@ export class Casebook {
  async run(ids?:string[]){
   // A group shares one real oracle; execute each unique assertion body once, record all requirements it proves.
   const selected=ids??[...this.checks.keys()],executed=new Set<Check>();
-  for(const id of selected){const check=this.checks.get(id);assert.ok(check,'Missing oracle '+this.fixture.name+' '+id);if(!executed.has(check)){this.fixture.views=[];this.fixture.notices=[];this.fixture.appearances=[];this.fixture.models=[];if(process.env.BEHAVIOR_TRACE)process.stderr.write(this.fixture.name+" "+id+"\n");await check();executed.add(check);}this.observations.push({requirement:id,passed:true});}
+  for(const id of selected){const check=this.checks.get(id);assert.ok(check,'Missing oracle '+this.fixture.name+' '+id);if(!executed.has(check)){this.fixture.views=[];this.fixture.notices=[];this.fixture.appearances=[];this.fixture.models=[];if(process.env.BEHAVIOR_TRACE)process.stderr.write(this.fixture.name+" "+id+"\n");try{await check();}catch(error){throw new Error(this.fixture.name+' '+id+' failed: '+String(error),{cause:error});}executed.add(check);}this.observations.push({requirement:id,passed:true});}
   return this.observations;
  }
 }

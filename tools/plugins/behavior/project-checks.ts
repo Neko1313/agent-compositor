@@ -48,7 +48,7 @@ export function projectChecks(f:Fixture,b:Casebook){
  });
  const processCheck=async(mode:'timeout'|'cancel'|'unload')=>{
   await prepare();const pidFile=join(f.root,'child-pids.json'),worker=join(f.root,'slow-check.cjs');await rm(pidFile,{force:true});
-  await writeFile(worker,`const child=require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});require('node:fs').writeFileSync(${JSON.stringify(pidFile)},JSON.stringify([process.pid,child.pid]));setInterval(()=>{},1000);`);
+  await writeFile(worker,`const child=require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});const fs=require('node:fs'),pidFile=${JSON.stringify(pidFile)};fs.writeFileSync(pidFile+'.tmp',JSON.stringify([process.pid,child.pid]));fs.renameSync(pidFile+'.tmp',pidFile);setInterval(()=>{},1000);`);
   f.host.registerPlugin({name:'dependency-control',version:'1.0.0',trust:'trusted'},{'service.exec.run':(e,$)=>$.next({...e,cmd:process.execPath,args:[worker],timeoutMs:mode==='timeout'?500:10000})});
   let ids:number[]=[];
   try{

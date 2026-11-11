@@ -2,6 +2,19 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.6.0 - 2026-11-11
+
+### Documentation
+- Record verified v0.5.1 publication ([71397f8](https://github.com/Neko1313/agent-compositor/commit/71397f88e1eabd995c3eba6173ee9307f470d37c))
+
+
+### Features
+- Manage plugins independently of active agent turns ([3dbe2c1](https://github.com/Neko1313/agent-compositor/commit/3dbe2c1c72c859ddf0b903477044d56455403350))
+
+
+### Fixes
+- Stop on journal failures and repair interrupted replay ([f8740c7](https://github.com/Neko1313/agent-compositor/commit/f8740c75fe1548743941844fc37a5f7895479348))
+
 ## v0.5.1 - 2026-11-11
 
 ### Documentation

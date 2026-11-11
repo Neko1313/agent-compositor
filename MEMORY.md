@@ -1,5 +1,29 @@
 # Project memory
 
+## Final 0.7.0 release-gate repairs — 2026-11-12
+
+The first 0.7.0 preparation CI 43051816654 passed Node 22 but the Node 26
+coverage run timed out in the held command-starter authoring test. Review found
+lost-release and stale-waiter races in ScriptedProvider: holds were registered
+only after emitting events, and aborted/released requests retained callbacks or
+abort listeners. Three deterministic negative controls reproduced early-release,
+abort/next-request and early-iterator-close failures. Holds now register before
+first yield and dispose their waiter/listener on release, abort or iterator
+completion. Four regressions also enforce concurrent FIFO and no idle release
+credits. No timeout was raised. Focused tests, typecheck and the complete local
+coverage run pass with 1033 tests / three optional skips; line coverage is 89.58%.
+This changes the deterministic fixture provider, not remote model scheduling.
+
+The compiled marketplace bench lacked the source fixture's held-model HTTP path.
+Added an abort-aware token-scoped loopback SSE sequence for busy/question/done and
+selected that endpoint explicitly for compiled runs. It has a bounded lifetime
+and cleans up on request abort/cancel. Both source and actual compiled 0.7.0
+Linux runs pass the complete install/enable/restart/disable, concurrent catalog
+search/management, delayed reload, pending question, settings and 48x18 flow.
+Evidence: dist/v070-marketplace-{source,binary}/report.json. The compiled narrow
+question/management screenshot was inspected. No external model was invoked.
+These are release-gate repairs; the immutable publication tag is not yet created.
+
 ## Preparing the usable 0.7.0 host milestone — 2026-11-12
 
 The form revision 66510ee passed main CI 43050460400 on both supported Node

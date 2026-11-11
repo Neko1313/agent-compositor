@@ -143,4 +143,3 @@ export class ScriptedProvider implements ModelProvider {
     return this.script.length === 0;
   }
 }
-

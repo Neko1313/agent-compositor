@@ -38,6 +38,8 @@ All notable changes are generated from Conventional Commits with git-cliff.
 - Adopt the completed self-hosted review ([07c0c90](https://github.com/Neko1313/agent-compositor/commit/07c0c905aa9029f450a0217ed64c0f27984285f2))
 - Publish process readiness atomically ([a9f99c9](https://github.com/Neko1313/agent-compositor/commit/a9f99c99009f082f64cd66e9f9ffca4e4da1a5d2))
 - Share grapheme-safe editing across settings forms ([66510ee](https://github.com/Neko1313/agent-compositor/commit/66510ee83850843c65efae5389c5605cee523a93))
+- Preserve scripted releases and dispose interrupted holds ([18d7d6a](https://github.com/Neko1313/agent-compositor/commit/18d7d6a0f2c40bd4e599878ff79a1c23f6db3ac8))
+- Isolate compiled marketplace model requests ([27fb2d5](https://github.com/Neko1313/agent-compositor/commit/27fb2d572136f0d3326bfd2af774835544625ec9))
 
 
 ### Tests

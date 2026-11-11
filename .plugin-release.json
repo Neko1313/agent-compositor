@@ -116,12 +116,12 @@
       "commit": "66510ee83850843c65efae5389c5605cee523a93"
     },
     "project-checks": {
-      "version": "0.1.0",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "0.1.1",
+      "commit": "335439374ed88a43ba0f03e4a8442ee5da6240b5"
     }
   },
   "catalog": {
-    "version": "1.0.3",
-    "digest": "79990d91461f6bca0a0252ef55574d26a3e50f8c901a5a5d4f57309c6e6c1e4e"
+    "version": "1.0.4",
+    "digest": "66b7562a5a483739d60a2c8821f65d1f57de659dd8d559f8656b2b37605bb9c5"
   }
 }

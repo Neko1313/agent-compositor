@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+<!-- plugin-release:auto:start -->
+- canonicalize selected project roots ([56f6343](https://github.com/Neko1313/agent-compositor/commit/56f63432d17562562fbfac487b807cd904d87a1f))
+<!-- plugin-release:auto:end -->
+
 ## 0.1.0
 
 <!-- plugin-release:auto:start -->

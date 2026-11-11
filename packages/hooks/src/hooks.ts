@@ -7,6 +7,7 @@ import type {
   UiTextView,
 } from "@agent-compositor/events";
 import { AsyncLocalStorage } from "node:async_hooks";
+import {runPluginProcess} from './exec.js';
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve as resolvePath, sep } from "node:path";
 import { Runtime } from "@agent-compositor/runtime";
@@ -131,6 +132,7 @@ export class HooksHost {
   private readonly pluginState = new Map<string, Map<string, unknown>>();
   private readonly rendering = new AsyncLocalStorage<string>();
   private readonly uiInteraction = new AsyncLocalStorage<boolean>();
+  private readonly serviceSignal = new AsyncLocalStorage<AbortSignal>();
   private readonly workspaceRoot: string;
 
   /** The workspace the $ API confines fs/exec to. */
@@ -205,8 +207,10 @@ export class HooksHost {
   /** Consume one emission fully; returns the chain result. */
   async emit(
     event: string,
-    input: unknown
+    input: unknown,
+    signal?: AbortSignal
   ): Promise<{ value: unknown; faults: unknown[] }> {
+    if(signal)return this.serviceSignal.run(signal,()=>this.emit(event,input));
     const gen = this.runtime.emit(event, input);
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -261,7 +265,7 @@ export class HooksHost {
         ].includes(event)
       )
         stateGuard(event);
-      const res = await host.emit(event, { plugin, ...input });
+      const res = await host.emit(event, { plugin, ...input },signal);
       const v = res.value as Record<string, unknown> | undefined;
       if (
         v &&
@@ -435,7 +439,7 @@ export class HooksHost {
           ].includes(event)
         )
           stateGuard(event);
-        return (await host.emit(event, input)).value;
+        return (await host.emit(event, input,signal)).value;
       },
     };
   }
@@ -559,41 +563,21 @@ export class HooksHost {
     r.setResolver(
       "service.exec.run",
       async ({
+        plugin,
         cmd,
         args,
         timeoutMs,
       }: {
+        plugin: string;
         cmd: string;
         args?: string[];
         timeoutMs?: number;
       }) => {
-        const { execFile } = await import("node:child_process");
+        const operation=this.serviceSignal.getStore()??(this.uiInteraction.getStore()?undefined:this.config.signal?.());
+        const lifetime=this.pluginLifetimes.get(plugin)?.signal;
+        const signal=AbortSignal.any([...(operation?[operation]:[]),...(lifetime?[lifetime]:[])]);
         return {
-          value: await new Promise<{
-            exitCode: number;
-            stdout: string;
-            stderr: string;
-          }>((resolve, reject) => {
-            const child = execFile(
-              cmd,
-              args ?? [],
-              {
-                cwd: root,
-                shell: false,
-                timeout: timeoutMs ?? 30_000,
-                env: { ...process.env, ...this.config.execEnvironment?.() },
-              },
-              (error, stdout, stderr) => {
-                if (
-                  error &&
-                  (error as NodeJS.ErrnoException).code === "ABORT_ERR"
-                )
-                  return;
-                resolve({ exitCode: child.exitCode ?? -1, stdout, stderr });
-              }
-            );
-            child.on("error", reject);
-          }),
+          value: await runPluginProcess(cmd,args??[],{cwd:root,env:{...process.env,...this.config.execEnvironment?.()},signal,timeoutMs:timeoutMs??30000}),
         };
       }
     );

@@ -46,6 +46,15 @@ fetch, settings, cwd, sessionId and undo. Native tool result: `{ok:true,data}` o
 `{ok:false,error}`. A tool name collision does not replace the built-in tool;
 explicit replacement uses `toolProviders:{"read":"my-plugin"}`.
 
+For a trusted native tool that needs a process, discover the installed
+`service.exec.run` schema before calling `ctx.request`. Its payload requires the
+owning `plugin` name as well as `cmd`, optional `args` and `timeoutMs`; raw tool
+requests do not inject that name. Use fixed argument arrays, truthful tool
+descriptors and a finite timeout. The host propagates `ctx.signal`, reaps owned
+processes before settling, and revokes them on unload. Do not race execution
+against an early cancellation result that leaves the process running. A hook's
+`$.exec.run` supplies its owner and operation signal automatically.
+
 Native plugin skills live in `skills/<skill>/SKILL.md`; name and description go
 in YAML frontmatter. The registry advertises only descriptions and loads full
 bodies using the skills tool. User/project skills have priority over plugin

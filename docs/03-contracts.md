@@ -113,6 +113,17 @@ and plugin lifetimes, independently
 of the foreground agent's cancellation signal. Plugin unload still aborts them;
 agent-turn hooks retain foreground cancellation.
 
+The default `$.exec.run` service owns a foreground process group. It kills owned
+descendants on cancellation, timeout, plugin unload and foreground process exit,
+and waits for process closure before settling. The default timeout is 30 seconds;
+captured stdout and stderr share a 1 MiB bound. Timeout/output overflow returns a
+nonzero result with a diagnostic; cancellation and spawn failures reject. Use the
+background-shell API for managed asynchronous jobs. This is process ownership,
+not OS containment. Replacement execution services must preserve these semantics.
+`ToolContext.request` propagates the tool's signal to host services without
+serializing it into catalog payloads. SDK callers may likewise pass an optional
+third `AbortSignal` argument to `HooksHost.emit`.
+
 Catalog 0.21 adds `service.extension.control` and `service.marketplace.control`
 for the TUI management lane. They accept the corresponding control tool's
 arguments plus an optional cancellation signal and return `{value: data}` or

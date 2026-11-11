@@ -1656,7 +1656,7 @@ export class AgentCore {
         service: string,
         payload: unknown
       ): Promise<T> => {
-        const res = await this.host.emit(service, payload);
+        const res = await this.host.emit(service, payload,signal);
         const v = (res as EmitValue).value as
           | Record<string, unknown>
           | undefined;

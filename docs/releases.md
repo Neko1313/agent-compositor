@@ -10,6 +10,12 @@ Node version used to build and test the application. Hosted runners satisfy
 that requirement. Artifact digest mismatches fail the release download step.
 Bun 1.4.4, native Callix 1.7.0 and git-cliff 2.14.2 remain explicit tool pins.
 
+The Linux test job uses `ubuntu-24.04`, matching the native release baseline,
+with Node 26 and 22.19.0. It does not inherit distribution upgrades through the
+rolling `ubuntu-latest` label. Ripgrep remains a required system dependency;
+installation failure stops the job before tests rather than skipping search
+coverage.
+
 Release archives support Linux glibc 2.38+ (x64/arm64) and macOS (x64/arm64).
 Windows and Linux musl are not currently supported by the installer. The shipped
 Monty native module needs glibc 2.38+; the complete Linux bundle is tested on

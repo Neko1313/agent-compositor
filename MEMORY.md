@@ -1,5 +1,42 @@
 # Project memory
 
+## Exact 0.7.2 native candidate and installed-binary context proof — 2026-11-12
+
+888bf8c passed exact Node22/26 CI43108749292, docs43108749491 and host build-only
+43108759727: verification plus native build/install smoke on Linuxx64/ARM64 and
+macIntel/ARM64. Independently downloaded old14655ca and new888bf8c Linux archives
+and drove their actual binaries outside the source tree with a local HTTP fixture.
+The frozen900-repetition case writes once, emits a draft within8192 output tokens,
+triggers completion feedback and automatic compaction under16384 context, then
+reports. Old archive loses the actual user role message and passes harness
+feedback as the summary task reference; new archive preserves both correctly.
+Both write exactly once, preserve the user draft and produce correct file bytes.
+Three main requests plus one summary each,0paid. Initial800-repetition calibration
+did not force pressure and is retained separately; do not count it as a valid
+failure/success comparison. Frozen probeSHA79301edb060d7a02d8b3b29093d2baea9dcd24e7fea4333b4fd40debcc5f02ee.
+Receipt dist/packed-context-integrity.json binds both immutable source/run/archive
+hashes. This is deterministic binary evidence, not live-model development quality.
+
+Created/pushed annotated v0.7.2 at888bf8ce7ebb3e075290a3e257c21cbf986c1c4d after
+clean-checkout, remote/local tag absence, release absence and all candidate gate
+checks. Tagged release43110063150 is running; inspect that exact handle and
+release state before claiming publication. No existing tag was moved. Prepared
+dist/v072-public/verify-public.ts for after publication: requires completed tagged
+run ID and verifies public assets/installer checksum plus isolated0.7.1→0.7.2
+upgrade/state preservation via saved tool proxy. Do not run before publication.
+
+Added maintained tools/release/context-smoke.mjs and invoked it from the regular
+installed-binary smoke. It uses isolated home/environment/project, bounded local
+requests, actual write/files and original task/summary references, and cleans up.
+Independent helper execution rejects old and accepts new binaries. Full Linux
+release:smoke with the downloaded888bf8c archive passes, including all existing
+workflow/SDK/MCP/kernel/Callix/Monty/install checks; types and docs/build pass.
+Retained reports dist/packed-context-maintained-{before,after}.json and
+dist/release/context-smoke-linux-x64.json; full log dist/packed-context-full-smoke.log.
+Previous local archive was hash-backed up before replacing the ignored smoke
+input. The new maintained scenario still needs native runs on the other platforms;
+it is not retroactively part of the immutable0.7.2 tagged pipeline.
+
 ## Refreshed host 0.7.2 source verification — 2026-11-12
 
 Merged dependency metadata plus the permission-context regression and published

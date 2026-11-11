@@ -103,6 +103,12 @@ The smoke test serves a local release mirror and model endpoint, rejects a
 corrupt checksum, installs from a versioned URL and `latest`, checks default
 plugin discovery outside the repository, executes a headless model request and
 the packaged Monty bridge, and checks state preservation across reinstall. It
+also drives the installed binary through a write, completion feedback and
+automatic compaction using a local model fixture. The original task must remain
+verbatim in the next main request and every summary reference, the write must
+not repeat, and an unrelated user draft must survive. This deterministic check
+does not measure live-model development quality. Its report is written to
+`dist/release/context-smoke-PLATFORM.json` and printed in the smoke log. It
 also checks Callix provenance, version and license, then invokes `code_query`
 through the installed compositor against a two-file TypeScript project. The
 check requires a resolved cross-file call with `CALLIX_BIN` cleared and PATH

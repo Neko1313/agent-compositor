@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { GifWriter } from 'omggif';
 import assert from 'node:assert/strict';
 import { callixRelease } from '../../plugins/callix/distribution.mjs';
+import { smokeContextTask } from './context-smoke.mjs';
 const exec = promisify(execFile);
 // Permission rules and guarded edit anchors use canonical paths. macOS aliases
 // /var to /private/var, so fixture allow rules must use the same physical path.
@@ -110,6 +111,8 @@ try {
   await exec('sh', [installer, '--version', `v${expected}`, '--prefix', prefix], options);
   const binary = join(prefix, 'bin/compositor');
   assert.equal((await exec(binary, ['--version'], options)).stdout.trim(), `compositor ${expected}`);
+  const contextSmoke=await smokeContextTask(binary,resolve('dist/release',`context-smoke-${process.platform}-${process.arch}.json`));
+  console.log(`Installed binary context smoke passed: ${JSON.stringify(contextSmoke)}`);
   assert.match((await exec(binary, ['--help'], options)).stdout, /--plugins/);
   const plain = exec(binary, ['--plain'], options);
   // EOF exits the line interface without contacting a model.

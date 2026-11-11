@@ -67,7 +67,8 @@ it('ignores unrelated routes, suppresses duplicate runs and never reopens after 
   let signal: AbortSignal | undefined;
   const api: any = { state, ui: { view: async (...args: unknown[]) => { views.push(args); }, remove: async () => {} },
     agent: { tool: async (_name: string, _args: unknown, options: { signal: AbortSignal }) => { calls++; signal = options.signal; return pending; } } };
-  api.signal = new AbortController().signal; api.background = () => api;
+  api.signal = new AbortController().signal;
+  api.background = () => api;
   expect(await hooks['prompt.submit']({ text: '/checks-other' }, api)).toBeUndefined();
   await hooks['ui.press']({ site: 'unrelated', key: 'command:/checks' }, api);
   expect(views).toHaveLength(0);
@@ -83,4 +84,44 @@ it('ignores unrelated routes, suppresses duplicate runs and never reopens after 
   expect(views).toHaveLength(count);
   await hooks['prompt.submit']({ text: '/checks' }, api);
   expect(JSON.stringify(views.at(-1))).toContain('cancelled');
+});
+it('budgets exact names and previews together and rereads scripts for run', async () => {
+  const f = context({ exact: 'x'.repeat(2000), next: 'ok' });
+  f.ctx.settings = async () => ({ maxChars: 1000 });
+  const listed = await tool.execute(f.ctx, { action: 'list' }) as any;
+  expect(listed.data.truncated).toBe(true);
+  expect(listed.data.scripts).toEqual([{ name: 'exact', command: 'x'.repeat(995) }]);
+  const request = f.ctx.request;
+  f.ctx.request = async (event: string, args: unknown) => event === 'service.fs.read'
+    ? JSON.stringify({ scripts: { replacement: 'echo changed' } }) : request(event, args);
+  expect((await tool.execute(f.ctx, { action: 'run', name: 'exact' })).ok).toBe(false);
+});
+it('retains settlement only, waits for cleanup and revokes writes on unload', async () => {
+  for (const unload of [false, true]) {
+    const state = new Map();
+    const hook = new AbortController(), lifetime = new AbortController();
+    const views: unknown[] = [];
+    let finish!: (value: unknown) => void;
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => { started = resolve; });
+    const pending = new Promise(resolve => { finish = resolve; });
+    const retained = { signal: lifetime.signal, state, ui: { view: async (...args: unknown[]) => { views.push(args); } } };
+    const api: any = { ...retained, signal: hook.signal, background: () => retained,
+      agent: { tool: async () => { started(); return pending; } } };
+    const work = hooks['ui.press']({ site: 'plugin-project-checks-main', key: 'run:test' }, api);
+    await ready;
+    hook.abort();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(state.has('active')).toBe(true);
+    expect(JSON.stringify(views.at(-1))).toContain('running');
+    const before = views.length;
+    if (unload) lifetime.abort();
+    finish({ ok: false, error: 'expired' });
+    await work;
+    if (unload) expect(views).toHaveLength(before);
+    else {
+      expect(state.has('active')).toBe(false);
+      expect(JSON.stringify(views.at(-1))).toContain('hook expired');
+    }
+  }
 });

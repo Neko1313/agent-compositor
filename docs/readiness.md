@@ -92,7 +92,11 @@ agent-added regressions passed, but the turn ended at the conservative USD guard
 before a final response. Independent review found and corrected metadata bounds,
 settings scope leakage, command usage, cancellation placement and hook-expiry
 cleanup. The original candidate and traces remain separate from the reviewed
-integration. This does not satisfy the completed autonomous authoring gate.
+integration. A later live guided review iteration from the original candidate
+completed in 22 model steps with two automatic compactions and passed all 18
+checks plus typecheck on independent rerun. Its reviewed settlement logic is
+integrated. This is known-task review evidence; the completed autonomous initial
+authoring gate and broader task/model coverage remain open.
 
 Git review adds a concrete tool/panel/configuration workflow and exposed a host
 subprocess cancellation leak, now covered by real process-group tests. The next

@@ -1,5 +1,73 @@
 # Project memory
 
+## Completed live plugin review and Unicode message editing — 2026-11-12
+
+The previous goal turn made concrete progress: proxy routing was fixed and pushed
+as 7c559a9, the saved proxy plugin was enabled for this project, and a real Sol
+probe passed. The broad 1.0 goal remains active; this is not a completion audit.
+
+After the user's explicit proxy instruction, a new isolated iteration using the
+saved budgeted gpt-6.1-sol profile started from original authored candidate
+0e1356a. The former direct-403 episode remains unchanged. Evidence is in
+dist/selfhost-checks-review-proxy-20261112/; final detached authored snapshot is
+5867580ef56c811c9da5699dcd864dbe4bd2b531. The run completed with code 0 in 267139ms,
+22 main steps, 36 tool calls, 30 reported model requests and two automatic
+compactions. Caller limits were 24 steps, 300000 turn/session tokens, context
+24576 and output reserve 4096. Reported total usage was 265042 input / 12774 output.
+The model fixed five supplied review findings, recovered from an obsolete mock
+missing background(), then passed the unchanged six-test original oracle,
+unchanged five-test review oracle and seven additional regressions. Frozen hashes
+match context.json. Independent reruns of all 18 tests and typecheck passed.
+The trace-correlated independent-review.json records actual verification calls.
+plugin_dev correctly reported structure-only with unavailable runtime syntax
+checking; typecheck supplied compiler validation. No PTY or certification success
+was claimed by the model. This is completed guided review on a known candidate,
+not unseen evaluation or completed autonomous initial plugin delivery.
+
+The reviewed main integration adopts the model-authored settlement logic and
+its additional tests. It waits for owned SDK cleanup before replacing running
+state, rejects late success after cancellation, publishes through the retained
+cleanup handle only while its operation still owns state, ignores unload-revoked
+view completion and shows the current check heading above long script lists.
+The broader existing invalid-command warning, tool help and certification plan
+remain maintained by independent integration. The real Project checks PTY flow
+passes after integration (dist/project-checks-live-integration-20261112/); its
+running screenshot was inspected. Source/archive certificates still need the
+exact final committed snapshot. Prior certificates cover their own older inputs.
+
+Eight negative-control cases reproduced UTF-16 cursor splitting in the default
+message editor. Left/Right, Backspace and Delete now use native Intl.Segmenter
+grapheme boundaries while public cursor offsets remain UTF-16. Simple emoji,
+joined emoji with skin tone, flags and combining accents pass. The complete real
+PTY smoke in dist/unicode-draft-20261112/ also checks editing, narrow Unicode draft
+preservation and the existing window/plugin flows; screenshots were inspected.
+This change applies to the default message editor, not custom editor providers
+or every other form field. The canonical app controls guide documents the scope.
+
+1003 tests pass with three optional skips; typecheck and the 100-page docs
+check/build pass. The current conservative guard bound is $49.231814, 271 reported
+and one pending request (the original direct 403); authorization remains $50.
+The separate 30m Standard estimate covers 105 requests at $0.978788 with 166 old
+requests unavailable. Neither figure is the user's account invoice. Historical
+charges and the user's reported approximately $2 earlier spend were preserved.
+
+CI 43044504783 confirms the pinned ripgrep installation, npm installation,
+typecheck and coverage tests pass on both Node versions; Node 22.19.0 completed
+successfully. Node 26 later rejected Project checks' composite certification with
+JSON unexpected EOF. Its retained artifact log is in
+/tmp/compositor-ci-382cbb0/reports/certification/project-checks/pr/linux-x64/.
+Three traced local composite reruns passed, so do not claim a deterministic
+reproduction of the CI exception. Review found a real readiness race in both Git
+review and Project checks fixture workers: the reader could parse child-pids.json
+between file creation and completion. Workers now write a temporary JSON file and
+rename it atomically; assertions and deadlines are unchanged. Casebook errors
+also retain the failing requirement name and original cause for future diagnosis.
+These are oracle publication/diagnostic fixes, with no production contract change
+or separate user-guide impact. Final exact-snapshot certification remains required.
+All 29 native plugins subsequently passed PR certification against the unchanged
+final source tree (reports/certification/summary-pr.json). Release/archive and
+remote CI evidence still need the committed revision.
+
 ## CI search prerequisite independent of Ubuntu mirrors — 2026-11-12
 
 Repeated authoritative logs from 43040650857 and 43042550884 show DNS failures

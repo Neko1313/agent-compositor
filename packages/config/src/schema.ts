@@ -49,7 +49,7 @@ export const ConfigSchema = z
       url: z.string().optional(), reason: z.string().optional(),
     })).optional() }).passthrough().optional(),
     compaction: z.object({ enabled: z.boolean().optional(), contextWindow: z.number().int().min(2048).optional(),
-      reserveOutput: z.number().int().nonnegative().optional(), reserveSystem: z.number().int().nonnegative().optional(),
+      reserveOutput: z.number().int().positive().optional(), reserveSystem: z.number().int().nonnegative().optional(),
       highWaterMark: z.number().positive().max(1).optional() }).optional(),
     skills: z.array(z.string()).optional(),
     plugins: z.array(z.string()).optional(),

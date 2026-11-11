@@ -1,5 +1,54 @@
 # Project memory
 
+## Output reserves and profile-specific capacity — 2026-11-12
+
+The previous live traces exposed unset main maxOutputTokens for an injected
+provider without metadata. Four negative-control tests reproduced missing
+configured/embedder limits, failure to cap at a provider ceiling and unusable
+small-window defaults. Retained log:
+dist/output-capacity-20261111/negative-control.log.
+
+TokenBudget now separates caller settings from resolved capacity. applyCapacity
+resolves metadata and overrides without overwriting the source configuration;
+outputReserve exposes the effective generation allowance. configure explicitly
+replaces settings and updates the high-water mark; invalid updates retain the
+old budget. Output defaults are min(8192, window/4), system defaults
+min(2048, window/8); clipping leaves at least 128 transcript tokens. Output
+reservations must be positive integers (remove old zero values for defaults),
+while system reserve zero remains valid. Settings are restored when provider
+ceilings rise or metadata disappears instead of retaining a stale low cap.
+
+Core uses the resolved reserve with or without metadata. Every model request
+also resolves its own profile's hard output ceiling, including auxiliary and
+concurrent user calls. Capacity denial stops generation. Metadata lookup carries
+the request cancellation signal into private hook APIs, including idle auxiliary
+calls, and cancellation is checked before generation. Catalog 0.23 adds optional
+profile to service.model.capabilities; the default resolver passes it to the
+provider. The frozen baseline hash remains unchanged after explicitly checking
+and removing only this additive optional field. Canonical API/capacity docs and
+generated event/schema references are updated.
+
+Live verification resumed the known ledger fixture through the actual app with
+an injected budgeted gpt-6.1-sol provider exposing no capabilities method. All
+three main requests carried maxOutputTokens 2048; the auxiliary summary used
+1024. No project source/check/contract/export/NOTES files changed. Independent
+review correlated a successful node checks.mjs call/result and reran the check
+under a minimal environment. Evidence: dist/output-capacity-20261111/{live.ts,
+trajectory.jsonl,review.json,independent-review.json}. This is one known review,
+not broad model-family or sustained development evidence. The cumulative guard
+bound is $42.27555, 218 reported requests, zero pending. Standard/global pricing
+estimate covers 52 new requests at $0.275471; 166 historical requests are still
+explicitly unavailable. No charges were reset or authorization increased.
+
+964 tests pass with three optional skips on Node 26 and actual Node 22.19.0
+(coverage), typecheck and the 98-page docs check/build pass. All 28 native plugin
+PR certifications pass; retained summary:
+reports/certification/output-capacity-pr-summary.json. An earlier certification
+overlapped the cancellation fix and correctly rejected changed inputs; the final
+run used an unchanged source snapshot. Previous main 0f5c2c0 CI, documentation
+and plugin preparation all completed successfully. Broader self-hosted tasks,
+model families and native release/platform evidence remain open 1.0 work.
+
 ## Automatic compaction failures and recovery — 2026-11-11
 
 An initial live ledger migration in a configured 16384-token window finished

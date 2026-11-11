@@ -42,7 +42,7 @@ export const contextPressure = defineEvent({
 export const modelCapabilities = defineEvent({
   name:'service.model.capabilities',since:'0.11.0',version:1,
   summary:'Resolve effective context/output limits for the selected model. Replaceable by provider plugins.',
-  input:z.object({signal:z.unknown().optional()}),
+  input:z.object({signal:z.unknown().optional(),profile:z.string().optional()}),
   responses:[{kind:'value',summary:'Effective limits and provenance',schema:z.unknown()},{kind:'deny',summary:'Resolution denied',schema:z.object({deny:z.string()})}], frozen:true,
 });
 export const agentInstructions = defineEvent({

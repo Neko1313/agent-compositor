@@ -69,26 +69,46 @@ export interface BudgetConfig {
  * decision never strands the model without room to answer.
  */
 export class TokenBudget {
-  private contextWindow: number;
-  private reserve: number;
+  private contextWindow = 32768;
+  private reserve = 0;
+  private output = 8192;
+  private settings: BudgetConfig;
   private overhead = 0;
-  private readonly highWaterMark: number;
+  private highWaterMark = 0.95;
   private messages: MessageLike[] = [];
 
   constructor(config: BudgetConfig) {
-    this.contextWindow = config.contextWindow;
-    this.reserve =
-      (config.reserveOutput ?? 8192) + (config.reserveSystem ?? 2048);
-    this.highWaterMark = config.highWaterMark ?? 0.95;
+    this.settings = {...config};
+    this.applyCapacity();
   }
 
   configure(config: BudgetConfig): void {
-    if (!Number.isSafeInteger(config.contextWindow) || config.contextWindow < 256) throw Error("Invalid model context window");
-    this.contextWindow = config.contextWindow;
-    this.reserve = Math.min(config.contextWindow - 128, (config.reserveOutput ?? Math.min(8192, Math.floor(config.contextWindow / 4))) + (config.reserveSystem ?? 1024));
+    const previous=this.settings;
+    this.settings = {...config};
+    try{this.applyCapacity();}catch(error){this.settings=previous;throw error;}
   }
 
   get windowSize(): number { return this.contextWindow; }
+  get outputReserve(): number { return this.output; }
+
+  /** Resolve a provider's capacity without replacing the caller's settings. */
+  applyCapacity(capacity?:{contextWindow?:number;maxOutputTokens?:number},overrides:Partial<BudgetConfig>={}):void {
+    const config={...this.settings,...overrides};
+    const window=overrides.contextWindow??capacity?.contextWindow??config.contextWindow;
+    if(!Number.isSafeInteger(window)||window<256)throw Error('Invalid model context window');
+    const output=config.reserveOutput??Math.min(8192,Math.floor(window/4));
+    const system=config.reserveSystem??Math.min(2048,Math.floor(window/8));
+    if(!Number.isSafeInteger(output)||output<1)throw Error('Invalid output reserve; use a positive integer');
+    if(!Number.isSafeInteger(system)||system<0)throw Error('Invalid system reserve');
+    const ceiling=capacity?.maxOutputTokens??Infinity;
+    if(ceiling!==Infinity&&(!Number.isSafeInteger(ceiling)||ceiling<1))throw Error('Invalid provider output capacity');
+    const highWaterMark=config.highWaterMark??0.95;
+    if(!Number.isFinite(highWaterMark)||highWaterMark<=0||highWaterMark>1)throw Error('Invalid context high-water mark');
+    this.contextWindow=window;
+    this.output=Math.min(output,ceiling,window-128);
+    this.reserve=this.output+Math.min(system,window-128-this.output);
+    this.highWaterMark=highWaterMark;
+  }
 
   setOverhead(tokens: number): void { this.overhead = Math.max(0, tokens); }
 

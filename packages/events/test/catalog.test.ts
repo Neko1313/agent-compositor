@@ -43,6 +43,13 @@ describe("event catalog", () => {
           signature.responses.next=structuredClone(next);delete (signature.responses.next as any).properties.operationId;
         }
       }
+      // Reviewed additive change in 0.23: omitted profile retains the selected
+      // model; auxiliary callers may resolve their own profile's hard capacity.
+      if(name==='service.model.capabilities'){
+        expect(signature.input.properties.profile).toEqual({type:'string'});
+        expect(signature.input.required??[]).not.toContain('profile');
+        signature.input=structuredClone(signature.input);delete signature.input.properties.profile;
+      }
       expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
         `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);
     }

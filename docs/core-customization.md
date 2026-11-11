@@ -106,6 +106,16 @@ a bypass of service interception and permission checks.
 
 ### Context compaction
 
+`TokenBudget.applyCapacity(capacity, overrides)` resolves provider limits against
+the caller's configuration without replacing it. `outputReserve` exposes the
+effective generation allowance; `configure` explicitly replaces settings. Both
+construction and reconfiguration validate reserves. Defaults and clipping are
+described in [context budgets](agent-features.md#autonomous-execution-and-context-budgets).
+The `service.model.capabilities` input accepts an optional `profile`; omission
+uses the selected profile. Capacity services must honor this field when serving
+auxiliary models. Known output ceilings apply to every model request, including
+summaries and review calls; denied resolution stops generation.
+
 The default context compactor preserves the latest user request verbatim and
 keeps recent complete tool groups within half the available transcript budget.
 An oversized newest group may be summarized in full, including on the first

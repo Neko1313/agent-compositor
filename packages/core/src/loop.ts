@@ -447,7 +447,7 @@ export class AgentCore {
         value: this.provider.complete(request),
       })
     );
-    this.runtime.setResolver("service.model.capabilities", async (e:any) => ({value: await (this.provider.capabilities?.(e.signal ?? this.abort.signal) ?? Promise.resolve(null))}));
+    this.runtime.setResolver("service.model.capabilities", async (e:any) => ({value: await (this.provider.capabilities?.(e.signal ?? this.abort.signal,e.profile??this.options.modelProfile) ?? Promise.resolve(null))}));
     this.runtime.setResolver("service.agent.instructions", () => ({value:""}));
     this.runtime.setResolver("service.agent.finish", () => ({value:{complete:true}}));
     this.runtime.setResolver("service.agent.run", async () => ({value:await this.runSteps()}));
@@ -636,6 +636,10 @@ export class AgentCore {
       this.options.remainingTokens?.() ?? Infinity
     );
     if (remaining <= 0) throw new Error("Token budget exhausted");
+    const capacity=await this.modelCapacity(request.signal,request.profile);
+    if(request.maxOutputTokens!==undefined&&(!Number.isSafeInteger(request.maxOutputTokens)||request.maxOutputTokens<1))throw Error('Invalid model output limit');
+    if(capacity&&Number.isSafeInteger(capacity.maxOutputTokens)&&capacity.maxOutputTokens!>0)
+      request={...request,maxOutputTokens:Math.min(request.maxOutputTokens??8192,capacity.maxOutputTokens!)};
     if (Number.isFinite(remaining)) {
       const inputEstimate=request.messages.reduce((n,m)=>n+estimateMessageTokens(m),0)+estimateTokens(JSON.stringify(request.tools));
       if(inputEstimate >= remaining) throw new Error("Token budget insufficient for estimated request input; no model request sent");
@@ -1221,19 +1225,25 @@ export class AgentCore {
     if(result?.deny)throw new Error(result.deny);
   }
 
+  private async modelCapacity(signal:AbortSignal,profile?:string):Promise<import('./provider.js').ModelCapabilities|undefined>{
+    signal.throwIfAborted();
+    const response=await this.emit('service.model.capabilities',{signal,profile},signal) as {value?:import('./provider.js').ModelCapabilities;deny?:string};
+    signal.throwIfAborted();
+    if(response?.deny)throw Error(response.deny);
+    return response?.value;
+  }
+
   private async manageContextDefault(): Promise<void> {
     if(this.userOperation.getStore())throw Error("A concurrent operation cannot manage the agent conversation");
     const compaction = this.options.compaction;
     if (!compaction) return;
-    const response = await this.emit('service.model.capabilities',{signal:this.abort.signal}) as {value?:import('./provider.js').ModelCapabilities};
-    const caps=response?.value;
-    if(compaction.limits?.().contextWindow)this.contextSource="configured";
-    if(caps && Number.isSafeInteger(caps.contextWindow) && caps.contextWindow>=256){
-      const limits=compaction.limits?.()??{};
-      this.outputLimit=limits.reserveOutput??Math.min(caps.maxOutputTokens??8192,Math.floor((limits.contextWindow??caps.contextWindow)/4));
-      compaction.budget.configure({contextWindow:caps.contextWindow,reserveOutput:this.outputLimit,...limits});
-      this.contextWindow=limits.contextWindow??caps.contextWindow;this.contextSource=limits.contextWindow?'configured':caps.source;
-    }
+    const caps=await this.modelCapacity(this.abort.signal,this.options.modelProfile);
+    const limits=compaction.limits?.()??{};
+    const validWindow=caps&&Number.isSafeInteger(caps.contextWindow)&&caps.contextWindow>=256?caps.contextWindow:undefined;
+    const validOutput=caps&&Number.isSafeInteger(caps.maxOutputTokens)&&caps.maxOutputTokens!>0?caps.maxOutputTokens:undefined;
+    compaction.budget.applyCapacity({contextWindow:validWindow,maxOutputTokens:validOutput},limits);
+    this.outputLimit=compaction.budget.outputReserve;
+    this.contextSource=limits.contextWindow?'configured':validWindow?caps!.source:'fallback';
     this.contextWindow=compaction.budget.windowSize;
     compaction.budget.setMessages([...this.messages,...(this.baseInstructions?[{role:'system',content:this.baseInstructions}]:[])]);
     compaction.budget.setOverhead(estimateTokens(JSON.stringify(this.toolSpecs.map(t=>({name:t.name,description:t.description,parameters:t.parameters})))));
@@ -1782,11 +1792,12 @@ export class AgentCore {
 
   private async emit(
     event: string,
-    input: Record<string, unknown>
+    input: Record<string, unknown>,
+    signal?:AbortSignal
   ): Promise<unknown> {
     const operation=this.userOperation.getStore();
     if(operation)input={...input,operationId:operation.id};
-    const result=await this.host.emit(event,input,operation?.signal);
+    const result=await this.host.emit(event,input,signal??operation?.signal);
     const value=result?.value;
     // Handled UI commands are audit records, not user messages on replay.
     const dropped=event==='prompt.submit'&&value&&typeof value==='object'&&'drop' in value;

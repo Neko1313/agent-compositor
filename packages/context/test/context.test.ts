@@ -121,3 +121,16 @@ it('packs ASCII and Unicode summary segments by estimated tokens, not tiny chara
   if(content.startsWith('a'))expect(requests).toHaveLength(1);
  }
 });
+it('keeps capacity resolution separate from explicit budget reconfiguration',()=>{
+ const budget=new TokenBudget({contextWindow:8192,reserveOutput:900,reserveSystem:0});
+ budget.applyCapacity({contextWindow:4096,maxOutputTokens:128});expect(budget.outputReserve).toBe(128);
+ budget.applyCapacity();expect(budget.windowSize).toBe(8192);expect(budget.outputReserve).toBe(900);
+ budget.configure({contextWindow:4096,reserveOutput:500,reserveSystem:0});expect(budget.outputReserve).toBe(500);
+ expect(()=>budget.configure({contextWindow:4096,reserveOutput:0})).toThrow();budget.applyCapacity();expect(budget.outputReserve).toBe(500);
+ const small=new TokenBudget({contextWindow:256,reserveOutput:10000,reserveSystem:10000});expect(small.outputReserve).toBe(128);expect(small.usable).toBe(128);
+});
+it('applies a reconfigured pressure threshold without losing the live messages',()=>{
+ const budget=new TokenBudget({contextWindow:8192,reserveOutput:1000,reserveSystem:0,highWaterMark:0.9});budget.setMessages([msg('user','abc'.repeat(1000))]);const used=budget.used;
+ expect(budget.shouldCompact()).toBe(false);budget.configure({contextWindow:8192,reserveOutput:1000,reserveSystem:0,highWaterMark:0.1});expect(budget.used).toBe(used);expect(budget.shouldCompact()).toBe(true);
+ expect(()=>budget.configure({contextWindow:8192,highWaterMark:0})).toThrow('high-water');expect(budget.shouldCompact()).toBe(true);
+});

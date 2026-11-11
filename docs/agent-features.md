@@ -314,6 +314,20 @@ The status bar shows estimated occupancy and window size (`~` marks fallback).
 Schemas, instructions, images and tool calls count toward the request budget;
 output space is reserved and request output is capped accordingly.
 
+With context management enabled, the main request uses the resolved output reserve even when the provider has no
+capacity metadata. Defaults scale to small windows: output reserves at most
+8192 tokens or a quarter of the window, and extra system headroom reserves at
+most 2048 tokens or an eighth of the window. Explicit `reserveOutput` must be a
+positive integer; remove an old zero value to use the default. `reserveSystem`
+can be zero. Reserves are bounded to leave at least 128 transcript tokens;
+oversized instructions or schemas can still require a larger context window.
+
+Known provider output ceilings cap both main and auxiliary requests. Auxiliary
+calls resolve their own profile's ceiling and do not inherit the foreground
+profile's capacity. Capacity resolution does not overwrite configured reserves,
+so a temporary low ceiling does not persist after switching providers. An
+explicit denial from the capacity service stops generation before a model call.
+
 Automatic compaction runs before model requests. Hard pressure bypasses the
 cooldown. Summary requests are split into bounded segments and preserve goals,
 constraints, decisions, paths, verification and next actions. Segment packing

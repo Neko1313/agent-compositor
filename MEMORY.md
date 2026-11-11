@@ -1,5 +1,157 @@
 # Project memory
 
+## Active 1.0 objective and live evaluation setup — 2026-11-11
+
+The user now explicitly requests a stable, extensible, model-independent agent
+capable of replacing their normal coding-agent workflow and developing itself.
+The historical deferred feature discussion is not the acceptance criterion;
+[docs/readiness.md](docs/readiness.md) records the full current gates. The 1.0
+objective is not achieved by the small suites or existing release checks.
+
+The user explicitly expanded the goal to implementing missing plugins for
+practical development and improving UI usability, using Compositor for that
+development as well. This includes the complete plugin lifecycle and concurrent
+tools/settings/catalog access during agent work. Prioritize blockers and observed
+friction, retain the public extension model and verify actual terminal workflows
+through the tui-visual-check skill and independent review. The concrete scope is
+recorded in docs/readiness.md; the existing $50 live-model allowance is unchanged.
+
+The requested setup-first step is complete: private global profile openai-eval
+uses gpt-6.1-sol through official OpenAI Responses, with a saved credential
+(mode 0600) and configured 1,050,000-token model context. Authentication/model
+availability and a real read-tool episode passed. Do not print, commit or copy
+the key into execution workspaces. The user authorized at most $50 total for
+these tests. Run paid evals through --profile openai-eval --max-usd 50; the
+persistent private eval-budgets/openai-eval.json ledger retains reservations
+across output directories and turns. Do not reset it to reuse the allowance.
+Its conservative accounting total after plugin authoring is $38.66391, with 166
+reported requests and no pending reservations. This is an upper accounting
+bound, not the actual OpenAI invoice. The priced adapter is intentionally bound
+to this model; other model pricing/protocol evidence is still required.
+
+Strengthened eval grading: exact preservation where the task freezes fixtures;
+independent original project checks where new regression tests are allowed;
+call/result-correlated verification commands and independent behavior probes.
+Graders use project cwd/minimal environment, and an intercepting shell service
+clears inherited host values. A regression reproduced the old shell HOME/env
+inheritance before the fix. These are environment controls, not OS containment.
+All eval TypeScript is now covered by the standard typecheck command.
+
+Initial live 1/2 included an unfair scorer failure: the greeting task allowed
+new tests but was incorrectly byte-frozen. That criterion was corrected, not
+reported as a model defect. A later 3/4 diagnostic run had a real verification
+denial when npm test was chained with another unapproved command. Generic exec
+usage now explains exact-grant/compound-command behavior without changing
+permissions. Callix reports actionable text-tool fallback when its native
+backend has no supported semantic sources, rather than encouraging repeated
+status/refresh calls. No plugin versions were hand-bumped.
+
+Final native OpenAI development run: 4/4 episodes (two tasks, two repetitions)
+in dist/evals-openai-agent-complete/report.json. These are small, known tasks,
+not Claude Code parity or an unbiased model comparison. Earlier diagnostic
+reports remain in dist/evals-openai-agent-baseline and
+dist/evals-openai-agent-verified. The unchanged scripted suites pass 5/5 basic,
+3/3 tools and 2/2 agent cases. All 882 tests pass with 3 optional skips;
+typecheck and the 96-page documentation check/build pass. No 1.0 publication
+or completion is claimed. Next work is broader self-hosted development,
+long-session recovery and multi-agent/extension workflows against these gates.
+
+## First self-hosted production fix — 2026-11-11
+
+Ran the actual source CLI entry point with the budgeted live openai-eval provider
+in a detached worktree containing the current source snapshot. The task repaired
+headless interruption reporting: interrupted runs previously returned success
+and could reuse a historical assistant answer. An independently authored,
+frozen regression failed 5/6 cases before the run. Compositor changed headless
+output collection and interruption status, added ten further tests, updated the
+canonical guide and ran its checks. Tool/file permissions restricted the task;
+private credentials stayed in the parent provider, outside its execution home.
+
+Reviewed and transferred the patch to the main working tree, verifying that the
+frozen regression was unchanged and tracked edits stayed within the allowed
+source/documentation paths. Independent verification passed all 16 focused
+tests, all 898 package tests (3 optional skips), typecheck and the 96-page docs
+check/build. Artifacts are in dist/selfhost-headless: context.json, task.txt,
+trajectory.jsonl, execution.json and candidate.patch. The detached baseline is
+2d8ec43ee35c3dbb01f11f037ee3c30f2cc967d1. This demonstrates one bounded real
+repository fix through Compositor, not long-session recovery, native binary
+verification, model independence or completion of the 1.0 gates. These source
+changes are committed as 1af72fb, together with eval-discovered tool recovery
+guidance, but are not released.
+
+
+## Management access in short terminals — 2026-11-11
+
+The baseline marketplace PTY scenario passed but did not finish answering its
+pending question or exercise management with hidden toolbar controls. Expanded
+coverage exposed inaccessible keyboard entry, focus not returning to existing
+management panes, and a tall pending dialog starving the management content.
+Alt+o opens Plugins; Alt+, opens Settings, also through custom editors. Explicit
+management opens focus the existing pane on its workspace without relocating it.
+When a pending question/approval leaves fewer than eight rows for content while
+another pane is focused, the dock uses a six-row reminder. Alt+i or a first click
+expands it without submitting an answer or granting permission. Settings forms
+retain their own keyboard controls.
+
+Verified 901 package tests (3 optional skips), typecheck, generators and the
+96-page docs check/build. Real PTY marketplace flow passed in
+dist/ui-management-narrow-confirm, including mouse expansion before answering
+and draft preservation; broad visual regression passed in
+dist/ui-management-broad-confirm. Inspected narrow management, completed-answer
+and broad startup/approval screenshots. The failed initial browser launch used a
+missing Playwright revision; selected the installed compatible Chromium instead.
+dist/ui-shortcuts-before-compact retains the failing pre-fix PTY capture. No new
+paid model requests were made. Native terminal and broad daily-use readiness
+remain open; these changes do not close the 1.0 goal.
+UI source, regression tests, PTY scenario and terminal controls are committed
+locally as 489a757; no release was published. The earlier eval foundation is
+committed as 49ae176 and the headless/tool recovery fixes as 1af72fb.
+
+## Live plugin authoring and summary recovery — 2026-11-11
+
+Three budgeted source-CLI attempts targeted a missing read-only Git review
+command, model tool and interactive panel in an isolated source snapshot. They
+are NOT passing autonomous authoring episodes: the first exceeded the paid
+adapter's 200000-byte request bound after excessive source exploration; resume
+spent 20 auxiliary summary calls before one reached its 2048-token output cap;
+a short-context handoff created the remaining UI/tests but reached its step cap.
+No live process or outstanding budget reservation remains. Keep these failures
+visible; do not erase them or call a fresh handoff successful session recovery.
+
+The original independent fixture accidentally omitted permission to enable its
+test package, masking behavior behind a management denial. Corrected that grant
+after retaining its original source and patch; production policy was unchanged.
+The task's exec-service example also omitted the canonical required plugin field.
+Reviewed corrections added that field, fixed the UI event site and a generated
+test's host reference. Candidate behavior then passed 10 independent/additional/
+lifecycle tests, the source typecheck and explicit strict plugin typecheck. A
+real PTY check exercised actual status, distinct staged/working diffs, Close and
+unsent draft preservation at 48x18; inspected wide diff and narrow status PNGs.
+An initial narrow capture used a stale filename assertion; the corrected check
+waits for the distinct branch/status result before capturing.
+
+The reviewed candidate is committed only in its detached worktree at
+/tmp/compositor-git-review-f15oigxo/repo, revision
+ca6fb06c6128d1d4658a62129cdf9d4431df5030. It is not yet in the main plugin catalog.
+First-party certification/test-plan integration, installed archives and platform
+checks remain required. Artifacts: dist/selfhost-git-review,
+dist/selfhost-git-review-resumed, dist/selfhost-git-review-handoff (authored files,
+oracle correction, final patch/review.json) and dist/selfhost-git-review-ui.
+The original model-authored candidate is preserved separately from corrections.
+
+The host summarizer now retries only a length-truncated segment with doubled
+output allowance, capped at 8192 tokens or a quarter of context capacity (at most
+three attempts). Partial summaries are discarded; errors, missing completion and
+cancellation do not retry. Seven deterministic tests cover recovery and bounds;
+all 908 package tests pass with 3 optional skips, typecheck and docs checks pass.
+This new recovery path still needs a real-model long-session rerun. The visual
+bench has an isolated opt-in Git fixture for exact candidate verification.
+
+Next work: integrate and certify the reviewed Git plugin through the normal
+first-party path, then repeat realistic resumed development with the summary
+fix. Preserve the remaining authorized live-model allowance; no budget increase
+was requested or granted. Broader 1.0 gates remain open.
+
 ## Verified v0.6.1 publication — 2026-11-11
 
 The user requested push and release of concurrent plugin management. Published

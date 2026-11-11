@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+<!-- plugin-release:auto:start -->
+- require published transitions on every native archive ([5ce76e5](https://github.com/Neko1313/agent-compositor/commit/5ce76e5c6963be27b873498a37c267bd52c17561))
+<!-- plugin-release:auto:end -->
+
 ## 1.3.0
 
 <!-- plugin-release:auto:start -->

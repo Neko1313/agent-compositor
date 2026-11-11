@@ -1,5 +1,35 @@
 # Project memory
 
+## Published 0.7.0 checkpoint and bounded installer networking — 2026-11-12
+
+The previous goal turn verified both model/tool proxy scopes with non-billable
+OpenAI models requests (expected unauthenticated HTTP 401). It added fresh route
+evidence; proxy activation and the paid adapter fix were already persisted.
+
+Immutable v0.7.0 points to 21d79342183a9f3262efbe7d9925ba71085b9539 and is
+published with four archives, install.sh and SHA256SUMS. Exact-revision main CI
+43053396437 (Node 22/26), docs 43053396720 and release 43054146510 all succeeded.
+The release workflow verifies all 29 plugin PR contracts and builds/installs each
+native archive on Linux/macOS x64/arm64. These facts supersede the preparation
+notes below. They do not close the broader 1.0 gates or publish independent plugin
+archives. Public Linux installation verification is still running separately;
+its live curl is receiving archive bytes, not an established failed process.
+
+Review of that download exposed unbounded installer network waits. Source now
+bounds connection setup (15s), low-throughput stalls (below 1 KiB/s for 60s),
+individual attempts (900s), and retry admission (three retries within 1200s).
+An in-flight attempt may finish after the retry window. Failures precede any
+installation switch. Regressions cover either download failing with partial
+data, retained active symlink/binary/state, and temporary-directory cleanup.
+A real loopback HTTP server also leaves an incomplete response open; real curl
+terminates it with code 28 under scaled existing time limits. All three cases fail as negative controls when production limits are removed.
+This source fix is subsequent to v0.7.0; published assets and its tag are unchanged.
+
+Validation: 1036 tests pass with three optional skips, coverage thresholds pass,
+the complete Linux distribution/installer smoke passes, and the 100-page docs
+check/build passes. No plugin, CLI or event metadata changed, so generated
+references and contracts need no regeneration.
+
 ## Final 0.7.0 release-gate repairs — 2026-11-12
 
 The first 0.7.0 preparation CI 43051816654 passed Node 22 but the Node 26

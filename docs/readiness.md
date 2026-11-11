@@ -44,7 +44,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review and Project checks have source, lifecycle, real UI and installed-archive certification on Linux x64. A guided review iteration completed, but other native plugin platforms and a completed autonomous initial delivery remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
-| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | Candidate a9f99c9 passed Node 22/26 CI and four-platform native build/install smoke. The subsequent form refactor needs its own exact-revision checks. Candidate smoke does not prove the other gates. |
+| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.0](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.0), revision 21d7934, passed Node 22/26 CI, documentation checks, all 29 plugin PR contracts and four-platform native build/install smoke before publication. This establishes that release checkpoint; the other gates remain open. |
 
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
@@ -83,6 +83,15 @@ reported a compiler failure caused by the acceptance fixture's unsupported
 compatibility; independent checks passed without changing the authored source
 or making a paid rerun. This is development and truthful-error-reporting evidence,
 not an all-green autonomous episode under the original defective harness.
+
+The published [v0.7.0 milestone](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.0)
+points to immutable revision
+[21d7934](https://github.com/Neko1313/agent-compositor/commit/21d79342183a9f3262efbe7d9925ba71085b9539).
+Its [Node 22/26 CI](https://github.com/Neko1313/agent-compositor/actions/runs/43053396437),
+[documentation checks](https://github.com/Neko1313/agent-compositor/actions/runs/43053396720)
+and [release verification, four native build/install jobs and publication](https://github.com/Neko1313/agent-compositor/actions/runs/43054146510)
+all passed. The release contains four platform archives, the installer and checksums.
+Independent plugin archive publication and the broader 1.0 gates remain separate.
 
 The previous immutable candidate
 [a9f99c9](https://github.com/Neko1313/agent-compositor/commit/a9f99c99009f082f64cd66e9f9ffca4e4da1a5d2)

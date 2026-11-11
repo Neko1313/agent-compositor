@@ -32,8 +32,13 @@ tmp=$(mktemp -d)
 stage=
 trap 'rm -rf "$tmp"; if [ -n "$stage" ]; then rm -rf "$stage"; fi' EXIT
 trap 'exit 1' HUP INT TERM
-curl -fLSs --retry 3 "$url/$asset" -o "$tmp/$asset"
-curl -fLSs --retry 3 "$url/SHA256SUMS" -o "$tmp/SHA256SUMS"
+# Bound connection, stalled transfers and retries, including a silent mirror.
+download() {
+  curl -fLSs --connect-timeout 15 --speed-limit 1024 --speed-time 60 \
+    --max-time 900 --retry 3 --retry-max-time 1200 "$1" -o "$2"
+}
+download "$url/$asset" "$tmp/$asset"
+download "$url/SHA256SUMS" "$tmp/SHA256SUMS"
 expected=$(awk -v asset="$asset" '$2 == asset { print $1 }' "$tmp/SHA256SUMS")
 [ "${#expected}" -eq 64 ] || fail 'Missing or ambiguous checksum'
 [ "$(checksum "$tmp/$asset")" = "$expected" ] || fail 'Checksum mismatch; refusing installation'

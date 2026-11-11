@@ -40,7 +40,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Real development | Repeated end-to-end bug fixes, feature work, refactoring and plugin development on realistic repositories; independent behavior checks, preserved user changes and successful project verification | Small development suites and one live Compositor-authored production fix have passed independent checks. A sustained self-hosted development workflow and broader task coverage remain unverified. |
 | Model independence | Contract tests for every supported protocol, plus repeated real-model development runs across different model families. Unknown capabilities, invalid tool calls and weak tool use must degrade with bounded recovery | HTTP fixtures cover the supported transports. Saved-profile OpenAI evaluations are available. A broad live quality matrix remains incomplete. |
 | Tool cooperation | File discovery, semantic/text navigation, precise edits, test execution, shell jobs and delegation reach verified artifacts without unnecessary retries or denied-action bypass | Individual tools and regression suites exist. End-to-end efficiency and recovery need wider scenario evidence. |
-| Long-running execution | Context pressure/compaction, interruption, steering, queued work, restart/resume and failures at effect boundaries preserve the task, scope and truthful completion state | Deterministic tests and native smoke cover important boundaries. One live known development task passed abrupt process death after a persisted edit, fresh-process resume and explicit model compaction, with independent checks and preserved local files. Automatic context pressure and multi-hour development sessions remain required. |
+| Long-running execution | Context pressure/compaction, interruption, steering, queued work, restart/resume and failures at effect boundaries preserve the task, scope and truthful completion state | One live known task passed process-death/resume/explicit-compaction checks. A second known task recovered from a failed summary and passed three automatic compactions in a configured 8192-token window with independent artifact checks. A controlled live API truncation probe also passed. Multi-hour development and broader repositories remain required. |
 | Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | The reviewed Git review plugin passes source, lifecycle, real UI and installed-archive certification on Linux x64. Other platforms and a successful autonomous authoring session remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
@@ -95,6 +95,11 @@ leave the held agent active. This evidence does not cover every plugin or a live
 model. Explicit UI command routes now open new panels during a turn; other
 commands retain their queued prompt behavior. A live known checkout task now
 passes a process-death/resume/explicit-compaction scenario with independent
-grading. It does not exercise automatic context pressure or the earlier
-length-truncated summary retry path; those and certification on the remaining
-platforms remain open.
+grading. A later ledger task exposed an oversized-tail recovery gap and a
+non-shrinking merge failure. The revised compactor recovered the saved task
+through three automatic compactions at a configured 8192-token window. Frozen
+files and independent validation, deduplication, sorting and nonmutation checks
+passed. A separate live API probe forced the first auxiliary output cap to 32
+tokens and verified an identical-segment retry ending successfully. These are
+bounded development/fault-injection cases, not natural million-token or multi-hour
+sessions. Broader sessions and remaining-platform certification stay open.

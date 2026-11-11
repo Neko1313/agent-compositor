@@ -104,6 +104,16 @@ cannot call `next()` to continue an expired hook; render-only and sandboxed hook
 cannot acquire it. This is an explicit lifetime choice, not a separate process or
 a bypass of service interception and permission checks.
 
+### Context compaction
+
+The default context compactor preserves the latest user request verbatim and
+keeps recent complete tool groups within half the available transcript budget.
+An oversized newest group may be summarized in full, including on the first
+tool batch; compaction never re-executes its effects. Embedders using
+`compactTranscript` can opt into this selection with `maxTailTokens` and
+`preserveLastUser`; omitting them retains its original tail-selection behavior.
+Failed, empty or non-shrinking summaries leave the original messages intact.
+
 ### Concurrent user tool operations
 
 `$.agent.tool(name, args, {signal})` uses the ordinary effective tool registry,

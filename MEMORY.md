@@ -1,5 +1,72 @@
 # Project memory
 
+## Automatic compaction failures and recovery — 2026-11-11
+
+An initial live ledger migration in a configured 16384-token window finished
+without compaction because the model read samples selectively. This did not
+establish automatic-pressure readiness. Its injected provider remained the
+budget-bound gpt-6.1-sol, but the fixture omitted AGENT_MODEL and its audit labels
+incorrectly showed the application's default Gemma name. Do not count this as
+Gemma evidence. The later fixture explicitly supplies the actual model label.
+
+A deterministic negative control exposed a real first-batch failure: one large
+tool result occupied the mandatory recent tail, leaving only a single user
+message to summarize. No summary was attempted and execution stopped. The
+compactor now optionally bounds the retained tail by tokens and preserves the
+latest user request verbatim outside the folded middle. Core enables both: an
+oversized newest tool group is folded whole, without orphaned results or effect
+re-execution. External compactTranscript callers keep old selection when the
+new maxTailTokens/preserveLastUser options are omitted. Failure still retains
+the original transcript. The negative control now reaches the next model step
+with exactly one original effect and one successful summary.
+
+The first 8192-token live pressure run then genuinely failed: tiny character
+segments generated verbose intermediate summaries, and their merge did not
+shrink. Preserve this failure in dist/automatic-context-small-20261111/result.json
+and trajectory.jsonl. Summary segment packing now uses the same Unicode-aware
+token heuristic as pressure, reserves instruction room and never splits a code
+point. Segment/merge prompts specify concise size targets and omit raw file
+contents/repetitive records. Existing segment/merge limits and fail-closed
+non-shrink behavior remain. Tests verify ASCII packing, Unicode bounds and
+failure retention; the old character-count assertion was replaced by the actual
+estimated-token bound it is meant to establish.
+
+Resumed that exact saved ledger session through the revised source composition.
+It passed three automatic compactions (3197→1230, 4035→1515, 2737→1786 estimated
+transcript tokens), kept the latest request verbatim and retained valid tool
+groups. The agent ran the approved check. Independent grading reran it and a
+separate 100-seed balance/deduplication grid, global first-ID behavior, validation
+of invalid duplicates, sorting, input freezing/nonmutation, original comment and
+frozen package/export/contract/check/NOTES hashes. Review passes. Artifacts:
+dist/automatic-context-small-20261111/{resumed.jsonl,resumed-result.json,
+resume-requests.jsonl,grade.py,review.json,candidate-aggregate.mjs}. Preparation,
+workers and original failure remain alongside them. This was a bounded known
+fixture and recovery after a code change, not an unbiased before/after comparison
+or a multi-hour/native-binary/million-token session.
+
+A separate controlled live API truncation probe capped only the first auxiliary
+request at 32 output tokens. The actual API returned length; the same segment
+hash retried with the normal 2048-token allowance and returned stop. The partial
+output was discarded and key task facts remained. This is explicit fault
+injection, not a naturally occurring long-session truncation. Evidence:
+dist/automatic-context-small-20261111/truncation-review.json and its probe source.
+
+954 package tests pass with three optional skips on Node 26 and actual Node
+22.19.0 (including coverage), typecheck and docs check/build pass. All 28 native
+plugins passed PR certification for workspace
+576080f6e87da354d37b69c9860ebf4fba5c902a26d79849930dd92de9a37b82;
+retained summary: reports/certification/context-compaction-pr-summary.json.
+The final cumulative guard bound is $41.9484, with 214 reported requests and no
+pending reservations. The Standard/global estimate covers 48 new requests at
+$0.255444; 166 historical requests remain explicitly unavailable. The original
+$50 authorization and all old charges remain unchanged.
+
+Follow-up found while recording requests: injected providers without capacity
+metadata can leave main-request maxOutputTokens unset despite explicit context
+reserveOutput settings. Verify/fix that configuration path next. Broader actual
+repositories, sustained sessions, model families and release/platform gates remain
+open; the 1.0 goal is not complete.
+
 ## Cache estimates and first fresh-process recovery — 2026-11-11
 
 The user reports roughly $2 actual account spend for the earlier evaluations;

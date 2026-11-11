@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { WorkflowEngine } from '../../../plugins/workflows/engine.js';
 import { discoverCapabilities, ProviderRouter } from '@agent-compositor/provider';
 import { AgentCore, ScriptedProvider, AGENT_INSTRUCTIONS } from '@agent-compositor/core';
-import { TokenBudget, compactTranscript, summarizeChunks } from '@agent-compositor/context';
+import { TokenBudget, compactTranscript, summarizeChunks, estimateTokens } from '@agent-compositor/context';
 import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 const roots: string[] = [];
 afterEach(async () => { for (const d of roots.splice(0))
@@ -42,7 +42,7 @@ describe('effective model context', () => {
         const chunks: string[] = [];
         expect(await summarizeChunks(rows, async (text) => { chunks.push(text); return 'short'; }, 1024)).toContain('short');
         expect(chunks.length).toBeGreaterThan(1);
-        expect(Math.max(...chunks.map(s => s.length))).toBeLessThan(1000);
+        expect(Math.max(...chunks.map(estimateTokens))).toBeLessThanOrEqual(1024);
     });
     it('compacts despite cooldown at a hard boundary and retries a context overflow only once', async () => {
         const provider = new ScriptedProvider([{ finish: 'error', error: 'context window exceeded' }, { text: 'done' }]);

@@ -91,3 +91,33 @@ describe("compactTranscript", () => {
     expect(result.messages.at(-1)).toMatchObject({ content: "current answer" });
   });
 });
+
+it('folds an oversized newest tool group while pinning the original user task verbatim',async()=>{
+ const task=msg('user','Analyze the export; preserve the exact fee and validation requirements.');
+ const call={...msg('assistant',''),toolCalls:[{name:'read',args:{path:'export.json'}}]};
+ const result=msg('tool','x'.repeat(30000));let folded:MessageLike[]=[];
+ const compacted=await compactTranscript([msg('system','System instructions'),task,call,result],async messages=>{folded=messages;return'Export was read successfully. Continue analysis.';},{keepTail:1,maxTailTokens:1000,preserveLastUser:true});
+ expect(compacted.failure).toBeUndefined();expect(compacted.foldedCount).toBe(2);expect(folded).toEqual([call,result]);
+ expect(compacted.messages.at(-1)).toBe(task);expect(compacted.messages.some(m=>m.role==='tool'||m.toolCalls?.length)).toBe(false);
+ expect(compacted.tokensAfter).toBeLessThan(1000);
+});
+it('retains a fitting recent group intact and leaves the transcript untouched on summary failure',async()=>{
+ const task=msg('user','Original task'),call={...msg('assistant',''),toolCalls:[{name:'read',args:{path:'recent'}}]},result=msg('tool','recent result');
+ const messages=[task,msg('assistant','x'.repeat(5000)),msg('user','Latest task'),call,result];
+ const success=await compactTranscript(messages,async()=> 'Earlier progress',{keepTail:1,maxTailTokens:1000,preserveLastUser:true});
+ expect(success.messages.slice(-3)).toEqual(messages.slice(-3));
+ const failed=await compactTranscript(messages,async()=>{throw Error('Summary unavailable');},{keepTail:1,maxTailTokens:0,preserveLastUser:true});
+ expect(failed.messages).toBe(messages);expect(failed.foldedCount).toBe(0);expect(failed.failure).toContain('Summary unavailable');
+});
+
+it('packs ASCII and Unicode summary segments by estimated tokens, not tiny character slices',async()=>{
+ const {summarizeChunks}=await import('../src/index.js');
+ for(const content of ['a'.repeat(6000),'日本語😀'.repeat(1000)]){
+  const requests:string[]=[];
+  const summary=await summarizeChunks([msg('tool',content)],async text=>{requests.push(text);return'Short progress note';},2048);
+  expect(summary).toContain('Short progress note');
+  expect(requests.every(text=>estimateTokens(text)<=2048)).toBe(true);
+  expect(requests.every(text=>!text.includes('\uFFFD'))).toBe(true);
+  if(content.startsWith('a'))expect(requests).toHaveLength(1);
+ }
+});

@@ -1267,6 +1267,8 @@ export class AgentCore {
       {
         signal: this.abort.signal,
         keepTail:Math.max(1,tail),
+        maxTailTokens:target/2,
+        preserveLastUser:true,
       }
     );
     if (result.failure) throw Error(result.failure);

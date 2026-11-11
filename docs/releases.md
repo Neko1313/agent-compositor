@@ -124,6 +124,15 @@ If publication fails after creating a draft, inspect the failed run and draft
 before retrying. The workflow intentionally refuses to overwrite an existing
 release. Never move a published version tag; fix the issue in a new version.
 
+## Unpublished v0.6.0 candidate
+
+The v0.6.0 tag was not published: native smoke checks exposed a journal payload
+containing a live AbortSignal in a custom repository. Bun rejects cloning that
+capability. The corrected core serializes detached JSON records before the
+journal service chain, retaining fail-closed writes and live execution signals.
+The next candidate is v0.6.1; v0.6.0 stays immutable and is ignored by git-cliff so
+its unpublished feature/fix commits remain in the next release notes.
+
 ## v0.1.1 dependency audit
 
 The original v0.1.1 Zod 3 dependency was flagged by npm audit for

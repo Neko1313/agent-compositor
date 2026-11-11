@@ -231,6 +231,11 @@ The journal seam replaces event writes independently. The selected
 `{value:true}`. A denial, fault or missing acknowledgement stops the core and
 blocks further execution in that instance. Repair storage and reopen/resume the
 session to continue. A core without a configured journal remains usable in memory.
+Before the journal chain runs, the core snapshots each payload using JSON
+serialization. Backends receive detached JSON records, including when a live
+service input contains an AbortSignal; they do not receive live signals or
+callable host capabilities. Hooks and execution retain their original inputs.
+Serialization errors fail closed through the same journal failure path.
 The default journal propagates creation and append failures; the default store
 serializes concurrent appends within one store instance. This is not a cross-process
 transaction or an exactly-once guarantee for external effects. Terminal success

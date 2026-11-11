@@ -338,6 +338,24 @@ async function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
       } finally {await core.close();}
     });
   }
+  it("passes detached JSON records to replacement journals while hooks retain live signals",async()=>{
+    let preparedSignal:AbortSignal|undefined;
+    const records:Record<string,unknown>[]=[];
+    const provider=new ScriptedProvider([{text:"Journal accepted the turn"}]);
+    const core=new AgentCore({cwd,provider,preparePrompt:async(text,signal)=>{preparedSignal=signal;return text;},
+      sessions:{create:async()=>{},append:async(_id,events)=>{
+        for(const event of events)expect(event).toStrictEqual(JSON.parse(JSON.stringify(event)));
+        records.push(...structuredClone(events));
+      }},
+    });
+    try{
+      await core.submit("work");
+      expect(core.failure).toBeUndefined();expect(provider.requests).toHaveLength(1);
+      expect(preparedSignal).toBeInstanceOf(AbortSignal);
+      expect(records.find(event=>event.type==='service.context.prepare')?.signal).toEqual({});
+      expect(records.at(-1)?.type).toBe('turn.complete');
+    }finally{await core.close();}
+  });
   it("fails closed when a replacement journal denies writes",async()=>{
     const provider=new ScriptedProvider([{text:"must not run"}]);
     const core=new AgentCore({cwd,provider,tools:[],controlTools:[],services:{"service.session.append":()=>({deny:"offline"})}});

@@ -1,5 +1,25 @@
 # Project memory
 
+## Native release journal regression — 2026-11-11
+
+The requested host publication tagged v0.6.0, but native smoke gates correctly
+blocked publication. Its external kernel/custom repository fixture clones
+incoming events; Bun 1.4.4 rejects structuredClone of the live AbortSignal in
+service.context.prepare. Node-based tests did not expose that runtime difference.
+The core now creates a detached JSON snapshot before service.session.append,
+matching SessionEvent's existing JSON contract across all backends. Live hooks
+and execution keep their capability objects; serialization or storage failures
+still latch the fail-closed journal state.
+
+The Bun source probe reproduced the failure before the fix and succeeds after
+it. A regression test checks detached JSON records while prompt preparation
+retains a live signal. All 855 tests pass with 3 optional skips; typecheck and
+a locally built native archive's full installer/kernel/custom-repository/resume
+smoke passed. v0.6.0 remains an immutable unpublished candidate. git-cliff ignores
+that tag so its changes remain in the v0.6.1 notes; the corrected candidate will
+run the complete native publication gates again.
+
+
 ## Concurrent plugin management UI — 2026-11-11
 
 The user reported that plugin install/enable/update and marketplace/configuration

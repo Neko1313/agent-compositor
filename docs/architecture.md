@@ -120,3 +120,8 @@ output retain normal shell permissions, and closing the core drains its workers.
 - Reload disposes owned callbacks, processes and controllers and restores supported state.
 - Trusted JavaScript runs in-process. Runtime guards and Monty Python execution are not OS isolation for arbitrary shell or native plugin code.
 - Generated references describe the current sources; historical design proposals remain labeled as history.
+
+Journal writes use detached JSON snapshots before dispatching
+`service.session.append`. Live execution payloads remain available to hooks,
+while local and custom repositories receive the same serializable record shape.
+Serialization failures stop effect admission just like storage failures.

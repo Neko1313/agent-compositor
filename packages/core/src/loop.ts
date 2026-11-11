@@ -1746,7 +1746,9 @@ export class AgentCore {
   private async persist(event: string, input: Record<string, unknown>): Promise<void> {
     if(this.journalFailure)throw this.journalFailure;
     try {
-      const response=await this.host.emit("service.session.append",{sessionId:this.sessionId,cwd:this.options.cwd,event,data:input});
+      // Journal backends receive detached JSON records, never live host capabilities.
+      const data=JSON.parse(JSON.stringify(input)) as Record<string,unknown>;
+      const response=await this.host.emit("service.session.append",{sessionId:this.sessionId,cwd:this.options.cwd,event,data});
       if(this.journalFailure)throw this.journalFailure;
       const value=response.value as {deny?:string;value?:unknown}|undefined;
       if(response.faults.length || value?.deny || value?.value!==true)

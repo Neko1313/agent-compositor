@@ -12,6 +12,11 @@ Install this plugin through the host extension workflow. Installation does **not
 
 Open `/ci`. Opening the panel does not fetch runs, poll GitHub, or ask the model to act. Choose **Configure**, then **Refresh runs**. Select a run for its summary, then choose **Failed logs** or **Full logs**. The concurrent panel can operate while the main agent is busy; it allows one panel operation at a time.
 
+An active operation shows **CI operation in progress** above the controls while
+keeping previous results visible. The status disappears when the operation
+settles, including after failure or cancellation; it does not claim a progress
+percentage or imply that the old result belongs to the new request.
+
 **Cancel** aborts the active request. **Close** aborts it and removes the panel; completion does not reopen a closed panel. Cancellation waits for the execution service to settle rather than reporting completion while cleanup is still pending. The main agent's separate operation is not cancelled by these panel controls.
 
 The `ci_review` tool accepts only these inputs:
@@ -66,6 +71,11 @@ The frozen 10-case integration suite at `packages/app/test/ci-review-oracle.test
 Independent review regressions cover mismatched run IDs, repository length, complete truncated records, normal operations exceeding the default one-second UI hook budget, repository changes and readable job status. A separate lifecycle suite exercises installation while inactive, explicit enablement, reload, restart, a synthetic contract-preserving update and rollback, disable, re-enable and removal while preserving settings.
 
 `node tools/visual/plugin-check.mjs ci-review` runs the actual Ink panel through a PTY and xterm.js. Its isolated executable `gh` fixture exercises configuration saving/cancellation, run/job/log selection, concurrent work, Cancel/Close process cleanup, narrow terminal drafts and saved settings after restart. It does not contact GitHub or use a paid model.
+
+The progress oracle checks busy feedback, retained results, disabled actions and
+Cancel/Close availability, then status removal after success, failure and
+cancellation. The PTY scenario also checks visible feedback during a real
+controlled subprocess and its removal after cancellation settles.
 
 `plugin.test.json` binds source and built-artifact lifecycle, behavior and terminal cases for the four native platform targets. A test plan declares required checks; it is not a certification receipt. Actual certification must pass for the exact source, plan and artifact before publication. Real GitHub installation/authentication, network reliability, repository permissions and log availability remain dependent on the user's environment. Controlled subprocess tests verify timeout and cleanup without asserting live GitHub reliability.
 

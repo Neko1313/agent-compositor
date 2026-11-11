@@ -1,5 +1,68 @@
 # Project memory
 
+## Compositor-authored CI busy feedback — 2026-11-12
+
+At026e605, the CI panel exposed old results and Cancel while a request ran but
+had no explicit busy label in the panel. Prepared a tiny known UI edit with a
+host-provided real read snapshot, scoped edit-only model capability and frozen
+three-case success/failure/cancel oracle. All three fail before the change.
+A separate validation clone passed with a known reference patch; the actual
+model target stayed byte-identical to root until live execution. Scripted
+preflight exercised real guarded edit and measured Responses envelopes8489/9247
+bytes without API requests. Predeclared maximum2requests,11000serialized bytes
+each,+4096token overhead,1024output tokens =>0.17144USD maximum admission,
+fitting the then0.177061remaining conservative allowance. The parent tightened
+EvalBudget.reserve before its original atomic guard, never bypassed it.
+
+Live saved-profile Sol through buildApp/core completed in6870ms: two requests,
+one edit, all expectedHash/range/strict fields retained. The exact authored
+one-line status was integrated without rewriting it. Three unchanged oracle
+cases passed independently; all735protected files/oracle/user draft survived.
+Agent truthfully stated it did not run tests: this was an editing-only turn,
+not autonomous investigation or initial plugin delivery. Evidence:
+dist/selfhost-ci-progress/{execution,integrity}.json and frozen oracleSHA
+9d7505ec7f27210d351fa2d85de384e1049bf5add45e4653955f73c825254e0e.
+
+The active panel now shows an accent 'CI operation in progress' row and retains
+previous results; the row vanishes on success/failure/cancel. Existing disable
+semantics and Cancel/Close behavior are unchanged. Actual PTY scenario passes
+all16checks including process cleanup, held main agent, settings, narrow idle
+draft and restart; inspected running/cancelled/narrow screenshots. Included
+oracle in the plugin's maintained tests and extended visible-progress assertions.
+Full1118pass/3optional skips, types, generators, docs/build pass. The public
+0.1.0 archive is unchanged. Plan now pins its four public archives as the previous
+release for actual update/rollback certification of the next generated version.
+Do not hand-bump manifest/catalog/changelog; normal metadata PR follows push.
+
+Budget after this run: effective49.836283/50,raw53.938163,423reported/two old pending.
+Historical cache review remains unchanged. Standard-price estimate3.598554 covers
+257requests;166 still lack cache metadata. This is not an invoice. No reservations
+were cleared and no provider/proxy credential entered the model workspace/logs.
+
+## Published 0.7.2 and native context regression — 2026-11-12
+
+Immutable v0.7.2 at888bf8c is public. Tagged43110063150 needed two addressed
+macIntel reruns for infrastructure DNS failures: attempt1 passed build/smoke but
+artifact upload failed ENOTFOUND; attempt2 failed Callix download ENOTFOUND
+github.com before compilation; attempt3 passed build/smoke/upload and publication.
+Failed logs retained under dist/v072-public/failed-{upload-attempt1,download-attempt2}.log.
+Other successful jobs were carried forward with their original timestamps;
+new normalized job IDs after a rerun do not mean every job was re-executed.
+No failed functional assertions were hidden or weakened. Never move this tag.
+
+Public six-asset release/installer checksum and isolated0.7.1→0.7.2 upgrade pass
+through the saved proxy; previous binary and state sentinel survived. The
+context smoke also passes on the actual publicly installed executable: original
+task/reference retained, one write, preserved draft, no paid model. Reports:
+dist/v072-public/{public-install-report,context-smoke}.json. Installation retained
+at/tmp/compositor-v072-public-rb4kHq for future isolated upgrade verification.
+
+Maintained installed-binary context scenario at026e605 passed all four native
+jobs in43110702555. Independently parsed each job's emitted report and verified
+three main/one summary, one write, retained task reference and actual file/draft
+checks. Receipt dist/packed-context-native-integrity.json. This is deterministic
+local transport evidence, not a live-model matrix or broad1.0 completion.
+
 ## Exact 0.7.2 native candidate and installed-binary context proof — 2026-11-12
 
 888bf8c passed exact Node22/26 CI43108749292, docs43108749491 and host build-only

@@ -7,6 +7,7 @@
       "files": [
         "packages/app/test/ci-review-oracle.test.ts",
         "packages/app/test/ci-review-review.test.ts",
+        "packages/app/test/ci-review-progress-oracle.test.ts",
         "packages/app/test/ci-review-lifecycle.test.ts"
       ]
     }
@@ -32,7 +33,7 @@
     "darwin-x64",
     "darwin-arm64"
   ],
-  "previousVersion": null,
+  "previousVersion": "0.1.0",
   "cases": [
     {
       "id": "package-lifecycle",
@@ -295,5 +296,23 @@
         "args": []
       }
     }
-  ]
+  ],
+  "previousArtifacts": {
+    "linux-x64": {
+      "url": "https://github.com/Neko1313/agent-compositor/releases/download/plugin%2Fci-review%2Fv0.1.0/ci-review-0.1.0-linux-x64.tar.gz",
+      "sha256": "3438a83e47bd12b1e8f2f7ad1cac1d122b83e5458132ec7f6e5cfff024cc3d14"
+    },
+    "linux-arm64": {
+      "url": "https://github.com/Neko1313/agent-compositor/releases/download/plugin%2Fci-review%2Fv0.1.0/ci-review-0.1.0-linux-arm64.tar.gz",
+      "sha256": "e6c502a0b48022a5006b19a041810068b6c3fab75e6f36d47e6f9ab8f7c346c7"
+    },
+    "darwin-x64": {
+      "url": "https://github.com/Neko1313/agent-compositor/releases/download/plugin%2Fci-review%2Fv0.1.0/ci-review-0.1.0-darwin-x64.tar.gz",
+      "sha256": "581b2ce37bf1f98be75a51096e7bb950c9217477205948a054ac0da7b98b5a96"
+    },
+    "darwin-arm64": {
+      "url": "https://github.com/Neko1313/agent-compositor/releases/download/plugin%2Fci-review%2Fv0.1.0/ci-review-0.1.0-darwin-arm64.tar.gz",
+      "sha256": "e0eb6b49c5968a5df3057263e500fe4909fcf8baa6aa97c954d6b1cfbe1eeb83"
+    }
+  }
 }

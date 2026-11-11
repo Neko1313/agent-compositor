@@ -81,16 +81,16 @@ try{
   await wait('CI_FIXTURE_FAILED #5');await page.waitForFunction(()=>!visual.text().includes('Cancel'));
   const working=async()=>assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'The main model must remain active');await working();
   async function slow(){
-   await rm(join(fixture.cwd,'ci-worker.pid'),{force:true});await writeFile(join(fixture.cwd,'.ci-slow'),'controlled dependency');await clickText('Refresh runs');await wait('Cancel');
+   await rm(join(fixture.cwd,'ci-worker.pid'),{force:true});await writeFile(join(fixture.cwd,'.ci-slow'),'controlled dependency');await clickText('Refresh runs');await wait('Cancel');await wait('CI operation in progress');
    let pid=0;for(let i=0;i<200&&!pid;i++){pid=Number(await readFile(join(fixture.cwd,'ci-worker.pid'),'utf8').catch(()=>''));if(!pid)await new Promise(done=>setTimeout(done,10));}
    assert.ok(pid>0,'A real gh fixture subprocess must start');return pid;
   }
-  const pid=await slow();await shot('01-ci-running');await clickText('Cancel');await wait('CI review cancelled.');assert.throws(()=>process.kill(pid,0));await working();await shot('01-ci-cancelled');
+  const pid=await slow();await shot('01-ci-running');await clickText('Cancel');await wait('CI review cancelled.');assert.throws(()=>process.kill(pid,0));await working();assert.ok(!(await text()).includes('CI operation in progress'),'Settled cancellation must remove the busy status');await shot('01-ci-cancelled');
   const closed=await slow();await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh runs'));
   for(let i=0;i<200;i++){try{process.kill(closed,0);}catch{break;}await new Promise(done=>setTimeout(done,10));}assert.throws(()=>process.kill(closed,0));await working();await rm(join(fixture.cwd,'.ci-slow'));
   const calls=(await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));assert.equal(calls.length,7);assert.ok(calls.every(args=>args.at(-2)==='--repo'&&args.at(-1)==='fixture/repo'));assert.equal(calls[4][calls[4].indexOf('--limit')+1],'3','The next request must use the concurrently saved limit');
   await command('/ci');await wait('Refresh runs');await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');await command('Continue after CI review');await wait('CI_AGENT_DONE');
-  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup','user-tool.close-cleanup','ci.explicit-requests','ci.fixed-repository','settings.concurrent');
+  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup','user-tool.close-cleanup','ci.explicit-requests','ci.fixed-repository','settings.concurrent','ci.visible-progress');
  }else if(name==='project-checks'){
   await clickText('Refresh scripts');await wait('Run check');
   await clickText('Run check');await wait('passed (exit 0)');await wait('PROJECT_CHECK_OUTPUT');await shot('01-check-pass');

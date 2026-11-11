@@ -25,6 +25,7 @@ async function show($: HooksApi) {
   const runs = $.state.get<Array<{ databaseId: number; displayTitle: string; status: string; conclusion: string | null }>>(RUNS) ?? [];
   await $.ui.view(PANEL, 'CI review', { lines: [
     { text: configuration },
+    ...(busy ? [{ text: 'CI operation in progress', tone: 'accent' as const }] : []),
     { text: 'Refresh runs', action: busy ? undefined : 'refresh', tone: 'accent' },
     { text: 'Configure', action: busy ? undefined : 'configure', tone: 'accent' },
     ...runs.map(run => ({ text: `Run ${run.databaseId}: ${clean(run.displayTitle).slice(0, 500)} · ${clean(run.conclusion || run.status)}`, action: busy ? undefined : `run:${run.databaseId}` })),

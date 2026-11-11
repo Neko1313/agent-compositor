@@ -44,7 +44,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks 0.1.1 passed the same platform scope at f102fef after fixing macOS project-path aliases. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
-| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.1](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.1), revision 7e8e389, passed Node 22/26 CI, documentation checks, all 29 plugin deterministic contracts and four-platform native build/install smoke before publication. Later self-hosting exposed task loss during compaction; its source repair is separate from this published checkpoint. The gate remains open. |
+| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.2](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.2), revision 888bf8c, passed Node 22/26 CI, documentation checks, all 30 plugin deterministic contracts and four-platform native build/install smoke before publication. It ships task-reference preservation and bounded empty-response recovery. Public Linux upgrade and state preservation also pass. This verifies the release checkpoint; the broader 1.0 audit remains open. |
 
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
@@ -74,6 +74,19 @@ See [evaluation commands and limitations](evals.md),
 [execution contracts](core-customization.md) and [release gates](releases.md).
 
 ## Current development focus
+
+A bounded Sol editing turn through Compositor added visible CI-panel busy
+feedback using one guarded edit and two model requests. The host supplied a real
+read snapshot; the agent had only the scoped edit tool and correctly stated that
+it did not run tests. Three frozen success/failure/cancellation checks failed on
+the original code and passed independently after the edit. All 735 protected
+files and the oracle survived unchanged. The real PTY flow also verifies visible
+feedback during a subprocess, status removal after cancellation, preserved old
+results, concurrent main-agent work and restart behavior. This is one small known
+UI development case with supplied context, not autonomous investigation, initial
+plugin delivery or proof that the broader usability gates are closed. The busy
+feedback targets the next independent CI-plugin release; published 0.1.0 remains
+unchanged.
 
 Initial CI-plugin authoring through Compositor exposed two evaluation-fixture
 settings mistakes, then a runtime compaction gap. The latest user request was
@@ -123,8 +136,9 @@ user task for summaries and permission review; real steering still changes the
 task. This includes literal user text beginning with the harness's wording.
 One oversized message can be folded when it is the only remaining middle entry,
 subject to the existing reduction/failure guards. Automatic-compaction, replay
-and permission-context regressions pass. This source repair remains separate
-from the published host and requires a new exact-candidate release check.
+and permission-context regressions pass. The origin repair ships in 0.7.2.
+The maintained installed-binary regression was added later at 026e605 and passed
+[a separate four-platform candidate](https://github.com/Neko1313/agent-compositor/actions/runs/43110702555).
 
 Local Qwen3 1.7B CPU diagnostics at 0b48eca used three fixed small tasks with
 two repeats each. Default thinking passed 4/6 strict cases; explicit
@@ -182,7 +196,23 @@ compatibility; independent checks passed without changing the authored source
 or making a paid rerun. This is development and truthful-error-reporting evidence,
 not an all-green autonomous episode under the original defective harness.
 
-The published [v0.7.1 patch](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.1)
+The published [v0.7.2 patch](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.2)
+is bound to immutable revision
+[888bf8c](https://github.com/Neko1313/agent-compositor/commit/888bf8ce7ebb3e075290a3e257c21cbf986c1c4d).
+Its [Node 22/26 CI](https://github.com/Neko1313/agent-compositor/actions/runs/43108749292),
+[documentation checks](https://github.com/Neko1313/agent-compositor/actions/runs/43108749491),
+[four-platform candidate](https://github.com/Neko1313/agent-compositor/actions/runs/43108759727)
+and [tagged publication](https://github.com/Neko1313/agent-compositor/actions/runs/43110063150)
+passed. Two macOS Intel attempts failed on DNS: first during artifact upload
+after successful smoke, then during the Callix download before compilation.
+Those failures were retained; a rerun of the failed job completed all required
+checks and publication. No failed functional assertion was hidden by retries.
+An independent public Linux update from 0.7.1 verified installer/archive checksums,
+preserved the previous binary and application state, and passed the context
+regression on the publicly installed executable. This is a release checkpoint,
+not completion of the broader development/model/long-session gates.
+
+The earlier published [v0.7.1 patch](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.1)
 is bound to immutable revision
 [7e8e389](https://github.com/Neko1313/agent-compositor/commit/7e8e38989d2d88780f76aee7cbab1d62621747c5).
 Its [Node 22/26 CI](https://github.com/Neko1313/agent-compositor/actions/runs/43078608479),

@@ -402,7 +402,9 @@ selects runs/jobs/failed and full logs, cancels the settings form, saves a new
 run limit while the main agent is busy, and checks
 Cancel/Close cleanup of actual SDK-owned processes while the scripted main
 agent remains held. It also verifies a preserved draft after resize and saved
-settings after session restart. `ci-fixture.mjs` installs a local executable
+settings after session restart. During a held CI subprocess, it requires the
+visible busy status and verifies its removal after cancellation settles, while
+previous results remain visible during pending work. `ci-fixture.mjs` installs a local executable
 `gh` fixture only on that PTY child's PATH and records its argv; it never uses
 user GitHub credentials or a live model. Refresh responses include a request
 sequence marker: the scenario waits for the specific response to render before

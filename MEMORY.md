@@ -1,5 +1,33 @@
 # Project memory
 
+## Immutable-source plugin candidate workflow — 2026-11-12
+
+The previous goal turn made concrete progress: the public 0.7.0 installer proof
+completed, installer network waits were bounded, and d275029 is pushed. Its
+exact-revision CI 43058942194 subsequently succeeded. The 1.0 goal stays active.
+
+Manual plugin-release validation can now select candidate_name plus a full
+candidate_sha instead of requiring a pre-existing publication tag. Metadata
+rejects ambiguous, mutable or mismatched selections, retains automatic version
+preparation checks, and records the resolved SHA/mode in source.json. The workflow also
+records source-commit.txt independently of revision-specific helper output, so
+old existing-tag helpers cannot drop SHA pinning. Every platform job and
+publication checkout uses that verified SHA. Manual dispatch
+cannot publish, including when dispatched from a tag; publication still requires
+a tag push and rechecks its commit. No native certificate or plugin publication
+is inferred from implementing the workflow. Existing-tag manual validation stays
+available. Failed platform diagnostics are retained in separate quality-plugin-*
+artifacts, excluded from the publication archive download set.
+
+Local validation: 1040 tests pass with three optional skips and coverage above
+thresholds; typecheck and the 100-page docs check/build pass. Four focused new
+cases cover candidate metadata and publication/source-selection boundaries;
+existing metadata/preparation cases remain green. Reintroducing a tag-based
+platform checkout and manual-tag publication makes both workflow boundary tests
+fail. No SDK, CLI or event generation inputs changed; no plugin versions or
+changelogs were edited. Exact-source remote CI and four-platform Project checks
+candidate certification are the next required evidence.
+
 ## Published 0.7.0 checkpoint and bounded installer networking — 2026-11-12
 
 The previous goal turn verified both model/tool proxy scopes with non-billable

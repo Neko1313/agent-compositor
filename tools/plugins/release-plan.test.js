@@ -106,3 +106,25 @@ it('keeps a new plugin at its initial version without rewriting its manifest in 
  execFileSync('bun',[resolve('tools/plugins/changed.mjs'),base,'--strict'],{cwd:root,stdio:'pipe'});
  commit(root,'chore(release): prepare plugin versions');expect(await prepareReleases(root,{inputs})).toMatchObject({files:[]});
 });
+
+it('certifies an immutable candidate without creating or changing plugin tags',async()=>{
+ const root=await fixture(),sha=git(root,'rev-parse','HEAD'),metadata=resolve('tools/plugins/release-metadata.mjs');
+ const before=git(root,'show-ref','--head');
+ const result=JSON.parse(execFileSync('bun',[metadata],{cwd:root,encoding:'utf8',env:{...process.env,PLUGIN_RELEASE_TAG:'',PLUGIN_CANDIDATE_NAME:'alpha',PLUGIN_CANDIDATE_SHA:sha}}));
+ expect(result).toEqual({name:'alpha',version:'1.2.3',tag:'plugin/alpha/v1.2.3',sha,mode:'candidate'});
+ expect(git(root,'show-ref','--head')).toBe(before);
+ expect(git(root,'status','--porcelain')).toBe('');
+ await file(root,'plugins/alpha/hooks.ts','export const changed=true;');const changed=commit(root,'feat(alpha): extend behavior');
+ expect(()=>execFileSync('bun',[metadata],{cwd:root,encoding:'utf8',stdio:'pipe',env:{...process.env,PLUGIN_RELEASE_TAG:'',PLUGIN_CANDIDATE_NAME:'alpha',PLUGIN_CANDIDATE_SHA:changed}})).toThrow(/unprepared runtime changes/);
+});
+
+it('refuses ambiguous, mutable and mismatched candidate selections before certification',async()=>{
+ const root=await fixture(),sha=git(root,'rev-parse','HEAD'),metadata=resolve('tools/plugins/release-metadata.mjs');
+ const base={...process.env,PLUGIN_RELEASE_TAG:'',PLUGIN_CANDIDATE_NAME:'alpha',PLUGIN_CANDIDATE_SHA:sha};
+ for(const override of [
+  {PLUGIN_RELEASE_TAG:'plugin/alpha/v1.2.3'},
+  {PLUGIN_CANDIDATE_NAME:''}, {PLUGIN_CANDIDATE_NAME:'../alpha'},
+  {PLUGIN_CANDIDATE_SHA:''}, {PLUGIN_CANDIDATE_SHA:'main'},
+  {PLUGIN_CANDIDATE_SHA:sha.slice(0,7)}, {PLUGIN_CANDIDATE_SHA:'a'.repeat(40)},
+ ])expect(()=>execFileSync('bun',[metadata],{cwd:root,encoding:'utf8',stdio:'pipe',env:{...base,...override}})).toThrow();
+});

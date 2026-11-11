@@ -231,6 +231,32 @@ four native archives, then publishes that plugin's release with checksums. It ne
 moves the application's `latest` release. Manual workflow dispatch builds only.
 Release notes contain only the selected version's changelog entry.
 
+Before creating a tag, manually dispatch `plugin-release.yml` on `main` with
+`candidate_name` and `candidate_sha`. The SHA must be the full 40-character commit
+of a pushed, clean source snapshot that includes this candidate workflow support.
+Pending automatic version preparation still blocks certification; merge its
+generated PR first. All release checks, mandatory UI/live cases and the four
+native archive checks remain required. For example:
+
+```sh
+candidate_sha=$(git rev-parse HEAD)
+gh workflow run plugin-release.yml --ref main \
+  -f candidate_name=project-checks -f candidate_sha="$candidate_sha"
+```
+
+This creates no tag or release. Download the `plugin-source-evidence` and
+`plugin-<runner>` workflow artifacts to review certificates, screenshots and
+archives. The separate `quality-plugin-source` and `quality-plugin-<runner>`
+artifacts retain diagnostics even after failed certification. They are excluded
+from the publication download set. `source.json` records the resolved commit, mode and intended plugin
+identity; a candidate's intended tag need not exist. `source-commit.txt` records
+the resolved SHA independently of the selected revision's metadata helper,
+including when validating an older existing tag. Packaging jobs use the exact
+verified SHA, even if a branch or tag later moves. Manual validation of an
+existing tag remains available with `tag=plugin/<name>/v<version>`; do not combine
+it with candidate inputs. Publication requires a tag push and rejects a tag that
+no longer points to the verified commit.
+
 ```sh
 npm run plugin:build -- todos
 npm run plugin:smoke -- todos

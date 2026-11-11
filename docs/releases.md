@@ -19,6 +19,15 @@ package mirrors and `sudo`; installation failure still stops tests rather than
 skipping search coverage. The installer retains the upstream MIT license. Native
 archive jobs retain their declared platform-specific prerequisites.
 
+Plugin release verification installs the Chromium revision selected by the locked
+Playwright package, using the system libraries already supplied by the declared
+hosted runners. It does not rerun `playwright install --with-deps` or depend on
+Ubuntu package mirrors for optional font packages. A separate browser preparation
+step must launch Chromium and load a page before mandatory terminal scenarios;
+missing browser binaries or libraries still fail the job. Browser preparation is
+limited to 10 minutes, source/platform certification jobs to 30 minutes each, and
+publication to 15 minutes. These are CI job limits, not application tool limits.
+
 Release archives support Linux glibc 2.38+ (x64/arm64) and macOS (x64/arm64).
 Windows and Linux musl are not currently supported by the installer. The shipped
 Monty native module needs glibc 2.38+; the complete Linux bundle is tested on

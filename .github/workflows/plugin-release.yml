@@ -27,6 +27,7 @@ concurrency:
 
 jobs:
   verify:
+    timeout-minutes: 30
     runs-on: ubuntu-24.04
     outputs:
       name: ${{ steps.metadata.outputs.name }}
@@ -68,15 +69,21 @@ jobs:
         run: npm run plugin:test -- "$PLUGIN_NAME"
         env:
           PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
+      - name: Prepare browser for required source UI scenarios
+        timeout-minutes: 10
+        env:
+          PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
+        run: |
+          if node -e 'const p=require("./plugins/"+process.env.PLUGIN_NAME+"/plugin.test.json");process.exit(p.profiles.components.some(c=>["view","interactive-ui"].includes(c))?0:1)'; then
+            npx playwright install chromium
+            node --input-type=module -e 'import {chromium} from "playwright"; const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})}); try { const page=await browser.newPage(); await page.goto("about:blank"); console.log("Browser ready:",browser.version()); } finally { await browser.close(); }'
+          fi
       - name: Certify the full release matrix including mandatory UI and live evidence
         env:
           PLUGIN_LIVE_OLLAMA_URL: ${{ vars.PLUGIN_LIVE_OLLAMA_URL }}
           PLUGIN_LIVE_OLLAMA_TOKEN: ${{ secrets.PLUGIN_LIVE_OLLAMA_TOKEN }}
           PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
         run: |
-          if node -e 'const p=require("./plugins/"+process.env.PLUGIN_NAME+"/plugin.test.json");process.exit(p.profiles.components.some(c=>["view","interactive-ui"].includes(c))?0:1)'; then
-            npx playwright install --with-deps chromium
-          fi
           if node -e 'process.exit(require("./plugins/"+process.env.PLUGIN_NAME+"/plugin.test.json").modelPolicy?0:1)' && [ -z "$PLUGIN_LIVE_OLLAMA_URL" ]; then
             echo 'Configure PLUGIN_LIVE_OLLAMA_URL for the required live reference model before releasing this plugin.'
             exit 1
@@ -103,6 +110,7 @@ jobs:
             dist/visual*/
 
   packages:
+    timeout-minutes: 30
     needs: verify
     strategy:
       fail-fast: false
@@ -122,12 +130,14 @@ jobs:
         with:
           bun-version: '1.4.4'
       - run: npm ci
-      - name: Install the browser for required artifact UI scenarios
+      - name: Prepare browser for required artifact UI scenarios
+        timeout-minutes: 10
         env:
           PLUGIN_NAME: ${{ needs.verify.outputs.name }}
         run: |
           if node -e 'const p=require("./plugins/"+process.env.PLUGIN_NAME+"/plugin.test.json");process.exit(p.profiles.components.some(c=>["view","interactive-ui"].includes(c))?0:1)'; then
-            npx playwright install --with-deps chromium
+            npx playwright install chromium
+            node --input-type=module -e 'import {chromium} from "playwright"; const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})}); try { const page=await browser.newPage(); await page.goto("about:blank"); console.log("Browser ready:",browser.version()); } finally { await browser.close(); }'
           fi
       - name: Build and smoke only the selected plugin
         env:
@@ -160,6 +170,7 @@ jobs:
           if-no-files-found: warn
 
   publish:
+    timeout-minutes: 15
     if: github.event_name == 'push' && github.ref_type == 'tag'
     needs: [verify, packages]
     runs-on: ubuntu-24.04

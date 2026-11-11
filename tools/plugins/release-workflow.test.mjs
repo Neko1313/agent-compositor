@@ -34,3 +34,18 @@ it('pins every packaging/publication job to the commit resolved by verification'
  expect(guard.run).toContain('git rev-parse --verify');
  expect(guard.env.CERTIFIED_SHA).toBe('${{ needs.verify.outputs.sha }}');
 });
+
+it('requires browser readiness before UI certification without reinstalling hosted system packages',()=>{
+ for(const name of ['verify','packages']){
+  const job=workflow.jobs[name],index=job.steps.findIndex(step=>step.name?.startsWith('Prepare browser'));
+  expect(index).toBeGreaterThan(0);
+  const prepare=job.steps[index];
+  expect(prepare['timeout-minutes']).toBe(10);
+  expect(prepare.run).toContain('npx playwright install chromium');
+  expect(prepare.run).not.toContain('--with-deps');
+  expect(prepare.run).toContain('await chromium.launch');
+  expect(prepare.run).toContain('await page.goto');
+  expect(job.steps.slice(index+1).some(step=>step.run?.includes('plugin:certify'))).toBe(true);
+  expect(job['timeout-minutes']).toBe(30);
+ }
+});

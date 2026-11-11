@@ -1,5 +1,47 @@
 # Project memory
 
+## Plugin certification browser preparation repair — 2026-11-12
+
+The previous goal turn made concrete progress: 6f18153 introduced immutable-source
+plugin candidate certification. Its exact-revision Node 22/26 CI 43060005315,
+documentation 43060006825 and plugin preparation 43060005586 succeeded.
+
+Project checks candidate run 43060035871 reached a terminal failure before plugin
+certification: playwright install --with-deps retried Ubuntu font-package mirrors
+for ten minutes and failed DNS resolution. Logs are retained in
+ dist/plugin-candidate-20261112/project-checks-43060035871-failed.log. This was not
+a plugin or terminal test result. Git review run 43061419039 was still queued
+with the same affected workflow; it was explicitly cancelled as superseded by
+the repair, not restarted because observation expired.
+
+The workflow now installs locked Playwright Chromium without re-running apt for
+system libraries already supplied by its hosted runners. A separate required
+browser step launches Chromium and loads a page; unavailable libraries/binaries
+still fail rather than skipping UI cases. Its check is inline so existing old-tag
+validation does not depend on a new helper file in that tag. The existing local
+compatible Chromium override passed both real source/artifact prerequisite
+commands; an invalid browser path failed both. CI still must validate its own
+locked browser revision on each runner. Browser preparation is bounded at ten
+minutes, verification/platform jobs at thirty minutes and publication at fifteen.
+All mandatory certification cases and expectations remain unchanged.
+
+1041 tests pass with three optional skips and coverage thresholds satisfied;
+the 100-page docs check/build passes. The new workflow regression fails against
+the previous workflow. No contract/generation inputs or plugin runtime/version
+metadata changed. New exact-revision remote certification remains required.
+
+A read-only budget review left the private ledger unchanged at $49.693673,
+294 reported / one pending, under the original $50 limit. Of 74 legacy reported
+requests with saved cache usage, original bounds total $9.916410; applying the
+maximum published mode, regional uplift and longest cache-write rates would
+bound those known requests at $6.395984 (all inputs are below long-context
+threshold). This is a feasibility calculation, not an invoice or activated
+admission-policy change. Unknown historical cache usage retains its original
+bound; the old pending 403 reservation is unchanged. Official sources checked: https://developers.openai.com/api/docs/pricing
+and https://developers.openai.com/api/docs/models/gpt-6.1-sol . Any future
+reconciliation needs validated usage, preserved original records, explicit policy
+evidence and tests before it can affect request admission. No paid requests ran.
+
 ## Immutable-source plugin candidate workflow — 2026-11-12
 
 The previous goal turn made concrete progress: the public 0.7.0 installer proof

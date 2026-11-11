@@ -156,12 +156,22 @@ and independent-agent metadata in project-scoped private storage for restart.
 | Alt+1..9 | Switch workspace |
 | Alt+Shift+1..9 | Move focused window to workspace and follow it |
 | Alt+i | Focus message input |
+| Alt+o | Open plugin management, including while the agent is working or awaiting an answer |
+| Alt+, | Open settings without replacing the message draft or answering a pending question |
 | Alt+? | Open shortcut reference |
 | Escape | Focus first window |
 
 Alt is used because terminal apps cannot reliably receive Super. Some
 terminal/desktop shortcuts may need remapping to pass Alt combinations.
 Small terminals display the focused branch when a split cannot fit.
+The plugin and settings shortcuts remain available when the status-bar buttons
+cannot fit. Alt+i returns to the message or pending agent interaction. An open
+settings form retains its own keyboard controls until submitted or cancelled.
+On short terminals, a pending question or approval collapses to a reminder while
+another pane has focus, leaving room for management. Alt+i or a click on the
+reminder restores the full dialog; that click never submits an answer or grants
+permission. Reopening management focuses its existing pane, including on another
+workspace, without moving its saved placement.
 
 Plugins can publish an inert text window from a hook:
 

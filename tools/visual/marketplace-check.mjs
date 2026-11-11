@@ -89,6 +89,23 @@ try {
   await clickText('[Settings]');await wait('Network proxy');
   await shot('14-settings-while-question-pending.png');
   report.checks.push('An unanswered agent question stays docked while marketplace search and provider settings accept input');
+  await page.evaluate(()=>visual.terminal.resize(48,18));
+  await page.waitForFunction(()=>visual.terminal.cols===48&&!visual.text().includes('[Plugins]'));
+  await page.keyboard.press('Alt+o');await wait('Browse marketplace');
+  await page.keyboard.press('Alt+,');await wait('Add provider');
+  await wait('Alt+i to answer');await shot('15-narrow-management-with-question.png');
+  await clickText('Alt+i to answer');await wait('AGENT_QUESTION');
+  await page.waitForFunction(()=>visual.text().includes('Continue')&&!visual.text().includes('AGENT_DONE'));
+  await page.keyboard.press('Enter');
+  await ready();
+  await page.keyboard.press('Alt+s');await wait('AGENT_DONE');
+  await shot('16-question-answered-after-management.png');
+  await page.keyboard.press('Alt+i');await page.keyboard.type('Unsent draft');await wait('Unsent draft');
+  await page.keyboard.press('Alt+o');await wait('Browse marketplace');
+  await page.keyboard.press('Alt+,');await wait('Add provider');
+  await page.keyboard.press('Alt+i');await wait('Unsent draft');
+  await shot('17-draft-preserved-after-management.png');
+  report.checks.push('At 48x18, global plugin/settings shortcuts work while the toolbar is hidden and a question waits; returning to the question completes the turn, and later navigation preserves an unsent draft');
   report.ok=report.errors.length===0;
 } catch(error){report.errors.push(String(error));await page?.screenshot({path:resolve(output,'failure.png')}).catch(()=>{});}
 finally{

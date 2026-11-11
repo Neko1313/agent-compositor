@@ -103,3 +103,54 @@ it.each(['approval','question'] as const)('keeps plugin navigation and forms usa
  expect(ui.core.getState()).toBe('running');expect(rendered.get('input')).toContain(marker);expect(provider.requests).toHaveLength(1);
  ui.close();await ui.settled();
 });
+
+it('opens management from a narrow pending question without consuming the answer or composer draft',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'plugin-ui-shortcuts-'));roots.push(root);
+ const provider=new ScriptedProvider([
+  {toolCalls:[{name:'ask_user',args:{question:'Keep this question pending',options:['Continue','Cancel']}}]},
+  {text:'Continued after management'},
+ ]);
+ const app=await buildApp({cwd:root,env:{HOME:join(root,'home')},provider,agentHub:false});apps.push(app);
+ const ui=new AppUI(app.createCore,app.reloadPlugins);uis.push(ui);
+ const rendered=new Map<string,string>();
+ ui.connect(message=>{if(message.type==='render')rendered.set(message.surface,message.grid?.map(row=>row.map(cell=>cell.ch).join('')).join('\n')??'');});
+ ui.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Layout'],encodings:['jsonl']}));ui.resize(48,18);await ui.core.start();
+ const key=(key:string,modifiers?:string[])=>ui.receive({type:'input',surface:'input',data:{kind:'key',key,modifiers}});
+ ui.receive({type:'input',surface:'input',data:{kind:'text',text:'Ask first'}});key('enter');
+ await wait(()=>rendered.get('input')?.includes('Keep this question pending')??false);
+ expect(rendered.get('status')).not.toContain('[Plugins]');
+ key('o',['meta']);await wait(()=>ui.windows.focused==='plugin-extension-manager-extensions'&&(rendered.get('plugin-extension-manager-extensions')?.includes('Browse marketplace')??false));
+ key(',',['meta']);await wait(()=>ui.windows.focused==='plugin-model-selector-models'&&(rendered.get('plugin-model-selector-models')?.includes('Add provider')??false));
+ expect(rendered.get('input')).toContain('Alt+i to answer');expect(provider.requests).toHaveLength(1);
+ key('i',['meta']);key('enter');await ui.settled();
+ expect(provider.requests).toHaveLength(2);expect(ui.core.getMessages().some(m=>m.role==='assistant'&&m.content==='Continued after management')).toBe(true);
+ key('i',['meta']);ui.receive({type:'input',surface:'input',data:{kind:'text',text:'Unsent draft'}});
+ key('o',['meta']);await wait(()=>ui.windows.focused==='plugin-extension-manager-extensions');
+ key('2',['meta']);expect(ui.windows.workspace).toBe(2);
+ key(',',['meta']);await wait(()=>ui.windows.focused==='plugin-model-selector-models');expect(ui.windows.workspace).toBe(1);
+ key('i',['meta']);expect(rendered.get('input')).toContain('Unsent draft');expect(provider.requests).toHaveLength(2);
+},15000);
+
+it.each(['approval','question'] as const)('expands a compact %s on click without submitting it',async kind=>{
+ const root=await mkdtemp(join(tmpdir(),'compact-agent-dialog-'));roots.push(root);
+ const provider=new ScriptedProvider([{toolCalls:[kind==='approval'
+  ?{name:'exec',args:{command:'echo must-not-run-on-expand'}}
+  :{name:'ask_user',args:{question:'Expand before answering',options:['Continue','Cancel']}}]}]);
+ const app=await buildApp({cwd:root,env:{HOME:join(root,'home')},provider,agentHub:false});apps.push(app);
+ const ui=new AppUI(app.createCore,app.reloadPlugins);uis.push(ui);
+ const rendered=new Map<string,string>();
+ ui.connect(message=>{if(message.type==='render')rendered.set(message.surface,message.grid?.map(row=>row.map(cell=>cell.ch).join('')).join('\n')??'');});
+ ui.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Layout'],encodings:['jsonl']}));ui.resize(48,18);await ui.core.start();
+ const key=(key:string,modifiers?:string[])=>ui.receive({type:'input',surface:'input',data:{kind:'key',key,modifiers}});
+ ui.receive({type:'input',surface:'input',data:{kind:'text',text:'Wait for me'}});key('enter');
+ const marker=kind==='approval'?'allow once':'Expand before answering';
+ await wait(()=>rendered.get('input')?.includes(marker)??false);
+ key('o',['meta']);await wait(()=>rendered.get('input')?.includes('Alt+i')??false);
+ const mouse=(action:'move'|'press'|'release')=>ui.receive({type:'input',surface:'input',data:{kind:'mouse',row:14,col:5,button:'left',action}});
+ mouse('move');expect(ui.windows.focused).not.toBe('input');
+ mouse('press');mouse('release');
+ expect(ui.windows.focused).toBe('input');expect(rendered.get('input')).toContain(marker);
+ expect(provider.requests).toHaveLength(1);expect(ui.core.getState()).toBe('running');
+ expect(ui.core.getMessages().some(m=>m.role==='tool')).toBe(false);
+ ui.close();await ui.settled();
+});

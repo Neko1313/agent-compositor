@@ -334,3 +334,6 @@ mouse/keyboard input opens Plugins, searches a catalog, installs and enables a
 package and queues reload. It verifies application after interruption, then
 keeps an agent question pending while catalog search and provider settings are
 used. No live model or credentials are involved.
+At 48×18 it also opens management with Alt+o / Alt+,, checks the compact pending
+question, expands it with a mouse click before answering, and verifies that
+later keyboard navigation preserves an unsent message draft.

@@ -270,7 +270,7 @@ export class AppUI {
     if(!this.editor||this.approval||this.question||this.form||this.panel||this.drag)return false;
     if(data.kind==='key'&&data.modifiers?.includes('meta')){
       const key=data.key.toLowerCase();
-      const tiling=['h','j','k','l','left','right','up','down','b','v','f','q','i','=','+','-','enter','t','s'];
+      const tiling=['h','j','k','l','left','right','up','down','b','v','f','q','i','=','+','-','enter','t','s','o',','];
       if(this.editor.isDefault||tiling.includes(key)||/^[1-9]$/.test(key))return false;
     }
     let input=data;
@@ -305,12 +305,21 @@ export class AppUI {
       this.applyPendingReload();return true;
     }
     if(command==='/placement'){this.openPanel();return true;}
-    if(['/settings','/models','/providers'].includes(command)){this.track(this.press('plugin-model-selector-models','settings'));return true;}
+    if(['/settings','/models','/providers'].includes(command)){this.openManagement('plugin-model-selector-models','settings');return true;}
     const owner=command==='/plugins'||command==='/extensions'?'extension-manager-extensions':command==='/marketplace'?'marketplace-manager-marketplaces':undefined;
     if(!owner)return false;
     for(const id of ['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces'])if(id!=='plugin-'+owner)this.windows.forget(id);
-    this.track(this.press('plugin-'+owner,'command:'+(command==='/plugins'?'/extensions':text)));
+    this.openManagement('plugin-'+owner,'command:'+(command==='/plugins'?'/extensions':text));
     return true;
+  }
+  private openManagement(site:string,key:string):void {
+    this.track(this.press(site,key).then(()=>{
+      const workspace=this.windows.workspaceOf(site);
+      if(workspace===undefined||this.closed)return;
+      if(workspace!==this.windows.workspace)this.windows.switchTo(workspace);
+      this.windows.focused=site;
+      this.draw();
+    }));
   }
   private async press(site:string,key:string):Promise<void> {
     const manager=['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces'].includes(site);
@@ -706,6 +715,11 @@ export class AppUI {
         return;
       }
     }
+    if (data.kind === 'mouse' && this.compactInteraction() && data.row >= this.rows-this.dockHeight()+2 && data.row < this.rows-2 && data.col >= 2 && data.col < this.columns-2) {
+      // Expanding the dock must not also choose an answer or approve a tool.
+      if(data.button==='left' && data.action==='press') {this.windows.focused='input';this.draw();}
+      return;
+    }
     if (this.approval && data.kind==='mouse') {
       const start=this.rows-this.dockHeight()+2;
       if(data.row>=start&&data.row<this.rows-2&&data.col>=2&&data.col<this.columns-2){
@@ -762,7 +776,7 @@ export class AppUI {
         );
         const buttonStart = (this.workspaceTabs().at(-1)?.end ?? 0) + 3;
         if (this.statusActionsVisible && buttonStart+21<=wrap && position >= buttonStart + 11 && position < buttonStart + 21) {
-          this.track(this.core.host.emit('ui.press', {site:'plugin-model-selector-models',key:'settings'}).then(()=>{}));
+          this.managementCommand('/settings');
           return;
         }
         if (this.statusActionsVisible && buttonStart+9<=wrap && position >= buttonStart && position < buttonStart + 9) {
@@ -991,6 +1005,8 @@ export class AppUI {
         if (shift) this.windows.moveWorkspace(Number(key));
         else this.windows.switchTo(Number(key));
       } else if (key === "p") this.openPanel();
+      else if (key === "o") this.managementCommand('/plugins');
+      else if (key === ",") this.managementCommand('/settings');
       else if (key === "b") this.windows.axis = "horizontal";
       else if (key === "v") this.windows.axis = "vertical";
       else if (key === "f") this.windows.fullscreen = !this.windows.fullscreen;
@@ -1362,7 +1378,9 @@ export class AppUI {
     const mouse = this.lastMouse;
     this.hoveredTitle = undefined;
     let shape: Extract<WireMessage, { type: "pointer" }>["shape"] = "default";
-    if(mouse&&this.approval&&mouse.row>=this.rows-this.dockHeight()+2&&mouse.row<this.rows-2){
+    if(mouse&&this.compactInteraction()&&mouse.row>=this.rows-this.dockHeight()+2&&mouse.row<this.rows-2){
+      shape=mouse.col>=2&&mouse.col<this.columns-2?'pointer':'default';
+    } else if(mouse&&this.approval&&mouse.row>=this.rows-this.dockHeight()+2&&mouse.row<this.rows-2){
       const row=mouse.row-(this.rows-this.dockHeight()+2);
       shape=mouse.col>=2&&mouse.col<this.columns-2&&this.approval.dialog.interactiveRow(row)?'pointer':'default';
     } else if (mouse && this.question && !this.approval && mouse.row>=this.rows-this.dockHeight()+2 && mouse.row<this.rows-2) {
@@ -1668,11 +1686,15 @@ export class AppUI {
     return (!this.editor || this.editor.isDefault)&&view&&(view.lines.length>0||!!view.raster)&&(!view.raster||this.nativeRaster)&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
   }
   private dockHeight():number {
+    if(this.compactInteraction())return 6;
     if(!this.approval && !this.question && this.editor && !this.editor.isDefault) {
       try{return Math.min(this.rows-4,Math.max(6,this.editor.preferredRows(this.columns-4,this.rows-9)+5));}
       catch{return 7;}
     }
     return this.defaultDockHeight();
+  }
+  private compactInteraction():boolean {
+    return !!(this.approval||this.question) && this.windows.focused!=='input' && this.rows-this.defaultDockHeight()<8;
   }
   private defaultDockHeight(): number {
     if (this.question && !this.approval)
@@ -2066,6 +2088,7 @@ export class AppUI {
       inputRows = this.approval.dialog.visible(inputWidth,dock-5);
     else if (this.question)
       inputRows = this.question.dialog.visible(inputWidth, dock - 5);
+    if(this.compactInteraction()) inputRows=[{text:this.approval?'Approval needed · Alt+i to review':'Answer needed · Alt+i to answer',tone:'warning'}];
     if (formActive && !this.approval && !this.question) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
     if(attachmentWidth){
       const art=this.composer()![1].view;
@@ -2151,6 +2174,8 @@ Alt+= / Alt+-: resize focused split
 Alt+1..9: switch workspace
 Alt+Shift+1..9: move window to workspace
 Alt+i: focus message input
+Alt+o: open plugin management
+Alt+,: open settings
 Alt+p or /placement: place plugin windows
 /plugins: install, enable and update plugins
 Escape: focus first window

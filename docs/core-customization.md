@@ -85,7 +85,11 @@ Trusted active plugins can use `service.agent.enqueue` with their plugin name,
 an idempotency key and bounded text to enqueue an agent follow-up. The call
 returns before any model response. Follow-ups run after the current turn, share
 normal permissions/budgets, coalesce nearby messages from the same owner and are
-revoked on owner unload. A user interruption pauses automatic processing.
+revoked on owner unload. A user interruption pauses automatic processing: accepted
+plugin-owned follow-ups stay queued until an explicit prompt continues the session,
+including when stopped before an idle wake timer fires. Ordinary queued prompts
+and steering are discarded. Clear/close discard pending follow-ups; clearing a
+conversation also resets wake scheduling so subsequent jobs can deliver again.
 Consumers must treat process output as data and fetch it through guarded tools;
 the host does not elevate a background event to user authorization. The optional
 [background-jobs plugin](../plugins/background-jobs/README.md) implements the

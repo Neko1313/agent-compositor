@@ -88,6 +88,14 @@ close stop/drain owned process groups and discard pending subscriptions. Revokin
 an attached workspace stops its running commands. Single-shot headless runs close
 their jobs when the app exits; this feature does not keep a daemon alive.
 
+Stopping the agent pauses accepted queued wakes until the next explicit prompt,
+whether a job completed before or after Stop. It discards ordinary queued user
+prompts. An already running follow-up is interrupted and is not automatically
+restarted. A delivered wake receipt means the host accepted the follow-up, not
+that the model has reviewed or completed the job. Conversation clear and
+application close discard pending wakes; new jobs after clear can wake the new
+conversation normally.
+
 Delivery/storage errors are surfaced rather than retried in a model loop. Wake
 receipts are bounded and deduplicated in the live core; process output is fetched
 only when requested. No success/speed/token-efficiency claim about every model

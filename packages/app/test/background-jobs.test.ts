@@ -96,13 +96,19 @@ it('cancels and drains an awakened model stream when the application closes',asy
  const f=await setup('wake',provider as any);await launch(f.core,'sleep 0.05');await poll(async()=>opened);
  await f.app.close();apps.splice(apps.indexOf(f.app),1);expect(closed).toBe(true);
 });
-it('pauses automatic follow-ups after interruption until the user continues',async()=>{
+it.each(['before','after'] as const)('pauses automatic follow-ups completed %s interruption until the user continues',async(order)=>{
  const provider=new ScriptedProvider([{text:'Holding',hold:true},{text:'User continued'},{text:'Job reviewed'}]);
- const f=await setup('wake',provider),id=await launch(f.core,'sleep 0.1');
- const turn=f.core.submit('Talk while waiting');await poll(async()=>provider.requests.length===1);f.core.interrupt();await turn;
- await poll(async()=>{const r=await f.core.invokeTool('background_jobs',{action:'status',id});return(r.output as any)?.subscription?.delivery==='delivered';});
+ const f=await setup('wake',provider),id=await launch(f.core,'while [ ! -f allow-completion ]; do sleep 0.01; done');
+ const turn=f.core.submit('Talk while waiting');await poll(async()=>provider.requests.length===1);
+ expect(provider.requests[0].messages.at(-1)?.content).toBe('Talk while waiting');
+ await f.core.submit('Discard this queued user prompt');
+ const delivered=()=>poll(async()=>{const r=await f.core.invokeUserTool('background_jobs',{action:'status',id});return(r.output as any)?.subscription?.delivery==='delivered';});
+ if(order==='before'){await writeFile(join(f.cwd,'allow-completion'),'ready');await delivered();}
+ f.core.interrupt();await turn;
+ if(order==='after'){await writeFile(join(f.cwd,'allow-completion'),'ready');await delivered();}
  expect(provider.requests).toHaveLength(1);expect(f.core.getState()).toBe('interrupted');
  await f.core.submit('Continue');expect(provider.requests).toHaveLength(3);expect(f.core.promptSource).toBe('agent');
+ expect(provider.requests.some(request=>request.messages.some(message=>message.content==='Discard this queued user prompt'))).toBe(false);
 });
 it('revokes queued wakes when their plugin unloads and rejects spoofed inactive owners',async()=>{
  const provider=new ScriptedProvider([{text:'Holding',hold:true}]),f=await setup('wake',provider);

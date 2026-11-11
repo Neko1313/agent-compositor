@@ -1,5 +1,45 @@
 # Project memory
 
+## Accepted background wakes across interruption and clear — 2026-11-12
+
+Generated plugin release PR #3 at 06b7199 contained exactly the five expected
+Project checks 0.1.1 preparation files, byte-for-byte independently reproduced.
+Its explicit dispatch CI 43069310530 and docs 43069314590 passed. Duplicate PR
+triggers initially required GitHub approval; after reviewing that exact bot head,
+the two specific runs were approved through the CLI (the connector has no such
+method). PR docs 43069314705 passed, but Node 22 in PR CI 43069314634 failed
+background-jobs' interrupted-follow-up assertion (two model requests vs three).
+PR #3 was not merged or treated as green despite its other passing runs.
+
+Controlled completion-before/after-Stop cases reproduce a real contract violation:
+interrupt cleared every queued prompt, including accepted plugin-owned wakes.
+Before-Stop completion was lost; after-Stop completion remained queued, making the
+old sleep-based case timing-dependent. The original CI trace does not prove which
+completion ordering occurred. New cases hold the real shell until explicitly
+released, check the initial foreground request, inspect status via the supported
+concurrent user-tool API, and verify both orderings without increasing timeouts.
+The first draft incorrectly inspected a model tool while the model was busy; the
+corrected test uses invokeUserTool rather than weakening the delivery assertion.
+
+Interrupt now cancels ordinary queued prompts/steering but preserves accepted
+plugin-owned wakes in interrupted state until explicit continuation. Stopping
+before an idle wake timer fires also pauses it. Clear resets its cancelled timer
+handle so new conversation wakes still schedule; close explicitly discards all
+pending prompts. Owner unload, deduplication, permissions and budgets remain in
+force. Deterministic negative controls reproduce lost before-Stop wake, idle wake
+pause and post-clear timer failures; all three now pass. The new idle fixture's
+initial assertion was corrected to match the existing nested host event response.
+
+1047 tests pass with three optional skips, typecheck and docs check/build pass;
+both generators ran without drift. The real CI=1 background PTY scenario also
+passes: Ctrl+C interruption, foreground chat during a real shell, one completion
+without model polling, and retained unsent draft. Screenshot inspected; evidence:
+dist/followup-interruption-20261112/. Its six provider requests are scripted,
+not paid model evaluations or a multi-hour workload. Canonical host/plugin docs
+clarify accepted delivery vs model review and cancellation scope. The new core
+source still needs exact remote checks; automatic plugin preparation must be
+refreshed and reviewed before Project checks native certification can proceed.
+
 ## Four-platform Git review and Project checks path aliases — 2026-11-12
 
 Git review c98b3ce completed candidate run 43067043375 successfully: full source

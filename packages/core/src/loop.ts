@@ -932,11 +932,16 @@ export class AgentCore {
     await this.emit("prompt.steer", { turnId: this.currentTurnId ?? "", text });
   }
 
-  /** Renderer entry: interrupt the running turn. */
+  /** Stop the running turn or pause accepted automatic work before it starts. */
   interrupt(): void {
-    this.promptQueue = [];
+    // Ordinary queued prompts are cancelled; accepted plugin wakes stay paused.
+    this.promptQueue = this.promptQueue.filter(entry => entry.owner);
     this.steerQueue = [];
-    if (this.state !== "running") return;
+    clearTimeout(this.queueTimer);this.queueTimer=undefined;
+    if (this.state !== "running") {
+      if(this.promptQueue.length&&!this.closed){this.interruptedByUser=true;this.state="interrupted";}
+      return;
+    }
     this.interruptedByUser = true;
     this.abort.abort();
   }
@@ -1299,7 +1304,7 @@ export class AgentCore {
   /** Drop the conversation, keep the system head (Claude's /clear). */
   clear(): void {
     if(this.userOperation.getStore())throw Error("A concurrent operation cannot clear the agent conversation");
-    this.promptQueue=[];clearTimeout(this.queueTimer);
+    this.promptQueue=[];clearTimeout(this.queueTimer);this.queueTimer=undefined;
     this.resettingBackground=true;
     this.cancelOperations();
     this.resetBackground=Promise.allSettled([...this.userOperations.values()].map(op=>op.promise)).then(()=>this.host.emit('session.end',{reason:'clear'})).then(async()=>{
@@ -1312,7 +1317,7 @@ export class AgentCore {
   /** Terminal host teardown: no owned process or queued follow-up outlives it. */
   async close():Promise<void>{
     if(this.closed)return;
-    this.closed=true;this.interrupt();this.cancelOperations();clearTimeout(this.queueTimer);
+    this.closed=true;this.interrupt();this.promptQueue=[];this.cancelOperations();clearTimeout(this.queueTimer);this.queueTimer=undefined;
     await this.resetBackground;
     await Promise.allSettled([this.activeTurn,this.draining,...[...this.userOperations.values()].map(op=>op.promise)]);
     await this.host.emit('session.end',{reason:'other'});

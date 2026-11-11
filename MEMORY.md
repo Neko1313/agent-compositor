@@ -1,5 +1,21 @@
 # Project memory
 
+## Prepared 0.7.2 candidates — 2026-11-12
+
+Main14655ca2cb528b6a5325716ff27ba5708601453f prepares host0.7.2: root/app/lock
+versions, generated CLI reference and git-cliff notes. No plugin metadata churn;
+clean plugin:prepare returns no files/plugins. Full1111 tests/3optional skips,
+types, generators and docs check/build passed after preparation. Pushed main.
+Host build-only candidate43106643838 and CI-review candidate43106650734 target
+that exact revision; neither dispatch publishes. Latest observed plugin source
+verify130811620062 passed, including repaired terminal-flow, and all four native
+jobs started. Documentation43106630378 passed check/deploy. Node22/26 CI
+43106630382 and host verification were still running at this checkpoint.
+Do not infer their completion; inspect the same run IDs before further action.
+No v0.7.2 tag exists yet. Failed unpublished CI tag still points atfbd69d6.
+Current readiness now records the budget-curtailed fresh run and candidate/tag
+distinction; documentation recheck also passes. Broader1.0 gates remain open.
+
 ## CI refresh synchronization and host release boundaries — 2026-11-12
 
 PR4 was reviewed and merged normally at fbd69d6. The exact-source candidate

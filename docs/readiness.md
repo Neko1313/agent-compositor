@@ -82,8 +82,12 @@ examples were repeatedly mistaken for the actual task and its approval state.
 The source repair passes the exact request separately to every summary segment
 and merge, with context accounting and fail-closed handling if it cannot fit.
 Deterministic regressions and one controlled live summary probe pass. A full
-development rerun from an empty candidate under the repaired runtime is still
-required. A guided completion from the saved CI candidate finished in seven
+development rerun from an empty candidate under the repaired runtime was
+subsequently attempted at fbd69d6. It stopped before request admission at the
+authorized USD guard after six main steps, three compactions and thirteen
+reported requests, without writing candidate files; all 726 protected files
+and both frozen oracles survived. This budget-curtailed attempt does not establish
+initial delivery. A guided completion from the saved CI candidate finished in seven
 model steps, passed the frozen ten-case oracle and strict compilation, and
 preserved all 725 protected files. This is a continuation of existing code, not
 a successful autonomous initial delivery. Independent review then repaired
@@ -92,7 +96,15 @@ and the UI hook timeout. The integrated `/ci` candidate passes source PR
 certification, lifecycle/update/rollback checks and the actual PTY concurrent
 configuration/run/job/log/cancellation/restart flow. Two actual read-only
 GitHub CLI requests through the saved proxy also pass with zero model requests.
-Four-platform installed-archive certification and publication are still pending.
+The exact fbd69d6 candidate passed [source and all four native installed-archive
+certification jobs](https://github.com/Neko1313/agent-compositor/actions/runs/43102853382);
+five certificates and 131 evidence files were independently verified. The
+[subsequent tagged run](https://github.com/Neko1313/agent-compositor/actions/runs/43104978351)
+failed a PTY synchronization assertion, so publication was skipped. The scenario
+now waits for the specific refresh response to render before issuing another
+request; its previous process-start/old-result predicate could accept stale UI.
+The corrected real PTY flow and full local source certification pass at 8757290.
+New native candidate certification and independent publication remain required.
 This repair is not part of immutable v0.7.1.
 
 Local Qwen3 1.7B CPU diagnostics at 0b48eca used three fixed small tasks with
@@ -117,6 +129,11 @@ edit passed exactly; another correctly reported failed guarded-range edits.
 This fixes silent feedback, not general editing quality. Remote release
 certification remains separate; this is another known development case, not
 1.0 completion.
+
+At c31c430 the unchanged local cases passed 4/6 with 19 requests and preserved
+fixtures. Both precise edits still failed through redundant writes dropping a
+newline. The actionable missing-hash diagnostic was not triggered in this replay,
+so these results do not establish that it improves live model recovery.
 
 Git review revision
 [c98b3ce](https://github.com/Neko1313/agent-compositor/commit/c98b3cee4a47f2f61930287c5a8d8d45c23b3ba3)

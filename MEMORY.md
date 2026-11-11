@@ -1,5 +1,40 @@
 # Project memory
 
+## User-requested proxy connection — 2026-11-12
+
+The user explicitly requested connecting the proxy after the region refusal.
+The saved global proxy.json already configured an authenticated HTTP CONNECT
+endpoint for models/tools, but network-proxy was inactive in this project and
+the budgeted injected provider bypassed NetworkClient entirely. No credentials
+were copied into repository files or model workspaces.
+
+Enabled the existing local network-proxy plugin in project scope through
+extension_control; a user-scope enable correctly refused the project-local
+source, so no global plugin installation or activation was invented. Reload and
+session start now yield Proxy enabled and Models: proxied · Tools: proxied for
+this project. Global proxy settings and unrelated selections were preserved.
+
+The evaluation adapter now reads scoped proxy.json and uses the existing model
+NetworkClient, closing its owned client in generator finally on completion or
+failure. Model proxy selection and cleanup are covered by integration tests;
+the provider's real CONNECT tests remain unchanged. Canonical eval docs describe
+the routing and no direct fallback on proxy failure.
+
+A non-billable proxied OpenAI models request without a key returned 401 as
+expected. A budgeted gpt-6.1-sol Responses probe through the saved proxy then
+returned exactly PROXY_OK, confirmed Standard terminal metadata, reported 13
+input / 7 output tokens and settled once. The ledger is now $48.681235 guard
+bound, 241 reported / one pending, with the original $50 authorization and all
+historical charges preserved. The pending reservation is the prior direct 403,
+not a new unreported proxied success. No account invoice total is asserted.
+
+The goal continuation had also reproduced and fixed eight default-editor Unicode
+cases and passed the real complete PTY smoke in dist/unicode-draft-20261112/;
+those UI changes remain separate uncommitted work during this proxy request.
+The Ubuntu 24.04 CI run 43042550884 still failed; inspect its precise cause before
+claiming the runner pin repaired CI. It was a baseline alignment, not proof of
+network recovery.
+
 ## Standard evaluation admission and a region refusal — 2026-11-12
 
 The previous goal turn made concrete progress: Project checks source was pushed

@@ -70,6 +70,12 @@ reusing a price authorization for a different service. Credentials are loaded
 from the parent's private Compositor storage and supplied only to its provider.
 The model workspace, project checks and report do not receive the credential.
 
+The adapter reads the normal scoped `proxy.json` settings and uses Compositor's
+`NetworkClient` for the model scope. An enabled model proxy therefore applies to
+budgeted evaluation requests as well as ordinary sessions. Each completion owns
+and closes its proxy client on success, cancellation or failure. A failed proxy
+does not fall back to a direct request. Credentials remain in the parent provider.
+
 The persistent ledger lives under `AGENT_HOME/eval-budgets/PROFILE.json`
 (`~/.agent-compositor` by default), with private file permissions. It is shared
 across repeated commands, guarded by a cross-process write lock and bound to the

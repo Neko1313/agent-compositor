@@ -51,3 +51,17 @@ it('checks tier metadata split across UTF-8 stream chunks before accepting usage
  vi.stubGlobal('fetch',vi.fn(async()=>new Response(new ReadableStream({start(controller){for(const byte of new TextEncoder().encode(payload))controller.enqueue(new Uint8Array([byte]));controller.close();}}))));
  const profile=await evaluationProfile('test',1);await events(profile.provider);expect(await profile.budget.status()).toMatchObject({reportedRequests:1,pendingRequests:0});
 });
+it('uses saved model proxy settings and closes the owned network client after completion',async()=>{
+ const {NetworkClient}=await import('../../packages/provider/src/network.js');
+ const proxy={enabled:true,url:'http://127.0.0.1:12345',models:true,tools:false,noProxy:['localhost']};await writeFile(join(root,'proxy.json'),JSON.stringify(proxy));
+ const configure=vi.spyOn(NetworkClient.prototype,'configure'),close=vi.spyOn(NetworkClient.prototype,'close');
+ const transport=vi.fn(async()=>new Response('data: {"type":"response.completed","response":{"service_tier":"default","usage":{"input_tokens":10,"output_tokens":5}}}\n\n'));
+ const select=vi.spyOn(NetworkClient.prototype,'fetch').mockReturnValue(transport as typeof fetch);
+ const direct=vi.fn();vi.stubGlobal('fetch',direct);
+ try{const profile=await evaluationProfile('test',1);await events(profile.provider);expect(configure).toHaveBeenCalledWith(proxy);expect(select).toHaveBeenCalledWith('models');expect(transport).toHaveBeenCalledTimes(1);expect(direct).not.toHaveBeenCalled();expect(close).toHaveBeenCalledTimes(1);expect((await profile.budget.status()).reportedRequests).toBe(1);}finally{vi.restoreAllMocks();}
+});
+it('closes the model proxy client when its HTTP request fails, retaining the charge',async()=>{
+ const {NetworkClient}=await import('../../packages/provider/src/network.js');await writeFile(join(root,'proxy.json'),JSON.stringify({enabled:true,url:'http://127.0.0.1:12345'}));
+ const close=vi.spyOn(NetworkClient.prototype,'close');vi.spyOn(NetworkClient.prototype,'fetch').mockReturnValue(async()=>{throw Error('fixture proxy unavailable');});
+ try{const profile=await evaluationProfile('test',1);const rows=await events(profile.provider);expect(rows.at(-1)).toMatchObject({type:'finish',reason:'error'});expect(close).toHaveBeenCalledTimes(1);expect((await profile.budget.status()).pendingRequests).toBe(1);}finally{vi.restoreAllMocks();}
+});

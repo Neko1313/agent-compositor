@@ -1,6 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {NativeProvider} from '../../packages/provider/src/native.js';
+import {NetworkClient} from '../../packages/provider/src/network.js';
 import {readSettings,storagePaths} from '../../packages/config/src/storage.js';
 import type {ModelProvider,CompletionRequest,ProviderEvent} from '../../packages/core/src/provider.js';
 import {EvalBudget} from './budget.js';
@@ -40,8 +41,12 @@ export async function evaluationProfile(name:string,maxUsd:number):Promise<{mode
  const apiKey=credentials[name]?.accessToken;if(typeof apiKey!=='string'||!apiKey)throw Error('Evaluation profile has no saved credential');
  const budget=new EvalBudget(join(paths.home,'eval-budgets',name+'.json'),name,profile.model,maxUsd);
  await budget.status();
+ const proxy=await readSettings(process.cwd(),'proxy.json');
  let invalidTier=false;
  const provider:ModelProvider={name:'budgeted-openai-responses',async *complete(request:CompletionRequest):AsyncIterable<ProviderEvent>{
+  const network=new NetworkClient();network.configure(proxy);
+  const modelFetch=network.fetch('models');
+  try{
   let reservation:string|undefined;
   const boundedFetch:typeof fetch=async(url,init)=>{
    if(invalidTier)throw Error('Evaluation stopped after unconfirmed processing tier');
@@ -51,7 +56,7 @@ export async function evaluationProfile(name:string,maxUsd:number):Promise<{mode
    body.service_tier='default';
    const serialized=JSON.stringify(body);
    reservation=await budget.reserve(Buffer.byteLength(serialized),body.max_output_tokens,'standard');
-   return standardStream(await fetch(url,{...init,body:serialized,redirect:'error'}),async()=>{invalidTier=true;await budget.halt();});
+   return standardStream(await modelFetch(url,{...init,body:serialized,redirect:'error'}),async()=>{invalidTier=true;await budget.halt();});
   };
   const native=new NativeProvider({type:'openai-responses',baseUrl:profile.baseUrl,model:profile.model,apiKey,
    timeoutMs:profile.timeoutMs??120000,maxOutputTokens:8192,retries:0,reasoningEffort:profile.reasoningEffort,fetch:boundedFetch});
@@ -59,6 +64,7 @@ export async function evaluationProfile(name:string,maxUsd:number):Promise<{mode
    if(event.type==='usage'&&reservation)await budget.reported(reservation,event.inputTokens,event.outputTokens,{cachedInputTokens:event.cachedInputTokens,cacheWriteInputTokens:event.cacheWriteInputTokens});
    yield event;
   }
+  }finally{await network.close();}
  }};
  return{model:profile.model,provider,budget};
 }

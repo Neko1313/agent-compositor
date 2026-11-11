@@ -35,6 +35,15 @@ The frozen-schema check explicitly verifies optional additive fields in both
 input and tool.call next responses; the original hashes remain unchanged.
 
 No paid model calls were made; the conservative $38.66391 ledger is unchanged.
+Source commit: 2d4bedd. All 28 native plugins passed PR certification for workspace
+96fd44e8b7e1be517c47b232a24b381cdfb013d7a2c7cd6b189506048b1c3206;
+the retained summary is reports/certification/concurrent-tools-pr-summary.json.
+Git review release/build/installed-artifact certification passed on Linux x64;
+the archive SHA256 is
+e3cff1e756e15032b46f3b409144b6a322e4b9722ea20b2c74d878c9556f19a1.
+Inspected installed-artifact cancellation and restored-settings screenshots.
+An earlier PR certification overlapped test edits and correctly rejected changed
+inputs; the final run used one unchanged snapshot. No archive/tag was published.
 All broader readiness gates, live resumed development and remaining platform
 release checks remain open. Previous main 3b8dc6d CI, documentation and plugin
 release preparation all completed successfully.

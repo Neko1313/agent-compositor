@@ -35,7 +35,7 @@ trap 'exit 1' HUP INT TERM
 # Bound connection, stalled transfers and retries, including a silent mirror.
 download() {
   curl -fLSs --connect-timeout 15 --speed-limit 1024 --speed-time 60 \
-    --max-time 900 --retry 3 --retry-max-time 1200 "$1" -o "$2"
+    --max-time 1800 --retry 3 --retry-max-time 1800 "$1" -o "$2"
 }
 download "$url/$asset" "$tmp/$asset"
 download "$url/SHA256SUMS" "$tmp/SHA256SUMS"

@@ -58,8 +58,8 @@ The POSIX installer uses curl, tar, awk and sha256sum (or macOS shasum).
 `COMPOSITOR_RELEASE_BASE_URL` can point to a release mirror with the same URL
 layout. A checksum mismatch stops installation before extraction.
 Downloads allow 15 seconds to connect and stop after 60 seconds below 1 KiB/s.
-Each attempt has a 15-minute limit, with up to three retries admitted within
-20 minutes; an attempt already started can finish after that retry window.
+Each attempt has a 30-minute limit, with up to three retries admitted within
+30 minutes; an attempt already started can finish after that retry window.
 Network failures leave the active installation and application state untouched.
 Checksums validate download integrity, not publisher identity or signatures.
 

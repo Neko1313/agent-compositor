@@ -12,12 +12,17 @@ published with four archives, install.sh and SHA256SUMS. Exact-revision main CI
 The release workflow verifies all 29 plugin PR contracts and builds/installs each
 native archive on Linux/macOS x64/arm64. These facts supersede the preparation
 notes below. They do not close the broader 1.0 gates or publish independent plugin
-archives. Public Linux installation verification is still running separately;
-its live curl is receiving archive bytes, not an established failed process.
+archives. Public Linux installation verification also completed successfully: the
+original published installer downloaded the archive and checksums from GitHub,
+verified integrity, installed into an isolated prefix, and returned compositor
+0.7.0 while preserving the controlled home-state sentinel. Evidence is retained
+in dist/v070-public-install/report.json and installer.log. The transfer took over
+18 minutes while steadily receiving bytes; that evidence raised the new source
+limit from the initially chosen 15 minutes to 30 minutes before finalization.
 
 Review of that download exposed unbounded installer network waits. Source now
 bounds connection setup (15s), low-throughput stalls (below 1 KiB/s for 60s),
-individual attempts (900s), and retry admission (three retries within 1200s).
+individual attempts (1800s), and retry admission (three retries within 1800s).
 An in-flight attempt may finish after the retry window. Failures precede any
 installation switch. Regressions cover either download failing with partial
 data, retained active symlink/binary/state, and temporary-directory cleanup.
@@ -29,6 +34,16 @@ Validation: 1036 tests pass with three optional skips, coverage thresholds pass,
 the complete Linux distribution/installer smoke passes, and the 100-page docs
 check/build passes. No plugin, CLI or event metadata changed, so generated
 references and contracts need no regeneration.
+
+The initial installer fix 924e0dd also passed exact-revision Node 22/26 CI
+43057009191, documentation 43057008730 and plugin preparation 43057008648. The
+final 30-minute limits passed the three focused tests and another documentation
+check/build. Published v0.7.0 remains unchanged. Next extension-quality work can
+remove the existing pre-publication workflow gap: plugin-release manual dispatch
+requires a resolvable plugin tag, while pushing that tag starts publication. A
+separate immutable-source candidate mode is needed for four-platform archive
+certification before publication; no candidate mode or extra certificate is
+claimed yet.
 
 ## Final 0.7.0 release-gate repairs — 2026-11-12
 

@@ -45,7 +45,7 @@ if (process.env.INSTALL_TEST_FAIL === 'archive' || checksums) {
       expect(calls).toHaveLength(failOn === 'archive' ? 1 : 2);
       for (const args of calls) {
         for (const [flag, value] of [['--connect-timeout', '15'], ['--speed-limit', '1024'],
-          ['--speed-time', '60'], ['--max-time', '900'], ['--retry', '3'], ['--retry-max-time', '1200']]) {
+          ['--speed-time', '60'], ['--max-time', '1800'], ['--retry', '3'], ['--retry-max-time', '1800']]) {
           expect(args[args.indexOf(flag) + 1], flag).toBe(value);
         }
       }

@@ -51,6 +51,13 @@ evals, proxy smoke checks and generated-artifact checks run once on Node 26.
 Local commands match CI. Cloud credentials are unnecessary for CI. The GitHub Actions workflow itself was not
 run remotely during this work.
 
+Held `ScriptedProvider` steps register their release before emitting events, so a
+consumer may call `release()` while handling the first text/tool event. Release
+applies to the earliest active held request; aborted or closed requests remove
+their waiter and abort listener, and calls made without an active hold do not
+pre-release a future request. This is deterministic fixture behavior, not a
+network-provider cancellation guarantee.
+
 ## Saved OpenAI profiles and a persistent USD guard
 
 A profile saved through **Settings → Add provider** can be used without copying

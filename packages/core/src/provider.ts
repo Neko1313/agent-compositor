@@ -101,45 +101,42 @@ export class ScriptedProvider implements ModelProvider {
       yield { type: "finish", reason: "stop" };
       return;
     }
-    if (step.text) yield { type: "text_delta", text: step.text };
-    let n = 0;
-    for (const tc of step.toolCalls ?? []) {
-      yield {
-        type: "tool_call",
-        id: `call_${this.requests.length}_${n++}`,
-        name: tc.name,
-        args: tc.args,
-      };
-    }
-    if (step.usage)
-      yield {
-        type: "usage",
-        inputTokens: step.usage.inputTokens,
-        outputTokens: step.usage.outputTokens,
-      };
-    if (step.hold) {
-      await Promise.race([this.waitForRelease(), aborts(req.signal)]);
-      if (req.signal.aborted) return; // interrupted while parked
-    } else if (this.opts.respectSignal && req.signal.aborted) {
-      return; // interrupted: vanish quietly
-    }
-    yield {
-      type: "finish",
-      reason: step.finish ?? (step.toolCalls ? "tool_calls" : "stop"),
-      error: step.error,
-    };
+    // Register the hold before yielding: consumers may release while handling
+    // the first event, before this generator is resumed.
+    const parked = step.hold ? this.waitForRelease(req.signal) : undefined;
+    try {
+      if (step.text) yield { type: "text_delta", text: step.text };
+      let n = 0;
+      for (const tc of step.toolCalls ?? []) {
+        yield { type: "tool_call", id: `call_${this.requests.length}_${n++}`, name: tc.name, args: tc.args };
+      }
+      if (step.usage) yield { type: "usage", inputTokens: step.usage.inputTokens, outputTokens: step.usage.outputTokens };
+      if (parked) {
+        await parked.promise;
+        if (req.signal.aborted) return;
+      } else if (this.opts.respectSignal && req.signal.aborted) return;
+      yield { type: "finish", reason: step.finish ?? (step.toolCalls ? "tool_calls" : "stop"), error: step.error };
+    } finally { parked?.dispose(); }
   }
 
   private releases: Array<() => void> = [];
 
-  /** Unblock a step parked with hold. */
-  release(): void {
-    const r = this.releases.shift();
-    r?.();
-  }
+  /** Unblock the earliest active held step, including while its events are consumed. */
+  release(): void { this.releases.shift()?.(); }
 
-  private waitForRelease(): Promise<void> {
-    return new Promise((res) => this.releases.push(res));
+  private waitForRelease(signal: AbortSignal): {promise:Promise<void>;dispose:()=>void} {
+    let finish!: () => void;
+    const promise = new Promise<void>(resolve => { finish = resolve; });
+    const dispose = () => {
+      const index = this.releases.indexOf(release);
+      if (index >= 0) this.releases.splice(index, 1);
+      signal.removeEventListener('abort', release);
+    };
+    const release = () => { dispose(); finish(); };
+    this.releases.push(release);
+    signal.addEventListener('abort', release, {once:true});
+    if (signal.aborted) release();
+    return {promise,dispose};
   }
 
   get exhausted(): boolean {
@@ -147,9 +144,3 @@ export class ScriptedProvider implements ModelProvider {
   }
 }
 
-function aborts(signal: AbortSignal): Promise<void> {
-  return new Promise((res) => {
-    if (signal.aborted) return res();
-    signal.addEventListener("abort", () => res(), { once: true });
-  });
-}

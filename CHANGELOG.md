@@ -2,6 +2,19 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.5.1 - 2026-11-11
+
+### Documentation
+- Record verified v0.5.0 publication ([af935d7](https://github.com/Neko1313/agent-compositor/commit/af935d72301e41141960ea48750b429401f13798))
+
+
+### Fixes
+- Reduce redraw load and bound VTE terminal output ([236bb9b](https://github.com/Neko1313/agent-compositor/commit/236bb9b2e53ec9a53428f25767b24907c0c3f5a4))
+
+
+### Tests
+- Measure render latency and compare native terminal output ([08a821e](https://github.com/Neko1313/agent-compositor/commit/08a821eb241614ebef0dd96be15ed6815ca2f108))
+
 ## v0.5.0 - 2026-11-10
 
 ### Documentation
@@ -16,6 +29,12 @@ All notable changes are generated from Conventional Commits with git-cliff.
 
 ### Fixes
 - Warm indexes eagerly and keep large graph queries responsive ([275523f](https://github.com/Neko1313/agent-compositor/commit/275523fe7d3421fa4301f90d969e36b4c8fc1784))
+
+
+### Other changes
+- Merge pull request #1 from Neko1313/automation/plugin-releases
+
+chore(release): prepare plugin versions ([968b346](https://github.com/Neko1313/agent-compositor/commit/968b346aaab0f91ca29b4c0a6458a7292ebe4215))
 
 ## v0.4.0 - 2026-11-10
 

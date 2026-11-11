@@ -47,6 +47,17 @@ passes; removing the explicit timeout reproduces expiration before the answer.
 The final suite passes 948 tests with three optional skips and typecheck;
 documentation checks/build pass. Inspected MCP error recovery, narrow Workflows
 and restored Proxy screenshots. Source UI routing commit: bf19d5f.
+MCP approval lifetime fix: f57620a. All 28 native packages passed final PR
+certification for workspace
+35246df072ebed3a5b9c78a0865f4af441c096f1b83e8e07ba79086d9a4dfacd;
+retained summary: reports/certification/ui-command-pr-summary.json. Git review
+also passed Linux x64 release/build/installed-artifact certification after that
+fix. Archive SHA256:
+3de08daeb3119d7b2ed634af8b70c0fadb4a56ad06c0964024bc0db838e2b34f.
+Inspected the installed archive opening its panel while the agent was working.
+These are source/local artifacts, not a published host/plugin release. Next
+priority is real resumed development and context pressure, retaining the failed
+earlier authoring trajectories and remaining spending allowance.
 
 ## Guarded concurrent user tools — 2026-11-11
 

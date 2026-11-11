@@ -62,6 +62,12 @@ history. Supply visible progress, cancellation and errors in the panel, and do
 not reopen a panel the user closed while awaiting completion. See
 [operation limits and lifecycle](core-customization.md#concurrent-user-tool-operations).
 
+Command/panel starters declare a UI command route and implement `ui.press` as
+well as the prompt fallback. Keep both handlers in sync when replacing starter
+behavior. The TUI uses the UI handler, including while the model is active; the
+line-based interface uses the prompt handler. See the
+[command routing contract](plugin-standard.md#commands-that-open-ui).
+
 Native plugins can include `skills/<name>/SKILL.md` (or loose Markdown skills)
 with name/description frontmatter. The loader must enable and load the plugin
 before its skills enter discovery. Project/configured/user skill sources keep

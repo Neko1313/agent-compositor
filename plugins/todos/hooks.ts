@@ -43,6 +43,11 @@ export default {
     await show($);
     return { drop: "todos: opened task list" };
   },
+  "ui.press": async (event: {site:string;key:string}, $: any) => {
+    if(event.site!=='plugin-todos-tasks'||!event.key.startsWith('command:'))return;
+    if(event.key!=='command:/todos'){await $.ui.notify('Usage: /todos','warn');return;}
+    await initialize($);await show($);
+  },
   "tool.result": async (event: { tool: string; ok: boolean; output?: unknown }, $: any) => {
     if (event.tool !== "todo" || !event.ok) return;
     const list = validate((event.output as { todos?: unknown } | undefined)?.todos);

@@ -1,5 +1,9 @@
 # mcp
 
+In the TUI, `/mcp` uses an explicit UI route and remains available while the
+agent works. It does not enter the model prompt queue. The line-based interface
+retains its prompt-command handler.
+
 MCP client: expose stdio MCP servers' tools to the model through the mcp_call gateway. Servers come from AGENT_MCP_CONFIG (JSON, Claude-style mcpServers) or <cwd>/.agent-compositor/mcp.json.
 
 ## Use

@@ -121,6 +121,10 @@ export default {
   },
   "ui.press": async (event: { site: string; key: string }, $: HooksApi) => {
     if (event.site !== "plugin-mcp-connections") return;
+    if(event.key.startsWith('command:')){
+      if(event.key==='command:/mcp')await open($);else await $.ui.notify('Usage: /mcp','warn');
+      return;
+    }
     if (event.key === "refresh" || event.key === "r") {
       $.state.set("busy", true);
       $.state.set("error", "");

@@ -10,7 +10,8 @@
   "commands": [
     {
       "name": "/git-review",
-      "description": "Review Git status and changes"
+      "description": "Review Git status and changes",
+      "ui": {"site": "main"}
     }
   ],
   "main": "hooks.ts",

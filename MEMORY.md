@@ -1,5 +1,41 @@
 # Project memory
 
+## Explicit UI command routing — 2026-11-11
+
+Native command declarations accept optional ui:{site:'main'}. buildApp qualifies
+the local site with the loaded plugin owner; AppUI dispatches the complete
+trimmed command as ui.press {site:'plugin-OWNER-SITE',key:'command:/name args'}.
+This reuses the existing independent UI interaction lifetime and permission
+chain. No prompt hooks, model request/context or queue entry are involved.
+Undeclared commands retain their ordinary queued prompt behavior. Do not route
+conversation/model commands this way. Keep prompt handlers for older hosts and
+the line-based interface; update both handlers when authoring new behavior.
+
+Git review, cost/usage, Todos, MCP, Workflows and Proxy now declare and implement
+UI command routes. Generic command/panel plugin_dev starters emit both handlers,
+with installed authoring guidance and canonical contracts updated. Site IDs are
+bounded local identifiers, not arbitrary paths or owner selections. Errors are
+visible; literal quoted/shell-looking arguments stay text.
+
+Verification: 947 tests passed with three optional skips, typecheck and the
+98-page documentation check/build passed. Generic synthetic-plugin integration
+checks literal argument delivery, visible hook failure and legacy queued
+commands; bundled-panel checks hold a scripted model active while opening all
+five additional panels. Generated command/panel starters also execute their UI
+handlers while a real core's scripted provider is held active. Existing Git
+integration verifies opening/reopening the initially absent panel, tool usage
+and queued-prompt/model-context preservation. The real Git PTY scenario passed
+under dist/git-open-concurrent-second, including command opening during model
+work, subprocess cancellation, draft/narrow behavior and settings restart.
+Inspected active-open and cancelled-process screenshots. The failed first PTY
+run clicked using stale geometry immediately after resize; the scenario now
+waits for the wide frame before coordinate-dependent input.
+
+Previous main d2fc961 CI, documentation and plugin release preparation all
+completed successfully. No paid model requests were made; the conservative
+$38.66391 ledger and total $50 allowance are unchanged. Broader model/session
+and four-platform release readiness remain open.
+
 ## Guarded concurrent user tools — 2026-11-11
 
 The source now routes $.agent.tool through invokeUserTool. Calls during an

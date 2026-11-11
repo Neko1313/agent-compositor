@@ -47,6 +47,11 @@ type MouseInput = Extract<
   Extract<WireMessage, { type: "input" }>["data"],
   { kind: "mouse" }
 >;
+export interface AppCommand {
+  name:string;description:string;usage?:string;
+  /** Fully qualified surface owned by the declaring, loaded plugin. */
+  ui?:{site:string};
+}
 type Drag =
   | { kind: "resize"; handle: ResizeHandle }
   | {
@@ -175,11 +180,7 @@ export class AppUI {
     ) => AgentCore,
     private reload?: (core: AgentCore) => Promise<string>,
     notices: string[] = [],
-    private commandList: () => {
-      name: string;
-      description: string;
-      usage?: string;
-    }[] = () => [],
+    private commandList: () => AppCommand[] = () => [],
     private placementConfig: PlacementConfig = {},
     private panelOptions: {
       save?: (
@@ -307,7 +308,11 @@ export class AppUI {
     if(command==='/placement'){this.openPanel();return true;}
     if(['/settings','/models','/providers'].includes(command)){this.openManagement('plugin-model-selector-models','settings');return true;}
     const owner=command==='/plugins'||command==='/extensions'?'extension-manager-extensions':command==='/marketplace'?'marketplace-manager-marketplaces':undefined;
-    if(!owner)return false;
+    if(!owner){
+      const route=this.commandList().find(entry=>entry.name===command)?.ui;
+      if(!route)return false;
+      this.openManagement(route.site,'command:'+text.trim());return true;
+    }
     for(const id of ['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces'])if(id!=='plugin-'+owner)this.windows.forget(id);
     this.openManagement('plugin-'+owner,'command:'+(command==='/plugins'?'/extensions':text));
     return true;

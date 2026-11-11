@@ -310,8 +310,9 @@ held in this app session so its loaded package files stay unchanged. Choose
 prompts to finish. Reload errors are reported; retry after resolving them.
 Closing the app discards unapplied deferred file operations. Saved installation
 and activation choices survive restart. Ordinary model prompts still queue;
-ordinary plugin slash commands still queue behind the agent unless they are
-explicit management commands.
+plugin slash commands with an explicit UI route open immediately. Git review,
+Usage, Todos, MCP, Workflows and Proxy provide these routes. Other commands
+retain their normal prompt/queue behavior.
 
 Actions in an already-open plugin panel can call guarded tools while the agent
 works. These operations keep normal tool permissions and separate cancellation;

@@ -13,7 +13,10 @@
   "commands": [
     {
       "name": "/todos",
-      "description": "Open the persistent task list window"
+      "description": "Open the persistent task list window",
+      "ui": {
+        "site": "tasks"
+      }
     }
   ],
   "compositor": {

@@ -37,10 +37,16 @@ try{
   await clickText('Configure output');await wait('Configure Git review');await wait('8000');await shot('01-git-settings');await page.keyboard.press('Escape');await wait('Git review');
   await page.evaluate(()=>visual.terminal.resize(48,18));await wait('Refresh status');await clickText('Refresh status');await wait('## main');await shot('01-git-narrow');
   await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh status'));await command('/git-review');await wait('## main');
-  await page.evaluate(()=>visual.terminal.resize(100,30));await wait('## main');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
+  await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh status'));
+  await page.evaluate(()=>visual.terminal.resize(100,30));
+  await page.waitForFunction(()=>visual.text().split('\n').some(line=>line.indexOf('┐',90)!==-1));
+  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
   const fixture=JSON.parse(await readFile(join(output,'fixture-identity.json'),'utf8'));
   assert.ok(fixture.cwd.includes('compositor-visual-'),'Expected the isolated PTY project');
   await command('Work while I review Git');await wait('GIT_AGENT_WORKING');
+  await command('/git-review');await wait('Refresh status');await wait('## main');
+  assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'Opening a new panel must not interrupt or complete the model');
+  await shot('01-git-open-while-working');report.checks.push('user-command.concurrent-open');
   await writeFile(join(fixture.cwd,'concurrent-proof.txt'),'Fresh status evidence');
   await clickText('Refresh status');await wait('concurrent-proof.txt');
   assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'A user tool must not complete the model turn');

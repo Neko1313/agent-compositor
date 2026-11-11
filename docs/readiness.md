@@ -92,6 +92,6 @@ runtime work adds concurrent guarded UI tool execution with separate operation
 state, cancellation, permissions and journal correlation. Source tests and a real
 Git-panel PTY scenario verify that refreshing and cancelling a real subprocess
 leave the held agent active. This evidence does not cover every plugin or a live
-model. Ordinary plugin slash commands still queue, so opening a new plugin panel
-during a turn remains a workflow gap. Real-model resumed development after the
+model. Explicit UI command routes now open new panels during a turn; other
+commands retain their queued prompt behavior. Real-model resumed development after the
 summary retry fix and certification on the remaining platforms also remain open.

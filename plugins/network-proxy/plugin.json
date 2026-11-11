@@ -7,7 +7,10 @@
     {
       "name": "/proxy",
       "description": "Configure network proxy",
-      "usage": "/proxy [configure|status|on|off]"
+      "usage": "/proxy [configure|status|on|off]",
+      "ui": {
+        "site": "network"
+      }
     }
   ],
   "hookTimeouts": {

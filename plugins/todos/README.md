@@ -1,5 +1,9 @@
 # todos
 
+In the TUI, `/todos` uses an explicit UI route and remains available while the
+agent works. It does not enter the model prompt queue. The line-based interface
+retains its prompt-command handler.
+
 Persistent task list window. Restores tasks on startup, updates after todo tool calls, and opens with /todos. Placement is controlled by the compositor.
 
 ## Use

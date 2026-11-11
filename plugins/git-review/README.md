@@ -78,5 +78,5 @@ An already-open panel can review Git while the agent works, through the same
 guarded tool path. **Cancel review** cancels only that review and waits for its
 subprocess to stop; **Close** also cancels it and prevents completion from
 reopening the panel. Ctrl+C in the focused panel cancels its active tool without
-interrupting the agent. Ordinary `/git-review` command submission still queues
-behind an active agent turn, so open the panel before starting that turn.
+interrupting the agent. In the TUI, `/git-review` opens or refocuses the panel
+immediately during an active agent turn, without submitting a model prompt.

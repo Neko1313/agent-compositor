@@ -157,4 +157,9 @@ export default {
     await show($);
     return { drop: "cost: usage reported" };
   },
+  "ui.press": async (e: {site:string;key:string}, $: any) => {
+    if(e.site!=='plugin-cost-usage'||!e.key.startsWith('command:'))return;
+    if(!['command:/cost','command:/usage'].includes(e.key)){await $.ui.notify('Usage: /cost or /usage','warn');return;}
+    $.state.set('open',true);await show($);
+  },
 };

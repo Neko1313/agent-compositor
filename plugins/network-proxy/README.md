@@ -1,5 +1,9 @@
 # network-proxy
 
+In the TUI, `/proxy` uses an explicit UI route and remains available while the
+agent works. It does not enter the model prompt queue. The line-based interface
+retains its prompt-command handler.
+
 Optional HTTP CONNECT proxy for model streams and network tools, with child-process proxy environment.
 
 ## Use

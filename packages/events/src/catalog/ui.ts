@@ -261,7 +261,7 @@ export const uiPress = defineEvent({
   name: "ui.press",
   since: "0.1.0",
   version: 1,
-  summary: "A Button the plugin drew was pressed.",
+  summary: "A plugin UI action, including a declared UI command, was invoked.",
   input: z.object({ site: z.string(), key: z.string() }),
   responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
   frozen: true,

@@ -66,7 +66,7 @@
 | `service.agent.tool` | 0.8.0 | 1 | Run a user-invoked plugin tool through the normal permission and tool hook chain, without a model request. | `value` | — |
 | `service.ui.surface` | 0.6.0 | 1 | Publish or update a plugin window with optional split/sidebar/inspector/status-bar placement hints; user rules control workspace, size and focus. | `value` | — |
 | `ui.render` | 0.1.0 | 1 | A render site is about to be drawn. Return an element tree. Writing plugin state during render is forbidden. | `tree` | — |
-| `ui.press` | 0.1.0 | 1 | A Button the plugin drew was pressed. | `next` | — |
+| `ui.press` | 0.1.0 | 1 | A plugin UI action, including a declared UI command, was invoked. | `next` | — |
 | `ui.change` | 0.16.0 | 1 | An editable semantic plugin view field changed; never submits a model prompt. | `next` | — |
 | `ui.focus` | 0.1.0 | 1 | Focus is about to move to another pane/control. | `next` | — |
 | `ui.invalidate` | 0.1.0 | 1 | Damage tracking: the plugin marks changed regions of its pane. | — | — |

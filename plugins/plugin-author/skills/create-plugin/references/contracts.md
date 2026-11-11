@@ -25,6 +25,18 @@ hooks, tools and app/controller types) from the installation used to create the
 plugin. Keep that installation while
 using its SDK links. You may add type imports without runtime dependencies.
 
+For a command that opens UI, add `"ui":{"site":"main"}` to its command
+declaration and handle `ui.press` with
+`event.site === 'plugin-project-helper-main'` and
+`event.key === 'command:/project-helper'`. The TUI delivers the complete trimmed
+command after `command:`, including literal arguments, immediately even while the
+agent runs. Validate those arguments; show usage/errors for unsupported values.
+Keep the prompt handler for line-based/older hosts. Do not replace only the
+prompt handler in a generated starter: the TUI uses its UI handler. Do not route
+conversation-changing or model-prompt commands this way. Commands without `ui`
+keep the usual queued prompt path. Tool calls from either handler still use
+`$.agent.tool` and normal permissions.
+
 A hook receives `(event, $)`. No result continues normally. `{drop:reason}`
 consumes a recognized prompt command; `{text:replacement}` rewrites a prompt.
 For middleware use `const downstream = await $.next(rewrittenEvent)` and return

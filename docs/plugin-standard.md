@@ -31,6 +31,29 @@ explicit selection and must preserve policy, privacy, journal and budget behavio
 `dispose()` stops subprocesses, connections, timers and listeners; reload restores
 required state without depending on the previous module instance.
 
+## Commands that open UI
+
+An optional command route, `"ui":{"site":"main"}`, sends a TUI command directly
+to the existing `ui.press` chain. For plugin `project-helper`, the event is
+`{site:"plugin-project-helper-main",key:"command:/project-helper arguments"}`.
+The host qualifies the local site with the loaded owner's name. Local site IDs
+use lowercase letters, digits and hyphens, begin with a letter and have at most
+64 characters. Arguments remain literal text, not shell input.
+
+Handle that event in `ui.press`, validate arguments, and render progress/errors.
+The TUI runs these explicit UI commands during an agent turn, without entering
+prompt hooks, model context or the prompt queue. Successful opens focus the
+declared surface on its workspace. Commands without this declaration retain
+normal queued prompt behavior. Keep a `prompt.submit` handler for the line-based
+interface and older hosts. Do not opt conversation-changing/model-prompt commands
+into this route. Tool calls from the handler still use `$.agent.tool` and its
+ordinary permissions, independent cancellation and operation limits.
+
+Only loaded plugins contribute command routes; activation/reload controls when
+they appear. The route does not grant execution or activate a plugin. See
+[authoring contracts](../plugins/plugin-author/skills/create-plugin/references/contracts.md)
+for an example.
+
 ## Activation and scope
 
 All filesystem plugins start off. A bundled package or an installed directory is

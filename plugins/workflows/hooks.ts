@@ -136,6 +136,10 @@ export default {
   },
   "ui.press": async (event: { site: string; key: string }, $: HooksApi) => {
     if (event.site !== "plugin-workflows-runs") return;
+    if(event.key.startsWith('command:')){
+      if(event.key!=='command:/workflows'){await $.ui.notify('Usage: /workflows','warn');return;}
+      $.state.set('open',true);await watch($);await show($);return;
+    }
     const engine=engineFor(context($));await engine.load();
     if(event.key==='refresh')await engine.refresh();
     if(event.key==='legacy'){await showLegacy($);return;}

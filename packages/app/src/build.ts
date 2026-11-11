@@ -1,4 +1,5 @@
 import {installPluginServices} from './plugin-services.js';
+import type {AppCommand} from './ui.js';
 import {createSummarizer} from "./summarizer.js";
 import {PluginLoader} from '@agent-compositor/loader';
 import type {HooksHost} from '@agent-compositor/hooks';
@@ -83,7 +84,7 @@ export interface BuiltApp {
       NonNullable<LoadedConfig["config"]["ui"]>["rules"]
     >[number]
   ) => Promise<string>;
-  commands: () => { name: string; description: string; usage?: string }[];
+  commands: () => AppCommand[];
   reloadPlugins: (core: AgentCore) => Promise<string>;
   loadLayout: () => Promise<unknown>;
   saveLayout: (layout: unknown) => Promise<void>;
@@ -605,11 +606,13 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       .map((e) => e.error)
       .join("; ")}`;
   };
-  const commands = () =>
+  const commands = ():AppCommand[] =>
     [
-      ...new Map([
+      ...new Map<string,AppCommand>([
         ...plugins
-          .flatMap((plugin) => plugin.commands ?? [])
+          .flatMap(plugin=>(plugin.commands??[]).map(command=>({...command,
+            ...(command.ui?{ui:{site:`plugin-${plugin.manifest.name}-${command.ui.site}`}}:{}),
+          })))
           .map((command) => [command.name, command] as const),
         [
           "/reload",

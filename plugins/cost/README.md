@@ -1,5 +1,9 @@
 # cost
 
+In the TUI, `/cost` and `/usage` uses an explicit UI route and remains available while the
+agent works. It does not enter the model prompt queue. The line-based interface
+retains its prompt-command handler.
+
 /cost and /usage — token accounting from turn.usage events (Claude Code /cost analog). Tally survives across turns in plugin state; drop this folder to remove.
 
 ## Use

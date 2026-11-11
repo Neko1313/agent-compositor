@@ -26,6 +26,8 @@ export const diskManifestSchema = manifestSchema.extend({
         name: z.string().regex(/^\/[a-z][a-z0-9-]*(?::[a-z0-9][a-z0-9_-]*)?$/),
         description: z.string(),
         usage: z.string().optional(),
+        /** Explicit user-interface route; omitted commands remain model prompts. */
+        ui: z.object({site:z.string().regex(/^[a-z][a-z0-9-]{0,63}$/)}).strict().optional(),
       })
     )
     .optional(),

@@ -10,18 +10,18 @@ import {hello,type WireMessage} from '@agent-compositor/protocol';
 const roots:string[]=[],apps:Awaited<ReturnType<typeof buildApp>>[]=[],uis:AppUI[]=[];
 afterEach(async()=>{for(const ui of uis.splice(0))ui.close();for(const app of apps.splice(0))await app.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
 const wait=(check:()=>boolean)=>expect.poll(check,{timeout:3000}).toBe(true);
-async function fixture(){
+async function fixture(open=true){
  const root=await mkdtemp(join(tmpdir(),'concurrent-git-ui-'));roots.push(root);const cwd=join(root,'project'),home=join(root,'home');await mkdir(cwd);await mkdir(home);
  execFileSync('git',['-c','init.defaultBranch=main','init'],{cwd,stdio:'ignore'});await writeFile(join(cwd,'review-evidence.txt'),'actual project');
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},permissions:{rules:[{tool:'extension_control',decision:'allow'},{tool:'git_review',decision:'allow'}]}}));
  const provider=new ScriptedProvider([{text:'MODEL_CONTINUES',hold:true},{text:'QUEUED_TASK_DONE'}]);
  const app=await buildApp({cwd,env:{HOME:home},provider,agentHub:false,pluginDirs:[resolve('plugins/git-review')]});apps.push(app);
  const core=app.createCore(async()=>false);expect((await core.invokeTool('extension_control',{action:'enable',name:'git-review',scope:'project'})).ok).toBe(true);await app.reloadPlugins(core);await core.close();
- const ui=new AppUI(app.createCore,app.reloadPlugins);uis.push(ui);const messages:WireMessage[]=[],rendered=new Map<string,string>();
+ const ui=new AppUI(app.createCore,app.reloadPlugins,[],app.commands);uis.push(ui);const messages:WireMessage[]=[],rendered=new Map<string,string>();
  ui.connect(message=>{messages.push(message);if(message.type==='render')rendered.set(message.surface,message.grid?.map(row=>row.map(cell=>cell.ch).join('')).join('\n')??'');});ui.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Layout'],encodings:['jsonl']}));await ui.core.start();
  const key=(key:string,modifiers?:string[])=>ui.receive({type:'input',surface:'input',data:{kind:'key',key,modifiers}});
  const send=(text:string)=>{key('i',['meta']);ui.receive({type:'input',surface:'input',data:{kind:'text',text}});key('enter');};
- send('/git-review');await ui.settled();await wait(()=>rendered.has('plugin-git-review-main'));
+ if(open){send('/git-review');await ui.settled();await wait(()=>rendered.has('plugin-git-review-main'));}
  return{root,cwd,provider,app,ui,key,send,messages,rendered};
 }
 it('uses the actual plugin tool, keeps the current model and queued prompt intact, and records no model verification credit',async()=>{
@@ -30,6 +30,21 @@ it('uses the actual plugin tool, keeps the current model and queued prompt intac
  await f.ui.core.host.emit('ui.press',{site:'plugin-git-review-main',key:'status'});
  expect(f.rendered.get('plugin-git-review-main')).toContain('review-evidence.txt');expect(f.ui.core.getMessages()).toEqual(before);expect(f.ui.core.getState()).toBe('running');expect(f.provider.requests).toHaveLength(1);
  f.provider.release();await f.ui.settled();expect(f.provider.requests).toHaveLength(2);expect(JSON.stringify(f.provider.requests[1].messages)).not.toContain('git_review');expect(f.ui.core.failure).toBeUndefined();
+});
+it('opens and reopens a declared plugin panel immediately without entering the active model or its prompt queue',async()=>{
+ const f=await fixture(false);f.send('Original task');await wait(()=>f.provider.requests.length===1);f.send('Next task');
+ const before=structuredClone(f.ui.core.getMessages());
+ f.send('/git-review');await wait(()=>f.rendered.get('plugin-git-review-main')?.includes('Choose an action')===true);
+ expect(f.ui.core.getMessages()).toEqual(before);expect(f.provider.requests).toHaveLength(1);
+ await f.ui.core.host.emit('ui.press',{site:'plugin-git-review-main',key:'status'});
+ expect(f.rendered.get('plugin-git-review-main')).toContain('review-evidence.txt');
+ await f.ui.core.host.emit('ui.press',{site:'plugin-git-review-main',key:'close'});
+ f.send('/git-review');await wait(()=>f.rendered.get('plugin-git-review-main')?.includes('review-evidence.txt')===true);
+ f.send('/git-review unexpected');await wait(()=>[...f.rendered.values()].some(text=>text.includes('Usage: /git-review')));
+ expect(f.provider.requests).toHaveLength(1);expect(f.provider.requests[0].signal.aborted).toBe(false);
+ f.provider.release();await f.ui.settled();expect(f.provider.requests).toHaveLength(2);
+ expect(JSON.stringify(f.provider.requests[1].messages)).not.toContain('/git-review');
+ expect(f.provider.requests[1].messages.at(-1)?.content).toBe('Next task');
 });
 it('cancels a focused plugin process with Ctrl+C without stopping the model, and gates reload through the independent operation',async()=>{
  const f=await fixture(),pidFile=join(f.root,'pid');f.send('Original task');await wait(()=>f.provider.requests.length===1);

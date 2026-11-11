@@ -145,7 +145,9 @@ diffs, scoped configuration, narrow terminals and restart. It also holds the
 scripted agent active while refreshing real Git status, starts a controlled
 long-running SDK subprocess through isolated fixture middleware, cancels it from
 the panel and verifies that the PID is gone while the agent remains active.
-The scenario then interrupts and continues the agent through terminal input.
+The scenario also closes the panel before starting the held model, opens it
+through `/git-review` while the model is active, and checks that the model stays
+working. It then interrupts and continues the agent through terminal input.
 Fixture processes and files belong only to the temporary bench project.
 
 `npm run visual:background` exercises the background-jobs plugin in the real PTY.

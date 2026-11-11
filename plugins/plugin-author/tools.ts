@@ -80,7 +80,7 @@ function starter(name:string, components:readonly typeof kinds[number][]) {
     hooks.push(`  'service.agent.instructions': async () => ({value:${JSON.stringify(instructions)}}),`);
   }
   if (selected.has('command') || selected.has('panel')) {
-    manifest.commands = [{name:'/'+name, description:`Open ${name}`}];
+    manifest.commands = [{name:'/'+name, description:`Open ${name}`,ui:{site:'main'}}];
     const effects = [
       selected.has('command') ? `    await $.ui.notify('${name} ready');` : '',
       selected.has('panel') ? `    await $.ui.view('main', '${name}', {lines:[{text:'${name} ready'}]}, {site:'sidebar',size:0.25,focus:false});` : '',
@@ -89,6 +89,11 @@ function starter(name:string, components:readonly typeof kinds[number][]) {
     if (event.text.trim() !== '/${name}') return;
 ${effects}
     return {drop:'${name}: handled'};
+  },`);
+    hooks.push(`  'ui.press': async (event, $) => {
+    if (event.site !== 'plugin-${name}-main' || !event.key.startsWith('command:')) return;
+    if (event.key !== 'command:/${name}') { await $.ui.notify('Usage: /${name}', 'warn'); return; }
+${effects}
   },`);
   }
   if (hooks.length) {

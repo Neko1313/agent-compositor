@@ -84,5 +84,11 @@ export default {
     try{await action(mode,$);}catch(error){await $.ui.notify((error as Error).message,'error');}
     return{drop:'proxy: handled'};
   },
-  'ui.press':async(e:any,$:any)=>{if(e.site==='plugin-network-proxy-network')try{await action(e.key,$);}catch(error){await $.ui.notify((error as Error).message,'error');}},
+  'ui.press':async(e:any,$:any)=>{if(e.site==='plugin-network-proxy-network')try{
+    if(e.key.startsWith('command:')){
+      const[command,mode='configure',extra]=e.key.slice(8).trim().split(/\s+/);
+      if(command!=='/proxy'||extra){await $.ui.notify('Usage: /proxy [configure|status|on|off]','warn');return;}
+      await action(mode,$);
+    }else await action(e.key,$);
+  }catch(error){await $.ui.notify((error as Error).message,'error');}},
 };

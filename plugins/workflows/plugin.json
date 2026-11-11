@@ -9,7 +9,10 @@
   "commands": [
     {
       "name": "/workflows",
-      "description": "Open workflow runs and replay journal"
+      "description": "Open workflow runs and replay journal",
+      "ui": {
+        "site": "runs"
+      }
     }
   ],
   "hookTimeouts": {

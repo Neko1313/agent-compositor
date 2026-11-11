@@ -83,6 +83,10 @@ export default {
   },
   'ui.press': async (event: { site: string; key: string }, $: HooksApi) => {
     if (event.site !== `plugin-git-review-${PANEL}`) return;
+    if(event.key.startsWith('command:')){
+      if(event.key!=='command:/git-review'){await $.ui.notify('Usage: /git-review','warn');return;}
+      $.state.set(CLOSED,false);await show($);return;
+    }
     if(event.key==='cancel'){$.state.get<AbortController>(ACTIVE)?.abort(Error('Git review cancelled'));return;}
     if (event.key === 'close') {
       $.state.set(CLOSED,true);$.state.get<AbortController>(ACTIVE)?.abort(Error('Git review closed'));await $.ui.remove(PANEL);

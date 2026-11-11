@@ -62,7 +62,7 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
   });
 
   it.each(['command','tool','panel','skill','service','mcp'] as const)('creates a loadable %s starter with the actual host', async kind => {
-    const f = await fixture([{text:'Provider checked'}]);
+    const f = await fixture([{text:'Provider checked',hold:kind==='command'||kind==='panel'}]);
     const created = await f.core.invokeTool('plugin_dev', {action:'init',name:'local-extension',kind});
     expect(created.ok, created.error).toBe(true);
     const path = (created.output as any).path;
@@ -78,6 +78,14 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
       await f.core.submit('/local-extension');
       expect(f.provider.requests).toHaveLength(0);
       expect(f.events.some(e => e.event === (kind === 'panel' ? 'ui.surface' : 'ui.notification'))).toBe(true);
+      expect(f.app.commands().find(c=>c.name==='/local-extension')?.ui).toEqual({site:'plugin-local-extension-main'});
+      const count=f.events.filter(e=>e.event===(kind==='panel'?'ui.surface':'ui.notification')).length;
+      const active=f.core.submit('Hold model for UI command');
+      await expect.poll(()=>f.provider.requests.length).toBe(1);
+      await f.core.host.emit('ui.press',{site:'plugin-local-extension-main',key:'command:/local-extension'});
+      expect(f.events.filter(e=>e.event===(kind==='panel'?'ui.surface':'ui.notification')).length).toBeGreaterThan(count);
+      expect(f.core.getState()).toBe('running');expect(f.provider.requests[0].signal.aborted).toBe(false);f.provider.release();
+      await active;
     }
     if (kind === 'service') {
       await writeFile(join(f.cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},serviceProviders:{'service.agent.instructions':'local-extension'}}));

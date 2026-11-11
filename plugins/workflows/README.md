@@ -1,5 +1,9 @@
 # Dynamic background workflows
 
+In the TUI, `/workflows` uses an explicit UI route and remains available while the
+agent works. It does not enter the model prompt queue. The line-based interface
+retains its prompt-command handler.
+
 Ask the agent to create a workflow, then open `/workflows` to watch it. The
 replaceable workflows plugin exposes `workflow_run` with start/list/status,
 pause/resume/retry/stop. The tool and UI share the selected

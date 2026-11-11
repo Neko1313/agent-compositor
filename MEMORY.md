@@ -1,5 +1,60 @@
 # Project memory
 
+## Published v0.7.1 and verified public update — 2026-11-12
+
+v0.7.1 is published at immutable annotated tag source
+7e8e38989d2d88780f76aee7cbab1d62621747c5:
+https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.1.
+Exact source Node 22/26 CI 43078608479, documentation 43078608245 and
+plugin preparation 43078608564 passed. Build-only candidate 43078638205 passed
+source verification and all four native build/install jobs with publication
+skipped. After independently rechecking those exact SHA/results and clean state,
+the tag was created without moving any prior tag. Tagged release 43079898942
+repeated source/all-plugin deterministic contracts and all four native build/install
+checks successfully, then published four platform archives, installer and
+checksums. Preflight receipt: dist/v071-candidate/release-preflight.json.
+
+A separate local Linux x64 build used the verified pinned Callix archive obtained
+through the saved tool proxy; release smoke passed installer checksum rejection,
+versioned/latest installation, inactive/default catalog behavior, scoped plugin
+override, authoring SDK/MCP, custom kernel/journal/resume, Monty, bundled Callix
+cross-file analysis/editing, workspace scope and state preservation. Its model
+endpoint is a local fixture, not a paid provider.
+
+Independent public-asset verification downloaded the published installer and
+checksums, matched the installer's digest and exact tagged source, and used that
+unmodified installer through the saved proxy to update an isolated symlink from
+the previously verified public 0.7.0 binary to 0.7.1. The installed binary reports
+0.7.1; the old real binary still reports 0.7.0 and the saved state sentinel is
+unchanged. This public check is Linux x64 only. Evidence/runner:
+dist/v071-candidate/{public-install-report.json,public-installer.log,verify-public.ts}.
+The canonical readiness page records the exact release scope; all broader 1.0
+model/development/long-duration gates remain open. 1052 source tests pass with
+three optional skips, typecheck and docs check/build pass; both generators ran.
+
+A further read-only pricing audit checked every historical saved-profile source
+revision, all of which require the official global Responses URL and reject
+redirects. Official data-residency docs require prefixed regional domains; this
+distinguishes the actual global adapter history from the earlier hypothetical
+regional uplift case. All 294 reported inputs are at most 33191 tokens, below
+long-context pricing. Known cache reads under maximum global tier/12h-write rates
+give a conservative $45.591793 total, keeping all 166 cache-unknown historical
+charges, 54 current Standard charges and the pending unknown reservation intact.
+This is an audited potential refinement, not an invoice or activated discount.
+Ledger bytes and admission policy remain unchanged at raw $49.693673. Receipt:
+dist/budget-review-20261112/read-only-report.json. Sources include the official
+pricing/model pages and https://developers.openai.com/api/docs/guides/your-data.
+Any admission refinement still needs explicit validated provenance and fail-closed
+tests; preserve original charge records and the USD50 authorization.
+
+Prepared a requirements-only initial authoring task for a missing ci-review
+plugin: read-only GitHub Actions status/failed logs through fixed gh argv and a
+concurrent configurable panel, guarded cancellation, untrusted-output handling and
+the full lifecycle. Packet: dist/selfhost-ci-review-20261112/. Its preparation
+manifest is non-executable: frozen independent oracles and budget reconciliation
+must be ready first. No plugin source, passing acceptance suite or completed
+autonomous delivery is claimed. No new paid model call occurred in this turn.
+
 ## Prepared v0.7.1 host candidate — 2026-11-12
 
 Core revision c582d8e passed exact remote Node 22/26 CI 43077761538,

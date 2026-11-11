@@ -44,7 +44,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks 0.1.1 passed the same platform scope at f102fef after fixing macOS project-path aliases. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
-| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.0](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.0), revision 21d7934, passed Node 22/26 CI, documentation checks, all 29 plugin PR contracts and four-platform native build/install smoke before publication. This establishes that release checkpoint; the other gates remain open. |
+| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.1](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.1), revision 7e8e389, passed Node 22/26 CI, documentation checks, all 29 plugin deterministic contracts and four-platform native build/install smoke before publication. This establishes that release checkpoint; the other gates remain open. |
 
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
@@ -103,7 +103,24 @@ compatibility; independent checks passed without changing the authored source
 or making a paid rerun. This is development and truthful-error-reporting evidence,
 not an all-green autonomous episode under the original defective harness.
 
-The published [v0.7.0 milestone](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.0)
+The published [v0.7.1 patch](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.1)
+is bound to immutable revision
+[7e8e389](https://github.com/Neko1313/agent-compositor/commit/7e8e38989d2d88780f76aee7cbab1d62621747c5).
+Its [Node 22/26 CI](https://github.com/Neko1313/agent-compositor/actions/runs/43078608479),
+[documentation checks](https://github.com/Neko1313/agent-compositor/actions/runs/43078608245),
+[build-only four-platform candidate](https://github.com/Neko1313/agent-compositor/actions/runs/43078638205)
+and [tagged four-platform verification and publication](https://github.com/Neko1313/agent-compositor/actions/runs/43079898942)
+passed. This patch fixes interrupted-turn settlement/cancellation, accepted
+background follow-ups, project-root aliases and CI terminal interaction, and
+ships bounded installer downloads. These are verified runtime/distribution fixes;
+they do not close broader model, self-development or long-running gates.
+An independent Linux x64 check downloaded the published installer and assets,
+verified checksums and upgraded an isolated 0.7.0 installation to 0.7.1 through
+the saved tool proxy. The old binary and application-state sentinel survived.
+This public-download check supplements the four native CI install checks; it
+does not establish public installation on every user's machine.
+
+The earlier published [v0.7.0 milestone](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.0)
 points to immutable revision
 [21d7934](https://github.com/Neko1313/agent-compositor/commit/21d79342183a9f3262efbe7d9925ba71085b9539).
 Its [Node 22/26 CI](https://github.com/Neko1313/agent-compositor/actions/runs/43053396437),

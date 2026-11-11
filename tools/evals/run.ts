@@ -1,3 +1,4 @@
+import {evaluationProfile} from './profile.js';
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -5,7 +6,10 @@ import { runCase, type EvalCase } from "./runner.js";
 const args = process.argv.slice(2),
   value = (name: string, fallback: string) =>
     args.includes(name) ? args[args.indexOf(name) + 1] : fallback;
-const models = value("--models", "scripted").split(","),
+if(args.includes('--profile')&&args.includes('--models'))throw Error('Use --profile or --models, not both');
+if(args.includes('--profile')&&!args.includes('--max-usd'))throw Error('A saved paid profile requires --max-usd and a persistent budget ledger');
+const live=args.includes('--profile')?await evaluationProfile(value('--profile',''),Number(value('--max-usd',''))):undefined;
+const models = live?[live.model]:value("--models", "scripted").split(","),
   repeat = Number(value("--repeat", "1")),
   suite = value(
     "--suite",
@@ -29,6 +33,7 @@ for (const model of models)
       const result = {
         ...(await runCase(test, {
           model,
+          provider:live?.provider,
           timeoutMs: Number(value("--timeout", "120000")),
           harness: args.includes("--harness")
             ? value("--harness", "")
@@ -56,6 +61,8 @@ const summary = {
   suite,
   repeat,
   models,
+  profile:args.includes('--profile')?value('--profile',''):undefined,
+  budget:await live?.budget.status(),
   passed: results.filter((r) => r.ok).length,
   total: results.length,
   passRate: results.filter((r) => r.ok).length / results.length,

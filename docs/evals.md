@@ -1,5 +1,8 @@
 # Quality checks and Harness²
 
+The [1.0 readiness gates](readiness.md) define the broader development target;
+a passing smoke suite alone does not close them.
+
 ## Reproducible evals
 
 ```sh
@@ -33,7 +36,8 @@ npm run eval -- --baseline dist/evals/report.json --output dist/evals-next
 `--harness path/to/instructions.md` compares a system-instruction variant;
 `--timeout` sets the deadline in milliseconds. The JSON report includes rubric
 checks, pass rates per model, latency, usage, request counts, and baseline
-regressions. A failed case produces a nonzero exit code. Add tasks with observable
+regressions. `tools/evals/*.ts` is included in the standard typecheck command.
+A failed case produces a nonzero exit code. Add tasks with observable
 results for new plugins; separate training examples and held-out cases with
 `split`. Do not optimize a harness against test answers or copy grading data into
 the execution workspace.
@@ -46,6 +50,70 @@ coverage suite on the minimum Node 22.19.0 and primary Node 26; the deterministi
 evals, proxy smoke checks and generated-artifact checks run once on Node 26.
 Local commands match CI. Cloud credentials are unnecessary for CI. The GitHub Actions workflow itself was not
 run remotely during this work.
+
+## Saved OpenAI profiles and a persistent USD guard
+
+A profile saved through **Settings → Add provider** can be used without copying
+its credential into the isolated project:
+
+```sh
+npm run eval -- --profile openai-eval --max-usd 50 --case read-evidence \
+  --output dist/evals-openai-smoke
+npm run eval:agent -- --profile openai-eval --max-usd 50 --repeat 2 \
+  --timeout 180000 --output dist/evals-openai-agent
+```
+
+`--profile` and `--models` are mutually exclusive. Paid profile evaluation
+requires `--max-usd`. The current priced adapter accepts official OpenAI
+Responses with `gpt-6.1-sol` only; it refuses other models/endpoints instead of
+reusing a price authorization for a different service. Credentials are loaded
+from the parent's private Compositor storage and supplied only to its provider.
+The model workspace, project checks and report do not receive the credential.
+
+The persistent ledger lives under `AGENT_HOME/eval-budgets/PROFILE.json`
+(`~/.agent-compositor` by default), with private file permissions. It is shared
+across repeated commands, guarded by a cross-process write lock and bound to the
+profile, model, price policy and authorized total. Changing the total or an
+incompatible ledger fails closed; starting another output directory does not
+reset the allowance. Concurrent reservations cannot both spend the same balance.
+
+Before each HTTP attempt the guard reserves a conservative amount from UTF-8
+request bytes plus template allowance and the bounded output limit. A reported
+usage event settles that reservation once. Errors, interrupted streams and
+process death without reported usage retain the reservation. Corrupted or locked
+ledgers stop admission. Requests over 200,000 serialized bytes or 8,192 output
+tokens are refused by this evaluation adapter. Broader context/output scenarios
+need an explicitly reviewed envelope rather than silently increasing it.
+
+The dated policy uses $30 per million input tokens and $60 per million output
+tokens as a conservative ceiling over GPT-6.1 Sol's documented processing/cache
+prices, checked on 2026-11-11. This is not the standard price, an invoice or an
+account-wide OpenAI spending cap. Reports expose `committedUpperBoundUsd` and
+pending/reported request counts, not an asserted billed cost. Pricing changes
+require a new reviewed policy. See [official model pricing](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+and [processing tiers](https://developers.openai.com/api/docs/pricing).
+
+## Artifact and verification grading
+
+A case can declare `expect.preserve` for fixture files that must remain regular
+files with their original bytes. Use this when the task explicitly forbids edits.
+`expect.originalChecks` names original JavaScript/TypeScript check fixtures that
+must still pass independently after the agent finishes; the grader stages a
+private temporary sibling script, executes the original source against the
+changed implementation and removes it. This permits additional regression tests
+without letting replacement assertions hide a broken implementation.
+
+`expect.verificationCommands` optionally constrains the accepted verification
+commands. Verification requires a successful `exec` result paired with the
+matching tool call ID, exit code zero and the expected marker. An orphan result,
+wrong command or unsuccessful exit cannot establish verification. Independent
+behavioral probes still check correctness beyond that marker.
+
+Graders run with the fixture project's cwd, an isolated HOME and a minimal
+process environment. Shell checks clear inherited host environment values and
+use the fixture HOME. Neither path inherits host API keys, proxy values or
+runtime preloads. Native trusted plugins still execute in the parent process;
+this is not an OS security sandbox for malicious generated code.
 
 ## Upstream Harness² integration
 
@@ -208,8 +276,10 @@ quality guarantees. Code changes require rerunning the affected checks.
 find/fix a cross-file checkout bug, and recover from a failing greeting formatter
 while preserving its exported API. User prompts do not specify a tool sequence.
 The environment includes default Callix file search, normal tool permissions,
-and allowed project check commands. The model must execute a successful check;
-a trusted grader outside the workspace then checks additional behaviors, without
+and allowed project check commands. The model must execute a successful check; the checkout task preserves its
+original checks byte-for-byte, while the greeting task independently reruns
+its original checks and permits new regression tests.
+A trusted grader outside the workspace then checks additional behaviors, without
 exposing its source to the model. Reports retain trajectories and separate
 execution failure from artifact/check failures. These tests measure more than
 whether a model emits a requested tool name, but remain a small task suite.
@@ -230,6 +300,25 @@ This is development evidence, not an unbiased benchmark or a parity claim about
 Claude Code/Codex. More held-out tasks and repeated runs are needed for reliable
 quality comparisons. Live runs use the existing Ollama cloud models and are
 explicit, not part of credential-free CI.
+
+### Saved-profile development evidence (2026-11-11)
+
+A real `gpt-6.1-sol` read-tool episode passed through the saved Responses profile.
+The final agent run passed 4/4 episodes across two tasks and two repetitions
+(`dist/evals-openai-agent-complete/report.json`), including exact preservation,
+original checks and independent behavior probes where applicable. These are
+known development cases; this is not an unseen benchmark or a comparison with
+another agent. The small sample cannot establish general 1.0 readiness.
+
+An initial 1/2 diagnostic included an evaluator error: the greeting task allowed
+new tests, but its rubric incorrectly froze the check file. Another 3/4 run
+correctly rejected missing agent verification after a compound shell command
+needed additional approval. Generic shell guidance now explains exact command
+grants; Callix errors explain text-tool recovery for unsupported semantic
+sources. Criteria and authorization were not relaxed to allow that compound
+command. Diagnostic traces are retained under `dist/evals-openai-agent-baseline`
+and `dist/evals-openai-agent-verified`; no causal improvement or statistical
+reliability claim is made from these different development runs.
 
 ## Navigation method comparison
 

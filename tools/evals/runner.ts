@@ -1,6 +1,6 @@
+import {evaluationEnvironmentOverlay} from './environment.js';
+import {gradeProject} from './grading.js';
 import {estimateTokens} from "../../packages/context/src/index.js";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join, dirname } from "node:path";
@@ -9,6 +9,7 @@ import { buildApp } from "../../packages/app/src/build.js";
 import {
   ScriptedProvider,
   type ScriptedStep,
+  type ModelProvider,
 } from "../../packages/core/src/provider.js";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 export interface EvalCase {
@@ -26,6 +27,7 @@ export async function runCase(
   test: EvalCase,
   options: {
     model: string;
+    provider?: ModelProvider;
     timeoutMs?: number;
     baseUrl?: string;
     harness?: string;
@@ -72,9 +74,9 @@ export async function runCase(
     );
     if(test.navigationMode){await mkdir(join(cwd,".agent-compositor"),{recursive:true});await writeFile(join(cwd,".agent-compositor/callix.json"),JSON.stringify({background:false,executable:process.env.CALLIX_TEST_BIN??join(root,"plugins/callix/bin/callix")}));}
     const provider =
-      options.model === "scripted"
+      options.provider ?? (options.model === "scripted"
         ? new ScriptedProvider(test.script ?? [])
-        : undefined;
+        : undefined);
     const system = options.harness
       ? await readFile(options.harness, "utf8")
       : undefined;
@@ -106,7 +108,10 @@ export async function runCase(
     if (app.pluginErrors.length) throw Error(JSON.stringify(app.pluginErrors));
     if(test.navigationMode==='text')for(const plugin of app.plugins)if(plugin.manifest.name==='callix')plugin.tools=plugin.tools?.filter(t=>t.name!=='code_query');
     const core = app.createCore(async () => false);
-    core.host.registerPlugin({name:"eval-measurement",version:"1.0.0",trust:"trusted"},{"service.model.stream":(e:any)=>{if(!schemaTokens)schemaTokens=estimateTokens(JSON.stringify(e.request.tools));}});
+    core.host.registerPlugin({name:"eval-measurement",version:"1.0.0",trust:"trusted"},{
+      "service.model.stream":(e:any)=>{if(!schemaTokens)schemaTokens=estimateTokens(JSON.stringify(e.request.tools));},
+      "service.shell.exec":(e,$)=>$.next({...e,env:{...e.env,...evaluationEnvironmentOverlay(home,temp)}}),
+    });
     core.subscribe((e) => events.push(e));
     const timeout = setTimeout(
       () => core.interrupt(),
@@ -128,7 +133,7 @@ export async function runCase(
       [...core.getMessages()].reverse().find((m) => m.role === "assistant")
         ?.content ?? "";
     requests =
-      provider?.requests.length ??
+      (provider instanceof ScriptedProvider ? provider.requests.length : undefined) ??
       events.filter((e) => e.kind === "catalog" && e.event === "turn.step")
         .length;
     transcript=[...core.getMessages()];
@@ -187,16 +192,7 @@ export async function runCase(
             e.input.ok === false
         ),
       });
-    if(exp.grader){
-      // Graders live outside the agent workspace and are never sent to the model.
-      // Run only trusted suite-authored JS, with an explicit bounded subprocess.
-      const grader=join(temp,'grader.cjs');await writeFile(grader,exp.grader);
-      try{await promisify(execFile)(process.execPath,[grader,cwd],{timeout:10000,maxBuffer:64000});checks.push({name:'held-out behavioral grader',ok:true});}
-      catch(e){checks.push({name:'held-out behavioral grader',ok:false,detail:String(e).slice(0,1000)});}
-    }
-    if(exp.verification){
-      checks.push({name:'agent executed verification successfully',ok:events.some(e=>e.kind==='catalog'&&e.event==='tool.result'&&e.input.tool==='exec'&&e.input.ok&&e.input.output?.exitCode===0&&String(e.input.output?.stdout??'').includes(exp.verification))});
-    }
+    checks.push(...await gradeProject({cwd,home,temp,fixtures:test.files,expect:exp,events}));
     if (exp.noModelCalls)
       checks.push({ name: "blocked before model", ok: requests === 0 });
   } catch (e) {

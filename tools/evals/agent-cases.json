@@ -23,7 +23,15 @@
     ],
     "expect": {
       "verification": "PROJECT_CHECKS_PASSED",
-      "grader": "const a=require('node:assert/strict'); const {pathToFileURL}=require('node:url'); (async()=>{const {checkout}=await import(pathToFileURL(process.argv[2]+'/checkout.mjs'));for(const [items,p,want] of [[[10,5],20,12],[[100],50,50],[[],10,0],[[3,7],10,9]])a.equal(checkout(items,p),want);})().catch(e=>{console.error(e);process.exitCode=1;});"
+      "grader": "const a=require('node:assert/strict'); const {pathToFileURL}=require('node:url'); (async()=>{const {checkout}=await import(pathToFileURL(process.argv[2]+'/checkout.mjs'));for(const [items,p,want] of [[[10,5],20,12],[[100],50,50],[[],10,0],[[3,7],10,9]])a.equal(checkout(items,p),want);})().catch(e=>{console.error(e);process.exitCode=1;});",
+      "preserve": [
+        "package.json",
+        "checks.mjs"
+      ],
+      "verificationCommands": [
+        "npm test",
+        "node checks.mjs"
+      ]
     },
     "script": [
       {
@@ -91,7 +99,17 @@
     ],
     "expect": {
       "verification": "GREETING_CHECKS_PASSED",
-      "grader": "const a=require('node:assert/strict');const {pathToFileURL}=require('node:url');(async()=>{const {greet}=await import(pathToFileURL(process.argv[2]+'/greeting.mjs'));a.equal(greet(null),'Hello, guest!');a.equal(greet('  '),'Hello, guest!');a.equal(greet(' Ada ','Hi'),'Hi, Ada!');a.equal(greet(undefined,'Welcome'),'Welcome, guest!');})().catch(e=>{console.error(e);process.exitCode=1;});"
+      "grader": "const a=require('node:assert/strict');const {pathToFileURL}=require('node:url');(async()=>{const {greet}=await import(pathToFileURL(process.argv[2]+'/greeting.mjs'));a.equal(greet(null),'Hello, guest!');a.equal(greet('  '),'Hello, guest!');a.equal(greet(' Ada ','Hi'),'Hi, Ada!');a.equal(greet(undefined,'Welcome'),'Welcome, guest!');})().catch(e=>{console.error(e);process.exitCode=1;});",
+      "preserve": [
+        "package.json"
+      ],
+      "verificationCommands": [
+        "npm test",
+        "node checks.mjs"
+      ],
+      "originalChecks": [
+        "checks.mjs"
+      ]
     },
     "script": [
       {

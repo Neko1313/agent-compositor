@@ -67,3 +67,9 @@ The main CI validates application behavior. The documentation workflow builds on
 pushes and pull requests, and publishes successful main-branch builds to GitHub
 Pages. Native application and independent plugin releases retain their separate
 [release gates](releases.md).
+
+For the broader development target, use the [1.0 readiness gates](readiness.md).
+`npm run typecheck` also checks the evaluation runner, grading, profile and
+budget helpers. See [evaluation commands](evals.md) before running live models;
+scripted integration checks and real model-quality evidence serve different
+purposes.

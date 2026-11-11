@@ -18,7 +18,7 @@
     "docs:impact": "node tools/docs/impact.mjs",
     "docs:browser": "node tools/docs/browser-check.mjs",
     "test": "vitest run",
-    "typecheck": "tsc -b --emitDeclarationOnly false --noEmit && tsc -p tools/plugins/tsconfig.json",
+    "typecheck": "tsc -b --emitDeclarationOnly false --noEmit && tsc -p tools/plugins/tsconfig.json && tsc -p tools/evals/tsconfig.json",
     "gen": "npm run gen --workspaces --if-present",
     "example:headless": "tsx examples/headless-core.ts",
     "example:loader": "tsx examples/loader-demo.ts",

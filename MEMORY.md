@@ -1,5 +1,55 @@
 # Project memory
 
+## Render latency, animation and VTE checks — 2026-11-11
+
+The user reported whole-app stalls around animation/hover and identified GNOME
+Terminal/VTE. AppUI previously drew both the assistant.text catalog precursor
+and the rewritten delta, reparsing growing Markdown on every fragment. Text now
+coalesces on a 16 ms timer; input/lifecycle draws remain immediate, turn completion
+flushes pending text, and close cancels the timer. Ink incremental rendering is
+enabled. Native composer images reserve their rectangle without portable RGBA
+downsampling, and host-owned input bypasses the unused view cache key that used
+to stringify full image payloads.
+
+Added visual:performance to the existing real PTY/xterm.js bench: live source
+animation, 1200 Markdown/Unicode fragments, keyboard echo, pointer/highlight
+latency, erase counters, output volume, browser queue/long-task observations,
+fixture CPU/event-loop measurements and eight seeded resize cell/style checks.
+visual.frames remains an output-chunk counter, not FPS. Snapshot synchronization
+requires complete borders and three stable browser frames; visible text access
+now clips hidden xterm cells beyond the current viewport after shrinking.
+
+Native GTK3/VTE replay of captured output/resizes exposed an existing ZWJ-width
+mismatch that could scroll the whole layout and remove its header. Alternate
+screen output now disables autowrap and restores it for external programs/exit.
+Resize synchronization begins before Ink's out-of-band clear, preventing a blank
+intermediate paint. Tests cover final streamed content and bounded redraws,
+native image decoding avoidance, resize synchronization and wrap restoration.
+VTE still shapes some ZWJ sequences as multiple glyphs: bounded output prevents
+vertical damage but does not establish universal glyph-width/pixel parity.
+
+Final sequential motion comparison: dist/render-baseline-final versus
+dist/render-candidate-final. Streaming duration 28.53 s -> 3.99 s; PTY output
+6,904,145 -> 721,004 bytes; whole-fixture CPU 32.79 -> 4.86 s. Hover-highlight p95
+34.2 -> 18.2 ms. Streaming keyboard p95 62.4 -> 66.2 ms; do not claim typing
+became faster. All eight terminal cell/style snapshots match. Resize blank paints
+fell from two to zero in this run. Results are fixture/environment observations,
+not guarantees for arbitrary projects/terminals. Performance runs must be serial.
+
+The --vte profile models compact status without SIXEL/OSC 22 and checks real
+hover painting. tools/visual/vte-replay.py optionally feeds the same raw trace to
+an actual offscreen GTK3/VTE widget. Final trace/pixels/report are in
+dist/render-vte-final, validated on VTE 0.84.1 (62x31, header/result/draft intact).
+The local VTE build has no SIXEL; no live GNOME GPU/input/SIXEL claim is made.
+Cold SIXEL encoding of the six bundled idle frames took 7..75 ms in a separate
+microprobe; the graphics backend caches those frames. Custom large animations
+and terminal-dependent Unicode width negotiation remain separate topics.
+
+Final verification: 840 passing package tests, 3 optional skips, typecheck,
+generation/docs build, broad real-PTY regression (dist/render-regression-final)
+and source-image Ghost lifecycle (dist/render-mascot-final), with PNG inspection.
+Changes are local and unpublished; no plugin/catalog versions were hand-bumped.
+
 ## Verified v0.5.0 publication — 2026-11-11
 
 The user explicitly requested publication and release. Published host v0.5.0

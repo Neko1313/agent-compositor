@@ -15,6 +15,7 @@ const output = resolve(process.env.VISUAL_OUTPUT ?? join(root, 'dist/visual-proo
 await mkdir(output, { recursive: true });
 await writeFile(join(output, 'terminal.ansi'), '');
 await writeFile(join(output, 'input.jsonl'), '');
+if(process.env.VISUAL_PERFORMANCE)await writeFile(join(output,'terminal.events.jsonl'),'');
 await mkdir(join(cwd, 'plugins'));
 for (const name of ['todos', 'slash-commands', 'ui-theme']) await cp(join(root, 'plugins', name), join(cwd, 'plugins', name), { recursive: true });
 await mkdir(join(cwd, '.agent-compositor'));
@@ -29,6 +30,7 @@ if(process.env.VISUAL_MASCOT_GIF){
   await writeFile(join(cwd,'.agent-compositor/mascot.json'),JSON.stringify({pack:'animations',animations:Object.fromEntries(names.map(name=>[name,'source.gif']))}));
 }
 if(process.env.VISUAL_HISTORY)await seedHistory(cwd);
+if(process.env.VISUAL_PERFORMANCE)await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['todos','slash-commands','ui-theme',...(process.env.VISUAL_PERFORMANCE_MOTION?['mascot']:[])],agent:{projectContext:false,skills:false},compaction:{enabled:false}}));
 if(process.env.VISUAL_BACKGROUND)await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['background-jobs','todos','slash-commands','session-manager'],agent:{projectContext:false,skills:false},compaction:{enabled:false},permissions:{rules:[{tool:'exec',decision:'allow'}]}}));
 if(process.env.VISUAL_AUTHOR){
   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},compaction:{enabled:false},permissions:{rules:[{tool:'plugin_dev',decision:'allow'},{tool:'write',decision:'allow'},{tool:'mcp_call',decision:'allow'},{tool:'extension_control',decision:'allow'}]}}));
@@ -74,6 +76,7 @@ const token = crypto.randomUUID();
 let active;
 let terminalSize={cols:100,rows:30};
 async function start(ws) {
+  if(process.env.VISUAL_PERFORMANCE)appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'start',...terminalSize})+'\n');
   const command = process.env.VISUAL_EXECUTABLE
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
     : ['bun', join(import.meta.dir, 'fixture.ts'), cwd];
@@ -89,6 +92,7 @@ async function start(ws) {
         const line = pending.slice(0, index); pending = pending.slice(index + 1);
         const message = JSON.parse(line);
         if (message.type === 'data') appendFileSync(join(output, 'terminal.ansi'), message.data);
+        if(process.env.VISUAL_PERFORMANCE&&message.type==='data')appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify(message)+'\n');
         if (active?.proc === proc) ws.send(line);
       }
     }
@@ -140,7 +144,7 @@ const server = Bun.serve({
       return new Response('Upgrade required', { status: 400 });
     }
     if (url.pathname === '/favicon.ico') return new Response(null, { status: 204 });
-    const files = { '/': join(import.meta.dir, 'terminal.html'), '/xterm.js': join(root, 'node_modules/@xterm/xterm/lib/xterm.js'), '/graphics.js': join(root, 'tools/visual/graphics.js'), '/xterm.css': join(root, 'node_modules/@xterm/xterm/css/xterm.css') };
+    const files = { '/': join(import.meta.dir, 'terminal.html'), '/xterm.js': join(root, 'node_modules/@xterm/xterm/lib/xterm.js'), '/graphics.js': join(root, 'tools/visual/graphics.js'), '/performance.js': join(root,'tools/visual/performance.js'), '/xterm.css': join(root, 'node_modules/@xterm/xterm/css/xterm.css') };
     return files[url.pathname] ? new Response(Bun.file(files[url.pathname])) : new Response('Not found', { status: 404 });
   },
   websocket: {
@@ -150,6 +154,7 @@ const server = Bun.serve({
       if (message.type === 'restart') { await stop(); ws.send(JSON.stringify({ type: 'reset' })); await start(ws); return; }
       if (active?.ws === ws && ['input', 'resize'].includes(message.type)) {
         if(message.type==='resize')terminalSize={cols:Math.max(16,Math.min(240,Number(message.cols)||100)),rows:Math.max(12,Math.min(100,Number(message.rows)||30))};
+        if(process.env.VISUAL_PERFORMANCE&&message.type==='resize')appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'resize',...terminalSize})+'\n');
         appendFileSync(join(output, 'input.jsonl'), JSON.stringify({ time: Date.now(), ...message }) + '\n');
         active.proc.stdin.write(JSON.stringify(message) + '\n'); active.proc.stdin.flush();
       }

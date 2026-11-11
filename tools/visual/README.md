@@ -31,6 +31,80 @@ commands; restarting preserves that project's task data and placement rules.
 Ctrl+C stops the server and removes the temporary project. The app's own
 Ctrl+C closes only the PTY session; use Restart session to reopen it.
 
+## Render performance
+
+`npm run visual:performance -- --motion` runs the actual application in the
+existing PTY/xterm.js bench with a deterministic 1200-fragment Markdown/Unicode
+provider, a live Ghost animation, real keyboard input and pointer movement. It
+measures idle input, input during streaming, a draft over long history, hover
+round trips and eight seeded viewport sizes. `--motion` enables the diagnostic
+Kitty emulator and omits inherited NO_COLOR in this isolated fixture. Without
+it, the test exercises the text-only path. No model credentials are needed.
+
+Capture a baseline before changing the renderer, then compare the candidate with
+the same flags, fixture and environment:
+
+```sh
+VISUAL_OUTPUT=dist/perf-before npm run visual:performance -- --motion --baseline
+VISUAL_OUTPUT=dist/perf-after npm run visual:performance -- --motion --compare dist/perf-before/report.json
+```
+
+Run performance measurements sequentially on an otherwise quiet machine. Avoid
+running the package suite or other visual scenarios at the same time. Results
+are observations of that workload/environment, not universal latency promises.
+`--baseline` records existing latency without applying the candidate's 1000 ms
+input/hover ceiling. Candidate runs also reject unexpected empty terminal paints
+and steady-state scrollback clears. Parser counters track display, scrollback
+and line erases without consuming the underlying ANSI commands.
+`resizeEmptyPaints` separately counts an empty emulator paint immediately after
+a viewport change when no new application output has arrived. Empty paints after
+application output still fail the candidate check, including during resize.
+
+`report.json` records output chunks/UTF-8 bytes, xterm render events, browser long
+tasks, output queue/consume durations, input-to-paint and hover-highlight latency, pointer round trips
+and observed native image changes. `visual.frames` still counts completed output
+chunks; it is not FPS. Input timing starts when xterm sends real keyboard bytes
+and ends at an xterm render event containing the expected composer text. Pointer
+timing ends on the matching OSC 22 response.
+Hover-highlight timing separately waits for the expected title-cell bold state
+in an xterm render event, so an early cursor response cannot hide a delayed UI.
+These timings include the browser,
+WebSocket and PTY path; they do not measure physical monitor presentation.
+
+`app-performance.json` records the fixture process's CPU time, memory and event
+loop delay. It is diagnostic fixture instrumentation, not production telemetry.
+Reports and PNGs remain under the selected ignored output directory.
+The resize comparison checks terminal cell content, width, colors and attributes
+after the complete frame is visible and stable across three animation frames.
+It canonicalizes unwritten blank cells as spaces; it does not ignore styling or
+text differences. Eight reproducible cases are a regression probe, not exhaustive
+property-based coverage. Native terminal/GPU compatibility still needs separate
+verification.
+
+For a VTE-like capability profile, run
+`VISUAL_OUTPUT=dist/perf-vte npm run visual:performance -- --vte`. This uses the
+same real PTY and browser xterm emulator, with Ghost enabled, unsupported native
+images falling back to compact status, and OSC 22 disabled. Hover latency is
+measured from the actual title highlight; native pointer round trips are absent.
+It models a VTE build without SIXEL, not every GNOME Terminal configuration.
+
+Performance runs also retain `terminal.events.jsonl`: ordered PTY output and
+viewport changes. If system Python has PyGObject, GTK3, a modern VTE 2.91 binding
+with `get_text_format` (tested on 0.84.1), and an available X11 display, replay
+that trace through the actual VTE engine:
+
+```sh
+GDK_BACKEND=x11 /usr/bin/python3 tools/visual/vte-replay.py dist/perf-vte
+```
+
+The GTK offscreen widget saves `vte-screen.png`, text and `vte-report.json`,
+checking final geometry, the conversation header and final result/draft. It
+waits for real widget allocation before feeding a resized frame. This supplements
+the browser check with native VTE parsing/rendering; it does not measure live
+GNOME input latency, GPU presentation or SIXEL when the local build lacks it.
+The replay is deliberately optional and fails clearly when prerequisites are
+missing. No application state or simulated UI methods are used as evidence.
+
 ## Evidence
 
 Artifacts default to `dist/visual-proof/` (override with `VISUAL_OUTPUT`):

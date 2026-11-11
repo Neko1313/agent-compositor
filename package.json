@@ -25,6 +25,7 @@
     "example:ink": "tsx examples/ink-demo.ts",
     "install:defaults": "node -e \"fs.cpSync('plugins', require('os').homedir() + '/.agent-compositor/plugins', {recursive: true})\"",
     "visual:serve": "bun tools/visual/server.mjs",
+    "visual:performance": "node tools/visual/performance-check.mjs",
     "visual:check": "node tools/visual/check.mjs",
     "eval": "bun tools/evals/run.ts",
     "eval:ollama": "bun tools/evals/run.ts --models gemma4:31b-cloud,deepseek-v4.1-flash:1017-cloud",

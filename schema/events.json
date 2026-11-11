@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -1166,6 +1166,9 @@
           },
           "agentId": {
             "type": "string"
+          },
+          "operationId": {
+            "type": "string"
           }
         },
         "required": [
@@ -1188,6 +1191,9 @@
                 "type": "string"
               },
               "agentId": {
+                "type": "string"
+              },
+              "operationId": {
                 "type": "string"
               }
             },
@@ -1224,6 +1230,53 @@
         }
       }
     },
+    "tool.operation": {
+      "since": "0.22.0",
+      "version": 1,
+      "summary": "A separately owned user tool operation starts or settles; it is not a model turn.",
+      "namespace": "tool",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string"
+          },
+          "callId": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "started",
+              "completed"
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "callId",
+          "tool",
+          "phase"
+        ]
+      },
+      "responses": {}
+    },
     "tool.check": {
       "since": "0.1.0",
       "version": 1,
@@ -1244,6 +1297,9 @@
             "type": "string"
           },
           "agentId": {
+            "type": "string"
+          },
+          "operationId": {
             "type": "string"
           },
           "isReadOnly": {
@@ -1694,6 +1750,9 @@
         "type": "object",
         "properties": {
           "callId": {
+            "type": "string"
+          },
+          "operationId": {
             "type": "string"
           },
           "tool": {
@@ -4296,6 +4355,9 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "operationId": {
+            "type": "string"
+          },
           "model": {
             "type": "string"
           },

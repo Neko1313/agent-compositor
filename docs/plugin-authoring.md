@@ -54,6 +54,14 @@ while an extension's SDK links still point to its API packages.
 
 ## Skills travel with plugins
 
+Interactive hooks can call `$.agent.tool(name, args, {signal})` to invoke an
+effective tool with the normal permission chain. The optional signal cancels the
+call and its owned SDK work. During an active agent turn the host uses a separate
+user-operation context; avoid assuming its result becomes model conversation
+history. Supply visible progress, cancellation and errors in the panel, and do
+not reopen a panel the user closed while awaiting completion. See
+[operation limits and lifecycle](core-customization.md#concurrent-user-tool-operations).
+
 Native plugins can include `skills/<name>/SKILL.md` (or loose Markdown skills)
 with name/description frontmatter. The loader must enable and load the plugin
 before its skills enter discovery. Project/configured/user skill sources keep

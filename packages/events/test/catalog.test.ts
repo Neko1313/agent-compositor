@@ -30,6 +30,19 @@ describe("event catalog", () => {
         expect(signature.input.required??[]).not.toContain('completion');
         signature.input=structuredClone(signature.input);delete signature.input.properties.completion;
       }
+      // Reviewed additive change in 0.22: user operations carry optional audit
+      // correlation; omitted identifiers retain the original model-turn shape.
+      if(['tool.call','tool.check','tool.result','model.usage'].includes(name)){
+        expect(signature.input.properties.operationId).toEqual({type:'string'});
+        expect(signature.input.required??[]).not.toContain('operationId');
+        signature.input=structuredClone(signature.input);delete signature.input.properties.operationId;
+        if(name==='tool.call'){
+          const next=signature.responses.next as any;
+          expect(next.properties.operationId).toEqual({type:'string'});
+          expect(next.required??[]).not.toContain('operationId');
+          signature.responses.next=structuredClone(next);delete (signature.responses.next as any).properties.operationId;
+        }
+      }
       expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
         `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);
     }

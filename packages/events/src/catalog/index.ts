@@ -27,6 +27,7 @@ export const catalog: readonly EventDef[] = [
   prompts.skillPrompt,
   // tools
   tools.toolCall,
+  tools.toolOperation,
   tools.toolCheck,
   tools.toolDescribe,
   // turns and agents

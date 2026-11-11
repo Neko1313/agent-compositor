@@ -52,6 +52,7 @@ export const modelUsage = defineEvent({
   summary:
     "Per-request usage including auxiliary calls. Provider counts are preferred; estimated=true explicitly marks a fallback used for budgeting.",
   input: z.object({
+    operationId: z.string().optional(),
     model: z.string().optional(),
     profile: z.string().optional(),
     inputTokens: z.number(),

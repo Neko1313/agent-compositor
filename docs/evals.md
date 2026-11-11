@@ -95,6 +95,10 @@ and [processing tiers](https://developers.openai.com/api/docs/pricing).
 
 ## Artifact and verification grading
 
+Verification grading excludes user-operation calls/results carrying
+`operationId`. A successful command run manually from a panel cannot count as
+verification performed by the evaluated agent.
+
 A case can declare `expect.preserve` for fixture files that must remain regular
 files with their original bytes. Use this when the task explicitly forbids edits.
 `expect.originalChecks` names original JavaScript/TypeScript check fixtures that

@@ -2,19 +2,22 @@ import type { HooksApi } from '@agent-compositor/hooks';
 
 const PANEL = 'main';
 const STATE = 'review';
+const ACTIVE='active-review',CLOSED='closed';
 type Review = { heading: string; output: string; failed?: boolean; truncated?: boolean };
 
 async function show($: HooksApi) {
   const result = $.state.get<Review>(STATE);
+  const active=$.state.get<AbortController>(ACTIVE);
   const text = result?.output ?? 'Choose an action. No Git command runs until you do.';
   // Stay inside the public view's line count and per-line size limits too.
   const rows = text.split('\n').flatMap(line => line.match(/.{1,10000}/gu) ?? ['']);
   await $.ui.view(PANEL, 'Git review', {
     lines: [
-      { text: 'Refresh status', action: 'status', tone: 'accent' },
-      { text: 'Working diff', action: 'working', tone: 'accent' },
-      { text: 'Staged diff', action: 'staged', tone: 'accent' },
+      { text: 'Refresh status', action: active?undefined:'status', tone: 'accent' },
+      { text: 'Working diff', action: active?undefined:'working', tone: 'accent' },
+      { text: 'Staged diff', action: active?undefined:'staged', tone: 'accent' },
       { text: 'Configure output', action: 'configure', tone: 'accent' },
+      ...(active?[{text:active.signal.aborted?'Cancelling review…':'Cancel review',action:'cancel',tone:'warning' as const}]:[]),
       { text: 'Close', action: 'close', tone: 'muted' },
       { text: result?.heading ?? 'Read-only working-tree review', tone: result?.failed ? 'danger' : 'text' },
       ...rows.slice(0, 1990).map(text => ({ text })),
@@ -48,10 +51,14 @@ async function configure($:HooksApi) {
 }
 
 async function run($: HooksApi, key: 'status' | 'working' | 'staged') {
+  if($.state.get(ACTIVE))return;
+  const controller=new AbortController();$.state.set(ACTIVE,controller);
   const heading = key === 'status' ? 'Status' : key === 'staged' ? 'Staged diff' : 'Working diff';
+  $.state.set(STATE,{heading:`${heading} · running`,output:'Waiting for the guarded Git operation…'});
   try {
+    await show($);
     const result = await $.agent.tool('git_review', key === 'status'
-      ? { action: 'status' } : { action: 'diff', staged: key === 'staged' });
+      ? { action: 'status' } : { action: 'diff', staged: key === 'staged' },{signal:controller.signal});
     if (!result.ok) {
       $.state.set(STATE, { heading, output: result.error || 'Git review failed or was denied.', failed: true });
     } else {
@@ -65,19 +72,20 @@ async function run($: HooksApi, key: 'status' | 'working' | 'staged') {
   } catch (error) {
     $.state.set(STATE, { heading, output: `Git review failed: ${error instanceof Error ? error.message : String(error)}`, failed: true });
   }
-  await show($);
+  finally{if($.state.get(ACTIVE)===controller)$.state.delete(ACTIVE);if(!$.state.get(CLOSED))await show($);}
 }
 
 export default {
   'prompt.submit': async (event: { text: string }, $: HooksApi) => {
     if (event.text.trim() !== '/git-review') return;
-    await show($);
+    $.state.set(CLOSED,false);await show($);
     return { drop: 'git-review: handled' };
   },
   'ui.press': async (event: { site: string; key: string }, $: HooksApi) => {
     if (event.site !== `plugin-git-review-${PANEL}`) return;
+    if(event.key==='cancel'){$.state.get<AbortController>(ACTIVE)?.abort(Error('Git review cancelled'));return;}
     if (event.key === 'close') {
-      await $.ui.remove(PANEL);
+      $.state.set(CLOSED,true);$.state.get<AbortController>(ACTIVE)?.abort(Error('Git review closed'));await $.ui.remove(PANEL);
     } else if(event.key==='configure') {
       await configure($);
     } else if (event.key === 'status' || event.key === 'working' || event.key === 'staged') {

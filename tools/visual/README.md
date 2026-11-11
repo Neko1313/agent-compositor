@@ -140,6 +140,14 @@ restoring an independent agent.
 
 ## Native graphics and compiled distributions
 
+`node tools/visual/plugin-check.mjs git-review` exercises status, staged/working
+diffs, scoped configuration, narrow terminals and restart. It also holds the
+scripted agent active while refreshing real Git status, starts a controlled
+long-running SDK subprocess through isolated fixture middleware, cancels it from
+the panel and verifies that the PID is gone while the agent remains active.
+The scenario then interrupts and continues the agent through terminal input.
+Fixture processes and files belong only to the temporary bench project.
+
 `npm run visual:background` exercises the background-jobs plugin in the real PTY.
 It checks Ctrl+C during a busy turn, launches a real background shell, sends a
 second user message while it runs, and leaves an unsent draft in the composer.

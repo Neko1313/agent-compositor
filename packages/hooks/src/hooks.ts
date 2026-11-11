@@ -103,7 +103,8 @@ export interface HooksApi {
   agent: {
     tool(
       name: string,
-      args: unknown
+      args: unknown,
+      options?: {signal?:AbortSignal}
     ): Promise<{ ok: boolean; output?: unknown; error?: string }>;
     compact(reason?: string): Promise<void>;
     clear(): Promise<void>;
@@ -133,6 +134,7 @@ export class HooksHost {
   private readonly rendering = new AsyncLocalStorage<string>();
   private readonly uiInteraction = new AsyncLocalStorage<boolean>();
   private readonly serviceSignal = new AsyncLocalStorage<AbortSignal>();
+  get currentSignal():AbortSignal|undefined{return this.serviceSignal.getStore();}
   private readonly workspaceRoot: string;
 
   /** The workspace the $ API confines fs/exec to. */
@@ -224,7 +226,7 @@ export class HooksHost {
   private buildApi(plugin: string, ctx: HookContext, detached=false): HooksApi {
     const host = this;
     // User interface actions outlive the foreground model turn.
-    const operation=this.uiInteraction.getStore()?undefined:this.config.signal?.();
+    const operation=this.serviceSignal.getStore()??(this.uiInteraction.getStore()?undefined:this.config.signal?.());
     const signal=detached?this.pluginLifetimes.get(plugin)!.signal:AbortSignal.any([ctx.signal,this.pluginLifetimes.get(plugin)!.signal,...(operation?[operation]:[])]);
     const stateGuard = (op: string) => {
       signal.throwIfAborted();
@@ -248,7 +250,8 @@ export class HooksHost {
 
     const callService = async (
       event: string,
-      input: Record<string, unknown>
+      input: Record<string, unknown>,
+      operationSignal=signal
     ): Promise<unknown> => {
       access(event);
       if (
@@ -265,7 +268,7 @@ export class HooksHost {
         ].includes(event)
       )
         stateGuard(event);
-      const res = await host.emit(event, { plugin, ...input },signal);
+      const res = await host.emit(event, { plugin, ...input },operationSignal);
       const v = res.value as Record<string, unknown> | undefined;
       if (
         v &&
@@ -390,9 +393,9 @@ export class HooksHost {
           callService("service.ui.notify", { message, level }) as Promise<void>,
       },
       agent: {
-        tool: (name, args) => {
+        tool: (name, args, options) => {
           stateGuard("agent.tool");
-          return callService("service.agent.tool", { name, args }) as Promise<{
+          return callService("service.agent.tool", { name, args },options?.signal?AbortSignal.any([signal,options.signal]):signal) as Promise<{
             ok: boolean;
             output?: unknown;
             error?: string;

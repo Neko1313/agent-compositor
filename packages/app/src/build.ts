@@ -386,7 +386,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
   const cores=new Set<AgentCore>();
-  extensions.setUserRuntime(()=>[...cores].some(core=>core.getState()==='running'),network.fetch("tools"));
+  extensions.setUserRuntime(()=>[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"));
   const toolOverrides = (source=plugins) => Object.entries(config.config.toolProviders ?? {}).map(([name,owner])=>{
     const tool=source.find(p=>p.manifest.name===owner)?.tools.find(t=>t.name===name);
     if(!tool)throw new Error(`Selected tool provider ${owner} does not supply ${name}`);
@@ -559,7 +559,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     return createCore(approve, ask, { id: meta.id, events: session.events });
   };
   const reloadPlugins = async (core: AgentCore): Promise<string> => {
-    if (core.getState() === "running")
+    if (core.getState() === "running" || core.hasActiveOperations)
       return "Wait until the current turn finishes before /reload.";
     await extensions.applyPending();
     await extensions.refresh();

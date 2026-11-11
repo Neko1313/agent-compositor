@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {spawn} from 'node:child_process';
-import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const name=process.argv[2],output=resolve(process.env.VISUAL_OUTPUT??'dist/plugin-visual/'+name);await mkdir(output,{recursive:true});
 const report={plugin:name,ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
@@ -17,7 +17,7 @@ try{
  const text=()=>page.evaluate(()=>visual.text());
  async function clickCell(col,row){const point=await page.evaluate(({col,row})=>{const rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};},{col,row});await page.mouse.click(point.x,point.y);}
  async function clickText(value){await wait(value);const point=await page.evaluate(t=>{const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(t));return{row,col:lines[row].indexOf(t)+1};},value);await clickCell(point.col,point.row);}
- async function command(value){await clickText('›');await page.keyboard.type(value);await wait('› '+value);await page.keyboard.press('Enter');await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));}
+ async function command(value){await page.keyboard.press('Alt+i');await page.keyboard.type(value);await wait('› '+value);await page.keyboard.press('Enter');await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));}
  async function shot(label){const path=label+'.png';await page.screenshot({path:join(output,path)});report.screenshots.push(path);}
  async function panePosition(title,close=false){
   await page.waitForFunction(({title,close})=>visual.text().split('\n').some(line=>line.split(/[\u2500-\u257f]/).some(part=>part.replace(/\[[Fx]\]/g,'').trim()===title&&(!close||part.includes('[x]')))),{title,close});
@@ -38,6 +38,23 @@ try{
   await page.evaluate(()=>visual.terminal.resize(48,18));await wait('Refresh status');await clickText('Refresh status');await wait('## main');await shot('01-git-narrow');
   await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh status'));await command('/git-review');await wait('## main');
   await page.evaluate(()=>visual.terminal.resize(100,30));await wait('## main');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
+  const fixture=JSON.parse(await readFile(join(output,'fixture-identity.json'),'utf8'));
+  assert.ok(fixture.cwd.includes('compositor-visual-'),'Expected the isolated PTY project');
+  await command('Work while I review Git');await wait('GIT_AGENT_WORKING');
+  await writeFile(join(fixture.cwd,'concurrent-proof.txt'),'Fresh status evidence');
+  await clickText('Refresh status');await wait('concurrent-proof.txt');
+  assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'A user tool must not complete the model turn');
+  await writeFile(join(fixture.cwd,'.git-review-slow'),'controlled dependency');
+  await clickText('Working diff');await wait('Cancel review');
+  let pid=0;for(let attempt=0;attempt<200&&!pid;attempt++){pid=Number(await readFile(join(fixture.cwd,'git-review-worker.pid'),'utf8').catch(()=>''));if(!pid)await new Promise(done=>setTimeout(done,10));}
+  assert.ok(pid>0,'A real owned process must start');await shot('01-git-concurrent-process');
+  await clickText('Cancel review');await wait('Git review cancelled');assert.throws(()=>process.kill(pid,0));
+  assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'Cancelling a user tool must leave the model running');
+  await shot('01-git-concurrent-cancelled');await rm(join(fixture.cwd,'.git-review-slow'));
+  await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');
+  await command('Continue after review');await wait('GIT_AGENT_DONE');
+  report.checks.push('user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup');
+
  }else if(name==='auto-approve'){
   await wait('Mode: manual');await command('/auto on');await wait('Mode: auto');await clickText('Disable auto');await wait('Mode: manual');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
  }else if(name==='mcp'){

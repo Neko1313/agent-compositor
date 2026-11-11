@@ -74,6 +74,9 @@ Archive certification repeats the checks against the exact installed artifact.
 
 The last displayed review is session-local and remains available after closing
 and reopening the panel; reload/restart resets it. Scoped output settings persist.
-While the agent is running another turn, tool actions report the host's busy
-state. Configuration and panel navigation remain available; simultaneous guarded
-tool execution is a separate runtime capability still under development.
+An already-open panel can review Git while the agent works, through the same
+guarded tool path. **Cancel review** cancels only that review and waits for its
+subprocess to stop; **Close** also cancels it and prevents completion from
+reopening the panel. Ctrl+C in the focused panel cancels its active tool without
+interrupting the agent. Ordinary `/git-review` command submission still queues
+behind an active agent turn, so open the panel before starting that turn.

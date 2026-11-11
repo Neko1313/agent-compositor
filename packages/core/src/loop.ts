@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from 'node:async_hooks';
 import {
   optionLabel, questionSchema, questionnaireSchema, validateQuestionnaireResult,
   type UserQuestionRequest, type UserQuestionAnswer,
@@ -48,6 +49,12 @@ import type {
   CompletionRequest,
   ProviderEvent,
 } from "./provider.js";
+
+interface UserToolOperation {
+  id:string;callId:string;tool:string;owner?:string;controller:AbortController;signal:AbortSignal;
+  tools:ToolSpec[];messages:ChatMessage[];records:Array<{name:string;args:unknown;ok:boolean;output?:unknown}>;
+  tokens:number;usage:{inputTokens:number;outputTokens:number};promise:Promise<unknown>;
+}
 
 export interface CorePlugin {
   controllers?:UiControllers;
@@ -195,6 +202,16 @@ export class AgentCore {
   private listeners = new Set<(ev: LoopEvent) => void>();
   private inPromptHook = false;
   private invokingTool = false;
+  private readonly userOperation=new AsyncLocalStorage<UserToolOperation>();
+  private readonly userOperations=new Map<string,UserToolOperation>();
+  private readonly journalSignal=new AbortController().signal;
+  get hasActiveOperations():boolean{return this.userOperations.size>0;}
+  getOperations(){return [...this.userOperations.values()].map(op=>({id:op.id,tool:op.tool,owner:op.owner,tokens:op.tokens}));}
+  cancelOperations(owner?:string):boolean{let cancelled=false;for(const op of this.userOperations.values())if(owner===undefined||op.owner===owner){op.controller.abort(Error('User tool operation cancelled'));cancelled=true;}return cancelled;}
+  private get executionMessages(){return this.userOperation.getStore()?.messages??this.messages;}
+  private get executionRecords(){return this.userOperation.getStore()?.records??this.turnToolRecords;}
+  private get executionTools(){return this.userOperation.getStore()?.tools??this.toolSpecs;}
+
 
   readonly workspace:WorkspaceAccess;
   constructor(private options: AgentCoreOptions) {
@@ -244,6 +261,7 @@ export class AgentCore {
       auth: options.auth,
       signal: () => this.state==="running" ? this.abort.signal : undefined,
       onPluginRemoved: (plugin) => {
+        this.cancelOperations(plugin);
         for(const entry of this.promptQueue)if(entry.owner===plugin&&entry.key)this.backgroundReceipts.delete(entry.key);
         this.promptQueue=this.promptQueue.filter(entry=>entry.owner!==plugin);
         this.broadcast({
@@ -277,8 +295,8 @@ export class AgentCore {
                 : undefined,
             signal:
               request.signal instanceof AbortSignal
-                ? AbortSignal.any([this.abort.signal, request.signal])
-                : this.abort.signal,
+                ? AbortSignal.any([this.userOperation.getStore()?.signal??this.abort.signal, request.signal])
+                : this.userOperation.getStore()?.signal??this.abort.signal,
           })) {
             if (ev.type === "text_delta") text += ev.text;
             if (text.length > 64000)
@@ -380,8 +398,8 @@ export class AgentCore {
     );
     this.runtime.setResolver(
       "service.agent.tool",
-      async ({ name, args }: { name: string; args: unknown }) => ({
-        value: await this.invokeTool(name, args),
+      async ({ name, args, plugin }: { name: string; args: unknown;plugin?:string }) => ({
+        value: await this.invokeUserTool(name, args,{owner:plugin,signal:this.host.currentSignal}),
       })
     );
 
@@ -462,7 +480,7 @@ export class AgentCore {
               ),
             },
           };
-        if (!this.controlsReady && !this.invokingTool)
+        if (this.userOperation.getStore() || (!this.controlsReady && !this.invokingTool))
           return {
             deny: "Restore context from interactive controls after the turn finishes",
           };
@@ -538,7 +556,7 @@ export class AgentCore {
       let answer: Awaited<ReturnType<typeof onAsk>>;
       try {
         answer = await onAsk({
-          signal: callerSignal instanceof AbortSignal ? AbortSignal.any([callerSignal,...(this.state==="running"?[this.abort.signal]:[])]) : this.state === "running" ? this.abort.signal : undefined,
+          signal: callerSignal instanceof AbortSignal ? AbortSignal.any([callerSignal,...(this.userOperation.getStore()?[this.userOperation.getStore()!.signal]:this.state==="running"?[this.abort.signal]:[])]) : this.userOperation.getStore()?.signal??(this.state === "running" ? this.abort.signal : undefined),
           question: args.question,
           options:args.options?.map(optionLabel),
           ...(args.options?.some(o=>typeof o!=="string")?{optionDetails:args.options.map(o=>typeof o==="string"?{label:o}:o)}:{}),
@@ -557,7 +575,7 @@ export class AgentCore {
       const form = questionnaireSchema.parse(payload);
       const reaction = { source: "questions", kind: "question", id: randomUUID() };
       const signals = [
-        ...(this.state === "running" ? [this.abort.signal] : []),
+        ...(this.userOperation.getStore()?[this.userOperation.getStore()!.signal]:this.state === "running" ? [this.abort.signal] : []),
         ...(payload.signal instanceof AbortSignal ? [payload.signal] : []),
       ];
       await this.emit("ui.reaction", { ...reaction, active: true });
@@ -606,13 +624,15 @@ export class AgentCore {
   private turnTokens = 0;
   private turnUsage = {inputTokens:0,outputTokens:0};
   get controlsReady(): boolean {
-    return this.state !== "running" || this.inPromptHook;
+    return !this.hasActiveOperations && (this.state !== "running" || this.inPromptHook);
   }
   async *streamModel(request: CompletionRequest): AsyncIterable<ProviderEvent> {
+    const operation=this.userOperation.getStore();
+    if(operation)request={...request,signal:AbortSignal.any([request.signal,operation.signal])};
     if(!request.profile && this.options.modelProfile) request={...request,profile:this.options.modelProfile};
     const remaining = Math.min(
       (this.options.maxTokensPerSession ?? Infinity) - this.spentTokens,
-      (this.options.maxTokensPerTurn ?? Infinity) - this.turnTokens,
+      (this.options.maxTokensPerTurn ?? Infinity) - (operation?.tokens??this.turnTokens),
       this.options.remainingTokens?.() ?? Infinity
     );
     if (remaining <= 0) throw new Error("Token budget exhausted");
@@ -627,7 +647,7 @@ export class AgentCore {
         ),
       };
     }
-    const result = (await this.host.emit("service.model.stream", { request }))
+    const result = (await this.host.emit("service.model.stream", { request },request.signal))
       .value as { value?: AsyncIterable<ProviderEvent>; deny?: string };
     if (result?.deny) throw new Error(result.deny);
     if (
@@ -643,9 +663,9 @@ export class AgentCore {
       event: Extract<ProviderEvent, { type: "usage" }>
     ) => {
       this.spentTokens += event.inputTokens + event.outputTokens;
-      this.turnTokens += event.inputTokens + event.outputTokens;
-      this.turnUsage.inputTokens += event.inputTokens;
-      this.turnUsage.outputTokens += event.outputTokens;
+      const usage=operation?.usage??this.turnUsage;
+      if(operation)operation.tokens+=event.inputTokens+event.outputTokens;else this.turnTokens+=event.inputTokens+event.outputTokens;
+      usage.inputTokens+=event.inputTokens;usage.outputTokens+=event.outputTokens;
       await this.emit("model.usage", {
         model: request.model ?? this.options.model?.(),
         profile: request.profile,
@@ -695,10 +715,40 @@ export class AgentCore {
     }
   }
 
+  /** UI calls share policy and session costs but never reset an active turn. */
+  async invokeUserTool(name:string,args:unknown,options:{owner?:string;signal?:AbortSignal}={}):Promise<{ok:boolean;output?:unknown;error?:string}>{
+    if(this.userOperation.getStore())return{ok:false,error:'Nested user tool operations are not supported'};
+    if(this.state!=='running'&&!this.hasActiveOperations)return this.invokeTool(name,args,options.signal);
+    if(this.closed||this.journalFailure)return{ok:false,error:this.journalFailure?.message??'Session is closed'};
+    if(this.userOperations.size>=4)return{ok:false,error:'Four user tool operations are already active; cancel or wait for one'};
+    if(options.owner&&!this.host.hasPlugin(options.owner))return{ok:false,error:'Tool owner is no longer active'};
+    const controller=new AbortController(),signal=AbortSignal.any([controller.signal,...(options.signal?[options.signal]:[])]);
+    const operation:UserToolOperation={id:randomUUID(),callId:randomUUID(),tool:name,owner:options.owner,controller,signal,tools:[],messages:[],records:[],tokens:0,usage:{inputTokens:0,outputTokens:0},promise:Promise.resolve()};
+    this.userOperations.set(operation.id,operation);
+    const timer=setTimeout(()=>controller.abort(Error('User tool operation timed out after five minutes')),300000);timer.unref();
+    const work=Promise.resolve().then(()=>this.userOperation.run(operation,async()=>{
+      let outcome:{ok:boolean;output?:unknown;error?:string}={ok:false,error:'Tool produced no result'};
+      const unsubscribe=this.subscribe(event=>{if(event.kind==='catalog'&&event.event==='tool.result'&&event.input.callId===operation.callId)outcome={ok:event.input.ok===true,output:event.input.output,error:event.input.error as string|undefined};});
+      try{
+        signal.throwIfAborted();operation.tools=await this.effectiveTools(signal);
+        await this.emit('tool.operation',{operationId:operation.id,callId:operation.callId,tool:name,owner:options.owner,phase:'started'});
+        operation.messages.push({role:'assistant',content:'',toolCalls:[{id:operation.callId,name,args}]});
+        await this.runToolBatch(operation.id,[{id:operation.callId,name,args}],signal);
+        signal.throwIfAborted();
+      }catch(error){outcome={ok:false,error:String(error)};}
+      finally{unsubscribe();}
+      await this.emit('tool.operation',{operationId:operation.id,callId:operation.callId,tool:name,owner:options.owner,phase:'completed',ok:outcome.ok,error:outcome.error});
+      return outcome;
+    })).catch(error=>({ok:false,error:String(error)})).finally(()=>{clearTimeout(timer);this.userOperations.delete(operation.id);});
+    operation.promise=work;return work;
+  }
+
   async invokeTool(
     name: string,
-    args: unknown
+    args: unknown,
+    callerSignal?:AbortSignal
   ): Promise<{ ok: boolean; output?: unknown; error?: string }> {
+    if(callerSignal?.aborted)return{ok:false,error:String(callerSignal.reason??"Tool cancelled")};
     if(this.resettingBackground)await this.resetBackground;
     if(this.closed)return{ok:false,error:'Session is closed'};
     if (this.invokingTool || (this.state === "running" && !this.inPromptHook))
@@ -714,6 +764,9 @@ export class AgentCore {
     this.turnTokens = 0;
     this.turnUsage = {inputTokens:0,outputTokens:0};
     this.abort = new AbortController();
+    const controller=this.abort,abortCaller=()=>controller.abort(callerSignal?.reason);
+    callerSignal?.addEventListener("abort",abortCaller,{once:true});
+    if(callerSignal?.aborted)abortCaller();
     let outcome: { ok: boolean; output?: unknown; error?: string } = {
       ok: false,
       error: "Tool produced no result",
@@ -750,6 +803,7 @@ export class AgentCore {
       return { ok: false, error: String(error) };
     } finally {
       unsubscribe();
+      callerSignal?.removeEventListener("abort",abortCaller);
       this.invokingTool = false;
       this.state = previous;
       this.scheduleQueue();
@@ -757,6 +811,7 @@ export class AgentCore {
   }
 
   private latestUserTask():string|undefined {
+    const operation=this.userOperation.getStore();if(operation)return `User tool operation: ${operation.tool}`;
     for(let i=this.messages.length-1;i>=0;i--)if(this.messages[i].role==="user")return this.messages[i].content.slice(0,2000);
     return undefined;
   }
@@ -786,8 +841,8 @@ export class AgentCore {
     extraTools: ToolSpec<unknown, unknown>[],
     toolOverrides = this.options.toolOverrides
   ): void {
-    if (this.state === "running")
-      throw new Error("Cannot reload plugins during a running turn");
+    if (this.state === "running" || this.hasActiveOperations)
+      throw new Error("Cannot reload plugins during a running turn or user operation");
     const preview=new Runtime();
     for(const plugin of plugins){
       validateControllers(plugin.controllers);
@@ -1005,11 +1060,12 @@ export class AgentCore {
     this.currentTurnId = undefined;
   }
 
-  private async resolveTools(): Promise<void> {
-    const result=(await this.host.emit("service.agent.tools",{tools:this.composeTools(this.options.extraTools ?? [])})).value as {value?:unknown;deny?:string};
+  private async effectiveTools(signal?:AbortSignal):Promise<ToolSpec[]> {
+    const result=(await this.host.emit("service.agent.tools",{tools:this.composeTools(this.options.extraTools ?? [])},signal)).value as {value?:unknown;deny?:string};
     if(result?.deny)throw new Error(result.deny);
-    this.toolSpecs=this.validateTools(result?.value);
+    return this.validateTools(result?.value);
   }
+  private async resolveTools():Promise<void>{this.toolSpecs=await this.effectiveTools();}
 
   private validateTools(value: unknown): ToolSpec[] {
     if (!Array.isArray(value) || value.length>1000) throw new Error("Tool provider must return at most 1000 definitions");
@@ -1044,6 +1100,7 @@ export class AgentCore {
   }
 
   private async runSteps(): Promise<TurnOutcome> {
+    if(this.userOperation.getStore())throw Error('A concurrent tool cannot start a second agent turn on the active conversation');
     const turnId=this.currentTurnId!;
     const usage={inputTokens:0,outputTokens:0};
     let fullText = "";
@@ -1165,6 +1222,7 @@ export class AgentCore {
   }
 
   private async manageContextDefault(): Promise<void> {
+    if(this.userOperation.getStore())throw Error("A concurrent operation cannot manage the agent conversation");
     const compaction = this.options.compaction;
     if (!compaction) return;
     const response = await this.emit('service.model.capabilities',{signal:this.abort.signal}) as {value?:import('./provider.js').ModelCapabilities};
@@ -1191,11 +1249,13 @@ export class AgentCore {
 
   /** Force a compaction pass regardless of cooldown/budget gates (Claude's /compact). */
   async compactNow(reason?:string): Promise<void> {
+    if(this.userOperation.getStore())throw Error("Conversation controls require an idle user action after concurrent operations finish");
     const result=(await this.host.emit("service.context.compact",{context:this.turnContext(),reason})).value as {deny?:string};
     if(result?.deny)throw new Error(result.deny);
   }
 
   private async compactDefault(): Promise<void> {
+    if(this.userOperation.getStore())throw Error("A concurrent operation cannot compact the agent conversation");
     const compaction = this.options.compaction;
     if (!compaction) return;
     await this.emit("context.compacting", { sessionId: this.sessionId });
@@ -1226,9 +1286,11 @@ export class AgentCore {
 
   /** Drop the conversation, keep the system head (Claude's /clear). */
   clear(): void {
+    if(this.userOperation.getStore())throw Error("A concurrent operation cannot clear the agent conversation");
     this.promptQueue=[];clearTimeout(this.queueTimer);
     this.resettingBackground=true;
-    this.resetBackground=this.host.emit('session.end',{reason:'clear'}).then(async()=>{
+    this.cancelOperations();
+    this.resetBackground=Promise.allSettled([...this.userOperations.values()].map(op=>op.promise)).then(()=>this.host.emit('session.end',{reason:'clear'})).then(async()=>{
       if(!this.closed)await this.host.emit('session.start',{sessionId:this.sessionId,cwd:this.options.cwd,plugins:(this.options.plugins??[]).map(p=>({name:p.manifest.name,version:p.manifest.version,tier:p.tier??'user'}))});
     }).catch(()=>{}).finally(()=>{this.resettingBackground=false;});
     this.messages = this.messages.filter((m) => m.role === "system");
@@ -1238,9 +1300,9 @@ export class AgentCore {
   /** Terminal host teardown: no owned process or queued follow-up outlives it. */
   async close():Promise<void>{
     if(this.closed)return;
-    this.closed=true;this.interrupt();clearTimeout(this.queueTimer);
+    this.closed=true;this.interrupt();this.cancelOperations();clearTimeout(this.queueTimer);
     await this.resetBackground;
-    await Promise.allSettled([this.activeTurn,this.draining]);
+    await Promise.allSettled([this.activeTurn,this.draining,...[...this.userOperations.values()].map(op=>op.promise)]);
     await this.host.emit('session.end',{reason:'other'});
     await this.stopShells();
     this.host.close();
@@ -1270,17 +1332,18 @@ export class AgentCore {
         : randomUUID();
     await this.emit("subagent.start", { agentId, prompt: args.prompt, depth });
 
+    const operation=this.userOperation.getStore();
     const parentTask=this.latestUserTask();
     const child: AgentCore = new AgentCore({
       ...this.options,
       sessionId: randomUUID(),
       permissionReview: async input => await this.emit("service.permission.review", {...input,context:{...(input.context&&typeof input.context==="object"?input.context:{}),parentTask}}),
-      remainingTokens:()=>Math.min((this.options.maxTokensPerSession??Infinity)-this.spentTokens,this.state==="running"?(this.options.maxTokensPerTurn??Infinity)-this.turnTokens:Infinity,this.options.remainingTokens?.()??Infinity),
+      remainingTokens:()=>Math.min((this.options.maxTokensPerSession??Infinity)-this.spentTokens,operation?(this.options.maxTokensPerTurn??Infinity)-operation.tokens:this.state==="running"?(this.options.maxTokensPerTurn??Infinity)-this.turnTokens:Infinity,this.options.remainingTokens?.()??Infinity),
       modelProfile: args.profile ?? this.options.modelProfile,
       model: args.profile ? undefined : this.options.model,
       maxTokensPerTurn:args.maxTokens?Math.min(args.maxTokens,this.options.maxTokensPerTurn??Infinity):this.options.maxTokensPerTurn,
       maxStepsPerTurn:args.maxSteps?Math.min(args.maxSteps,this.options.maxStepsPerTurn??Infinity):this.options.maxStepsPerTurn,
-      tools: this.toolSpecs.filter(t=>t.name!=="workflow_run"),
+      tools: this.executionTools.filter(t=>t.name!=="workflow_run"),
       extraTools: undefined,
       initialImages: undefined,
       sessions: undefined, // subagents are ephemeral: no session persistence
@@ -1298,10 +1361,10 @@ export class AgentCore {
       if(event.kind==="catalog" && event.event==="model.usage"){
         const tokens=Number(event.input.inputTokens??0)+Number(event.input.outputTokens??0);
         this.spentTokens+=tokens;
-        if(this.state==="running"){
-          this.turnTokens+=tokens;
-          this.turnUsage.inputTokens+=Number(event.input.inputTokens??0);
-          this.turnUsage.outputTokens+=Number(event.input.outputTokens??0);
+        if(operation||this.state==="running"){
+          if(operation)operation.tokens+=tokens;else this.turnTokens+=tokens;
+          const usage=operation?.usage??this.turnUsage;
+          usage.inputTokens+=Number(event.input.inputTokens??0);usage.outputTokens+=Number(event.input.outputTokens??0);
         }
         const write=this.emit("model.usage", event.input);
         void write.catch(()=>{});
@@ -1318,8 +1381,8 @@ export class AgentCore {
     });
     const interruptChild = () => child.interrupt();
     const parentSignal = args.detached ? (args.signal ?? new AbortController().signal) : args.signal
-      ? AbortSignal.any([this.abort.signal, args.signal])
-      : this.abort.signal;
+      ? AbortSignal.any([operation?.signal??this.abort.signal, args.signal])
+      : operation?.signal??this.abort.signal;
     parentSignal.addEventListener("abort", interruptChild, { once: true });
     try {
       if (parentSignal.aborted) throw new Error("Interrupted");
@@ -1384,7 +1447,7 @@ export class AgentCore {
       },
     });
     try {
-      const response=(await this.host.emit("service.agent.batch",{calls:structuredClone(batch),context:create(signal)})).value as {deny?:string};
+      const response=(await this.host.emit("service.agent.batch",{calls:structuredClone(batch),context:create(signal)},signal)).value as {deny?:string};
       if(response?.deny)throw new Error(response.deny);
       await Promise.all(pending);
     } finally {
@@ -1394,9 +1457,9 @@ export class AgentCore {
     }
     for(const call of batch.filter(call=>!executed.has(call.id))) {
       const error="Tool call was not scheduled by the selected batch strategy";
-      this.turnToolRecords.push({name:call.name,args:call.args,ok:false});
+      this.executionRecords.push({name:call.name,args:call.args,ok:false});
       await this.emit("tool.result",{callId:call.id,tool:call.name,ok:false,error});
-      this.messages.push({role:"tool",toolCallId:call.id,name:call.name,content:error});
+      this.executionMessages.push({role:"tool",toolCallId:call.id,name:call.name,content:error});
     }
   }
 
@@ -1407,21 +1470,21 @@ export class AgentCore {
   ): Promise<void> {
     for (let call of batch) {
       signal.throwIfAborted();
-      let spec = this.toolSpecs.find((t) => t.name === call.name);
+      let spec = this.executionTools.find((t) => t.name === call.name);
       if (!spec) {
-        const suggestions=this.toolSpecs.filter(tool=>{
+        const suggestions=this.executionTools.filter(tool=>{
           const action=(tool.parameters.properties as Record<string,any>|undefined)?.action;
           return Array.isArray(action?.enum)&&action.enum.includes(call.name);
         }).slice(0,3).map(tool=>`${tool.name} with ${JSON.stringify({action:call.name})}`);
         const error=`unknown tool: ${call.name}`+(suggestions.length?`. This name is an action, not a tool. Use ${suggestions.join(' or ')} and retain the other arguments. No action was executed.`:'');
-        this.turnToolRecords.push({name:call.name,args:call.args,ok:false});
+        this.executionRecords.push({name:call.name,args:call.args,ok:false});
         await this.emit("tool.result", {
           callId: call.id,
           tool: call.name,
           ok: false,
           error,
         });
-        this.messages.push({
+        this.executionMessages.push({
           role: "tool",
           toolCallId: call.id,
           name: call.name,
@@ -1464,7 +1527,7 @@ export class AgentCore {
       ) {
         // Resolve transformed arguments once, before both permission evaluation and execution.
         if (isObject(intercepted) && typeof intercepted.tool === "string") {
-          const replacement=this.toolSpecs.find(tool=>tool.name===intercepted.tool);
+          const replacement=this.executionTools.find(tool=>tool.name===intercepted.tool);
           if(!replacement) throw new Error(`Unknown rewritten tool: ${intercepted.tool}`);
           spec=replacement;
           call={...call,name:replacement.name,args:intercepted.input};
@@ -1569,6 +1632,7 @@ export class AgentCore {
                 }
               })()
             : false;
+          signal.throwIfAborted();
           const allowed = typeof answer === "boolean" ? answer : answer.allow;
           if (
             allowed &&
@@ -1615,7 +1679,7 @@ export class AgentCore {
   }
 
   private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean):Promise<void> {
-    this.turnToolRecords.push({name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result});
+    this.executionRecords.push({name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result});
     await this.emit("tool.result", {
       callId: call.id,
       tool: call.name,
@@ -1624,7 +1688,7 @@ export class AgentCore {
       error,
       denied: denied || undefined,
     });
-    this.messages.push({
+    this.executionMessages.push({
       role: "tool",
       toolCallId: call.id,
       name: call.name,
@@ -1718,10 +1782,9 @@ export class AgentCore {
     event: string,
     input: Record<string, unknown>
   ): Promise<unknown> {
-    const gen = this.runtime.emit(event, input);
-    let step = await gen.next();
-    while (!step.done) step = await gen.next();
-    const result = step.value as { value?: unknown } | undefined;
+    const operation=this.userOperation.getStore();
+    if(operation)input={...input,operationId:operation.id};
+    const result=await this.host.emit(event,input,operation?.signal);
     const value=result?.value;
     // Handled UI commands are audit records, not user messages on replay.
     const dropped=event==='prompt.submit'&&value&&typeof value==='object'&&'drop' in value;
@@ -1748,7 +1811,7 @@ export class AgentCore {
     try {
       // Journal backends receive detached JSON records, never live host capabilities.
       const data=JSON.parse(JSON.stringify(input)) as Record<string,unknown>;
-      const response=await this.host.emit("service.session.append",{sessionId:this.sessionId,cwd:this.options.cwd,event,data});
+      const response=await this.host.emit("service.session.append",{sessionId:this.sessionId,cwd:this.options.cwd,event,data},this.journalSignal);
       if(this.journalFailure)throw this.journalFailure;
       const value=response.value as {deny?:string;value?:unknown}|undefined;
       if(response.faults.length || value?.deny || value?.value!==true)
@@ -1756,6 +1819,7 @@ export class AgentCore {
     } catch(error) {
       this.journalFailure=new Error(`Session journal failed; execution stopped. Repair storage and reopen/resume the session before continuing. ${String(error)}`);
       this.abort.abort(this.journalFailure);
+      for(const op of this.userOperations.values())op.controller.abort(this.journalFailure);
       throw this.journalFailure;
     }
   }

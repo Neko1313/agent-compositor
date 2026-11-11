@@ -29,6 +29,14 @@ if(process.env.VISUAL_GIT_FIXTURE){
   git('-c','user.name=Visual fixture','-c','user.email=fixture@example.test','commit','-m','Initial fixture');
   await writeFile(join(cwd,'review.txt'),'STAGED_REVIEW_EVIDENCE\n');git('add','review.txt');
   await writeFile(join(cwd,'review.txt'),'WORKING_REVIEW_EVIDENCE\n');
+  const directory=join(cwd,'plugins/git-review-delay');await mkdir(directory,{recursive:true});
+  await writeFile(join(directory,'plugin.json'),JSON.stringify({name:'git-review-delay',version:'1.0.0',trust:'trusted',main:'hooks.js',hookTimeouts:{'service.exec.run':15000}}));
+  await writeFile(join(directory,'hooks.js'),`import {access} from 'node:fs/promises';import {join} from 'node:path';
+export default {'service.exec.run':async(event,$)=>{
+ if(event.plugin!=='git-review'||!await access(join($.session.cwd,'.git-review-slow')).then(()=>true,()=>false))return;
+ const code='require("node:fs").writeFileSync('+JSON.stringify(join($.session.cwd,'git-review-worker.pid'))+',String(process.pid));setInterval(()=>{},1000)';
+ return $.next({...event,cmd:'node',args:['-e',code]});
+}};`);
 }
 await writeFile(join(cwd, '.agent-compositor/todos.json'), JSON.stringify([
   { content: 'Inspect project', status: 'pending' }, { content: 'Build interactive UI', status: 'pending' },
@@ -73,7 +81,7 @@ if(!process.env.VISUAL_MARKETPLACE){
 }
 if(process.env.VISUAL_CERT_PLUGIN){
  const name=process.env.VISUAL_CERT_PLUGIN;
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager'],compaction:{enabled:false},...(process.env.VISUAL_GIT_FIXTURE?{permissions:{rules:[{tool:'git_review',decision:'allow'}]}}:{})}));
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager',...(process.env.VISUAL_GIT_FIXTURE?['git-review-delay']:[])],compaction:{enabled:false},...(process.env.VISUAL_GIT_FIXTURE?{permissions:{rules:[{tool:'git_review',decision:'allow'}]}}:{})}));
  if(name==='cost')await writeFile(join(cwd,'.agent-compositor/usage-visual-certification.json'),JSON.stringify({in:42,out:7,turns:1}));
  if(name==='workflows')for(const [id,label]of [['a'.repeat(40),'WORKFLOW_ALPHA'],['b'.repeat(40),'WORKFLOW_BETA']]){const dir=join(cwd,'.agent-compositor/workflows',id);await mkdir(dir,{recursive:true});await writeFile(join(dir,'journal.json'),JSON.stringify([{prompt:label,result:'Verified journal evidence'}]));}
  if(name==='checkpoint-history'){

@@ -337,7 +337,7 @@ export class AppUI {
     if(result.faults.length)throw Error('Plugin action failed: '+JSON.stringify(result.faults));
   }
   private applyPendingReload():void {
-    if(!this.pendingReload||this.reloading||this.closed||this.form||this.core.getState()==='running'||!this.reload)return;
+    if(!this.pendingReload||this.reloading||this.closed||this.form||this.core.getState()==='running'||this.core.hasActiveOperations||!this.reload)return;
     this.pendingReload=false;this.reloading=true;
     this.track(this.reload(this.core).then(text=>{
       this.transcript.push({kind:'notice',text});this.viewCache.clear();
@@ -625,6 +625,7 @@ export class AppUI {
         this.transcript.push({
           kind: "tool",
           tool: String(input.tool),
+          callId: typeof input.callId==='string'?input.callId:undefined,
           args: JSON.stringify(input.input),
           state: "running",
           text: String(args?.path ?? args?.command ?? "running"),
@@ -636,7 +637,7 @@ export class AppUI {
           .find(
             (b) =>
               b.kind === "tool" &&
-              b.tool === input.tool &&
+              (typeof input.callId==='string'?b.callId===input.callId:b.tool===input.tool) &&
               b.state === "running"
           );
         if (block) {
@@ -655,6 +656,11 @@ export class AppUI {
       }
       if (name === "prompt.queued")
         this.status = `Working · ${input.depth} queued`;
+      if(name==='tool.operation'&&input.phase==='completed'){
+        const block=this.transcript.find(b=>b.kind==='tool'&&b.callId===input.callId&&b.state==='running');
+        if(block){block.state=input.ok?'done':'error';block.text=String(input.error??'completed');}
+        this.pendingTextDraw??=setTimeout(()=>{this.pendingTextDraw=undefined;this.applyPendingReload();this.draw();},16);
+      }
       if (name === "turn.complete") {
         this.status = "Ready";
       }
@@ -706,6 +712,10 @@ export class AppUI {
     }
     if (!this.ready || message.type !== "input") return;
     const data = message.data;
+    if(data.kind==='key'&&data.key==='c'&&data.modifiers?.includes('ctrl')&&this.windows.focused!=='input'){
+      const owner=this.pluginWindows.get(this.windows.focused)?.plugin;
+      if(owner&&this.core.cancelOperations(owner)){this.draw();return;}
+    }
     if (data.kind === "mouse") this.lastMouse = data;
     if(!this.controllerBypass && this.routeEditorInput(data))return;
     if (data.kind === "key" && this.drag) {
@@ -2109,10 +2119,13 @@ export class AppUI {
     const tabs=this.workspaceTabs().map(tab=>tab.label).join(' ');
     const showControls=!formActive&&!panelActive&&tabs.length+3+23+waiting.length<=barWidth;
     let bar=`${tabs} | ${showControls?'[Plugins]  [Settings]  ':''}${waiting}${this.pendingReload?' · plugins pending':''}`;
+    const operations=this.core.getOperations();
+    if(operations.length&&bar.length+12<=barWidth)bar+=` · ${operations.length} UI tools`;
     const hidden=Math.max(0,this.windows.ids().length-frames.filter(f=>this.windows.ids().includes(f.surface)).length);
     for(const part of [this.contextIndicator,this.windows.fullscreen?' · FULLSCREEN':'',!protectedInput&&hidden?` · ${hidden} hidden`:''])if(bar.length+part.length<=barWidth)bar+=part;
     const pane=this.panes.get(this.windows.focused),narrow=this.columns<70;
-    const hint=this.windows.focused==='input'&&this.approval?this.approval.dialog.hint??(narrow?'Y once · N deny · PgDn details':'↑↓ scopes · Enter select · PgUp/PgDn details · Esc deny')
+    const hint=operations.some(op=>op.owner===this.pluginWindows.get(this.windows.focused)?.plugin)?'Ctrl+C cancel tool · Alt+i return to agent'
+      :this.windows.focused==='input'&&this.approval?this.approval.dialog.hint??(narrow?'Y once · N deny · PgDn details':'↑↓ scopes · Enter select · PgUp/PgDn details · Esc deny')
       :this.windows.focused==='input'&&this.question?this.question.dialog.hint??(this.question.dialog.review?'↑↓ edit · Enter select/submit · Esc cancel':narrow?'↑↓ choose · Space toggle · Tab · Enter next · Esc cancel':'↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel')
       :formActive?this.form?.dialog.hint??'Tab / Shift+Tab fields · Enter next · Esc cancel'
       :this.panel?this.placementController?.lastView?.hint??'Tab / ↑↓ fields · ←→ change · Esc close'

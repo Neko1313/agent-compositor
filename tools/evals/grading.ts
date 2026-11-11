@@ -29,10 +29,10 @@ export async function gradeProject(input:{
       ...(!bytes?{detail:'Original regular file is missing or replaced'}:{})});
   }
   if(exp.verification){
-    const calls=new Map(events.filter(e=>e.kind==='catalog'&&e.event==='tool.call'&&e.input.tool==='exec')
+    const calls=new Map(events.filter(e=>e.kind==='catalog'&&e.event==='tool.call'&&!e.input.operationId&&e.input.tool==='exec')
       .map(e=>[e.input.callId,e.input.input?.command]));
     const verified=events.some(e=>{
-      if(e.kind!=='catalog'||e.event!=='tool.result'||e.input.tool!=='exec'||!calls.has(e.input.callId))return false;
+      if(e.kind!=='catalog'||e.event!=='tool.result'||e.input.tool!=='exec'||e.input.operationId||!calls.has(e.input.callId))return false;
       const command=calls.get(e.input.callId);
       return (!exp.verificationCommands||exp.verificationCommands.includes(String(command).trim()))&&
         e.input.ok===true&&e.input.output?.exitCode===0&&String(e.input.output?.stdout??'').includes(exp.verification!);

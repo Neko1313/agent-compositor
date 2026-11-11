@@ -47,6 +47,7 @@ export function replayTranscript(
   };
 
   for (const event of events) {
+    if(typeof event.operationId==='string' && ['tool.call','tool.result'].includes(event.type))continue;
     switch (event.type) {
       case "context.restored": {
         if (Array.isArray(event.messages))

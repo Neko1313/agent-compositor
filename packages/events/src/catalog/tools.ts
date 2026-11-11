@@ -6,6 +6,14 @@ const toolRef = z.object({
   input: z.unknown().optional(),
   callId: z.string(),
   agentId: z.string().optional(),
+  operationId: z.string().optional(),
+});
+
+export const toolOperation = defineEvent({
+  name:'tool.operation',since:'0.22.0',version:1,
+  summary:'A separately owned user tool operation starts or settles; it is not a model turn.',
+  input:z.object({operationId:z.string(),callId:z.string(),tool:z.string(),owner:z.string().optional(),phase:z.enum(['started','completed']),ok:z.boolean().optional(),error:z.string().optional()}),
+  responses:[],frozen:true,
 });
 
 export const toolCall = defineEvent({

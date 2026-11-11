@@ -56,3 +56,7 @@ it.each([false,true])('runs untouched reference tests against the implementation
  expect(checks.find(c=>c.name==='original project checks: checks.mjs')?.ok).toBe(correct);
  expect(await readFile(join(cwd,'checks.mjs'),'utf8')).toBe('console.log("PROJECT_CHECKS_PASSED");');
 });
+it('does not count a successful user operation as agent-executed verification',async()=>{
+ const events=[call(),result()].map(e=>({...e,input:{...e.input,operationId:'manual-ui-review'}}));
+ expect((await grade({events})).find(check=>check.name==='agent executed verification successfully')?.ok).toBe(false);
+});

@@ -1,5 +1,44 @@
 # Project memory
 
+## Guarded concurrent user tools — 2026-11-11
+
+The source now routes $.agent.tool through invokeUserTool. Calls during an
+active model turn get separate AsyncLocalStorage operation state, cancellation,
+tool snapshots, records and usage counters while retaining the existing tool
+rewrite, allowlist, permission, approval and execution chain. Four concurrent
+operations and five-minute lifetimes bound admission; session costs remain
+shared. This is accounting, not future-token reservation across overlapping
+model requests. Conversation replacement/compaction from an operation is denied.
+Reload waits for operations; owner unload and core close cancel/drain them.
+Journal errors stop both lanes. Catalog 0.22 adds tool.operation and optional
+operationId audit correlation; replay and eval verification exclude UI tool
+groups from model work. Idle interactive calls retain their existing behavior.
+
+The TUI correlates tool cards by callId, avoiding same-name interleaving errors.
+Ctrl+C in a focused plugin cancels its operations; Alt+i returns to agent input.
+Git review offers Cancel review, disables duplicate actions while active and
+cancels on Close without reopening the pane after completion. Ordinary plugin
+slash commands still queue behind the model: opening a new panel during a turn
+remains an explicit workflow gap, not a completed 1.0 criterion.
+
+Verification: 943 tests passed with three optional skips, typecheck and the
+98-page docs check/build passed. Thirteen core cases include real file writes,
+denials/workspace boundaries, approvals, shared costs, isolation, replay, unload
+and journal failure. Three app cases cover actual Git, real subprocess Ctrl+C
+cleanup and same-name card ordering. Real PTY evidence under
+dist/git-review-concurrent-second verifies fresh Git output while a scripted
+agent is held active, cancellation with the process PID gone, continued model
+activity, narrow terminals and settings restart. Inspected running/cancelled
+screenshots. An initial failed scenario clicked a stale composer coordinate
+after resize; using the actual Alt+i focus shortcut fixed the harness input.
+The frozen-schema check explicitly verifies optional additive fields in both
+input and tool.call next responses; the original hashes remain unchanged.
+
+No paid model calls were made; the conservative $38.66391 ledger is unchanged.
+All broader readiness gates, live resumed development and remaining platform
+release checks remain open. Previous main 3b8dc6d CI, documentation and plugin
+release preparation all completed successfully.
+
 ## Active 1.0 objective and live evaluation setup — 2026-11-11
 
 The user now explicitly requests a stable, extensible, model-independent agent

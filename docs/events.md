@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.21.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.22.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -28,6 +28,7 @@
 | `prompt.compose` | 0.1.0 | 1 | The system prompt is being assembled. Respond with ordered sections. | `sections` | — |
 | `skill.prompt` | 0.1.0 | 1 | A skill's text is expanded for the model. | `next`, `text` | — |
 | `tool.call` | 0.1.0 | 1 | A tool is about to run. Return { result } to answer it, { deny } to refuse, or pass the (rewritten) event to next(). | `next`, `deny`, `result` | `classic.PreToolUse` |
+| `tool.operation` | 0.22.0 | 1 | A separately owned user tool operation starts or settles; it is not a model turn. | — | — |
 | `tool.check` | 0.1.0 | 1 | Pre-execution decision, after tool.call and rules. Resolves to the allow/ask/deny decision. | `next`, `decision` | — |
 | `tool.describe` | 0.1.0 | 1 | Once per tool, when its description is first sent to the model. | `next`, `description` | — |
 | `turn.start` | 0.1.0 | 1 | A turn begins. | `next` | `turn.started` |
@@ -114,7 +115,7 @@
 - **session**: `session.start`, `session.reload`, `session.end`, `session.compact`
 - **prompt**: `prompt.submit`, `prompt.compose`, `prompt.steer`, `prompt.queued`
 - **skill**: `skill.prompt`
-- **tool**: `tool.call`, `tool.check`, `tool.describe`, `tool.result`
+- **tool**: `tool.call`, `tool.operation`, `tool.check`, `tool.describe`, `tool.result`
 - **turn**: `turn.start`, `turn.step`, `turn.complete`, `turn.failed`, `turn.interrupted`, `turn.usage`
 - **agent**: `agent.offer`, `agent.spawn`, `agent.activity`
 - **assistant**: `assistant.text`, `assistant.metadata`

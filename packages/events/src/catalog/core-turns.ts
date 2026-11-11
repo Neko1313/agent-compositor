@@ -41,6 +41,7 @@ export const toolResult = defineEvent({
   summary: "A tool call resolved (ok or error). Errors are values — the turn continues.",
   input: z.object({
     callId: z.string(),
+    operationId: z.string().optional(),
     tool: z.string(),
     ok: z.boolean(),
     output: z.unknown().optional(),

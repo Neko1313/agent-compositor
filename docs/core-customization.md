@@ -104,6 +104,30 @@ cannot call `next()` to continue an expired hook; render-only and sandboxed hook
 cannot acquire it. This is an explicit lifetime choice, not a separate process or
 a bypass of service interception and permission checks.
 
+### Concurrent user tool operations
+
+`$.agent.tool(name, args, {signal})` uses the ordinary effective tool registry,
+rewrites, permissions, approval and execution hooks. During a model turn it runs
+as a separately owned user operation, with its own cancellation, tool records
+and token counters. At most four such operations may run; each has a five-minute
+lifetime including approval waits. Idle calls retain the normal interactive
+`invokeTool` behavior. Embedders can use `invokeUserTool` for the same routing.
+
+User operations share session token accounting, but their results do not enter
+the model conversation or reset its failure/completion state. Auxiliary model
+calls still consume session budget; accounting does not reserve future tokens
+across overlapping requests. `tool.operation` reports start/settlement, and
+`operationId` correlates tool calls, checks, results and usage in the journal.
+Replay retains those audit records without rebuilding them as model tool groups.
+Journal failure stops both lanes before further effects are admitted.
+
+Cancelling the model turn leaves independent user operations active. Cancelling
+an operation, unloading its calling plugin or closing the core cancels its work;
+owned SDK subprocesses are drained before completion. Concurrent tools cannot
+clear, restore or compact the shared conversation or start a second turn there.
+Reload waits for all active operations. Trusted replacement services must uphold
+these boundaries themselves, including cancellation and resource cleanup.
+
 Trusted plugins use the same service chain as the defaults:
 
 | Service | Replacement responsibility |

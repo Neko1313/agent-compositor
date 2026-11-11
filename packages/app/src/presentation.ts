@@ -37,6 +37,7 @@ export interface TranscriptBlock {
   text: string;
   tone?: Tone;
   tool?: string;
+  callId?: string;
   args?: string;
   state?: "running" | "done" | "error";
 }

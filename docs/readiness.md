@@ -88,9 +88,10 @@ runtime and tool changes, and verify those changes against unchanged criteria.
 
 Git review adds a concrete tool/panel/configuration workflow and exposed a host
 subprocess cancellation leak, now covered by real process-group tests. The next
-runtime gap is concurrent guarded UI tool execution: management and settings
-remain available during an agent turn, but ordinary plugin tool actions receive
-the host's busy response. Removing that limit requires independent operation
-state, cancellation, permission and journal handling; simply bypassing the guard
-would corrupt the active turn. Real-model resumed development after the summary
-retry fix and certification on the remaining platforms also remain open.
+runtime work adds concurrent guarded UI tool execution with separate operation
+state, cancellation, permissions and journal correlation. Source tests and a real
+Git-panel PTY scenario verify that refreshing and cancelling a real subprocess
+leave the held agent active. This evidence does not cover every plugin or a live
+model. Ordinary plugin slash commands still queue, so opening a new plugin panel
+during a turn remains a workflow gap. Real-model resumed development after the
+summary retry fix and certification on the remaining platforms also remain open.

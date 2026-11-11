@@ -268,6 +268,7 @@ describe("default market: end-to-end through the assembled app", () => {
       "cost",
       "doctor",
       "export",
+      "git-review",
       "guard-scope",
       "guard-secrets",
       "mascot",

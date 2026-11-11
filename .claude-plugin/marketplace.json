@@ -90,6 +90,15 @@
       }
     },
     {
+      "name": "git-review",
+      "source": "./plugins/git-review",
+      "description": "Read-only Git status and staged/working diff review with an interactive panel.",
+      "version": "0.1.0",
+      "compositor": {
+        "format": "native"
+      }
+    },
+    {
       "name": "guard-scope",
       "source": "./plugins/guard-scope",
       "description": "Workspace jail for write/edit tools: paths escaping the session cwd are denied regardless of config permissions (belt over the builtin rules' suspenders). Drop this folder to remove.",

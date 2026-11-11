@@ -66,6 +66,11 @@ export async function probe(app:BuiltApp,name:string,existingCore?:ReturnType<Bu
   const file=join(app.storage.paths.project,'plan.txt');await rm(file,{force:true});await core.submit('/plan');
   assert.equal((await core.invokeTool('write',{path:file,content:'denied'})).ok,false);await assert.rejects(readFile(file));
   await core.submit('/plan');assert.equal((await core.invokeTool('write',{path:file,content:'allowed'})).ok,true);assert.equal(await readFile(file,'utf8'),'allowed');
+ }else if(name==='git-review'){
+  await exec('git',['init'],{cwd:app.storage.paths.project});
+  await writeFile(join(app.storage.paths.project,'git-review-evidence.txt'),'Read-only package lifecycle');
+  const status=await core.invokeTool('git_review',{action:'status'});assert.equal(status.ok,true,status.error??'Git status failed');assert.match((status.output as any).output,/git-review-evidence/);
+  await core.submit('/git-review');assert.ok(events.some(e=>e.event==='ui.surface'&&e.input.title==='Git review'));
  }else if(!command[name])throw Error('Add an actual package probe for '+name);
  return events.filter(e=>e.input?.plugin===name).map(e=>({event:e.event,message:e.input.message,text:e.input.text}));
 }

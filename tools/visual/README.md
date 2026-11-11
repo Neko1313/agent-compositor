@@ -315,6 +315,12 @@ never activates production code.
 
 ## Plugin certification scenarios
 
+`node tools/visual/plugin-check.mjs git-review` exercises status and distinct
+staged/working diffs against the real Git fixture. It also checks keyboard
+actions, scoped configuration save/cancel and restoration after restart,
+48×18 controls, panel close/reopen and an unsent draft. `VISUAL_PLUGIN_DIR`
+selects the exact source or extracted archive candidate.
+
 `node tools/visual/plugin-check.mjs <plugin>` runs the package-specific scenario
 for auto-approve, checkpoint-history, cost, mascot, mcp, network-proxy, todos,
 ui-theme or workflows. `VISUAL_OUTPUT` selects a fresh evidence directory.

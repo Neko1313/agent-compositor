@@ -2,7 +2,7 @@
 
 > Generated from repository sources. Run `npm run docs:gen`; do not edit by hand.
 
-All 27 filesystem plugins start inactive. [Install and explicitly enable](../marketplace.md) a package in user or project scope before using it. Plugin versions are independent of the host.
+All 28 filesystem plugins start inactive. [Install and explicitly enable](../marketplace.md) a package in user or project scope before using it. Plugin versions are independent of the host.
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
@@ -15,6 +15,7 @@ All 27 filesystem plugins start inactive. [Install and explicitly enable](../mar
 | [cost](../../plugins/cost/README.md) | 1.2.1 | /cost and /usage — token accounting from turn.usage events (Claude Code /cost analog). Tally survives across turns in plugin state; drop this folder to remove. |
 | [doctor](../../plugins/doctor/README.md) | 1.1.2 | /doctor — sanity report: env vars (AGENT_BASE_URL/AGENT_API_KEY/AGENT_MODEL) and a live provider ping (Claude Code /doctor analog). Drop this folder to remove. |
 | [export](../../plugins/export/README.md) | 1.1.2 | /export — dump the session transcript (your prompts + assistant text) to .agent-compositor/session-<id>.md (Claude Code /export analog). Buffer caps at 100k chars. Drop this folder to remove. |
+| [git-review](../../plugins/git-review/README.md) | 0.1.0 | Review Git status and staged or working diffs through a read-only tool and interactive panel. |
 | [guard-scope](../../plugins/guard-scope/README.md) | 1.1.1 | Workspace jail for write/edit tools: paths escaping the session cwd are denied regardless of config permissions (belt over the builtin rules' suspenders). Drop this folder to remove. |
 | [guard-secrets](../../plugins/guard-secrets/README.md) | 1.1.2 | Blocks private keys and API tokens from reaching the model or tool arguments (AWS AKIA…, OpenAI sk-…, GitHub ghp_…, Slack xoxb-…, PEM blocks). Drop this folder to remove. |
 | [mascot](../../plugins/mascot/README.md) | 1.1.1 | GIF/APNG Ghost companion attached to the message composer; observes agent, tool and dialog activity. |

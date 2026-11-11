@@ -398,7 +398,8 @@ built-in form editor; it does not change the user's proxy configuration.
 
 `node tools/visual/plugin-check.mjs ci-review` opens the real `/ci` panel in an
 isolated PTY. The scenario configures an explicit repository and output limits,
-selects runs/jobs/failed and full logs, cancels the settings form, and checks
+selects runs/jobs/failed and full logs, cancels the settings form, saves a new
+run limit while the main agent is busy, and checks
 Cancel/Close cleanup of actual SDK-owned processes while the scripted main
 agent remains held. It also verifies a preserved draft after resize and saved
 settings after session restart. `ci-fixture.mjs` installs a local executable

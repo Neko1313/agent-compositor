@@ -71,6 +71,10 @@ try{
   await clickText('Configure');await wait('Configure CI review');await wait('fixture/repo');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure CI review'));
   const fixture=JSON.parse(await readFile(join(output,'fixture-identity.json'),'utf8'));
   await command('Work while I review CI');await wait('CI_AGENT_WORKING');await command('/ci');await wait('Refresh runs');
+  await clickText('Configure');await wait('Configure CI review');await page.keyboard.press('Tab');await wait('2/7 ·');await page.keyboard.press('Control+a');await page.keyboard.type('3');await wait('› 3');await shot('01-ci-editing-while-working');await clickText('[ Save ]');
+  await wait('Saved in project scope.');await wait('maxRuns 3');
+  assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'Saving settings must leave the main model running');await shot('01-ci-concurrent-settings');
+  assert.equal((await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8')).trim().split('\n').length,4,'Saving settings must not fetch CI automatically');
   await clickText('Refresh runs');
   for(let i=0;i<200;i++){const calls=await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8').catch(()=>'');if(calls.trim().split('\n').length===5)break;await new Promise(done=>setTimeout(done,10));}
   await page.waitForFunction(()=>!visual.text().includes('Cancel'));await wait('CI_FIXTURE_FAILED');
@@ -83,9 +87,9 @@ try{
   const pid=await slow();await shot('01-ci-running');await clickText('Cancel');await wait('CI review cancelled.');assert.throws(()=>process.kill(pid,0));await working();await shot('01-ci-cancelled');
   const closed=await slow();await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh runs'));
   for(let i=0;i<200;i++){try{process.kill(closed,0);}catch{break;}await new Promise(done=>setTimeout(done,10));}assert.throws(()=>process.kill(closed,0));await working();await rm(join(fixture.cwd,'.ci-slow'));
-  const calls=(await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));assert.equal(calls.length,7);assert.ok(calls.every(args=>args.at(-2)==='--repo'&&args.at(-1)==='fixture/repo'));
+  const calls=(await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));assert.equal(calls.length,7);assert.ok(calls.every(args=>args.at(-2)==='--repo'&&args.at(-1)==='fixture/repo'));assert.equal(calls[4][calls[4].indexOf('--limit')+1],'3','The next request must use the concurrently saved limit');
   await command('/ci');await wait('Refresh runs');await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');await command('Continue after CI review');await wait('CI_AGENT_DONE');
-  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup','user-tool.close-cleanup','ci.explicit-requests','ci.fixed-repository');
+  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup','user-tool.close-cleanup','ci.explicit-requests','ci.fixed-repository','settings.concurrent');
  }else if(name==='project-checks'){
   await clickText('Refresh scripts');await wait('Run check');
   await clickText('Run check');await wait('passed (exit 0)');await wait('PROJECT_CHECK_OUTPUT');await shot('01-check-pass');
@@ -140,7 +144,7 @@ try{
  report.checks.push('ui.cancel');
  if(name==='network-proxy'){await command('/proxy configure');await wait('Configure network proxy');}
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(g=>visual.generation>g,generation);await wait('›');await command(entries[name][0]);await wait(entries[name][1]);
- if(name==='ci-review'){await wait('fixture/repo');await clickText('Configure');await wait('Configure CI review');await wait('5000');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure CI review'));}if(name==='project-checks'){await wait('Refresh scripts');await clickText('Configure limits');await wait('Configure project checks');await wait('2000');await page.keyboard.press('Escape');}if(name==='git-review'){await wait('Choose an action');await clickText('Configure output');await wait('Configure Git review');await wait('8000');await page.keyboard.press('Escape');}if(name==='auto-approve')await wait('Mode: manual');if(name==='todos')await wait('Inspect project');if(name==='cost')await wait('42 input');if(name==='network-proxy')await wait('127.0.0.1:7890');
+ if(name==='ci-review'){await wait('fixture/repo');await wait('maxRuns 3');await clickText('Configure');await wait('Configure CI review');await wait('5000');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure CI review'));}if(name==='project-checks'){await wait('Refresh scripts');await clickText('Configure limits');await wait('Configure project checks');await wait('2000');await page.keyboard.press('Escape');}if(name==='git-review'){await wait('Choose an action');await clickText('Configure output');await wait('Configure Git review');await wait('8000');await page.keyboard.press('Escape');}if(name==='auto-approve')await wait('Mode: manual');if(name==='todos')await wait('Inspect project');if(name==='cost')await wait('42 input');if(name==='network-proxy')await wait('127.0.0.1:7890');
  await shot('04-restarted');report.checks.push('ui.restart');assert.equal(report.errors.length,0);report.ok=true;
 }catch(error){report.errors.push(String(error));await page?.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
 finally{await browser?.close();if(server&&server.exitCode===null){const end=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await end;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

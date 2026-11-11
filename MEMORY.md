@@ -1,5 +1,36 @@
 # Project memory
 
+## CI package checkpoint and concurrent configuration proof — 2026-11-12
+
+Source integration 457b7e7 was pushed, followed by 8e0050b adding the missing
+native development catalog entry without hand-bumping catalog/plugin versions.
+The automatic preparation must refresh PR4 before review; its old b27eef8 head
+predates CI review and must not be merged as the current release batch.
+
+Exact committed 457b7e7 passed local full release and installed Linux x64 archive
+certification. The archive hash is 41a85708db9e40319d014a93a8c82068530a99086bfc046c29df08234e70a79a.
+An independent audit checked both certificates, all 70 evidence references,
+archive checksum sidecar and embedded source/workspace/plan identities. Evidence:
+dist/ci-review-live/local-certification-integrity.json and
+reports/certification/ci-review/{release,artifact}/linux-x64/. Installed archive
+cancellation and narrow screenshots were inspected. These receipts certify that
+exact revision, not the subsequent catalog or visual-scenario changes.
+
+Extended the maintained PTY scenario to edit/save maxRuns from four to three
+while the main scripted agent remains held. Saving makes no gh request; the next
+explicit refresh uses --limit 3, the main agent remains Working, Cancel/Close
+still reap their PIDs, and restart restores the new project setting. Evidence:
+dist/ci-review-concurrent-settings-synchronized/report.json; editing/saved/restart
+screenshots inspected. The first diagnostic attempt sent Tab/Ctrl+A/type before
+observing focus/value changes; explicit terminal field and exact-value waits
+corrected scenario synchronization without application changes or longer waits.
+
+Latest remote source checks/preparation are queued with no jobs yet assigned:
+8e0050b CI43095461615, docs43095461626, preparation43095461610. Earlier457b7e7
+runs43095333195/43095333260/43095333165 are also queued. Do not restart merely
+because runners are not assigned. Native candidate certification follows review
+of the refreshed metadata batch. No extra paid model requests were made.
+
 ## Guided CI completion and independent integration review — 2026-11-12
 
 The saved V2 candidate was completed through patched Compositor in an isolated

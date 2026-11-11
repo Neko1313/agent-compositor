@@ -1,5 +1,27 @@
 # Project memory
 
+## Verified v0.5.1 publication — 2026-11-11
+
+The user explicitly requested publication of the render fixes. Host v0.5.1 is
+published as latest from tag commit 26fb7e38599ddb3bfa2858bd803f08fbba5934a9:
+https://github.com/Neko1313/agent-compositor/releases/tag/v0.5.1
+Release run 42928439141 passed quality verification, all four Linux/macOS
+x64/arm64 native build/installer smoke jobs, and publication. Main CI on
+Node 22.19.0/26 and the documentation deployment also passed.
+
+The public release has four archives, install.sh and SHA256SUMS. Verified latest,
+non-draft/non-prerelease status, all archive digests against SHA256SUMS and GitHub
+asset digests, and the downloaded installer/checksum file contents. Local compiled
+v0.5.1 installer smoke passed before tagging. Publication evidence is retained at
+dist/release/v0.5.1-publication.json. Coverage verification passed 840 tests with
+3 optional skips and 88.24% line coverage. GitHub Pages serves the v0.5.1 CLI
+reference and updated render architecture/bench instructions.
+
+Plugin preparation was a no-op: no affected plugin runtime bundles, no release
+metadata writes, development catalog remains 1.0.2. No independent plugin tags
+were published. The rendering investigation below is now included in the host
+release; benchmark observations retain their stated environment/terminal limits.
+
 ## Render latency, animation and VTE checks — 2026-11-11
 
 The user reported whole-app stalls around animation/hover and identified GNOME

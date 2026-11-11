@@ -1,5 +1,56 @@
 # Project memory
 
+## CI refresh synchronization and host release boundaries — 2026-11-12
+
+PR4 was reviewed and merged normally at fbd69d6. The exact-source candidate
+workflow43102853382 passed source certification and all four native installed
+archives. Independently verified five certificates,131 evidence files, archive
+sidecars/embedded identities and immutable source/package/workspace/plan hashes:
+dist/ci-review-native-fbd/integrity.json. This was a candidate, not publication.
+The subsequent plugin/ci-review/v0.1.0 tagged run43104978351 failed terminal-flow
+before native jobs/publication. No release was created. Preserve that failure;
+the existing tag still points at fbd69d6, not the fixes below.
+
+Failed PTY report/input/failure.png showed that the cancellation scenario clicked
+Refresh twice62ms apart. Its wait accepted an old result and absence of Cancel
+before the first refresh's busy render arrived. A subprocess-start record is not
+a rendered-result acknowledgement. b87356a gives fixture responses a request
+sequence marker and waits for the fifth response before starting a slow request.
+Actual PTY scenario passes all15 checks, including concurrent settings, real
+Cancel/Close process cleanup, narrow draft and restart persistence; inspected
+running/cancelled/restarted screenshots. Full release-stage source certification
+also passes at8757290. Receipts: dist/ci-review-refresh-sync and
+dist/ci-review-refresh-sync-source. This does not replace native certification
+of a future candidate or retroactively pass the failed tag.
+
+8757290 anchors git-cliff's host tag regex. An actual pinned git-cliff regression
+with separated annotated host/plugin tags reproduced missing pending host notes
+before the fix and passes afterward. Independent plugin tags no longer delimit
+host releases. Real changelog preview includes changes after published0.7.1.
+Full1111 tests pass,3optional skips; typecheck and docs check/build pass.
+
+The unchanged local Qwen cases atc31c430 scored4/6 over19 requests, all protected
+fixtures preserved, zero paid requests. Both precise edits still failed through
+redundant writes dropping a newline; this replay did not trigger the missing-hash
+diagnostic and does not establish that diagnostic improves model recovery.
+Receipt: dist/local-qwen-eval-guarded-diagnostic/integrity.json.
+
+Fresh known CI authoring atfbd69d6 removed the candidate implementation entirely
+and retained frozen10+7 oracles. Reference-only validation clone passed17/17 and
+types before inference. The actual unseeded run stopped before next request
+admission at the budget bound: six main steps,three compactions,13 reported
+requests,zero writes. All726 protected files and oracle bytes survived. This is
+budget-curtailed authoring, not successful initial plugin delivery. Evidence:
+dist/selfhost-ci-fresh/{execution,preservation}.json. Effective conservative bound
+49.822939 of50,421reported/two old pending; raw recorded53.924819. Standard-price
+estimate3.590765 covers255 requests,166 lack cache metadata; it is not an invoice.
+Do not reset reservations or spend beyond admission. Current billing requested
+from the user; no answer yet. Continue free/local/native work meanwhile.
+
+Rechecked saved proxy after the user's request: enabled for models/tools, global
+private config0600, CLI CONNECT200/GitHub200; shared client reaches unauthenticated
+OpenAI models401 and GitHub200. No paid model calls or credentials logged.
+
 ## Missing snapshot hash now has an actionable edit diagnostic — 2026-11-12
 
 The failed Qwen edit at ca84b9e supplied valid range offsets but omitted

@@ -316,7 +316,12 @@ output space is reserved and request output is capped accordingly.
 
 Automatic compaction runs before model requests. Hard pressure bypasses the
 cooldown. Summary requests are split into bounded segments and preserve goals,
-constraints, decisions, paths, verification and next actions. System instructions
+constraints, decisions, paths, verification and next actions. When a segment reaches its output limit, only
+that segment is retried with a doubled allowance, capped at 8192 tokens or a
+quarter of the configured context window, whichever is smaller. This permits at
+most three attempts per segment through the owning model and budget. Partial
+summaries are discarded; cancellation, provider errors and streams lacking a
+completion event do not trigger this retry. System instructions
 and recent complete tool-call/result groups survive; recent-tail size adapts to
 the available budget. Failed/empty/non-shrinking summaries retain the original
 history. A context-overflow error permits one compaction-and-retry, never a

@@ -13,7 +13,7 @@ export const sections = [
   ['Understand the architecture', ['architecture', '01-concept', '02-ui', '03-contracts', '04-motivation', 'tui-design']],
   ['Reference', ['events', 'reference/cli', 'reference/plugins', 'reference/packages']],
   ['Contribute', ['contributing', 'documentation', 'evals', 'dependencies', 'releases']],
-  ['Design history', ['05-prior-art', '06-core-blueprint', 'INDEX']],
+  ['Design history', ['05-prior-art', '06-core-blueprint', 'harness-research-2026-11', 'INDEX']],
 ];
 
 export function pluginManifests() {

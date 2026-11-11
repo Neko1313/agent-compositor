@@ -17,6 +17,7 @@ introducing separately maintained copies.
 
 | # | File | Topic | Status |
 |---|------|-------|--------|
+| 14 | [harness-research-2026-11.md](harness-research-2026-11.md) | Source and test study of 18 agent harnesses, execution contracts, recovery and the current Compositor baseline | dated research, 2026-11-11; candidate work is not an approved roadmap |
 | 13 | [plugin-testing.md](plugin-testing.md) | Mandatory test model: host contracts, component/trait cases, live evaluation, artifact verification and release evidence | mandatory case matrix and fail-closed certification; existing coverage gaps block releases |
 | 1 | [01-concept.md](01-concept.md) | Concept: what we are building and why | accepted |
 | 2 | [02-ui.md](02-ui.md) | UI: the pane model, Ink, swappable renderers | accepted |

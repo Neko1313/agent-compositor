@@ -90,6 +90,9 @@ observed input/hover latency, output volume and terminal-state comparisons.
 ## Persistence and independent work
 
 The default store journals conversations in project-scoped private storage.
+Configured journal failures stop further execution and are surfaced live; a
+terminal success requires a write acknowledgement. Replay closes unfinished
+tool exchanges with explicit unknown-outcome results without repeating effects.
 The session repository contract replaces history, journaling, search and resume
 together. Settings and window metadata have separate storage services.
 

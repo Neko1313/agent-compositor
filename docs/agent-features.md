@@ -482,6 +482,15 @@ the input. Answers never become user prompts, and the unsent prompt is preserved
 
 ## Interactive chat history
 
+Configured session storage must acknowledge event writes. A storage failure stops
+further model/tool execution in that core instance and reports a failure instead
+of successful completion. Repair storage, then reopen/resume the session. Effects
+that completed before the failed write may still have happened.
+
+On resume, tool calls without saved results receive explicit interrupted-result
+records before the next message. Their outcomes remain unknown: recovery does not
+execute them again. Inspect external state before retrying such actions.
+
 `/history [search]`, `/sessions [search]` and bare `/resume` open the same
 replaceable session-manager view. Each entry includes a user name or the first
 ordinary prompt, local last-activity date/time, and user/completed-assistant

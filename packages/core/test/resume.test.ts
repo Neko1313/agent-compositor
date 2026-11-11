@@ -157,3 +157,35 @@ describe("AgentCore.resume + compaction in the loop", () => {
     expect(events).not.toContain("context.compacted");
   });
 });
+
+ describe("interrupted tool exchange recovery", () => {
+  it("closes partial batches before later prompts without changing completed results", () => {
+    const events: SessionEvent[] = [
+      {type:"prompt.submit",text:"work"},
+      {type:"tool.call",callId:"a",tool:"inspect",input:{}},
+      {type:"tool.call",callId:"b",tool:"write",input:{}},
+      {type:"tool.result",callId:"a",tool:"inspect",ok:true,output:"known"},
+      {type:"prompt.submit",text:"continue"},
+    ];
+    const messages=replayTranscript(events);
+    expect(messages.map(m=>m.role)).toEqual(["user","assistant","tool","tool","user"]);
+    expect(messages[2].content).toBe("known");
+    expect(messages[3]).toMatchObject({toolCallId:"b",name:"write"});
+    expect(messages[3].content).toContain("outcome is unknown");
+  });
+  it("repairs restored context and passes an explicit unknown result to the next provider request", async () => {
+    const events: SessionEvent[] = [{type:"context.restored",messages:[
+      {role:"user",content:"work"},
+      {role:"assistant",content:"",toolCalls:[{id:"pending",name:"write",args:{}}]},
+    ]}];
+    const provider=new ScriptedProvider([{text:"inspect first"}]);
+    const core=AgentCore.resume({cwd:os.tmpdir(),provider,tools:[],controlTools:[]},events);
+    try {
+      await core.submit("continue");
+      const results=provider.requests[0].messages.filter(m=>m.role==="tool");
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({toolCallId:"pending"});
+      expect(results[0].content).toContain("did not execute");
+    } finally {await core.close();}
+  });
+});

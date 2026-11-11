@@ -101,7 +101,16 @@ export class SessionStore {
     return meta;
   }
 
-  async append(
+  private readonly appends = new Map<string, Promise<void>>();
+
+  async append(id: string, events: SessionEvent[], cwd?: string): Promise<void> {
+    const previous=this.appends.get(id)??Promise.resolve();
+    const operation=previous.catch(()=>{}).then(()=>this.appendEvents(id,events,cwd));
+    this.appends.set(id,operation);
+    try {await operation;} finally {if(this.appends.get(id)===operation)this.appends.delete(id);}
+  }
+
+  private async appendEvents(
     id: string,
     events: SessionEvent[],
     cwd?: string,

@@ -114,3 +114,11 @@ describe('conversation discovery',()=>{
     const fork=await store.fork(chat.id,{},cwd);expect((await store.list(cwd)).find(m=>m.id===fork.id)?.firstPrompt).toBe('Old discussion');
   });
 });
+
+it("serializes concurrent appends without losing events or metadata counts",async()=>{
+  const session=await store.create(cwd);
+  await Promise.all(Array.from({length:30},(_,i)=>store.append(session.id,[{type:"prompt.submit",text:`prompt ${i}`}],cwd)));
+  const loaded=await store.load(session.id,cwd);
+  expect(loaded.events.map(e=>e.text)).toEqual(Array.from({length:30},(_,i)=>`prompt ${i}`));
+  expect(loaded.meta.eventCount).toBe(30);
+});

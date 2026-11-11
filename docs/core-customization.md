@@ -227,6 +227,17 @@ changes need an explicit compatibility review. This conservative check does not
 prove semantic compatibility of arbitrary plugin code.
 
 The journal seam replaces event writes independently. The selected
+`service.session.append` implementation must acknowledge a successful write with
+`{value:true}`. A denial, fault or missing acknowledgement stops the core and
+blocks further execution in that instance. Repair storage and reopen/resume the
+session to continue. A core without a configured journal remains usable in memory.
+The default journal propagates creation and append failures; the default store
+serializes concurrent appends within one store instance. This is not a cross-process
+transaction or an exactly-once guarantee for external effects. Terminal success
+is published to subscribers only after the journal acknowledges it; a storage
+failure is still reported through the live failure channel.
+
+The selected
 `sessionProvider` replaces the assembled storage stack, including history and
 resumption; `ui.controllers` replaces its UI controllers. Their contracts and
 external-extension checks are documented in [ui-controllers.md](ui-controllers.md).

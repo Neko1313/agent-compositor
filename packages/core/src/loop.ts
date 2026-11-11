@@ -911,12 +911,19 @@ export class AgentCore {
     const run=(async()=>{
       this.inputSource=source;
       try {await this.runTurnUnchecked(text);}
-      catch(error){this.lastTurnError=String(error);await this.emit('turn.failed',{turnId:this.currentTurnId??randomUUID(),error:this.lastTurnError});this.state='idle';this.currentTurnId=undefined;}
+      catch(error){
+        this.lastTurnError=String(error);
+        if(this.journalFailure){this.promptQueue=[];this.steerQueue=[];}
+        const failure={turnId:this.currentTurnId??randomUUID(),error:this.lastTurnError};
+        try { await this.emit('turn.failed',failure); }
+        catch { this.broadcast({kind:'catalog',event:'turn.failed',input:failure}); }
+      } finally {this.state=this.interruptedByUser?'interrupted':'idle';this.currentTurnId=undefined;}
     })();
     this.activeTurn=run;
     return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
   }
   private async runTurnUnchecked(text: string): Promise<void> {
+    if(this.journalFailure)throw this.journalFailure;
     const turnId = randomUUID();
     this.currentTurnId = turnId;
     this.lastTurnError = undefined;
@@ -1711,7 +1718,6 @@ export class AgentCore {
     event: string,
     input: Record<string, unknown>
   ): Promise<unknown> {
-    this.broadcast({ kind: "catalog", event, input });
     const gen = this.runtime.emit(event, input);
     let step = await gen.next();
     while (!step.done) step = await gen.next();
@@ -1720,6 +1726,7 @@ export class AgentCore {
     // Handled UI commands are audit records, not user messages on replay.
     const dropped=event==='prompt.submit'&&value&&typeof value==='object'&&'drop' in value;
     await this.persist(dropped?'prompt.dropped':event,input);
+    this.broadcast({ kind: "catalog", event, input });
     return value;
   }
 
@@ -1734,28 +1741,29 @@ export class AgentCore {
   }
 
   private sessionEnsured: Promise<unknown> | undefined;
+  private journalFailure: Error | undefined;
 
   private async persist(event: string, input: Record<string, unknown>): Promise<void> {
-    await this.host.emit("service.session.append",{sessionId:this.sessionId,cwd:this.options.cwd,event,data:input});
+    if(this.journalFailure)throw this.journalFailure;
+    try {
+      const response=await this.host.emit("service.session.append",{sessionId:this.sessionId,cwd:this.options.cwd,event,data:input});
+      if(this.journalFailure)throw this.journalFailure;
+      const value=response.value as {deny?:string;value?:unknown}|undefined;
+      if(response.faults.length || value?.deny || value?.value!==true)
+        throw Error(value?.deny ?? (response.faults.length ? JSON.stringify(response.faults) : 'Journal did not acknowledge the write'));
+    } catch(error) {
+      this.journalFailure=new Error(`Session journal failed; execution stopped. Repair storage and reopen/resume the session before continuing. ${String(error)}`);
+      this.abort.abort(this.journalFailure);
+      throw this.journalFailure;
+    }
   }
 
   private async persistDefault(event:string,input:Record<string,unknown>): Promise<void> {
     if (!this.sessions) return;
-    // the store requires a created session before append; ensure exactly once
-    // (create is idempotent-ish: a second create for the same id is a no-op
-    // error we swallow — the roll/meta may already exist from a prior run)
+    // A failed creation or append must prevent further effect admission.
     this.sessionEnsured ??= this.sessions
-      .create(this.options.cwd, { id: this.sessionId })
-      .catch(() => undefined);
-    try {
-      await this.sessionEnsured;
-      await this.sessions.append(
-        this.sessionId,
-        [{ type: event, ...input }],
-        this.options.cwd
-      );
-    } catch {
-      // storage is best-effort; the turn must not die on a full disk
-    }
+      .create(this.options.cwd, { id: this.sessionId });
+    await this.sessionEnsured;
+    await this.sessions.append(this.sessionId,[{ type: event, ...input }],this.options.cwd);
   }
 }

@@ -313,3 +313,35 @@ async function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
     await new Promise((r) => setImmediate(r));
   }
 }
+
+ describe("journal failure admission", () => {
+  for(const phase of ["create","prompt.submit","tool.call","tool.result","turn.complete"]){
+    it(`stops and exposes ${phase} storage failure without reporting completion`,async()=>{
+      let effects=0;
+      const provider=new ScriptedProvider([{toolCalls:[{name:"probe",args:{}}]},{text:"done"}]);
+      const core=new AgentCore({cwd,provider,controlTools:[],rules:[{tool:"probe",decision:"allow"}],
+        tools:[{name:"probe",description:"probe",parameters:{type:"object"},describe:()=>({tool:"probe"}),execute:async()=>{effects++;return{ok:true,data:"effect completed"};}}],
+        sessions:{create:async()=>{if(phase==="create")throw Error("disk full");},append:async(_id,events)=>{if(events[0].type===phase)throw Error("disk full");}},
+      });
+      const log=collect(core);
+      try {
+        await core.submit("work");
+        expect(core.failure).toContain("Session journal failed");
+        expect(core.getState()).toBe("idle");
+        expect(log.names()).not.toContain("turn.complete");
+        expect(log.names()).toContain("turn.failed");
+        expect(effects).toBe(["tool.result","turn.complete"].includes(phase)?1:0);
+        const requests=provider.requests.length;
+        if(phase==="tool.result")expect(requests).toBe(1);
+        await core.submit("try again");
+        expect(provider.requests).toHaveLength(requests);
+      } finally {await core.close();}
+    });
+  }
+  it("fails closed when a replacement journal denies writes",async()=>{
+    const provider=new ScriptedProvider([{text:"must not run"}]);
+    const core=new AgentCore({cwd,provider,tools:[],controlTools:[],services:{"service.session.append":()=>({deny:"offline"})}});
+    try {await core.submit("work");expect(core.failure).toContain("offline");expect(provider.requests).toHaveLength(0);}
+    finally {await core.close();}
+  });
+});

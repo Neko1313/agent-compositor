@@ -1,5 +1,61 @@
 # Project memory
 
+## Journal failures and incomplete replay — 2026-11-11
+
+The user authorized fixing the two reproduced harness-study observations.
+Configured session journals must acknowledge writes with {value:true}; creation,
+append, denial, hook/resolver faults and missing acknowledgements stop execution.
+The core latches the storage failure, aborts outstanding work, discards queued
+prompts and rejects further execution until the instance is reopened. Live
+failure reporting remains possible without writing the broken journal, and
+subscribers see success only after persistence. No journal remains an explicit
+in-memory mode. This does not provide exactly-once external effects.
+
+Replay inserts unknown-outcome interrupted results for missing calls in partial
+tool batches and restored context before later messages. It preserves completed
+results and never retries the effect. Full-suite verification exposed an existing
+concurrent metadata-temp-file race previously hidden by best-effort writes;
+SessionStore now serializes appends per session within one instance.
+Canonical architecture, feature and extension guides describe these guarantees;
+the dated research records its historical baseline and links to current behavior.
+Verification passed 849 package tests (3 optional skips), typecheck, generation,
+the 95-page documentation build and its executable example. Final focused
+core/session verification passed 58 tests. Backend contracts changed; no terminal
+layout/input/rendering implementation was changed.
+No versions, commits or publication were changed.
+
+## Agent harness source study — 2026-11-11
+
+The user requested studying features and harness implementation across the open
+CLI landscape, then asked to study the complete comparison in depth. The dated
+source/test comparison is [docs/harness-research-2026-11.md](docs/harness-research-2026-11.md),
+covering 18 systems and the separate session-manager layer with immutable source
+links. External test contracts were inspected, not executed. This is research,
+not authorization to implement the candidate design work or replace the engine.
+
+Current Compositor already has replaceable turn/batch/context/journal services,
+independent agents, checkpoints, background wake and workflow leases/budgets.
+Two deterministic local API probes at 71397f88 reproduced narrower limits:
+19 rejected journal appends still allowed one in-memory tool and turn completion
+with no core failure; replay of prompt + tool.call without tool.result sent an
+unmatched call to ScriptedProvider. No external API rejection is claimed. These
+observations concern the default ordinary-session path, not stronger workflow
+snapshots or a custom journal provider. Research evidence is under
+dist/harness-research-2026-11; no runtime fix is included in this study.
+
+Useful reference mechanisms: Pi separates completion-event order from persisted
+tool-result order; Codex uses shared/exclusive tool admission; OpenHands declares
+resource locks and preserves tool-batch atomicity in context views; DSH separates
+durable events from validated message projections; Vibe validates machine
+checkpoints; OpenCode records execution claims; Qwen journals dispatch-prefix
+replay and gates budgets; Hermes scopes memory writes/recall away from forks;
+OpenClaw tracks harness ownership and waits for cleanup settlement.
+
+Documentation validation passed: event/reference generation, the 95-page docs
+check/build and its executable example. The built research page contains the
+expected title and 52 distinct pinned source links. No host/plugin versions,
+runtime behavior, commits or publication were changed by this research task.
+
 ## Verified v0.5.1 publication — 2026-11-11
 
 The user explicitly requested publication of the render fixes. Host v0.5.1 is

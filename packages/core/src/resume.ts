@@ -150,7 +150,27 @@ export function replayTranscript(
     }
   }
   flushAssistant();
-  return messages;
+  // Close every exchange before another user/assistant message. A crash may
+  // follow tool admission or only some results of a parallel batch. Never
+  // replay an unknown effect merely to reconstruct a valid provider request.
+  const repaired: ChatMessage[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    repaired.push(message);
+    if (!message.toolCalls?.length) continue;
+    const results = new Set<string>();
+    while (messages[i + 1]?.role === "tool") {
+      const result = messages[++i];
+      repaired.push(result);
+      if (result.toolCallId) results.add(result.toolCallId);
+    }
+    for (const call of message.toolCalls) {
+      if (results.has(call.id)) continue;
+      repaired.push({role:"tool", toolCallId:call.id, name:call.name,
+        content:"Interrupted before a result was saved. The action may have completed; its outcome is unknown. Inspect its state before retrying. This recovery record did not execute the action."});
+    }
+  }
+  return repaired;
 }
 
 function safeStringify(output: unknown): string {

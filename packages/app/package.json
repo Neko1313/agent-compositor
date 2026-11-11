@@ -1,6 +1,6 @@
 {
   "name": "@agent-compositor/app",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "The assembled agent: config → provider → disk plugins → session store → REPL. This is the sway-analog entrypoint the libraries exist for.",
   "type": "module",
   "main": "./src/index.ts",

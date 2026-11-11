@@ -2,7 +2,7 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
-## v0.6.0 - 2026-11-11
+## v0.6.1 - 2026-11-11
 
 ### Documentation
 - Record verified v0.5.1 publication ([71397f8](https://github.com/Neko1313/agent-compositor/commit/71397f88e1eabd995c3eba6173ee9307f470d37c))
@@ -14,6 +14,7 @@ All notable changes are generated from Conventional Commits with git-cliff.
 
 ### Fixes
 - Stop on journal failures and repair interrupted replay ([f8740c7](https://github.com/Neko1313/agent-compositor/commit/f8740c75fe1548743941844fc37a5f7895479348))
+- Snapshot journal payloads before custom repository writes ([79b9c8c](https://github.com/Neko1313/agent-compositor/commit/79b9c8cb981d9fe41831329e297365bc6da40b2a))
 
 ## v0.5.1 - 2026-11-11
 

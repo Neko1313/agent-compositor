@@ -7,7 +7,8 @@
       "files": [
         "packages/app/test/project-checks-oracle.test.ts",
         "packages/app/test/project-checks-additional.test.ts",
-        "packages/app/test/project-checks-review.test.ts"
+        "packages/app/test/project-checks-review.test.ts",
+        "packages/app/test/project-checks-alias.test.ts"
       ]
     }
   ],

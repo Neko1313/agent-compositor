@@ -1,5 +1,42 @@
 # Project memory
 
+## Four-platform Git review and Project checks path aliases — 2026-11-12
+
+Git review c98b3ce completed candidate run 43067043375 successfully: full source
+certification and installed archives for Linux/macOS x64/arm64 all passed; publish
+was skipped. Independent audit validated certificate schemas/requirements, every
+evidence hash, archive sidecars, workspace digest and embedded release identities.
+Receipt: dist/plugin-candidate-20261112/git-review-c98-certification-integrity.json.
+Native macOS Intel cancellation and ARM narrow screenshots were inspected. No
+plugin tag/archive was published and broader 1.0 gates remain open.
+
+Project checks run 43067034036 passed source and Linux archives but macOS Intel
+failed before real script discovery. Its package confinement compared the canonical
+file parent against a lexical ctx.cwd, so macOS /var versus /private/var aliases
+were wrongly rejected. Both root and package path now use the host path resolver
+before comparison. There are no direct filesystem calls or weaker path checks.
+A real-app integration regression selects a symlinked project, lists and runs an
+actual npm check, then attaches an outside directory and confirms a package link
+there is rejected before filesystem read or execution. It failed at discovery
+before the fix; existing 18 Project checks assertions still pass. The first new
+test reached the host's earlier scope denial, so its outside directory is now
+explicitly attached to exercise the plugin's own stricter confinement, without
+relaxing the expected denial. Plugin test metadata includes this regression.
+
+1044 tests pass with three optional skips, typecheck and docs check/build pass.
+Both generators ran without generated changes. Canonical plugin docs explain
+canonical root confinement and avoid duplicating its independently generated
+version. Runtime version/changelog preparation must remain automatic; no plugin
+or catalog version was hand-bumped. The new fix needs a prepared release revision
+and fresh native certificates before claiming macOS support for Project checks.
+
+The optional local locked-browser download did not complete: direct installation
+was stopped to switch to the explicitly requested saved tool proxy, whose range
+probe returned 206. The owned proxied installer reached 20 percent before its
+180-second command bound stopped it. Local visual proofs used the existing
+compatible Chromium 156 override; remote CI installed and tested locked Chromium
+158. No local locked-browser installation or new paid model run is claimed.
+
 ## Native candidate evidence and terminal bench synchronization — 2026-11-12
 
 The 4a9e142 renderer repair passed exact main CI 43064242098 on Node 22/26

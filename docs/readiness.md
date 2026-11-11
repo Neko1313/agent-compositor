@@ -41,7 +41,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Model independence | Contract tests for every supported protocol, plus repeated real-model development runs across different model families. Unknown capabilities, invalid tool calls and weak tool use must degrade with bounded recovery | HTTP fixtures cover the supported transports. Saved-profile OpenAI evaluations are available. A broad live quality matrix remains incomplete. |
 | Tool cooperation | File discovery, semantic/text navigation, precise edits, test execution, shell jobs and delegation reach verified artifacts without unnecessary retries or denied-action bypass | Individual tools and regression suites exist. End-to-end efficiency and recovery need wider scenario evidence. |
 | Long-running execution | Context pressure/compaction, interruption, steering, queued work, restart/resume and failures at effect boundaries preserve the task, scope and truthful completion state | One live known task passed process-death/resume/explicit-compaction checks. A second known task recovered from a failed summary and passed three automatic compactions in a configured 8192-token window with independent artifact checks. A controlled live API truncation probe also passed. Multi-hour development and broader repositories remain required. |
-| Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review and Project checks have source, lifecycle, real UI and installed-archive certification on Linux x64. A guided review iteration completed, but other native plugin platforms and a completed autonomous initial delivery remain required. |
+| Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks passed Linux archives but exposed a macOS project-path alias bug; its fix needs new native certification. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
 | Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.0](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.0), revision 21d7934, passed Node 22/26 CI, documentation checks, all 29 plugin PR contracts and four-platform native build/install smoke before publication. This establishes that release checkpoint; the other gates remain open. |
@@ -74,6 +74,19 @@ See [evaluation commands and limitations](evals.md),
 [execution contracts](core-customization.md) and [release gates](releases.md).
 
 ## Current development focus
+
+Git review revision
+[c98b3ce](https://github.com/Neko1313/agent-compositor/commit/c98b3cee4a47f2f61930287c5a8d8d45c23b3ba3)
+passed [full source and four native installed-archive certification](https://github.com/Neko1313/agent-compositor/actions/runs/43067043375).
+The downloaded certificates, evidence hashes and embedded archive identities were
+independently checked; native macOS keyboard/focus and cancellation screenshots
+were inspected. This manual candidate run did not publish a plugin release.
+Project checks' concurrent candidate exposed a real macOS path-alias rejection;
+the selected project root and package path now both use host canonical resolution.
+An aliased-directory integration test also rejects an outside package link even
+when its directory is attached to the host. That fix still needs its own exact
+native certificates; Git review's success does not certify Project checks.
+
 
 A subsequent multi-file form refactor used `project_check` to discover and run
 real project verification scripts. The model preserved the frozen acceptance

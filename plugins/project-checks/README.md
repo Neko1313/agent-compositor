@@ -1,6 +1,6 @@
 # Project checks
 
-Native Compositor plugin **0.1.0**, standard 1 / API version 1. Discover local npm scripts and run an exact script from the model tool or a human-operated panel, including while the main agent is working.
+Native Compositor plugin, standard 1 / API version 1. Discover local npm scripts and run an exact script from the model tool or a human-operated panel, including while the main agent is working.
 
 ## Requirements and installation
 
@@ -36,7 +36,7 @@ Absent individual settings use defaults. Malformed settings, missing/invalid pac
 
 ## Security and limitations
 
-Package files are read only on tool use through host filesystem services, confined to `ctx.cwd`; package paths resolving outside that directory are rejected. No dependency install, raw subprocess API or shell interpolation is performed by this plugin. Execution uses the owned `service.exec.run` API with fixed `npm run -- <name>` arguments and a finite timeout. The SDK owns cancellation and process cleanup; execution settlement is awaited. If the initiating UI hook expires, cleanup clears the active state so later operations can proceed.
+Package files are read only on tool use through host filesystem services, confined to `ctx.cwd`; both the selected project directory and package file are canonicalized by the host path resolver before comparison. Project-directory aliases, including macOS `/var` paths, work; package paths resolving outside the canonical directory remain rejected. No dependency install, raw subprocess API or shell interpolation is performed by this plugin. Execution uses the owned `service.exec.run` API with fixed `npm run -- <name>` arguments and a finite timeout. The SDK owns cancellation and process cleanup; execution settlement is awaited. If the initiating UI hook expires, cleanup clears the active state so later operations can proceed.
 
 **Local npm scripts are arbitrary project code**, including npm pre/post hooks. Running one can modify files, access credentials/network or start descendants. Only run scripts from trusted projects. Permission approval and host confinement are not a sandbox for script code. Listing is capped at 128 names and the preview character budget; the tool can still run another valid exact existing name. Package/settings are re-read on each invocation; a changing project can change a script between discovery and execution. No scheduler, task inference, history persistence across sessions or guarantee of display completeness is provided.
 

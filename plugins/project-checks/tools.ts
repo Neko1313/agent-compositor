@@ -17,11 +17,11 @@ function validate(value: unknown): Args {
   return { action: 'run', name: a.name };
 }
 async function scripts(ctx: ToolContext): Promise<Record<string, string>> {
-  const path = resolve(ctx.cwd, 'package.json');
   if (!ctx.resolvePath) throw new Error('Host filesystem path resolution is unavailable.');
-  const resolved = await ctx.resolvePath(path);
+  const cwd = resolve(await ctx.resolvePath(ctx.cwd));
+  const resolved = await ctx.resolvePath(resolve(cwd, 'package.json'));
   // Do not follow a package.json symlink outside the selected project.
-  if (dirname(resolved) !== resolve(ctx.cwd)) throw new Error('package.json must be confined to ctx.cwd.');
+  if (dirname(resolved) !== cwd) throw new Error('package.json must be confined to ctx.cwd.');
   const text = await ctx.request<unknown>('service.fs.read', { plugin: 'project-checks', path: resolved });
   if (typeof text !== 'string') throw new Error('package.json read returned invalid content.');
   const pkg: unknown = JSON.parse(text);

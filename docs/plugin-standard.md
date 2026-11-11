@@ -153,7 +153,10 @@ reference configuration and every declared archive platform.
 PR certification runs adversarial shared host contracts and every applicable
 bound deterministic case. Release certification requires clean committed inputs,
 mandatory real PTY/model cases and the preceding tagged release's upgrade/rollback
-when one exists. Model policy (reference provider/model, public configuration,
+when one exists. Native archive certification repeats upgrade/rollback from the
+previous platform archive using artifact cases bound to the same release
+requirements; previous-version/hash evidence must match that platform's pins.
+Model policy (reference provider/model, public configuration,
 task-set checksum, repeats, success floor and baseline) is declared before running;
 scripted providers cannot satisfy it. Exact model/config/task metadata and
 objective observations accompany live results. Fixture task definitions without

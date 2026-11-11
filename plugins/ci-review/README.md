@@ -77,6 +77,16 @@ Cancel/Close availability, then status removal after success, failure and
 cancellation. The PTY scenario also checks visible feedback during a real
 controlled subprocess and its removal after cancellation settles.
 
+Previous-release certification downloads the pinned published 0.1.0 archive,
+installs it inactive through the normal marketplace, enables it, updates to the
+candidate, restarts, rolls back and restarts again. It verifies the selected
+package/version locks, CI tool/command behavior, preserved settings and user
+draft, and rollback from the local locked backup. Native artifact cases update
+through the archive installer using the exact candidate archive. No model or
+live GitHub CLI request is used. The previous download requires credential-free
+HTTPS, makes at most five HTTP requests, checks SHA-256, and is bounded to 128 MiB
+and 60 seconds; a failed download or assertion fails certification.
+
 `plugin.test.json` binds source and built-artifact lifecycle, behavior and terminal cases for the four native platform targets. A test plan declares required checks; it is not a certification receipt. Actual certification must pass for the exact source, plan and artifact before publication. Real GitHub installation/authentication, network reliability, repository permissions and log availability remain dependent on the user's environment. Controlled subprocess tests verify timeout and cleanup without asserting live GitHub reliability.
 
 A local read-only integration probe also fetched two recent runs and a selected

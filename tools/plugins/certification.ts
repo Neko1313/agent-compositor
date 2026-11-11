@@ -61,7 +61,7 @@ export const sharedCases:CertificationCase[]=[
 ].map(([id,file,test])=>({id:'host.'+id,requirements:[],kind:'deterministic',setup:'Adversarial local packages in isolated user and project directories.',expect:['The host contract assertions pass.'],forbidden:['Unexpected activation or replacement of selected package contents.'],timeoutMs:60000,run:{runner:'vitest',file,test}}));
 export function applicable(plan:CertifiedTestPlan,stage:CertificationStage){
  const requirements=requiredCases(plan.profiles,stage,plan.previousVersion);
- if(stage==='artifact')return requirements.filter(r=>r.kind!=='live'&&r.kind!=='upgrade').map(r=>({id:r.id,kind:'artifact' as const}));
+ if(stage==='artifact')return requirements.filter(r=>r.kind!=='live').map(r=>({id:r.id,kind:'artifact' as const}));
  return requirements;
 }
 export function eligible(c:CertificationCase,kind:string,stage:CertificationStage){
@@ -76,7 +76,7 @@ export function assess(plan:CertifiedTestPlan,stage:CertificationStage,results:C
  for(const result of results)if(result.status!=='passed')problems.push('Unresolved case: '+result.id+' '+result.status);
  if(new Set(ids).size!==ids.length)problems.push('Duplicate result IDs');
  for(const requirement of applicable(plan,stage)){
-  const bindings=plan.cases.filter(c=>c.requirements.includes(requirement.id)&&eligible(c,requirement.kind,stage)&&(!requirement.id.startsWith('release.')||c.kind==='upgrade'));
+  const bindings=plan.cases.filter(c=>c.requirements.includes(requirement.id)&&eligible(c,requirement.kind,stage)&&(!requirement.id.startsWith('release.')||c.kind===(stage==='artifact'?'artifact':'upgrade')));
   if(!bindings.length){problems.push(`Missing binding: ${requirement.id}`);continue;}
   for(const binding of bindings){
    const result=results.find(r=>r.id===binding.id);

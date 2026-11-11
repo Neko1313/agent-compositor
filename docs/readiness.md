@@ -88,6 +88,17 @@ plugin delivery or proof that the broader usability gates are closed. The busy
 feedback targets the next independent CI-plugin release; published 0.1.0 remains
 unchanged.
 
+Preparing that first update exposed a certification gap: native archives could
+omit previous-release transitions even though source release checks required
+them. Artifact certificates now also require upgrade/rollback evidence against
+their platform's pinned previous archive. A regression rejects missing scenarios,
+wrong versions/hashes and reused evidence from another platform. The CI scenario
+uses real 0.1.0 release bytes, normal marketplace install/enable/update/rollback,
+two restarts, retained settings/draft and actual tool/command probes without model
+requests. Linux source and archive preflights pass; certification of the exact
+refreshed candidate on all four native platforms remains required before 0.1.1
+publication.
+
 Initial CI-plugin authoring through Compositor exposed two evaluation-fixture
 settings mistakes, then a runtime compaction gap. The latest user request was
 retained for the main model but omitted from auxiliary summaries; scaffold

@@ -1,5 +1,54 @@
 # Project memory
 
+## Real previous-release transitions are mandatory per native archive — 2026-11-12
+
+d998964 pushed the Compositor-authored busy row and its frozen progress tests.
+Automatic PR6 initially prepared CI-review0.1.1/catalog1.0.7 at1c21a486. Do not
+merge that old head: preparing the first update of a published plugin exposed
+missing executable previous-release bindings. Added CI transition scenarios for
+source release and native artifacts, each using actual published0.1.0 bytes and
+the exact candidate. The normal marketplace installs the old archive inactive,
+enables it, discovers the update without changing active code, updates, restarts,
+rolls back from a locked backup without downloading, then restarts again.
+Every phase verifies selected managed path/version/commit, actual CI tool and
+command, --repo/--limit/timeout settings, unchanged scoped config/user draft and
+unrelated state. No model or real GitHub CLI request. Native candidate update
+uses the manager's archive branch; source mode uses the candidate directory.
+
+Initial source preflight caught a fixture defect: the shared package probe
+overwrote the custom settings with its minimal repository config. Kept the
+preservation assertions and replaced that setup-mutating probe with one that
+checks configuration before/after and observes actual gh argv/limits. Source
+transition from the public archive to unmodified PR6candidate1c21a486 then passed
+all five phases. Independently built its actual Linux archive (d3913663a23e4690eb73eda3e59c409edf5cceb09af03c03c85afa0667c03664),
+and the same transition passed through archive install/update: two managed mirror
+downloads, none for rollback, exact previous digest restored, no model requests.
+The scenario CLI protocol preflight additionally validated run/context binding,
+result schema, previous version/SHA and every evidence hash. These are preflights
+against1c21a486, not certification of the forthcoming refreshed source/platform
+matrix. Reports dist/selfhost-ci-progress/transition-{source-preflight,artifact-preflight}.json
+and transition-protocol/. Never publish these preflight artifacts as certified.
+
+The gap also affected the common gate: previous-release upgrade/rollback was
+required only at source release stage and could be omitted from native artifacts.
+A new regression failed before the repair (artifact assessment returned no
+problems despite missing transitions). Native artifacts now require separate
+artifact-kind release.upgrade/release.rollback bindings. Previous version and
+platform-specific checksum must match, including on macOS; missing/wrong-version/
+wrong-hash and reused Linux evidence are rejected. First-release null plans and
+their existing immutable certificates remain unaffected. CI plan binds the new
+scenario at both stages; docs explain the contract. All existing checks retained.
+
+Previous-byte transport requires credential-free HTTPS, at most5requests,
+60seconds,128MiB and exactSHA; HTTP/oversized bodies are cancelled, raw transport
+exception details are not logged. Eight boundary tests and the new gate regression
+pass. Full1127tests pass/3optional skips; types, generators, docs/build pass. A
+fixture-only optional assertion-message type error was corrected and typecheck/
+focused21tests rerun. Release/artifact binding audits both report no missing
+requirements. Next push this committed gate/scenario change, allow PR6 to refresh,
+review its generated versions/checks and certify the exact new source plus four
+native archives before publishing CI0.1.1. Broader1.0 gates remain open.
+
 ## Compositor-authored CI busy feedback — 2026-11-12
 
 At026e605, the CI panel exposed old results and Cancel while a request ran but

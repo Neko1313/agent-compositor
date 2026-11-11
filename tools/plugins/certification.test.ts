@@ -39,6 +39,18 @@ it('derives the union of every component and trait and keeps live/UI obligations
  expect(pr).not.toContain('model.intended');expect(pr).not.toContain('ui.keyboard');
  for(const id of ['model.intended','ui.keyboard','view.narrow','release.upgrade','release.rollback'])expect(release).toContain(id);
 });
+it('requires upgrade and rollback on every native artifact with matching previous-release evidence',()=>{
+ const base=plan(),previousArtifacts=Object.fromEntries(base.platforms.map(platform=>[platform,{url:'https://releases.example/'+platform,sha256:digest('previous-'+platform)}]));
+ const previousPlan=certifiedTestPlanSchema.parse({...base,previousVersion:'0.9.0',previousArtifacts});
+ const evidence=[{path:'observations.json',sha256:digest('observed transitions')}],installed={id:'installed',kind:'artifact' as const,status:'passed' as const,evidence};
+ expect(assess(previousPlan,'artifact',[installed])).toEqual(expect.arrayContaining(['Missing binding: release.upgrade','Missing binding: release.rollback']));
+ const transition={...testCase('transition',['release.upgrade','release.rollback'],'artifact'),run:{runner:'scenario',file:'tools/plugins/fixture.test.ts',args:[]}};
+ const complete=certifiedTestPlanSchema.parse({...previousPlan,cases:[...previousPlan.cases,transition]});
+ const result={id:'transition',kind:'artifact' as const,status:'passed' as const,evidence,previous:{version:'0.9.0',sha256:previousArtifacts['linux-x64'].sha256}};
+ expect(assess(complete,'artifact',[installed,result])).toEqual([]);
+ for(const previous of [undefined,{...result.previous,version:'0.8.0'},{...result.previous,sha256:digest('wrong archive')}])expect(assess(complete,'artifact',[installed,{...result,previous}])).toContain('Invalid previous-release evidence: transition');
+ expect(assess(complete,'artifact',[installed,result],'darwin-arm64')).toContain('Invalid previous-release evidence: transition');
+});
 it('rejects duplicate IDs, unknown obligations, incomplete skill profiles and model plans without predeclared policy',()=>{
  const base=plan();expect(certifiedTestPlanSchema.safeParse({...base,cases:[...base.cases,base.cases[0]]}).success).toBe(false);
  expect(certifiedTestPlanSchema.safeParse({...base,cases:[testCase('bad',['fictional.requirement'])]}).success).toBe(false);

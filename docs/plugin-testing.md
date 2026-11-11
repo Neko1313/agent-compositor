@@ -153,7 +153,7 @@ baseline; they cannot claim historical compatibility from synthetic old versions
 | Local iteration | Metadata/type checks, changed behavior cases and relevant deterministic integration cases. |
 | Pull request | Shared SDK contract plus all applicable deterministic plugin cases. Host API changes run affected consumers, conservatively all plugins when impact cannot be bounded. |
 | Release candidate | Complete required matrix; package lifecycle; real UI checks for UI profiles; model evaluation for model-dependent changes; previous-release upgrade/migration/rollback when a previous supported version exists. |
-| Built artifact | Install the exact produced archive and repeat the artifact-facing contract/behavior smoke on every declared supported platform. Source-only tests do not count as artifact verification. |
+| Built artifact | Install the exact produced archive and repeat the artifact-facing contract/behavior smoke on every declared supported platform. When a previous release exists, upgrade from its pinned platform archive and roll back on every platform too. Source-only tests do not count as artifact verification. |
 | Catalog promotion | Require successful evidence for that plugin version and those exact artifact checksums. Promoting a catalog entry never substitutes for testing it. |
 
 The first release has no previous plugin artifact: mark the previous-release
@@ -197,7 +197,12 @@ archive counterpart. The latter is a useful baseline, not all domain coverage.
 The artifact gate derives the full non-model matrix again: source-only cases do
 not count as archive evidence. UI observations must still use the real terminal.
 
-A preceding plugin tag requires its pinned artifact matrix and upgrade scenarios;
+A preceding plugin tag requires its pinned artifact matrix and upgrade scenarios.
+Bind `release.upgrade` and `release.rollback` with `kind: "upgrade"` for source
+release certification and separate `kind: "artifact"` cases for native archives.
+Both results must identify the previous version and that platform's pinned
+SHA-256; a Linux previous-archive receipt cannot satisfy a macOS certificate.
+Source-only upgrade evidence does not substitute for native archive transitions;
 a forgotten null previousVersion cannot silently waive that requirement. A release
 certificate requires committed inputs. Promotion validates the immutable plugin
 tag even when the working tree is developing a later version. Reports bind actual

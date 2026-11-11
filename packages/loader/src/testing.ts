@@ -26,7 +26,7 @@ export const requirementIds = Object.values(requirementProfiles).flat();
 export function requiredCases(profiles:{components:readonly string[];traits:readonly string[]},stage:CertificationStage,previousVersion:string|null=null){
  const keys=['base',...profiles.components,...profiles.traits];
  if(profiles.components.length>1)keys.push('composite');
- if(stage==='release' && previousVersion!==null)keys.push('release');
+ if((stage==='release'||stage==='artifact') && previousVersion!==null)keys.push('release');
  if(stage==='artifact')keys.push('artifact');
  const ids=[...new Set(keys.flatMap(key=>requirementProfiles[key as keyof typeof requirementProfiles]??[]))];
  // UI needs the real terminal; model quality needs the real model at release, not scripted assertions.

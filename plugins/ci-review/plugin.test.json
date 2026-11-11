@@ -295,6 +295,52 @@
         "file": "tools/plugins/visual-scenario.ts",
         "args": []
       }
+    },
+    {
+      "id": "published-transition",
+      "kind": "upgrade",
+      "requirements": [
+        "release.upgrade",
+        "release.rollback"
+      ],
+      "setup": "Download the pinned previous published archive, install it inactive through the normal marketplace, activate it, update to the exact candidate, restart, roll back and restart again. Artifact certification updates through the archive branch with the exact native candidate bytes.",
+      "expect": [
+        "Previous and candidate identities match their locked versions and hashes.",
+        "CI tool/command behavior, activation and scoped settings survive update/restart/rollback.",
+        "Catalog changes alone do not update active code; rollback restores a locked backup without another download."
+      ],
+      "forbidden": [
+        "Synthetic version replacement in place of the declared published archive, fallback package sources, mutated settings/drafts or model inference."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/ci-review-upgrade.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "published-transition-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "release.upgrade",
+        "release.rollback"
+      ],
+      "setup": "Download the pinned previous published archive, install it inactive through the normal marketplace, activate it, update to the exact candidate, restart, roll back and restart again. Artifact certification updates through the archive branch with the exact native candidate bytes.",
+      "expect": [
+        "Previous and candidate identities match their locked versions and hashes.",
+        "CI tool/command behavior, activation and scoped settings survive update/restart/rollback.",
+        "Catalog changes alone do not update active code; rollback restores a locked backup without another download."
+      ],
+      "forbidden": [
+        "Synthetic version replacement in place of the declared published archive, fallback package sources, mutated settings/drafts or model inference."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/ci-review-upgrade.ts",
+        "args": []
+      }
     }
   ],
   "previousArtifacts": {

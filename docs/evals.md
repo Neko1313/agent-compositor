@@ -112,12 +112,43 @@ that ledger, including restarted processes, pending review.
 
 Existing charges retain the original $30/M input and $60/M output policy and
 amounts. Each new Standard charge stores its own policy and reserved token
-ceilings. Nothing retroactively reprices old charges, resets history or raises
-the authorized total. The ledger's original root policy remains its compatibility
-identity. Reports expose `committedUpperBoundUsd` and pending/reported counts,
-not an asserted billed cost. Pricing changes require a reviewed policy. See
+ceilings. Original records are never rewritten, history is never reset and the
+authorized total is unchanged. The ledger's original root policy remains its
+compatibility identity. Reports expose `committedUpperBoundUsd`, the unchanged
+raw `recordedUpperBoundUsd` and pending/reported counts, not an asserted billed
+cost. Pricing changes require a reviewed policy. See
 [processing and cache prices](https://developers.openai.com/api/docs/pricing) and
 [service tier selection](https://developers.openai.com/api/reference/resources/responses/methods/create).
+
+A trusted operator can explicitly record one historical cache review through
+`EvalBudget.reviewHistoricalCache({endpoint, sourceRevisions, evidenceSha256, ledgerSha256})`.
+Before doing so, independently audit the historical adapter revisions and saved
+usage: the requests must be official global `gpt-6.1-sol` Responses calls, below
+the long-input threshold, with valid reported cache counts. The endpoint must be
+`https://api.openai.com/v1/responses`; regional/gateway histories are ineligible.
+The revisions and evidence SHA-256 identify the operator's external audit.
+`ledgerSha256` is `evaluationLedgerDigest` of the audited parsed JSON snapshot;
+the same digest is checked under the write lock before applying the review, so
+another admission or settlement requires auditing the changed snapshot first. The
+method does not fetch or establish that provenance itself, so it is not an
+automatic migration or a model-controlled operation. See the official
+[regional endpoint requirements](https://developers.openai.com/api/docs/guides/your-data).
+
+The dated `sol-global-all-tiers-cache-2026-11-12` review uses maximum global tier
+rates: $30/M for every non-read input token (including 12h writes), $60/M output
+and $0.60/M confirmed cached reads, rounding upward to microdollars. It assumes
+neither Standard processing nor a shorter cache retention period. Only the fixed
+cohort of already reported legacy charges with saved cache counts is covered;
+cache-unknown charges, pending reservations, current Standard charges and later
+requests retain their existing bounds. The original charge objects stay intact.
+An added receipt records the policy, audit provenance and each covered charge's
+fingerprint and recomputed ceiling. Every read verifies that receipt and usage;
+inconsistent counts, changed originals, forged ceilings or incompatible policies
+stop admission. A second review cannot replace the receipt, and a historical
+review cannot clear a pricing halt. Cross-process reservation locking still
+applies. `historicalCacheReview` reports coverage and the ceiling refinement;
+the difference is not a refund or a statement of actual billing. Older guards
+that do not support this receipt continue using the original, larger total.
 
 Reported requests with cache details also expose `standardPriceEstimate`: a
 separate dated Standard/global **30m-write assumption**, at $2/M ordinary input,

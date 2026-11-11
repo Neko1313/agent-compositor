@@ -1,5 +1,41 @@
 # Project memory
 
+## Explicit historical cache review within the original budget — 2026-11-12
+
+The budget guard now supports a trusted operator's one-time historical cache
+review after an independent global-endpoint/usage audit. The receipt binds the
+audited canonical ledger snapshot under the existing cross-process lock, records
+the source revisions and external evidence hash, and fingerprints the covered
+original charges. It uses maximum global Sol tier rates, including 12h writes
+($30/M non-read input, $60/M output, $0.60/M confirmed cache reads), without
+assuming historical Standard processing or cheaper retention. Only the fixed
+reported legacy/cache-known cohort is refined. Original charge objects, unknown
+cache costs, pending reservations, current Standard charges, later admissions,
+the root policy and authorization remain intact. Older guards ignore the receipt
+and continue using the larger recorded total. New reports expose both bounds.
+
+Every read validates usage and the receipt; invalid counts/policies, changed
+covered originals and forged ceilings fail closed. A second review cannot
+replace it, a stale audit cannot race a new admission/settlement, and a review
+cannot clear a pricing halt. 26 new regressions bring the total to 1078 passing
+tests with three optional skips; typecheck and docs check/build pass. Deliberate
+mutations prove that concurrency admission and charge-fingerprint assertions
+detect their respective violations. Evidence: dist/budget-review-20261112/
+negative-{admission,fingerprint}.log. No generator input changed; docs/evals.md
+documents the operator trust/provenance requirement and dated pricing limits.
+
+After all checks, revalidated the actual private ledger against its unchanged
+read-only audit and every historical saved-profile source revision's strict
+global endpoint and redirect refusal. Applied the receipt to exactly 74 charges.
+All 295 original charge objects are identical, the pending unknown reservation
+is unchanged and private file mode remains 0600. Raw recorded bound remains
+$49.693673; reviewed admission bound is $45.591793 under the same $50 total.
+This is not an invoice or an estimate of actual billed usage. Receipt and policy
+source digest: dist/budget-review-20261112/applied-review.json. There were still
+zero new paid model requests at this checkpoint. The ci-review authoring packet
+still needs executable frozen oracles and absent-candidate negative control
+before starting its new autonomous initial-delivery episode.
+
 ## Published v0.7.1 and verified public update — 2026-11-12
 
 v0.7.1 is published at immutable annotated tag source

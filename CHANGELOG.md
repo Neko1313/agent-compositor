@@ -2,6 +2,31 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.7.2 - 2026-11-11
+
+### Documentation
+- Record verified v0.7.1 publication and public update ([1969092](https://github.com/Neko1313/agent-compositor/commit/1969092f63507db283bec52008555e58c7f9b1d4))
+- Record CI release failure and verified repairs ([b56268d](https://github.com/Neko1313/agent-compositor/commit/b56268dd69182afba44c576e5d4c925f3ba4f542))
+
+
+### Features
+- Record audited historical cache ceilings without rewriting charges ([5294732](https://github.com/Neko1313/agent-compositor/commit/5294732f6dfdde3e1d3963700b71e80202f37ac9))
+- Add concurrent GitHub Actions runs and logs ([457b7e7](https://github.com/Neko1313/agent-compositor/commit/457b7e7f30a3a4c126d4af19b5b71306ca55c109))
+
+
+### Fixes
+- Keep the current user request in every summary stage ([c23355f](https://github.com/Neko1313/agent-compositor/commit/c23355f9a4fe2be74ebfdc0207a1406fc58cc2c6))
+- List the new CI review package ([8e0050b](https://github.com/Neko1313/agent-compositor/commit/8e0050b6c713cba01bf33ff8bfbcd74468756661))
+- Recover empty final responses within completion limits ([ca84b9e](https://github.com/Neko1313/agent-compositor/commit/ca84b9ea22b247b667e90ba130c2dfd78d136064))
+- Exclude history predating a new plugin ([0e47abe](https://github.com/Neko1313/agent-compositor/commit/0e47abe2279d6f20a8fd290ffa033dc74152aef4))
+- Explain missing guarded edit snapshot hashes ([c31c430](https://github.com/Neko1313/agent-compositor/commit/c31c4307e62ff467b84b07507d5eb40e91ce9434))
+- Exclude plugin tags from host changelog ([8757290](https://github.com/Neko1313/agent-compositor/commit/875729067a8180012636046091603f66e09cfc46))
+
+
+### Tests
+- Verify CI configuration while the agent works ([0b48eca](https://github.com/Neko1313/agent-compositor/commit/0b48eca9a8d276b58972262af4f53ee2d76e0fa0))
+- Wait for the matching CI refresh response ([b87356a](https://github.com/Neko1313/agent-compositor/commit/b87356a13141048af7d16e826caa47342269b302))
+
 ## v0.7.1 - 2026-11-11
 
 ### Features

@@ -76,8 +76,9 @@ try{
   assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'Saving settings must leave the main model running');await shot('01-ci-concurrent-settings');
   assert.equal((await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8')).trim().split('\n').length,4,'Saving settings must not fetch CI automatically');
   await clickText('Refresh runs');
-  for(let i=0;i<200;i++){const calls=await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8').catch(()=>'');if(calls.trim().split('\n').length===5)break;await new Promise(done=>setTimeout(done,10));}
-  await page.waitForFunction(()=>!visual.text().includes('Cancel'));await wait('CI_FIXTURE_FAILED');
+  // A started subprocess and an old result do not acknowledge this refresh.
+  // Wait for its unique rendered response before issuing the next request.
+  await wait('CI_FIXTURE_FAILED #5');await page.waitForFunction(()=>!visual.text().includes('Cancel'));
   const working=async()=>assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'The main model must remain active');await working();
   async function slow(){
    await rm(join(fixture.cwd,'ci-worker.pid'),{force:true});await writeFile(join(fixture.cwd,'.ci-slow'),'controlled dependency');await clickText('Refresh runs');await wait('Cancel');

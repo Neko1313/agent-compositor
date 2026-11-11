@@ -404,5 +404,8 @@ Cancel/Close cleanup of actual SDK-owned processes while the scripted main
 agent remains held. It also verifies a preserved draft after resize and saved
 settings after session restart. `ci-fixture.mjs` installs a local executable
 `gh` fixture only on that PTY child's PATH and records its argv; it never uses
-user GitHub credentials or a live model. Reports retain screenshots, input and
+user GitHub credentials or a live model. Refresh responses include a request
+sequence marker: the scenario waits for the specific response to render before
+starting cancellation checks, rather than accepting a previous result or a
+subprocess-start record as completion. Reports retain screenshots, input and
 terminal output. These checks do not establish live GitHub network reliability.

@@ -1,3 +1,5 @@
+import callixTools from '../../../plugins/callix/tools.js';
+import type {ToolContext} from '@agent-compositor/tools';
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -79,5 +81,20 @@ describe('native Callix adapter', () => {
     expect(app.pluginErrors).toEqual([]);
     const core = app.createCore(async () => false); await core.start(); await core.submit('find x');
     expect(core.getMessages().find(m => m.role === 'tool')?.content).toContain('replacement');
+  });
+});
+
+describe('semantic failure recovery guidance',()=>{
+  it('directs unsupported projects to available text tools without claiming a semantic result',async()=>{
+    const tool=callixTools.find(tool=>tool.name==='code_query')!;
+    const ctx={cwd:'/project',request:async()=>{throw Error('Callix exited 1: nothing to analyse under /project');}} as unknown as ToolContext;
+    const result=await tool.execute(ctx,{action:'outline',path:'greeting.mjs'});
+    expect(result.ok).toBe(false);expect(result.error).toContain('Continue with glob, grep or read');
+    expect(result.error).toContain('status/refresh cannot add language support');expect(result).not.toHaveProperty('data');
+  });
+  it('retains other backend failures for normal diagnosis',async()=>{
+    const tool=callixTools.find(tool=>tool.name==='code_query')!;
+    const ctx={cwd:'/project',request:async()=>{throw Error('Graph schema is corrupt');}} as unknown as ToolContext;
+    expect(await tool.execute(ctx,{action:'outline',path:'source.ts'})).toEqual({ok:false,error:'Error: Graph schema is corrupt'});
   });
 });

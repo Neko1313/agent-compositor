@@ -42,14 +42,17 @@ const execute =
       const data=await ctx.request<Record<string,unknown>>("service.project.query",{...input,path,...(action?{action}:{}),cwd});
       return{ok:true,data:{...data,cwd}};
     } catch (error) {
-      return { ok: false, error: String(error) };
+      const detail=String(error);
+      return {ok:false,error:/nothing to analy[sz]e/i.test(detail)
+        ? detail+' No supported semantic sources were found. Continue with glob, grep or read; status/refresh cannot add language support. Retry semantic indexing only after supported sources or backend capabilities change.'
+        : detail};
     }
   };
 export default [
   {
     name: "code_query",
     description:
-      "Use code_query to navigate code with the Callix backend; do not invoke a tool named callix or run callix through exec. action:status checks executable availability, indexing progress or the last failure without starting analysis. Start navigation with definition (symbol name) or outline (exact file path), then use returned IDs for callers/callees/references/impact. Cold semantic analysis can take time; repeated queries reuse it. Do not force refresh repeatedly. On failure, inspect status and use glob/grep/read for immediate inspection. read_symbol returns source and an edit anchor (path, expectedHash, UTF-16 range, strict): pass all anchor fields to edit with exact oldText/newText. Empty degraded relation results do not prove no usages exist. Follow nextCursor and tune maxTokens (default 2000).",
+      "Use code_query to navigate code with the Callix backend; do not invoke a tool named callix or run callix through exec. action:status checks executable availability, indexing progress or the last failure without starting analysis. Start navigation with definition (symbol name) or outline (exact file path), then use returned IDs for callers/callees/references/impact. Cold semantic analysis can take time; repeated queries reuse it. Do not force refresh repeatedly. On indexing failures inspect status and use glob/grep/read for immediate inspection. If the backend reports no supported sources, switch directly to glob/grep/read; do not retry status/refresh to add language support. read_symbol returns source and an edit anchor (path, expectedHash, UTF-16 range, strict): pass all anchor fields to edit with exact oldText/newText. Empty degraded relation results do not prove no usages exist. Follow nextCursor and tune maxTokens (default 2000).",
     usage: {
       when:'Use code_query for semantic navigation. read_symbol, definition and callers are action values on code_query, not separate tools. Use status to diagnose delayed or unavailable indexing.',
       avoid:'Do not repeat refresh:true or shell-based indexing after an error. glob/grep/read work without building a graph.',

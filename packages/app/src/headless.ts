@@ -4,18 +4,25 @@ import type { BuiltApp } from './build.js';
 export async function runHeadless(app: BuiltApp, prompt: string, format: 'text' | 'json' | 'stream-json', write: (text: string) => void, schemaFile?: string): Promise<number> {
   const core = app.createCore(async () => false);
   const usage = { inputTokens: 0, outputTokens: 0 };
+  let error: string | undefined, response = '';
   const unsubscribe = core.subscribe(event => {
     if (format === 'stream-json') write(JSON.stringify(event) + '\n');
     if (event.kind === 'catalog' && event.event === 'turn.usage') {
       usage.inputTokens += Number(event.input.inputTokens ?? 0); usage.outputTokens += Number(event.input.outputTokens ?? 0);
     }
-    if (format === 'text' && event.kind === 'text') write(event.delta);
+    // Interrupted text is not committed to the transcript. Collect only live
+    // output, and let a completed turn supply its authoritative final response.
+    if (event.kind === 'text') {
+      response += event.delta;
+      if (format === 'text') write(event.delta);
+    }
+    if (event.kind === 'catalog' && event.event === 'turn.complete' && typeof event.input.text === 'string') {
+      response = event.input.text;
+    }
   });
-  let error: string | undefined, response = '';
   try {
     await core.start(); await core.submit(prompt);
-    response = [...core.getMessages()].reverse().find(m => m.role === 'assistant')?.content ?? '';
-    error = core.failure;
+    error = core.failure ?? (core.getState() === 'interrupted' ? 'Interrupted' : undefined);
     if (schemaFile && !error) {
       const schema = JSON.parse(await readFile(schemaFile, 'utf8'));
       const ajv = new Ajv({ allErrors: true, strict: true });

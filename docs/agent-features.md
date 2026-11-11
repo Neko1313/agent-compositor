@@ -232,6 +232,11 @@ execute on the host under the normal permission policy.
 
 ## Autonomous execution and context budgets
 
+Shell guidance recommends separate calls for independent project checks.
+An exact command grant does not authorize additional chained commands,
+redirections or a `cd` prefix. Compound requests continue through normal
+permission matching; this guidance does not grant or split execution.
+
 Long-running commands can return control through `exec(background:true)`. Enable
 the optional [background-jobs plugin](../plugins/background-jobs/README.md) to
 subscribe automatically: process completion queues one agent follow-up after the
@@ -239,6 +244,16 @@ current turn, or a user-only notification. No model requests are made merely to
 wait. The user can keep chatting; logs and cancellation remain guarded through
 `exec_output` and `exec_kill`. These are live-session jobs; session close stops
 them, and a single-shot headless command does not become a daemon.
+
+Headless execution reports a host interruption as unsuccessful (exit code 1) in
+`text`, `json`, and `stream-json` formats. Text output preserves any text already
+streamed and adds an interruption error. JSON results, including the final result
+line in `stream-json`, keep the `{type, sessionId, response, usage, error?}` shape:
+`response` preserves partial text from this invocation and `error` identifies the
+interruption. If interrupted before output, `response` is empty; a resumed
+conversation's earlier answer is never reused. Completed turns and handled host
+commands remain successful (exit code 0 unless another error occurs); a handled
+command with no assistant output has an empty response.
 
 The [workflows plugin](../plugins/workflows/README.md) uses the same follow-up
 queue for new `workflow_run` runs: default `completion:"wake"` resumes the

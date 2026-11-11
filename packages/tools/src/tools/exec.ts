@@ -23,7 +23,7 @@ export interface ExecOutcome {
  */
 export const execTool: ToolSpec<ExecArgs, ExecOutcome> = {
   name: "exec",
-  description: "Run a shell command and return its output. cwd defaults to the session cwd.",
+  description: "Run a shell command and return its output. cwd defaults to the session cwd. Run independent project checks as separate calls: chaining commands, adding redirection, or prefixing cd can require a new approval even when an individual command is allowed. Do not bypass a denied action.",
   parameters: {
     type: "object",
     properties: {

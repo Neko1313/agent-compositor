@@ -36,7 +36,11 @@ With background operation enabled, a semantic call waits up to `queryWaitMs`
 This is not a semantic answer. The owned build continues; use `glob`, `grep` or
 `read` for immediate work, inspect status later and repeat the original query
 once ready. Avoid busy polling or repeated forced refreshes. Errors do not
-remove the tool or disable text search. Session end, reload, disable and close cancel and
+remove the tool or disable text search. When the native backend reports
+`nothing to analyse`, the tool explains that no supported semantic sources were
+found and directs the model to `glob`, `grep` or `read`. Repeated status/refresh
+calls cannot add support for a source language; retry only after the sources or
+backend capabilities change. Session end, reload, disable and close cancel and
 drain outstanding work. Removing an attached project's workspace grant also
 cancels its retained native query. With `background:false`, calls remain synchronous up to
 the analysis deadline. The deadline covers all source-change retry attempts,

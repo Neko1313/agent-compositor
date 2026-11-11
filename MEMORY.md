@@ -1,5 +1,41 @@
 # Project memory
 
+## Four-platform Project checks and cancellable waiting continuations — 2026-11-12
+
+Project checks 0.1.1 at f102fef completed candidate run 43075940358 successfully:
+source and Linux/macOS x64/arm64 installed archives passed, publication skipped.
+Independent audit checks the immutable workspace, locally identical plugin
+package/plan identity, exact candidate metadata, all evidence hashes, archive
+checksums and embedded release identity. Receipt:
+dist/plugin-candidate-20261112/project-checks-f102fef-certification-integrity.json.
+macOS ARM64 successful-check/narrow and Intel cancellation screenshots were
+inspected. The canonical readiness assessment now records this exact scope;
+later source revisions, live-model quality and initial autonomous plugin delivery
+are not certified by these results.
+
+Follow-up cancellation review found a flaw in 0e3dd72's settlement wait: another
+Stop or Clear could not discard a waiting continuation because it lived outside
+the prompt queue. Controlled cases reproduced both unwanted model starts. A
+cancellation generation now covers submissions waiting for conversation reset
+or terminal settlement. Stop/Clear discard them; close rejects them. Five turn
+settlement regressions cover delayed hooks, subscriber reentry and all three
+cancellation actions, with a fresh explicit prompt still accepted afterwards.
+
+Full validation exposed two Callix fixture assumptions under worker contention:
+the process could expire before writing its startup counter, producing one start
+instead of two or no counter file. No Callix runtime defect was established.
+Its deadline test now holds the long worker until the independent short request
+actually fails, verifies the long request is still pending, then releases it and
+checks completed-graph reuse across limits without another execution. Removing
+deadline separation deliberately makes this controlled test fail. The status
+case compares invocation counters before/after inspection, including a worker
+that expired before JS startup. No runtime deadline was raised or skipped.
+Mutation log: dist/turn-settlement-20261112/callix-deadline-negative.log.
+
+1052 tests pass with three optional skips; typecheck and docs check/build pass.
+No event/metadata generator input changed. No paid model call, ledger discount,
+plugin tag, archive publication or new host release occurred in this iteration.
+
 ## Interrupted turn settlement before explicit continuation — 2026-11-12
 
 Both actual PR #3 checks passed at 79f256b: CI 43073680504 (Node 22/26)

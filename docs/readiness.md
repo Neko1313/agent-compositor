@@ -41,7 +41,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Model independence | Contract tests for every supported protocol, plus repeated real-model development runs across different model families. Unknown capabilities, invalid tool calls and weak tool use must degrade with bounded recovery | HTTP fixtures cover the supported transports. Saved-profile OpenAI evaluations are available. A broad live quality matrix remains incomplete. |
 | Tool cooperation | File discovery, semantic/text navigation, precise edits, test execution, shell jobs and delegation reach verified artifacts without unnecessary retries or denied-action bypass | Individual tools and regression suites exist. End-to-end efficiency and recovery need wider scenario evidence. |
 | Long-running execution | Context pressure/compaction, interruption, steering, queued work, restart/resume and failures at effect boundaries preserve the task, scope and truthful completion state | One live known task passed process-death/resume/explicit-compaction checks. A second known task recovered from a failed summary and passed three automatic compactions in a configured 8192-token window with independent artifact checks. A controlled live API truncation probe also passed. Multi-hour development and broader repositories remain required. |
-| Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks passed Linux archives but exposed a macOS project-path alias bug; its fix needs new native certification. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
+| Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks 0.1.1 passed the same platform scope at f102fef after fixing macOS project-path aliases. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
 | Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.0](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.0), revision 21d7934, passed Node 22/26 CI, documentation checks, all 29 plugin PR contracts and four-platform native build/install smoke before publication. This establishes that release checkpoint; the other gates remain open. |
@@ -84,8 +84,14 @@ were inspected. This manual candidate run did not publish a plugin release.
 Project checks' concurrent candidate exposed a real macOS path-alias rejection;
 the selected project root and package path now both use host canonical resolution.
 An aliased-directory integration test also rejects an outside package link even
-when its directory is attached to the host. That fix still needs its own exact
-native certificates; Git review's success does not certify Project checks.
+when its directory is attached to the host. The corrected Project checks 0.1.1 revision
+[f102fef](https://github.com/Neko1313/agent-compositor/commit/f102fef0ff7ed57a981486fee5558855ed918a8a)
+passed [source and all four native archive jobs](https://github.com/Neko1313/agent-compositor/actions/runs/43075940358).
+Independent checks validated its exact source/package identity, evidence hashes,
+archive checksums and embedded release metadata. macOS ARM64 success/narrow and
+Intel cancellation screenshots were inspected. These are deterministic/tool and
+real-terminal cases; they do not establish autonomous model development quality.
+The candidate run skipped publication and does not certify later source revisions.
 
 
 A subsequent multi-file form refactor used `project_check` to discover and run

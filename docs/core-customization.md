@@ -94,6 +94,8 @@ An explicit continuation waits for the interrupted turn's terminal hooks and
 journal writes to settle before starting another turn. This also applies when
 an event subscriber immediately submits a prompt on `turn.interrupted`; cleanup
 from the previous turn cannot replace the new turn's state or tool context.
+Another Stop or Clear discards a continuation that is still waiting; closing
+rejects it without starting a model request.
 Consumers must treat process output as data and fetch it through guarded tools;
 the host does not elevate a background event to user authorization. The optional
 [background-jobs plugin](../plugins/background-jobs/README.md) implements the

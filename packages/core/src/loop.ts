@@ -908,12 +908,16 @@ export class AgentCore {
 
   /** Renderer entry: send a prompt. If busy, it queues (codex Enter). */
   async submit(text: string,source:"user"|"agent"="user"): Promise<void> {
+    const cancellation=this.promptCancellation;
     if(this.resettingBackground)await this.resetBackground;
     if(this.closed)throw Error('Session is closed');
+    if(cancellation!==this.promptCancellation)return;
     // Terminal hooks and journal writes still belong to the previous turn.
     // Let its cleanup settle before a resume can replace shared turn context.
     if(this.activeTurn&&this.state!=="running"){
       await this.activeTurn;
+      if(this.closed)throw Error('Session is closed');
+      if(cancellation!==this.promptCancellation)return;
       return this.submit(text,source);
     }
     if (this.state === "running") {
@@ -940,6 +944,7 @@ export class AgentCore {
 
   /** Stop the running turn or pause accepted automatic work before it starts. */
   interrupt(): void {
+    this.promptCancellation++;
     // Ordinary queued prompts are cancelled; accepted plugin wakes stay paused.
     this.promptQueue = this.promptQueue.filter(entry => entry.owner);
     this.steerQueue = [];
@@ -953,6 +958,7 @@ export class AgentCore {
   }
 
   private currentTurnId: string | undefined;
+  private promptCancellation = 0;
   /** set when the last turn ended in turn.failed (subagent runner reads it) */
   private lastTurnError: string | undefined;
   private messagesSinceCompaction = 0;
@@ -1310,6 +1316,7 @@ export class AgentCore {
   /** Drop the conversation, keep the system head (Claude's /clear). */
   clear(): void {
     if(this.userOperation.getStore())throw Error("A concurrent operation cannot clear the agent conversation");
+    this.promptCancellation++;
     this.promptQueue=[];clearTimeout(this.queueTimer);this.queueTimer=undefined;
     this.resettingBackground=true;
     this.cancelOperations();

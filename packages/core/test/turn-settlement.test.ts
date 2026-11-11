@@ -47,3 +47,28 @@ it.each(['hook','subscriber'] as const)('settles the interrupted turn before res
   expect(core.getState()).toBe('idle');
  }finally{release();await core.close();await rm(cwd,{recursive:true,force:true});}
 });
+
+it.each(['interrupt','clear','close'] as const)('discards a waiting continuation on another %s',async action=>{
+ const cwd=await mkdtemp(join(tmpdir(),'turn-settlement-cancel-'));
+ let release!:()=>void,entered!:()=>void;
+ const held=new Promise<void>(resolve=>{release=resolve;}),interrupted=new Promise<void>(resolve=>{entered=resolve;});
+ const provider=new ScriptedProvider([{text:'First',hold:true},{text:'Fresh prompt'}]);
+ const core=new AgentCore({cwd,provider,plugins:[{manifest:{name:'settlement',version:'1.0.0',trust:'trusted'},hooks:{
+  'turn.interrupted':async()=>{entered();await held;},
+ }}]});
+ try{
+  const first=core.submit('Start');await vi.waitFor(()=>expect(provider.requests).toHaveLength(1));
+  core.interrupt();await interrupted;
+  const waiting=core.submit('Discard this continuation').then(()=>undefined,error=>error);
+  const cancelled=core[action]();release();
+  await first;
+  if(action==='close')expect(await waiting).toEqual(Error('Session is closed'));
+  else expect(await waiting).toBeUndefined();
+  await cancelled;
+  expect(provider.requests).toHaveLength(1);
+  if(action==='close')return;
+  await core.submit('Fresh explicit prompt');
+  expect(provider.requests).toHaveLength(2);
+  expect(provider.requests[1].messages.some(message=>message.content==='Discard this continuation')).toBe(false);
+ }finally{release();await core.close();await rm(cwd,{recursive:true,force:true});}
+});

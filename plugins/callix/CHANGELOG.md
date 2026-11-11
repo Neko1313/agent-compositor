@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.3
+
+<!-- plugin-release:auto:start -->
+- preserve user tasks across harness feedback ([5cd6204](https://github.com/Neko1313/agent-compositor/commit/5cd620464809473925e0f56ce8947708882f39e8))
+<!-- plugin-release:auto:end -->
+
 ## 1.3.2
 
 <!-- plugin-release:auto:start -->

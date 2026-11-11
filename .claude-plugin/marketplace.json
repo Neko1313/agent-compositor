@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Native compositor plugins plus explicitly portable Claude-format examples. See docs/marketplace.md for runtime compatibility.",
-    "version": "1.0.5"
+    "version": "1.0.6"
   },
   "plugins": [
     {
@@ -39,7 +39,7 @@
       "name": "callix",
       "source": "./plugins/callix",
       "description": "Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query.",
-      "version": "1.3.2",
+      "version": "1.3.3",
       "compositor": {
         "format": "native"
       }

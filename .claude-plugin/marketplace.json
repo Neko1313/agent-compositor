@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Native compositor plugins plus explicitly portable Claude-format examples. See docs/marketplace.md for runtime compatibility.",
-    "version": "1.0.3"
+    "version": "1.0.4"
   },
   "plugins": [
     {
@@ -264,7 +264,7 @@
       "name": "project-checks",
       "source": "./plugins/project-checks",
       "description": "Discover and run guarded local npm script checks from a tool or panel.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "compositor": {
         "format": "native"
       }

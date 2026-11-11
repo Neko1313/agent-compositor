@@ -910,6 +910,12 @@ export class AgentCore {
   async submit(text: string,source:"user"|"agent"="user"): Promise<void> {
     if(this.resettingBackground)await this.resetBackground;
     if(this.closed)throw Error('Session is closed');
+    // Terminal hooks and journal writes still belong to the previous turn.
+    // Let its cleanup settle before a resume can replace shared turn context.
+    if(this.activeTurn&&this.state!=="running"){
+      await this.activeTurn;
+      return this.submit(text,source);
+    }
     if (this.state === "running") {
       this.promptQueue.push({text,source});
       await this.emit("prompt.queued", {

@@ -1,5 +1,39 @@
 # Project memory
 
+## Interrupted turn settlement before explicit continuation — 2026-11-12
+
+Both actual PR #3 checks passed at 79f256b: CI 43073680504 (Node 22/26)
+and docs 43073680108. The independently reproduced five-file preparation was
+merged as f102fef; the clean committed plugin preparation is now empty, with
+Project checks 0.1.1 and catalog 1.0.4. Exact candidate run 43075940358 passed
+source verification and started its four native archive jobs; their results are
+not yet established. No candidate publication or new host release is claimed.
+
+The saved HTTP CONNECT proxy is enabled for both model and tool scopes. Fresh
+unauthenticated OpenAI probes through each scope returned the expected 401,
+without paid requests or credential output. The existing evaluation budget and
+all historical charges remain unchanged.
+
+An additional deterministic audit reproduced an interrupted-turn ownership race.
+The core marks interruption before awaiting terminal plugin hooks and journal
+writes. Submitting another prompt during a delayed hook, or immediately from the
+terminal event subscriber, could start a new turn whose state/context was then
+overwritten by the old cleanup. Explicit continuation now awaits the active
+turn's settlement before checking session state and submitting again. Busy-turn
+queueing remains unchanged, and closing still rejects subsequent submissions.
+
+Two controlled regressions cover delayed hooks and immediate event continuation,
+then verify new-turn identity, a real core tool execution and steering delivery.
+The initial fixture incorrectly expected another model request after a plain
+text finish; it now uses a tool step so the steering check has a real continuation.
+Both final scenarios fail without the guard and pass with it. Negative-control
+log: dist/turn-settlement-20261112/negative-control.log. All 1049 tests pass with
+three optional skips; typecheck and docs check/build pass. No event or metadata
+input changed, so generation is unaffected. The canonical execution guide
+documents settlement; the architecture map's service topology is unchanged.
+This is backend-only behavior, verified through core/app tests rather than a UI
+change. Broader live-model and long-running 1.0 gates remain open.
+
 ## Accepted background wakes across interruption and clear — 2026-11-12
 
 Generated plugin release PR #3 at 06b7199 contained exactly the five expected

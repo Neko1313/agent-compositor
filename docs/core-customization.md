@@ -90,6 +90,10 @@ plugin-owned follow-ups stay queued until an explicit prompt continues the sessi
 including when stopped before an idle wake timer fires. Ordinary queued prompts
 and steering are discarded. Clear/close discard pending follow-ups; clearing a
 conversation also resets wake scheduling so subsequent jobs can deliver again.
+An explicit continuation waits for the interrupted turn's terminal hooks and
+journal writes to settle before starting another turn. This also applies when
+an event subscriber immediately submits a prompt on `turn.interrupted`; cleanup
+from the previous turn cannot replace the new turn's state or tool context.
 Consumers must treat process output as data and fetch it through guarded tools;
 the host does not elevate a background event to user authorization. The optional
 [background-jobs plugin](../plugins/background-jobs/README.md) implements the

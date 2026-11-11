@@ -52,8 +52,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "mcp": {
-      "version": "1.3.0",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "1.3.1",
+      "commit": "5ce76e5c6963be27b873498a37c267bd52c17561"
     },
     "memory": {
       "version": "1.1.2",
@@ -80,8 +80,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "plugin-author": {
-      "version": "1.3.0",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "1.3.1",
+      "commit": "5ce76e5c6963be27b873498a37c267bd52c17561"
     },
     "session-ctl": {
       "version": "1.1.2",
@@ -120,12 +120,12 @@
       "commit": "335439374ed88a43ba0f03e4a8442ee5da6240b5"
     },
     "ci-review": {
-      "version": "0.1.0",
-      "commit": "c31c4307e62ff467b84b07507d5eb40e91ce9434"
+      "version": "0.1.1",
+      "commit": "5ce76e5c6963be27b873498a37c267bd52c17561"
     }
   },
   "catalog": {
-    "version": "1.0.6",
-    "digest": "059e36ec1a05038762e2860ebfef0b76ff2a9d4f33885040aeeb6f28045c5548"
+    "version": "1.0.7",
+    "digest": "194a4e699edfd1438e3d2a824a6988e761a97fc75201fc482ec26d946ade1ee9"
   }
 }

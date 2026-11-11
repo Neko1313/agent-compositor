@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+<!-- plugin-release:auto:start -->
+- show pending operation state in the panel ([d998964](https://github.com/Neko1313/agent-compositor/commit/d998964bccd86eede16e94134d75eabc2a2bd935))
+<!-- plugin-release:auto:end -->
+
 ## 0.1.0
 
 <!-- plugin-release:auto:start -->

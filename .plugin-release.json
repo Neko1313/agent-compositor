@@ -16,20 +16,20 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "callix": {
-      "version": "1.3.0",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.3.1",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
     },
     "checkpoint-history": {
-      "version": "1.2.0",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.1",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
     },
     "checkpoints": {
       "version": "1.1.2",
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "cost": {
-      "version": "1.2.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.3.0",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
     },
     "doctor": {
       "version": "1.1.2",
@@ -52,8 +52,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "mcp": {
-      "version": "1.2.0",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.3.0",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
     },
     "memory": {
       "version": "1.1.2",
@@ -64,8 +64,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "network-proxy": {
-      "version": "1.1.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
     },
     "notify-done": {
       "version": "1.1.1",
@@ -80,8 +80,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "plugin-author": {
-      "version": "1.2.0",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.3.0",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
     },
     "session-ctl": {
       "version": "1.1.2",
@@ -92,8 +92,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "todos": {
-      "version": "1.1.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
     },
     "turn-log": {
       "version": "1.1.2",
@@ -108,12 +108,20 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "workflows": {
-      "version": "1.4.0",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.5.0",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+    },
+    "git-review": {
+      "version": "0.1.0",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+    },
+    "project-checks": {
+      "version": "0.1.0",
+      "commit": "66510ee83850843c65efae5389c5605cee523a93"
     }
   },
   "catalog": {
-    "version": "1.0.2",
-    "digest": "d8f8cecb35bc2a1d6eb72ae4cb9c4e6ea6976d163235d49af88b9d2b08282dfd"
+    "version": "1.0.3",
+    "digest": "79990d91461f6bca0a0252ef55574d26a3e50f8c901a5a5d4f57309c6e6c1e4e"
   }
 }

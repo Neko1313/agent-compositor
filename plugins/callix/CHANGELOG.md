@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1
+
+<!-- plugin-release:auto:start -->
+- preserve interrupted output and clarify tool recovery ([1af72fb](https://github.com/Neko1313/agent-compositor/commit/1af72fb7b54e7e48cd2b72cfb76870c5e7f0bee8))
+- recover oversized tool groups and pack summaries by tokens ([0f5c2c0](https://github.com/Neko1313/agent-compositor/commit/0f5c2c0db8f935eb3fe447a80c682160219dcc2c))
+- honor output reserves and profile capacity ceilings ([6d3a267](https://github.com/Neko1313/agent-compositor/commit/6d3a267b10c5328c4fe6b96c82bdf61df5b640d1))
+<!-- plugin-release:auto:end -->
+
 ## 1.3.0
 
 <!-- plugin-release:auto:start -->

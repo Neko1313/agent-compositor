@@ -41,7 +41,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Model independence | Contract tests for every supported protocol, plus repeated real-model development runs across different model families. Unknown capabilities, invalid tool calls and weak tool use must degrade with bounded recovery | HTTP fixtures cover the supported transports. Saved-profile OpenAI evaluations are available. A broad live quality matrix remains incomplete. |
 | Tool cooperation | File discovery, semantic/text navigation, precise edits, test execution, shell jobs and delegation reach verified artifacts without unnecessary retries or denied-action bypass | Individual tools and regression suites exist. End-to-end efficiency and recovery need wider scenario evidence. |
 | Long-running execution | Context pressure/compaction, interruption, steering, queued work, restart/resume and failures at effect boundaries preserve the task, scope and truthful completion state | Deterministic tests and native smoke cover important boundaries. Multi-hour, interrupted development sessions are still required. |
-| Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Extension certification, authoring and native smoke exist. A complete self-hosted authoring session and 1.0 compatibility review remain required. |
+| Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | The reviewed Git review plugin passes source, lifecycle, real UI and installed-archive certification on Linux x64. Other platforms and a successful autonomous authoring session remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
 | Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | v0.6.1 passed its release gates. That evidence predates future changes and does not prove the gates above. |
@@ -85,3 +85,12 @@ Next, expand beyond small fixes to multi-file feature work and refactoring, then
 exercise interruption/resume, context pressure, parallel agents and plugin
 creation as complete development workflows. Use failures in those runs to drive
 runtime and tool changes, and verify those changes against unchanged criteria.
+
+Git review adds a concrete tool/panel/configuration workflow and exposed a host
+subprocess cancellation leak, now covered by real process-group tests. The next
+runtime gap is concurrent guarded UI tool execution: management and settings
+remain available during an agent turn, but ordinary plugin tool actions receive
+the host's busy response. Removing that limit requires independent operation
+state, cancellation, permission and journal handling; simply bypassing the guard
+would corrupt the active turn. Real-model resumed development after the summary
+retry fix and certification on the remaining platforms also remain open.

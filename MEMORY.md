@@ -152,6 +152,52 @@ first-party path, then repeat realistic resumed development with the summary
 fix. Preserve the remaining authorized live-model allowance; no budget increase
 was requested or granted. Broader 1.0 gates remain open.
 
+## Integrated Git review and owned SDK processes — 2026-11-11
+
+Promoted the reviewed Git prototype into plugins/git-review with initial version
+0.1.0 and a development catalog entry. Added on-demand tool guidance and a
+Configure output form with validation, project/global scope, cancel, restart
+persistence and effective-value reporting when a project overrides a global
+setting. No existing plugin/catalog versions were hand-bumped. A dry run of
+plugin:prepare derives the new package and catalog 1.0.3 through normal release
+preparation; archives/tags have not been published.
+
+Certification exposed a real SDK leak: service.exec.run ignored operation
+cancellation and plugin unload; the tool's early cancellation race could return
+while its process remained alive. New host-owned process groups stop descendants
+on cancellation, timeout, unload and normal foreground exit, wait for closure,
+and bound combined output to 1 MiB. ToolContext requests and hook API emissions
+propagate operation signals through AsyncLocalStorage without altering frozen
+event payloads. User UI actions retain their separate foreground-independent
+lifetime. The Git tool now awaits service cleanup rather than racing it.
+The original SDK failed four of the five initial negative-control checks;
+the final suite has six real process tests and passes.
+
+Commits: 627a9b4 (SDK fix) and afdc3cc (Git plugin/integration). All 926 tests pass
+with 3 optional skips; typecheck, marketplace validation and the 98-page docs
+check/build pass. All 28 native packages passed deterministic PR certification
+against the exact source workspace; retained summary:
+reports/certification/sdk-process-pr-summary.json. Git review also passed Linux
+x64 release certification, bundle build and artifact certification, including
+real PTY configuration save/cancel/restart, mouse/keyboard actions and 48x18
+controls against the exact extracted archive. Inspected source and archive
+settings/narrow screenshots. The archive is
+dist/plugins/git-review/0.1.0/git-review-0.1.0-linux-x64.tar.gz, SHA256
+d517619c8ebc63ac33e48d4e6b9024825096945b4b396f7dea18474500752192.
+
+Remaining release checks: Linux arm64 and both macOS platforms, compatible native
+host distribution, publication review/gates. The authoring attempts still failed
+autonomously; independent completion and certification do not rewrite those
+results. No new paid calls were made; the $38.66391 upper bound is unchanged.
+Previous main 402d709 CI, docs and plugin preparation completed successfully.
+
+Next runtime task: guarded UI tool calls currently use invokeTool, which rejects
+while a model turn is running. Panel/configuration work stays available, but Git
+operations report busy. Add a separate operation context with isolated abort,
+policy, transcript/journal and completion state; do not reset the active turn's
+abort controller, token counters or tool records, and do not bypass permission
+checks. Resume/compaction live testing and all broader 1.0 gates remain open.
+
 ## Verified v0.6.1 publication — 2026-11-11
 
 The user requested push and release of concurrent plugin management. Published

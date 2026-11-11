@@ -26,7 +26,7 @@ commit_parsers = [
   { message = ".*", group = "Other changes" },
 ]
 protect_breaking_commits = true
-tag_pattern = "v[0-9].*"
+tag_pattern = "^v[0-9].*"
 # This candidate failed native smoke checks and was never published.
 ignore_tags = '^v0\.6\.0$'
 sort_commits = "oldest"

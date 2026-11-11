@@ -116,6 +116,8 @@ It requires no provider credentials or external model service.
 version. `feat`, `fix`, `docs`, `perf`, `refactor`, `test` and maintenance commits
 are grouped; breaking changes are highlighted. Release bookkeeping commits are
 excluded. It generates notes; it does not build binaries or publish assets.
+Only tags beginning with `v` followed by a digit delimit host releases;
+independent `plugin/NAME/vVERSION` tags do not consume pending host changes.
 
 1. Update the root and `packages/app/package.json` versions together, then run
    `npm install --package-lock-only`.

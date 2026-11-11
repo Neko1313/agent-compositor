@@ -1,5 +1,34 @@
 # Project memory
 
+## Prepared v0.7.1 host candidate — 2026-11-12
+
+Core revision c582d8e passed exact remote Node 22/26 CI 43077761538,
+documentation 43077761589 and plugin preparation 43077761541. Project checks'
+separate four-platform candidate evidence remains bound to f102fef.
+
+The root/application versions are prepared as 0.7.1 with matching lockfile,
+generated git-cliff notes and CLI reference. No plugin version/catalog metadata
+was manually changed. Both generators ran; 1052 tests pass with three optional
+skips, typecheck and the 100-page docs check/build pass. The host patch includes
+bounded installer transfers, interactive real TTY rendering under CI flags,
+Project checks' canonical root fix, accepted background wakes and safe interrupted
+turn continuation/cancellation. Four native host build/install gates still need
+to pass for this exact prepared revision before tagging/publication. No new tag
+or published host release is established here.
+
+Read-only budget/pricing review leaves the ledger unchanged: $49.693673 recorded
+upper bound, 294 reported requests and one retained unknown 403 reservation.
+Only 128 historical requests have cache counts. The current official Sol rates
+were fetched again; assuming the most expensive tier, 12h writes and regional
+uplift for all old reported requests yields $50.039638 including existing new
+Standard bounds and the pending reservation. Thus a partial cache discount alone
+does not prove affordable new live runs under every historical pricing case.
+No historical charges/reservations were reset, lowered or silently treated as
+Standard, and no paid request was made. A current user billing figure was
+requested while independent release verification continues. Official sources:
+https://developers.openai.com/api/docs/pricing?latest-pricing-expanded=true
+and https://developers.openai.com/api/docs/models/gpt-6.1-sol.
+
 ## Four-platform Project checks and cancellable waiting continuations — 2026-11-12
 
 Project checks 0.1.1 at f102fef completed candidate run 43075940358 successfully:

@@ -2,6 +2,33 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.7.1 - 2026-11-11
+
+### Features
+- Certify plugin candidates from immutable commits ([6f18153](https://github.com/Neko1313/agent-compositor/commit/6f18153b4f0e53245e0eea97054f582290aa7e42))
+
+
+### Fixes
+- Bound stalled downloads and retry time ([924e0dd](https://github.com/Neko1313/agent-compositor/commit/924e0dda106649f4a56bb947f0a8b4c82d597f95))
+- Allow slow release transfers within finite bounds ([d275029](https://github.com/Neko1313/agent-compositor/commit/d27502972947c97f460ef89e1c653f074ca18c86))
+- Prepare plugin browsers without Ubuntu mirror installs ([74438b2](https://github.com/Neko1313/agent-compositor/commit/74438b266b36c82a052eafc3f63870d6373af3f0))
+- Keep real terminals interactive under CI flags ([4a9e142](https://github.com/Neko1313/agent-compositor/commit/4a9e14254eaa19742a8247edfe6bb6321d4c4dd4))
+- Synchronize cancellation and macOS Meta input ([c98b3ce](https://github.com/Neko1313/agent-compositor/commit/c98b3cee4a47f2f61930287c5a8d8d45c23b3ba3))
+- Canonicalize selected project roots ([56f6343](https://github.com/Neko1313/agent-compositor/commit/56f63432d17562562fbfac487b807cd904d87a1f))
+- Retain accepted wakes across interruption and clear timers ([3354393](https://github.com/Neko1313/agent-compositor/commit/335439374ed88a43ba0f03e4a8442ee5da6240b5))
+- Settle interrupted turns before explicit continuation ([0e3dd72](https://github.com/Neko1313/agent-compositor/commit/0e3dd72ad88d341f2b99bb683dbad6990c300fe1))
+- Cancel continuations waiting for terminal settlement ([c582d8e](https://github.com/Neko1313/agent-compositor/commit/c582d8ecb8d1a3141bd62472ad4c5c64adfa27c7))
+
+
+### Other changes
+- Merge pull request #3 from Neko1313/automation/plugin-releases
+
+chore(release): prepare plugin versions ([f102fef](https://github.com/Neko1313/agent-compositor/commit/f102fef0ff7ed57a981486fee5558855ed918a8a))
+
+
+### Tests
+- Synchronize independent build deadline checks ([344cc92](https://github.com/Neko1313/agent-compositor/commit/344cc9295f996e04667e2bd585b98c8a94cf35a6))
+
 ## v0.7.0 - 2026-11-11
 
 ### Documentation

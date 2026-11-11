@@ -78,7 +78,12 @@ try{
    let pid=0;for(let i=0;i<200&&!pid;i++){pid=Number(await readFile(join(fixture.cwd,'check-worker.pid'),'utf8').catch(()=>''));if(!pid)await new Promise(done=>setTimeout(done,10));}
    assert.ok(pid>0,'A real npm child must start');return pid;
   }
-  const pid=await slow();await shot('01-check-running');await clickText('Cancel run');await wait('cancelled');assert.throws(()=>process.kill(pid,0));
+  const pid=await slow();await shot('01-check-running');await clickText('Cancel run');await wait('cancelled');
+  // The tool journal settles before the plugin publishes its final panel. Wait
+  // for that panel before measuring coordinates for another script action.
+  await wait('Project check cancelled or hook expired.');
+  await page.waitForFunction(()=>!visual.text().includes('Cancel run')&&!visual.text().includes('Cancelling run'));
+  assert.throws(()=>process.kill(pid,0));
   assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'Check cancellation leaves the main model running');
   const closedPid=await slow();await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh scripts'));
   for(let i=0;i<200;i++){try{process.kill(closedPid,0);}catch{break;}await new Promise(done=>setTimeout(done,10));}

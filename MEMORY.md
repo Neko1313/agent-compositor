@@ -1,5 +1,45 @@
 # Project memory
 
+## Native candidate evidence and terminal bench synchronization — 2026-11-12
+
+The 4a9e142 renderer repair passed exact main CI 43064242098 on Node 22/26
+and documentation 43064242086. Project checks run 43064286391 now renders the
+real UI and passes script success/failure/configuration, then fails after cancel.
+The tool journal publishes its cancellation before the plugin publishes its final
+panel, so measuring the next button early used a row that moved during settlement.
+The scenario now additionally waits for the final cancellation panel and removal
+of Cancel/Cancelling controls before measuring the next action. Original PID,
+main-agent, cleanup and repeat-run assertions stay intact; no timeout was raised.
+The affected real CI=1 PTY flow passes locally (ci-cancel-settlement-after).
+
+Git review run 43064293930 passed its full source certificate and exact native
+Linux x64/arm64 archive certificates at 4a9e142. Downloaded evidence was audited
+with certificateSchema, assess and validateEvidence; archive/sidecar/certificate
+hashes and embedded release identities match the immutable workspace. The source
+has 13 case bindings and each artifact four; these counts are not model tasks.
+Receipt: dist/plugin-candidate-20261112/git-review-partial-integrity.json. Native
+x64 running and arm64 narrow screenshots were inspected. These are two Linux
+platforms, not a four-platform release; no plugin was published.
+
+The macOS Intel archive built and passed smoke/domain cases but failed its terminal
+case after closing a panel. Input logs contain the command characters but no
+Alt+i sequence: xterm's default macOptionIsMeta=false treats Option as native text
+input. The bench now explicitly enables macOptionIsMeta. An independent diagnostic
+using actual Chromium, the real app/PTY and simulated MacIntel navigator state
+reproduced missing Meta/focus before, then observed ESC+i and the preserved draft
+with the added character after the fix. Receipts are mac-meta-{before,after}.
+This simulation is not native macOS certification. The first diagnostic snapshot
+read before the PTY repaint; the retained probe now waits for actual draft output,
+and no product code changed for that observation correction. Native Mac ARM was
+still queued at the last audit; the old run is superseded by these specific bench
+repairs, not by an observation timeout.
+
+Canonical controls explain native Option-as-Meta setup, and bench docs record
+keyboard mapping and waiting for panel settlement. Product/runtime source stays
+at 4a9e142; these follow-up edits affect bench input/synchronization and docs.
+Documentation check/build passes. New exact-source native certification remains
+required. The original failed evidence is retained, and broader 1.0 gates stay open.
+
 ## Live TTY repaint with inherited CI flags — 2026-11-12
 
 The browser preparation repair 74438b2 passed exact main CI 43062715844 and docs

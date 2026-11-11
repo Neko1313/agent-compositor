@@ -24,6 +24,13 @@ flags. The fixture preserves them: interactive output must appear before exit,
 just as it does outside CI. Renderer regressions separately check that piped
 output remains static.
 
+The browser terminal sets `macOptionIsMeta: true`, so Option/Alt shortcuts emit
+the same escape-prefixed terminal input on Linux and macOS. This setting belongs
+to the browser bench; native macOS terminals need their own Option-as-Meta setting.
+After cancelling a guarded UI operation, wait for its final panel state before
+measuring coordinates for the next action. The tool journal can report a result
+before the plugin finishes publishing that panel.
+
 For manual inspection:
 
 ```sh

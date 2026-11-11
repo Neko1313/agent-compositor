@@ -148,6 +148,8 @@ session; creating a view does not spawn another agent. Scroll positions
 belong to individual windows. The application persists supported layout state
 and independent-agent metadata in project-scoped private storage for restart.
 
+On macOS, configure your terminal's Option key as Meta to use the Alt shortcuts.
+
 | Shortcut | Action |
 |---|---|
 | Alt+h/j/k/l or Alt+arrows | Focus in a direction |

@@ -1,3 +1,4 @@
+import {seedCiFixture} from './ci-fixture.mjs';
 import {workspaceReply} from './workspaces-sample.ts';
 import {authorReply} from './author-sample.ts';
 import {uxTool,uxReply} from './ux-sample.ts';
@@ -81,7 +82,7 @@ if(!process.env.VISUAL_MARKETPLACE){
 }
 if(process.env.VISUAL_CERT_PLUGIN){
  const name=process.env.VISUAL_CERT_PLUGIN;
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager',...(process.env.VISUAL_GIT_FIXTURE?['git-review-delay']:[])],compaction:{enabled:false},...(['git-review','project-checks'].includes(name)?{permissions:{rules:[{tool:name==='git-review'?'git_review':'project_check',decision:'allow'}]}}:{})}));
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager',...(process.env.VISUAL_GIT_FIXTURE?['git-review-delay']:[])],compaction:{enabled:false},...(['git-review','project-checks','ci-review'].includes(name)?{permissions:{rules:[{tool:name==='git-review'?'git_review':name==='ci-review'?'ci_review':'project_check',decision:'allow'}]}}:{})}));
  if(name==='project-checks')await writeFile(join(cwd,'package.json'),JSON.stringify({scripts:{
   check:'node -e '+JSON.stringify('console.log("PROJECT_CHECK_OUTPUT")'),
   fail:'node -e '+JSON.stringify('console.error("PROJECT_CHECK_FAILURE");process.exit(7)'),
@@ -96,6 +97,7 @@ if(process.env.VISUAL_CERT_PLUGIN){
   await writeFile(join(dir,'visual-proof.json'),JSON.stringify(data));await writeFile(join(dir,'visual-proof.meta.json'),JSON.stringify(data));
  }
 }
+const ciBin=process.env.VISUAL_CERT_PLUGIN==='ci-review'?await seedCiFixture(cwd):undefined;
 const token = crypto.randomUUID();
 let active;
 let marketplaceRequests=0;
@@ -106,7 +108,7 @@ async function start(ws) {
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
     : ['bun', join(import.meta.dir, 'fixture.ts'), cwd];
   const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), ...command],
-    { cwd: root, env:{...process.env,...((process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off"}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+    { cwd: root, env:{...process.env,...(ciBin?{PATH:ciBin+':'+process.env.PATH}:{}),...((process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off"}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
   active = { ws, proc };
   const sendLines = async () => {
     let pending = '';

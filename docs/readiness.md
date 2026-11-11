@@ -82,8 +82,17 @@ examples were repeatedly mistaken for the actual task and its approval state.
 The source repair passes the exact request separately to every summary segment
 and merge, with context accounting and fail-closed handling if it cannot fit.
 Deterministic regressions and one controlled live summary probe pass. A full
-development rerun under the repaired runtime is still required; the incomplete
-plugin candidates are not integrated or counted as successful initial delivery.
+development rerun from an empty candidate under the repaired runtime is still
+required. A guided completion from the saved CI candidate finished in seven
+model steps, passed the frozen ten-case oracle and strict compilation, and
+preserved all 725 protected files. This is a continuation of existing code, not
+a successful autonomous initial delivery. Independent review then repaired
+stale repository results, mismatched run IDs, incomplete bounded JSON records
+and the UI hook timeout. The integrated `/ci` candidate passes source PR
+certification, lifecycle/update/rollback checks and the actual PTY concurrent
+configuration/run/job/log/cancellation/restart flow. Two actual read-only
+GitHub CLI requests through the saved proxy also pass with zero model requests.
+Four-platform installed-archive certification and publication are still pending.
 This repair is not part of immutable v0.7.1.
 
 Git review revision

@@ -71,6 +71,11 @@ export async function probe(app:BuiltApp,name:string,existingCore?:ReturnType<Bu
   const listed=await core.invokeTool('project_check',{action:'list'});assert.equal(listed.ok,true,listed.error??'Discovery failed');assert.equal((listed.output as any).scripts[0].name,'check');
   const result=await core.invokeTool('project_check',{action:'run',name:'check'});assert.equal(result.ok,true,result.error??'Check failed');assert.match((result.output as any).stdout,/123/);
   await core.submit('/checks');assert.ok(events.some(e=>e.event==='ui.surface'&&e.input.title==='Project checks'));
+ }else if(name==='ci-review'){
+  await app.storage.configure('ci-review.json',{repository:'fixture/repo'});
+  core.host.unregisterPlugin('package-gh');core.host.registerPlugin({name:'package-gh',version:'1.0.0',trust:'trusted'},{'service.exec.run':()=>({value:{exitCode:0,stdout:'[]',stderr:''}})});
+  const runs=await core.invokeTool('ci_review',{action:'runs'});assert.equal(runs.ok,true,runs.error??'CI request failed');assert.deepEqual(JSON.parse((runs.output as any).output),[]);
+  await core.submit('/ci');assert.ok(events.some(e=>e.event==='ui.surface'&&e.input.title==='CI review'));
  }else if(name==='git-review'){
   await exec('git',['init'],{cwd:app.storage.paths.project});
   await writeFile(join(app.storage.paths.project,'git-review-evidence.txt'),'Read-only package lifecycle');

@@ -265,6 +265,7 @@ describe("default market: end-to-end through the assembled app", () => {
       "callix",
       "checkpoint-history",
       "checkpoints",
+      "ci-review",
       "cost",
       "doctor",
       "export",

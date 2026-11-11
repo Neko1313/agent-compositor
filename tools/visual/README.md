@@ -392,3 +392,16 @@ password fields, checks that Backspace removes the complete grapheme, saves the
 form and verifies the isolated stored values without printing the secret. The
 wire text and screenshots must keep the password masked. This tests the shared
 built-in form editor; it does not change the user's proxy configuration.
+
+
+### CI review panel
+
+`node tools/visual/plugin-check.mjs ci-review` opens the real `/ci` panel in an
+isolated PTY. The scenario configures an explicit repository and output limits,
+selects runs/jobs/failed and full logs, cancels the settings form, and checks
+Cancel/Close cleanup of actual SDK-owned processes while the scripted main
+agent remains held. It also verifies a preserved draft after resize and saved
+settings after session restart. `ci-fixture.mjs` installs a local executable
+`gh` fixture only on that PTY child's PATH and records its argv; it never uses
+user GitHub credentials or a live model. Reports retain screenshots, input and
+terminal output. These checks do not establish live GitHub network reliability.

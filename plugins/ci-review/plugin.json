@@ -1,0 +1,13 @@
+{
+  "name": "ci-review",
+  "version": "0.1.0",
+  "description": "Read-only GitHub Actions runs and logs with a concurrent CI review panel",
+  "trust": "trusted",
+  "compositor": { "standard": 1, "apiVersion": 1 },
+  "permissions": ["exec"],
+  "commands": [
+    { "name": "/ci", "description": "Open CI review (no automatic request)", "ui": { "site": "main" } }
+  ],
+  "main": "hooks.ts",
+  "hookTimeouts": { "ui.press": 300000 }
+}

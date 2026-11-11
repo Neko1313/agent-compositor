@@ -5,7 +5,7 @@ import {mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const name=process.argv[2],output=resolve(process.env.VISUAL_OUTPUT??'dist/plugin-visual/'+name);await mkdir(output,{recursive:true});
 const report={plugin:name,ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
-const entries={'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto status','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
+const entries={'ci-review':['/ci','CI review'],'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto status','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
 assert.ok(entries[name],'Unknown UI profile');
 try{
  const{NO_COLOR,...env}=process.env;
@@ -61,6 +61,31 @@ try{
   await command('Continue after review');await wait('GIT_AGENT_DONE');
   report.checks.push('user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup');
 
+ }else if(name==='ci-review'){
+  await wait('Configuration required');await clickText('Configure');await wait('Configure CI review');
+  for(const value of ['fixture/repo','4','4000','5000']){await page.keyboard.press('Control+a');await page.keyboard.type(value);await page.keyboard.press('Tab');}
+  await page.keyboard.press('ArrowRight');await wait('User / all projects');await shot('01-ci-settings');await clickText('[ Save ]');await wait('Settings saved');
+  await clickText('Refresh runs');await wait('CI_FIXTURE_FAILED');await wait('CI_FIXTURE_PASSED');await shot('01-ci-runs');
+  await clickText('Run 701:');await wait('Unit tests · failure');await shot('01-ci-jobs');
+  await clickText('Failed logs');await wait('CI_FAILED_LOG_EVIDENCE');await clickText('Full logs');await wait('CI_FULL_LOG_EVIDENCE');await shot('01-ci-logs');
+  await clickText('Configure');await wait('Configure CI review');await wait('fixture/repo');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure CI review'));
+  const fixture=JSON.parse(await readFile(join(output,'fixture-identity.json'),'utf8'));
+  await command('Work while I review CI');await wait('CI_AGENT_WORKING');await command('/ci');await wait('Refresh runs');
+  await clickText('Refresh runs');
+  for(let i=0;i<200;i++){const calls=await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8').catch(()=>'');if(calls.trim().split('\n').length===5)break;await new Promise(done=>setTimeout(done,10));}
+  await page.waitForFunction(()=>!visual.text().includes('Cancel'));await wait('CI_FIXTURE_FAILED');
+  const working=async()=>assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'The main model must remain active');await working();
+  async function slow(){
+   await rm(join(fixture.cwd,'ci-worker.pid'),{force:true});await writeFile(join(fixture.cwd,'.ci-slow'),'controlled dependency');await clickText('Refresh runs');await wait('Cancel');
+   let pid=0;for(let i=0;i<200&&!pid;i++){pid=Number(await readFile(join(fixture.cwd,'ci-worker.pid'),'utf8').catch(()=>''));if(!pid)await new Promise(done=>setTimeout(done,10));}
+   assert.ok(pid>0,'A real gh fixture subprocess must start');return pid;
+  }
+  const pid=await slow();await shot('01-ci-running');await clickText('Cancel');await wait('CI review cancelled.');assert.throws(()=>process.kill(pid,0));await working();await shot('01-ci-cancelled');
+  const closed=await slow();await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh runs'));
+  for(let i=0;i<200;i++){try{process.kill(closed,0);}catch{break;}await new Promise(done=>setTimeout(done,10));}assert.throws(()=>process.kill(closed,0));await working();await rm(join(fixture.cwd,'.ci-slow'));
+  const calls=(await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));assert.equal(calls.length,7);assert.ok(calls.every(args=>args.at(-2)==='--repo'&&args.at(-1)==='fixture/repo'));
+  await command('/ci');await wait('Refresh runs');await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');await command('Continue after CI review');await wait('CI_AGENT_DONE');
+  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup','user-tool.close-cleanup','ci.explicit-requests','ci.fixed-repository');
  }else if(name==='project-checks'){
   await clickText('Refresh scripts');await wait('Run check');
   await clickText('Run check');await wait('passed (exit 0)');await wait('PROJECT_CHECK_OUTPUT');await shot('01-check-pass');
@@ -115,7 +140,7 @@ try{
  report.checks.push('ui.cancel');
  if(name==='network-proxy'){await command('/proxy configure');await wait('Configure network proxy');}
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(g=>visual.generation>g,generation);await wait('›');await command(entries[name][0]);await wait(entries[name][1]);
- if(name==='project-checks'){await wait('Refresh scripts');await clickText('Configure limits');await wait('Configure project checks');await wait('2000');await page.keyboard.press('Escape');}if(name==='git-review'){await wait('Choose an action');await clickText('Configure output');await wait('Configure Git review');await wait('8000');await page.keyboard.press('Escape');}if(name==='auto-approve')await wait('Mode: manual');if(name==='todos')await wait('Inspect project');if(name==='cost')await wait('42 input');if(name==='network-proxy')await wait('127.0.0.1:7890');
+ if(name==='ci-review'){await wait('fixture/repo');await clickText('Configure');await wait('Configure CI review');await wait('5000');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure CI review'));}if(name==='project-checks'){await wait('Refresh scripts');await clickText('Configure limits');await wait('Configure project checks');await wait('2000');await page.keyboard.press('Escape');}if(name==='git-review'){await wait('Choose an action');await clickText('Configure output');await wait('Configure Git review');await wait('8000');await page.keyboard.press('Escape');}if(name==='auto-approve')await wait('Mode: manual');if(name==='todos')await wait('Inspect project');if(name==='cost')await wait('42 input');if(name==='network-proxy')await wait('127.0.0.1:7890');
  await shot('04-restarted');report.checks.push('ui.restart');assert.equal(report.errors.length,0);report.ok=true;
 }catch(error){report.errors.push(String(error));await page?.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
 finally{await browser?.close();if(server&&server.exitCode===null){const end=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await end;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

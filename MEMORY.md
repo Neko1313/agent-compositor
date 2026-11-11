@@ -1,5 +1,54 @@
 # Project memory
 
+## Guided CI completion and independent integration review — 2026-11-12
+
+The saved V2 candidate was completed through patched Compositor in an isolated
+workspace with only README, changelog and draft test metadata writable. Seven
+Sol requests/steps completed in about 52 seconds; the frozen ten-case oracle and
+strict typecheck passed, all 725 protected files remained unchanged, and the
+final response was delivered. Candidate commit e149c2b exists only in its temp
+checkout. Evidence: dist/selfhost-ci-review-finish-20261112/. This is guided
+completion of existing model-authored code, not autonomous initial delivery.
+Reviewed budget is USD49.400852, raw recorded bound USD53.502732, 402 reported
+requests/two pending; the original USD50 limit and reservations are unchanged.
+No further paid requests were made during integration review.
+
+Integrated ci-review tools/settings/panel and added independent regressions:
+reject mismatched run IDs and repository strings above 256 characters; retain
+whole selectable records in bounded list JSON; keep normal network operations
+alive beyond the default UI hook budget; clear stale actions and discard old
+responses after repository changes; display readable job statuses. Tool help
+now supplies plugin-owned schema-shaped usage examples. UI hook timeout is the
+host five-minute user-operation budget; execution remains bounded to 100–30000ms.
+
+The new lifecycle test covers inactive install, enable, repeated reload, restart,
+synthetic update/rollback, disable/re-enable/remove and preserved settings. The
+certification behavior suite includes fixed argv, policy denial, controlled
+CLI network errors, actual subprocess timeout/cancel/unload cleanup, scoped
+storage/migration/isolation and form write failure/recovery. PR certification
+passed, including package/composite lifecycle. No native archive certificate
+or independent release is claimed yet; the plan declares all four targets.
+
+Real Ink PTY scenario dist/ci-review-ui-final/report.json passes keyboard/mouse
+configuration/save/cancel, run/job/failed/full logs, held main-agent concurrency,
+Cancel/Close PID cleanup, narrow draft and saved settings after restart. Its gh
+executable is isolated fixture data, not user authentication. Runs/jobs/cancel/
+narrow/restart screenshots were inspected. The first diagnostic capture failed
+because the scenario searched for nonexistent bracketed button labels and
+reused stale list text; corrected terminal synchronization passed. Separately,
+dist/ci-review-live/report.json proves actual gh list+summary requests to the
+project through the saved proxy: workflow documentation, run43090986974, two
+jobs, zero model requests and no mutations. Temporary private proxy copies were
+0600 and removed with the isolated project. OpenAI model/tool proxy reachability
+was also rechecked without API credentials (both returned expected HTTP401).
+
+All 1101 maintained tests passed with three optional skips, typecheck and
+marketplace validation passed; docs check/build passed for 102 canonical pages.
+Final source/docs verification and immutable native artifact certification remain
+next. Existing v0.7.1 does not include these changes or the compaction repair.
+Broader model-family, initial self-development and multi-hour/trust gates remain
+open. Do not treat this plugin as completion of the 1.0 objective.
+
 ## Self-hosted CI authoring exposed lost task context in summaries — 2026-11-12
 
 5294732's historical-cache review passed exact remote Node 22/26 CI 43083769290,

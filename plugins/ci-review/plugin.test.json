@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 2,
+  "plugin": "ci-review",
+  "tests": [
+    {
+      "layer": "integration",
+      "files": [
+        "packages/app/test/ci-review-oracle.test.ts",
+        "packages/app/test/ci-review-review.test.ts",
+        "packages/app/test/ci-review-lifecycle.test.ts"
+      ]
+    }
+  ],
+  "profiles": {
+    "components": [
+      "hook",
+      "command",
+      "tool",
+      "view",
+      "interactive-ui"
+    ],
+    "traits": [
+      "subprocess",
+      "persistence",
+      "mutation",
+      "network"
+    ]
+  },
+  "platforms": [
+    "linux-x64",
+    "linux-arm64",
+    "darwin-x64",
+    "darwin-arm64"
+  ],
+  "previousVersion": null,
+  "cases": [
+    {
+      "id": "package-lifecycle",
+      "kind": "deterministic",
+      "requirements": [
+        "package.activate",
+        "package.reload",
+        "package.restart",
+        "package.disable",
+        "package.reenable",
+        "package.remove"
+      ],
+      "setup": "Exercise the exact CI review package in isolated projects and homes. GitHub CLI responses are controlled; process cases use real SDK-owned subprocesses. No live GitHub or model service is called.",
+      "expect": [
+        "Every bound requirement has executed behavioral assertions and retained observations."
+      ],
+      "forbidden": [
+        "Remote mutations, arbitrary argv or repository overrides, hidden failures, surviving subprocesses, stale repository responses, automatic startup requests or fallback to another package source."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/package-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "ci-domain",
+      "kind": "deterministic",
+      "requirements": [
+        "tool.success",
+        "process.success",
+        "tool.invalid",
+        "tool.denied",
+        "hook.intended",
+        "command.intended",
+        "view.content",
+        "hook.repeat",
+        "command.repeat",
+        "hook.unrelated",
+        "command.unrelated",
+        "hook.failure",
+        "command.failure",
+        "view.empty",
+        "view.error",
+        "view.lifecycle",
+        "tool.failure",
+        "process.failure",
+        "process.timeout",
+        "tool.cancel",
+        "process.cancel",
+        "process.cleanup",
+        "state.fresh",
+        "state.invalid",
+        "state.restart",
+        "state.migration",
+        "state.isolation",
+        "mutation.result",
+        "mutation.invalid",
+        "mutation.denied",
+        "mutation.recovery",
+        "network.success",
+        "network.status",
+        "network.malformed",
+        "network.unavailable",
+        "network.timeout",
+        "network.cancel"
+      ],
+      "setup": "Exercise the exact CI review package in isolated projects and homes. GitHub CLI responses are controlled; process cases use real SDK-owned subprocesses. No live GitHub or model service is called.",
+      "expect": [
+        "Every bound requirement has executed behavioral assertions and retained observations."
+      ],
+      "forbidden": [
+        "Remote mutations, arbitrary argv or repository overrides, hidden failures, surviving subprocesses, stale repository responses, automatic startup requests or fallback to another package source."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "composite",
+      "kind": "deterministic",
+      "requirements": [
+        "composite.lifecycle"
+      ],
+      "setup": "Exercise the exact CI review package in isolated projects and homes. GitHub CLI responses are controlled; process cases use real SDK-owned subprocesses. No live GitHub or model service is called.",
+      "expect": [
+        "Every bound requirement has executed behavioral assertions and retained observations."
+      ],
+      "forbidden": [
+        "Remote mutations, arbitrary argv or repository overrides, hidden failures, surviving subprocesses, stale repository responses, automatic startup requests or fallback to another package source."
+      ],
+      "timeoutMs": 300000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": [
+          "--composite"
+        ]
+      }
+    },
+    {
+      "id": "package-lifecycle-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "package.activate",
+        "package.reload",
+        "package.restart",
+        "package.disable",
+        "package.reenable",
+        "package.remove",
+        "artifact.install",
+        "artifact.behavior",
+        "artifact.lifecycle"
+      ],
+      "setup": "Exercise the exact CI review package in isolated projects and homes. GitHub CLI responses are controlled; process cases use real SDK-owned subprocesses. No live GitHub or model service is called.",
+      "expect": [
+        "Every bound requirement has executed behavioral assertions and retained observations."
+      ],
+      "forbidden": [
+        "Remote mutations, arbitrary argv or repository overrides, hidden failures, surviving subprocesses, stale repository responses, automatic startup requests or fallback to another package source."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/package-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "ci-domain-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "tool.success",
+        "process.success",
+        "tool.invalid",
+        "tool.denied",
+        "hook.intended",
+        "command.intended",
+        "view.content",
+        "hook.repeat",
+        "command.repeat",
+        "hook.unrelated",
+        "command.unrelated",
+        "hook.failure",
+        "command.failure",
+        "view.empty",
+        "view.error",
+        "view.lifecycle",
+        "tool.failure",
+        "process.failure",
+        "process.timeout",
+        "tool.cancel",
+        "process.cancel",
+        "process.cleanup",
+        "state.fresh",
+        "state.invalid",
+        "state.restart",
+        "state.migration",
+        "state.isolation",
+        "mutation.result",
+        "mutation.invalid",
+        "mutation.denied",
+        "mutation.recovery",
+        "network.success",
+        "network.status",
+        "network.malformed",
+        "network.unavailable",
+        "network.timeout",
+        "network.cancel"
+      ],
+      "setup": "Exercise the exact CI review package in isolated projects and homes. GitHub CLI responses are controlled; process cases use real SDK-owned subprocesses. No live GitHub or model service is called.",
+      "expect": [
+        "Every bound requirement has executed behavioral assertions and retained observations."
+      ],
+      "forbidden": [
+        "Remote mutations, arbitrary argv or repository overrides, hidden failures, surviving subprocesses, stale repository responses, automatic startup requests or fallback to another package source."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "composite-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "composite.lifecycle"
+      ],
+      "setup": "Exercise the exact CI review package in isolated projects and homes. GitHub CLI responses are controlled; process cases use real SDK-owned subprocesses. No live GitHub or model service is called.",
+      "expect": [
+        "Every bound requirement has executed behavioral assertions and retained observations."
+      ],
+      "forbidden": [
+        "Remote mutations, arbitrary argv or repository overrides, hidden failures, surviving subprocesses, stale repository responses, automatic startup requests or fallback to another package source."
+      ],
+      "timeoutMs": 300000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": [
+          "--composite"
+        ]
+      }
+    },
+    {
+      "id": "terminal-flow",
+      "kind": "visual",
+      "requirements": [
+        "view.narrow",
+        "ui.keyboard",
+        "ui.pointer",
+        "ui.focus",
+        "ui.submit",
+        "ui.cancel",
+        "ui.restart"
+      ],
+      "setup": "Exercise the exact CI review package in isolated projects and homes. GitHub CLI responses are controlled; process cases use real SDK-owned subprocesses. No live GitHub or model service is called.",
+      "expect": [
+        "Every bound requirement has executed behavioral assertions and retained observations."
+      ],
+      "forbidden": [
+        "Remote mutations, arbitrary argv or repository overrides, hidden failures, surviving subprocesses, stale repository responses, automatic startup requests or fallback to another package source."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/visual-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "terminal-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "view.narrow",
+        "ui.keyboard",
+        "ui.pointer",
+        "ui.focus",
+        "ui.submit",
+        "ui.cancel",
+        "ui.restart"
+      ],
+      "setup": "Exercise the exact CI review package in isolated projects and homes. GitHub CLI responses are controlled; process cases use real SDK-owned subprocesses. No live GitHub or model service is called.",
+      "expect": [
+        "Every bound requirement has executed behavioral assertions and retained observations."
+      ],
+      "forbidden": [
+        "Remote mutations, arbitrary argv or repository overrides, hidden failures, surviving subprocesses, stale repository responses, automatic startup requests or fallback to another package source."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/visual-scenario.ts",
+        "args": []
+      }
+    }
+  ]
+}

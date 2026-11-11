@@ -319,7 +319,9 @@ plugins. It browses the offline default catalog, installs packages inactive,
 explicitly enables Todos in project scope, verifies restart persistence and
 disables it. Real terminal mouse/keyboard actions then install and enable a
 package through forms selecting user scope. `VISUAL_EXECUTABLE` selects an
-extracted compiled distribution. All projects/homes are isolated. Existing
+extracted compiled distribution. Its held model, question and continuation use
+an abort-aware token-scoped loopback SSE endpoint, so compiled runs do not select
+an external model. All projects/homes are isolated. Existing
 positive scenarios now explicitly select their fixture plugins; discovery alone
 never activates production code.
 

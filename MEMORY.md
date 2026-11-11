@@ -1,5 +1,31 @@
 # Project memory
 
+## Native candidate audited; screenshot paint synchronization — 2026-11-12
+
+Merged generated metadata PR6 at4e967ff after independently reproducing its nine
+files and exact-head CI/docs checks. CI-review0.1.1, MCP1.3.1 and plugin-author1.3.1
+are prepared; plugin:prepare reports no pending metadata. Candidate43119892974
+completed successfully on source and all four native platforms. Independently
+validated five content-bound certificates,136 evidence references, four archive
+hashes/sidecars/embedded identities and platform-specific published0.1.0
+upgrade/rollback bindings. Receipt dist/ci-review-native-4e967ff/integrity.json.
+Each native transition passed five phases, preserving config/draft and restoring
+the exact old digest without a rollback download. No CI0.1.1 tag/publication yet.
+
+Visual inspection caught a stale macARM pending screenshot despite passing
+terminal-cell assertions: xterm parsing can precede browser paint. A fresh local
+unmodified scenario showed the busy row, so this is capture synchronization,
+not evidence that the plugin omitted it. Screenshot helper now requests a native
+xterm render, waits for that event and two browser animation frames, saves
+companion text and checks pending/cancelled states on both sides of capture.
+The actual PTY CI scenario passes16checks; running/cancelled PNGs independently
+inspected. The full four-platform candidate must be recertified at the resulting
+commit before tagging; do not treat the older4e screenshots as pending UI proof.
+No plugin runtime/version change or new paid model call in this correction.
+OpenAI budget and broader1.0 gates remain unchanged/open. Saved proxy was already
+enabled for model/tools; verified OpenAI unauthenticated401, GitHub200 and gh
+through explicit child proxy environment, with no secrets printed/paid calls.
+
 ## Real previous-release transitions are mandatory per native archive — 2026-11-12
 
 d998964 pushed the Compositor-authored busy row and its frozen progress tests.

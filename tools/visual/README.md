@@ -410,4 +410,8 @@ user GitHub credentials or a live model. Refresh responses include a request
 sequence marker: the scenario waits for the specific response to render before
 starting cancellation checks, rather than accepting a previous result or a
 subprocess-start record as completion. Reports retain screenshots, input and
-terminal output. These checks do not establish live GitHub network reliability.
+terminal output. Screenshot capture waits for an xterm render event and browser
+paint frames, and retains a companion text snapshot. Pending/cancelled captures
+also assert their expected terminal state before and after the screenshot so a
+previous painted frame cannot silently stand in for the requested state.
+These checks do not establish live GitHub network reliability.

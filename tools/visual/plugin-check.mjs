@@ -18,7 +18,21 @@ try{
  async function clickCell(col,row){const point=await page.evaluate(({col,row})=>{const rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};},{col,row});await page.mouse.click(point.x,point.y);}
  async function clickText(value){await wait(value);const point=await page.evaluate(t=>{const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(t));return{row,col:lines[row].indexOf(t)+1};},value);await clickCell(point.col,point.row);}
  async function command(value){await page.keyboard.press('Alt+i');await page.keyboard.type(value);await wait('› '+value);await page.keyboard.press('Enter');await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));}
- async function shot(label){const path=label+'.png';await page.screenshot({path:join(output,path)});report.screenshots.push(path);}
+ async function shot(label,{includes=[],excludes=[]}={}){
+  // Parsed terminal cells can precede xterm's painted DOM by a frame.
+  await page.evaluate(()=>new Promise((done,fail)=>{
+   const timer=setTimeout(()=>{subscription.dispose();fail(Error('Terminal paint timeout'));},5000);
+   const subscription=visual.terminal.onRender(()=>{
+    subscription.dispose();clearTimeout(timer);
+    requestAnimationFrame(()=>requestAnimationFrame(done));
+   });
+   visual.terminal.refresh(0,visual.terminal.rows-1);
+  }));
+  const check=screen=>{for(const value of includes)assert.ok(screen.includes(value),`${label}: missing ${value}`);for(const value of excludes)assert.ok(!screen.includes(value),`${label}: unexpected ${value}`);};
+  const before=await text();check(before);
+  const path=label+'.png';await page.screenshot({path:join(output,path)});check(await text());
+  await writeFile(join(output,label+'.txt'),before);report.screenshots.push(path);
+ }
  async function panePosition(title,close=false){
   await page.waitForFunction(({title,close})=>visual.text().split('\n').some(line=>line.split(/[\u2500-\u257f]/).some(part=>part.replace(/\[[Fx]\]/g,'').trim()===title&&(!close||part.includes('[x]')))),{title,close});
   return page.evaluate(({title,close})=>{const lines=visual.text().split('\n');for(let row=0;row<lines.length;row++)for(const part of lines[row].split(/[\u2500-\u257f]/))if(part.replace(/\[[Fx]\]/g,'').trim()===title&&(!close||part.includes('[x]')))return{row,col:lines[row].indexOf(part)+part.indexOf(close?'[x]':title)+1};throw Error('Pane disappeared: '+title);},{title,close});
@@ -85,7 +99,7 @@ try{
    let pid=0;for(let i=0;i<200&&!pid;i++){pid=Number(await readFile(join(fixture.cwd,'ci-worker.pid'),'utf8').catch(()=>''));if(!pid)await new Promise(done=>setTimeout(done,10));}
    assert.ok(pid>0,'A real gh fixture subprocess must start');return pid;
   }
-  const pid=await slow();await shot('01-ci-running');await clickText('Cancel');await wait('CI review cancelled.');assert.throws(()=>process.kill(pid,0));await working();assert.ok(!(await text()).includes('CI operation in progress'),'Settled cancellation must remove the busy status');await shot('01-ci-cancelled');
+  const pid=await slow();await shot('01-ci-running',{includes:['CI operation in progress','Cancel','CI_AGENT_WORKING','CI_FIXTURE_FAILED #5']});await clickText('Cancel');await wait('CI review cancelled.');assert.throws(()=>process.kill(pid,0));await working();assert.ok(!(await text()).includes('CI operation in progress'),'Settled cancellation must remove the busy status');await shot('01-ci-cancelled',{includes:['CI review cancelled.','CI_AGENT_WORKING'],excludes:['CI operation in progress']});
   const closed=await slow();await clickText('Close');await page.waitForFunction(()=>!visual.text().includes('Refresh runs'));
   for(let i=0;i<200;i++){try{process.kill(closed,0);}catch{break;}await new Promise(done=>setTimeout(done,10));}assert.throws(()=>process.kill(closed,0));await working();await rm(join(fixture.cwd,'.ci-slow'));
   const calls=(await readFile(join(fixture.cwd,'ci-calls.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));assert.equal(calls.length,7);assert.ok(calls.every(args=>args.at(-2)==='--repo'&&args.at(-1)==='fixture/repo'));assert.equal(calls[4][calls[4].indexOf('--limit')+1],'3','The next request must use the concurrently saved limit');

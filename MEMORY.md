@@ -1,5 +1,30 @@
 # Project memory
 
+## CI search prerequisite independent of Ubuntu mirrors — 2026-11-12
+
+Repeated authoritative logs from 43040650857 and 43042550884 show DNS failures
+for azure.archive.ubuntu.com, archive.ubuntu.com and security.ubuntu.com before
+any tests, including on the pinned Ubuntu 24.04 runner. The pin aligned the
+supported baseline but did not fix network availability.
+
+Linux x64 validation jobs in ci.yml, release.yml and plugin-release.yml now use
+node tools/release/ci-ripgrep.mjs. It downloads official ripgrep 15.1.0 through
+curl, verifies the pinned upstream archive SHA-256, extracts only known binary
+and MIT-license entries into memory, checks the actual version and atomically
+installs into an isolated RUNNER_TEMP directory added to GITHUB_PATH. There is
+no sudo, apt mirror dependency or fallback to unverified bytes. Failure still
+stops the validation job. Existing platform-specific archive prerequisites are
+unchanged. Canonical release docs explain this operational dependency.
+
+The real official archive checksum matched its published .sha256 file. Both
+an offline verified-archive install and an actual CLI download/install passed;
+/tmp/compositor-ci-ripgrep-cli/compositor-ci-tools/15.1.0/bin/rg reports 15.1.0.
+An altered-archive regression verifies rejection before extraction and preserves
+an existing installation. All three workflow files parse with the new command.
+1001 tests pass with three optional skips (including pending Unicode UI work),
+and the 100-page docs check/build passes. Remote CI must still be observed for
+the pushed revision; local installation success does not prove a green workflow.
+
 ## User-requested proxy connection — 2026-11-12
 
 The user explicitly requested connecting the proxy after the region refusal.

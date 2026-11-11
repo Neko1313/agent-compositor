@@ -1,5 +1,75 @@
 # Project memory
 
+## Self-hosted CI authoring exposed lost task context in summaries — 2026-11-12
+
+5294732's historical-cache review passed exact remote Node 22/26 CI 43083769290,
+docs 43083769073 and plugin preparation 43083769390. The real ledger kept every
+original charge, the pending unknown attempt and USD50 authorization intact.
+
+Prepared frozen CI-plugin authoring oracles outside the model workspace and an
+isolated source checkout, preserving a user README draft and all host files.
+The first 10-test oracle failed before any candidate and baseline host typecheck
+passed. Live Sol authored tools/hooks/settings and passed eight cases, but two
+tests replaced the entire settings object with limits only, accidentally deleting
+mandatory repository. The candidate correctly rejected this contradiction.
+The operator stopped owned runner 11313/PID3054847; exit130, no workers remained,
+all 718 protected files survived and the interrupted request stayed reserved.
+This was our evaluation-fixture defect, not a scored model failure. A separate
+permission rule also wrongly let a broad deny override read-only script listing.
+Evidence and original frozen bytes: dist/selfhost-ci-review-20261112/; its archived
+oracle is named ci-review-oracle.fixture.ts, with unchanged hash 5839e702….
+
+V2 preserves repository in those two test settings, limits the execution deny
+to readOnly:false, and explicitly compiles every new plugin TS module. Before
+execution: 10 absent-candidate failures, strict compiler success and a real-app
+permission preflight proved listing allowed/unrelated execution denied with zero
+model/subprocess calls. A separate validation workspace containing the previous
+candidate passed all 10 corrected tests and strict compilation; no candidate was
+seeded into the new authoring workspace. Oracle cdbf73d4… and all conditions were
+frozen before a fresh live Sol session. Real gh list/run JSON shapes also match
+the requested command fields. Evidence: dist/selfhost-ci-review-v2-20261112/.
+
+V2 authored functional tools/shared code/panel; frozen behavior and strict type
+checks passed during the run. It then repeatedly reread guidance and unfinished
+docs through 14 completed compactions/74 reported requests without completing
+the requested documentation/draft plan/final response. The first auxiliary
+summary already claimed the original task was absent; later summaries treated
+the explicit read-only GitHub task and /ci as unconfirmed assistant proposals,
+promoting generic approval-scaffold examples into current scope. The original
+user request remained verbatim in the main transcript but was deliberately
+excluded from folded messages, so every auxiliary segment/merge lacked it.
+
+Stopped the owned V2 runner at a confirmed settled-request boundary (SIGSTOP
+inspection verified two pre-existing reservations and no held budget lock,
+then SIGINT/CONT). Exit130; no workers remained, all 720 protected files survived,
+and no new unknown reservation was introduced. Neither episode is a completed
+autonomous initial delivery. Their candidate code remains outside the repository;
+V2 README/changelog are still starter text and plugin.test.json is absent.
+
+The repair adds optional Summarizer ctx.userRequest and supplies the latest
+user text independently of folded history. The default model summarizer includes
+that verbatim reference in every segment and merge, distinguishes requests from
+examples/assistant proposals, and budgets reference/framing/output together.
+An oversized reference fails before any auxiliary call and preserves history.
+Existing custom callbacks can ignore the additive field. Three regressions failed
+before the repair and pass afterward; all 1081 maintained tests pass with three
+optional skips, typecheck and docs check/build pass. Both generators ran without
+drift. Internal oracle archives were renamed from *.test.ts to *.fixture.ts after
+Vitest discovered them under ignored dist; frozen bytes/assertions were unchanged,
+and the full suite then passed. No product test discovery exclusions were added.
+
+One controlled live Sol summary probe with a conflicting approval starter now
+retains the explicit ci_review runs/run/logs and /ci task, without inventing a
+missing authorization requirement. It used one 2048-output request and is not an
+exact old-input replay or a completed development rerun. Evidence:
+dist/selfhost-ci-review-v2-20261112/summarizer-probe.json. Reviewed admission bound
+is now $49.303714, raw recorded bound $53.405594, 395 reported/two pending attempts,
+still under the original USD50 reviewed ceiling. No pending charge was released.
+Broader development/long-session/model/trust gates remain open; this source fix
+is not in published immutable v0.7.1. A guided completion from the saved candidate
+and independent tool/UI/lifecycle review are next; do not count that as a fresh
+initial-delivery benchmark or integrate unfinished metadata as a ready plugin.
+
 ## Explicit historical cache review within the original budget — 2026-11-12
 
 The budget guard now supports a trusted operator's one-time historical cache

@@ -133,6 +133,18 @@ tool batch; compaction never re-executes its effects. Embedders using
 `compactTranscript` can opt into this selection with `maxTailTokens` and
 `preserveLastUser`; omitting them retains its original tail-selection behavior.
 Failed, empty or non-shrinking summaries leave the original messages intact.
+Summarizer callbacks also receive optional `ctx.userRequest`, the latest user
+message's text supplied separately from the messages being folded. Existing
+callbacks can ignore it. The default model summarizer includes that exact text
+as a labeled reference in every segment and merge request, including when the
+user message is pinned outside the folded history. It distinguishes the request
+from examples, scaffolds and earlier assistant proposals instead of inferring
+that the task or its authorization is missing from a partial segment. This is
+context for summarization, not a new tool-execution instruction.
+The reference and framing count toward the auxiliary context bound. If they
+leave too little space for a bounded summary, no auxiliary call starts and the
+original transcript is retained with a visible compaction failure. Attachments
+remain on the retained user message; the auxiliary reference contains its text.
 
 ### Concurrent user tool operations
 

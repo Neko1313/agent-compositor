@@ -22,7 +22,7 @@ export interface CompactionResult {
   tokensAfter: number;
 }
 
-export type Summarizer = (messages: MessageLike[], ctx: { signal: AbortSignal }) => Promise<string>;
+export type Summarizer = (messages: MessageLike[], ctx: { signal: AbortSignal; userRequest?: string }) => Promise<string>;
 
 export interface CompactionOptions {
   /** always keep the system prompt plus this many trailing messages verbatim */
@@ -63,8 +63,8 @@ export async function compactTranscript(
     }
   }
   let lastUser=-1;
-  if(opts.preserveLastUser)for(let index=messages.length-1;index>=0;index--)if(messages[index].role==='user'){lastUser=index;break;}
-  const pin=lastUser>=headCount&&lastUser<tailStart?lastUser:-1;
+  for(let index=messages.length-1;index>=0;index--)if(messages[index].role==='user'){lastUser=index;break;}
+  const pin=opts.preserveLastUser&&lastUser>=headCount&&lastUser<tailStart?lastUser:-1;
 
   // nothing worth compacting: head + tail already covers everything
   if (tailStart - headCount - (pin>=0?1:0) < 2) {
@@ -83,7 +83,7 @@ export async function compactTranscript(
 
   let summary: string;
   try {
-    summary = await summarize(middle, { signal });
+    summary = await summarize(middle, { signal, ...(lastUser>=0?{userRequest:messages[lastUser].content}:{}) });
     signal.throwIfAborted();
     if (!summary?.trim()) throw Error("Empty summary");
   } catch (error) {

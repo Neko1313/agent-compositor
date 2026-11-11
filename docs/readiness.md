@@ -44,7 +44,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks 0.1.1 passed the same platform scope at f102fef after fixing macOS project-path aliases. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
-| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.1](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.1), revision 7e8e389, passed Node 22/26 CI, documentation checks, all 29 plugin deterministic contracts and four-platform native build/install smoke before publication. This establishes that release checkpoint; the other gates remain open. |
+| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.1](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.1), revision 7e8e389, passed Node 22/26 CI, documentation checks, all 29 plugin deterministic contracts and four-platform native build/install smoke before publication. Later self-hosting exposed task loss during compaction; its source repair is separate from this published checkpoint. The gate remains open. |
 
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
@@ -74,6 +74,17 @@ See [evaluation commands and limitations](evals.md),
 [execution contracts](core-customization.md) and [release gates](releases.md).
 
 ## Current development focus
+
+Initial CI-plugin authoring through Compositor exposed two evaluation-fixture
+settings mistakes, then a runtime compaction gap. The latest user request was
+retained for the main model but omitted from auxiliary summaries; scaffold
+examples were repeatedly mistaken for the actual task and its approval state.
+The source repair passes the exact request separately to every summary segment
+and merge, with context accounting and fail-closed handling if it cannot fit.
+Deterministic regressions and one controlled live summary probe pass. A full
+development rerun under the repaired runtime is still required; the incomplete
+plugin candidates are not integrated or counted as successful initial delivery.
+This repair is not part of immutable v0.7.1.
 
 Git review revision
 [c98b3ce](https://github.com/Neko1313/agent-compositor/commit/c98b3cee4a47f2f61930287c5a8d8d45c23b3ba3)

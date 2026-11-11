@@ -16,12 +16,12 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "callix": {
-      "version": "1.3.1",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "1.3.2",
+      "commit": "c31c4307e62ff467b84b07507d5eb40e91ce9434"
     },
     "checkpoint-history": {
-      "version": "1.2.1",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "1.2.2",
+      "commit": "c31c4307e62ff467b84b07507d5eb40e91ce9434"
     },
     "checkpoints": {
       "version": "1.1.2",
@@ -118,10 +118,14 @@
     "project-checks": {
       "version": "0.1.1",
       "commit": "335439374ed88a43ba0f03e4a8442ee5da6240b5"
+    },
+    "ci-review": {
+      "version": "0.1.0",
+      "commit": "c31c4307e62ff467b84b07507d5eb40e91ce9434"
     }
   },
   "catalog": {
-    "version": "1.0.4",
-    "digest": "66b7562a5a483739d60a2c8821f65d1f57de659dd8d559f8656b2b37605bb9c5"
+    "version": "1.0.5",
+    "digest": "b45dc74450bbbe8740aae3127e8ecd3079fd483391850f14604e20e7bd1a95e5"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "checkpoint-history",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "trust": "trusted",
   "description": "Turn snapshots for code and conversation, with conflict-aware restore and review.",
   "provides": [

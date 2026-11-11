@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.2
+
+<!-- plugin-release:auto:start -->
+- keep the current user request in every summary stage ([c23355f](https://github.com/Neko1313/agent-compositor/commit/c23355f9a4fe2be74ebfdc0207a1406fc58cc2c6))
+- explain missing guarded edit snapshot hashes ([c31c430](https://github.com/Neko1313/agent-compositor/commit/c31c4307e62ff467b84b07507d5eb40e91ce9434))
+<!-- plugin-release:auto:end -->
+
 ## 1.3.1
 
 <!-- plugin-release:auto:start -->

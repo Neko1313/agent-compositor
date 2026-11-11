@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.2
+
+<!-- plugin-release:auto:start -->
+- explain missing guarded edit snapshot hashes ([c31c430](https://github.com/Neko1313/agent-compositor/commit/c31c4307e62ff467b84b07507d5eb40e91ce9434))
+<!-- plugin-release:auto:end -->
+
 ## 1.2.1
 
 <!-- plugin-release:auto:start -->

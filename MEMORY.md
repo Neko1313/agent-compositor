@@ -36,6 +36,18 @@ completed successfully. No paid model requests were made; the conservative
 $38.66391 ledger and total $50 allowance are unchanged. Broader model/session
 and four-platform release readiness remain open.
 
+The additional panel PTY checks passed for Usage, Todos, MCP, Workflows and
+Proxy, retaining narrow/draft/restart evidence under dist/ui-command-visual-*.
+The initial MCP run exposed its default one-second ui.press budget expiring
+during a human approval wait. It now explicitly allows five minutes. The
+scenario focuses the input dock with Alt+i before answering: a Y key in the
+focused MCP panel must not approve a tool. This is intentional focus isolation,
+not evidence of a late-focus race. A 1.2-second delayed-approval regression
+passes; removing the explicit timeout reproduces expiration before the answer.
+The final suite passes 948 tests with three optional skips and typecheck;
+documentation checks/build pass. Inspected MCP error recovery, narrow Workflows
+and restored Proxy screenshots. Source UI routing commit: bf19d5f.
+
 ## Guarded concurrent user tools — 2026-11-11
 
 The source now routes $.agent.tool through invokeUserTool. Calls during an

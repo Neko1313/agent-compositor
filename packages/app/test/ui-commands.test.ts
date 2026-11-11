@@ -9,7 +9,7 @@ import {hello} from '@agent-compositor/protocol';
 const roots:string[]=[],apps:Awaited<ReturnType<typeof buildApp>>[]=[],uis:AppUI[]=[];
 afterEach(async()=>{for(const ui of uis.splice(0)){ui.close();await ui.settled();}for(const app of apps.splice(0))await app.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
 const wait=(check:()=>boolean)=>expect.poll(check,{timeout:3000}).toBe(true);
-async function setup(names:string[]=['probe']){
+async function setup(names:string[]=['probe'],config:Record<string,unknown>={}){
  const root=await mkdtemp(join(tmpdir(),'ui-command-'));roots.push(root);
  if(names.includes('probe')){
   const dir=join(root,'plugins','probe');await mkdir(dir,{recursive:true});
@@ -19,7 +19,7 @@ async function setup(names:string[]=['probe']){
    'ui.press':async(e,$)=>{if(e.site!=='plugin-probe-main')return;if(e.key==='command:/inspect fail')throw Error('UI command failed deliberately');await $.fs.write('.agent-compositor/received-command.json',JSON.stringify(e.key));await $.ui.view('main','Inspection',{lines:[{text:e.key}]});}
   };`);
  }
- await writeFile(join(root,'agent-compositor.json'),JSON.stringify({enabledPlugins:names,agent:{projectContext:false}}));
+ await writeFile(join(root,'agent-compositor.json'),JSON.stringify({enabledPlugins:names,agent:{projectContext:false},...config}));
  const provider=new ScriptedProvider([{text:'MAIN_STILL_ACTIVE',hold:true},{text:'UNEXPECTED_MODEL_REQUEST'}]);
  const app=await buildApp({cwd:root,env:{HOME:join(root,'home')},provider,agentHub:false,pluginDirs:names.filter(n=>n!=='probe').map(n=>resolve('plugins',n))});apps.push(app);
  const ui=new AppUI(app.createCore,app.reloadPlugins,[],app.commands);uis.push(ui);const screens=new Map<string,string>();
@@ -48,4 +48,18 @@ it('opens bundled usage, tasks, MCP, workflows and proxy panels without stopping
   ['/mcp','plugin-mcp-connections','MCP connections'],['/workflows','plugin-workflows-runs','Workflow'],['/proxy status','plugin-network-proxy-network','Proxy disabled'],
  ]){f.send(command);await expect.poll(()=>f.screens.get(site)??'',{message:command,timeout:3000}).toContain(evidence);expect(f.ui.core.getState()).toBe('running');}
  expect(f.provider.requests).toHaveLength(1);expect(f.ui.core.getMessages()).toEqual(before);f.provider.release();await f.ui.settled();expect(f.provider.requests).toHaveLength(1);
+});
+it('keeps MCP approval alive beyond the default one-second hook budget and requires input focus to answer',async()=>{
+ const f=await setup(['mcp'],{permissions:{rules:[{tool:'mcp_call',decision:'ask'}]}});f.ui.resize(100,40);f.send('/mcp');await wait(()=>f.screens.has('plugin-mcp-connections'));
+ // A human pause must not expire the interaction before an explicit decision.
+ const pending=f.ui.core.host.emit('ui.press',{site:'plugin-mcp-connections',key:'refresh'});
+ await expect.poll(()=>f.screens.get('input')??'',{timeout:3000}).toContain('mcp_call');
+ await new Promise(done=>setTimeout(done,1200));
+ expect(f.screens.get('input')).toContain('mcp_call');
+ f.ui.receive({type:'input',surface:'input',data:{kind:'key',key:'y'}});
+ expect(f.screens.get('input')).toContain('mcp_call');
+ f.ui.receive({type:'input',surface:'input',data:{kind:'key',key:'i',modifiers:['meta']}});
+ f.ui.receive({type:'input',surface:'input',data:{kind:'key',key:'y'}});
+ expect((await pending).faults).toEqual([]);await wait(()=>f.screens.get('plugin-mcp-connections')?.includes('ready')===true);
+ expect(f.provider.requests).toHaveLength(0);
 });

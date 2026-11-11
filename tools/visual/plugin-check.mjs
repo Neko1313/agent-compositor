@@ -64,7 +64,7 @@ try{
  }else if(name==='auto-approve'){
   await wait('Mode: manual');await command('/auto on');await wait('Mode: auto');await clickText('Disable auto');await wait('Mode: manual');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
  }else if(name==='mcp'){
-  await clickText('Refresh tools');await wait('Approval required');await page.keyboard.press('y');await wait('no MCP config');await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));await clickPane('MCP');await page.keyboard.press('Alt+f');await wait('Last operation');await page.keyboard.press('Alt+f');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
+  await clickText('Refresh tools');await wait('Approval required');await page.keyboard.press('Alt+i');await page.keyboard.press('y');await wait('no MCP config');await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));await clickPane('MCP');await page.keyboard.press('Alt+f');await wait('Last operation');await page.keyboard.press('Alt+f');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
  }else if(name==='workflows'){
   await clickPane('Workflows');await page.keyboard.press('Alt+f');await wait('WORKFLOW_BETA');await clickText('bbbbbb');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');await wait('WORKFLOW_ALPHA');await clickText('Replay selected run');await wait('no Python source');await page.keyboard.press('Alt+f');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
  }else if(name==='checkpoint-history'){

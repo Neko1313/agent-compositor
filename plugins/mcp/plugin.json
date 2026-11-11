@@ -15,6 +15,7 @@
       }
     }
   ],
+  "hookTimeouts": {"ui.press": 300000},
   "compositor": {
     "standard": 1,
     "apiVersion": 1

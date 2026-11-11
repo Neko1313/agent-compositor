@@ -106,8 +106,11 @@ it('pauses automatic follow-ups after interruption until the user continues',asy
 });
 it('revokes queued wakes when their plugin unloads and rejects spoofed inactive owners',async()=>{
  const provider=new ScriptedProvider([{text:'Holding',hold:true}]),f=await setup('wake',provider);
- await launch(f.core,'sleep 0.1');const turn=f.core.submit('Keep talking');await poll(async()=>provider.requests.length===1);
- await poll(async()=>f.events.some(e=>e.kind==='catalog'&&e.event==='prompt.queued'));
+ await launch(f.core,'while [ ! -f allow-completion ]; do sleep 0.01; done',30000);
+ const turn=f.core.submit('Keep talking');await poll(async()=>provider.requests.length===1);
+ expect(provider.requests[0].messages.at(-1)?.content).toBe('Keep talking');
+ await writeFile(join(f.cwd,'allow-completion'),'complete');
+ await poll(async()=>f.events.some(e=>e.kind==='catalog'&&e.event==='prompt.queued'&&e.input.text.startsWith('Automated background completion')));
  f.core.host.unregisterPlugin('background-jobs');
  expect((await f.core.host.emit('service.agent.enqueue',{plugin:'background-jobs',key:'spoof',text:'Must not run'})).value).toMatchObject({deny:expect.any(String)});
  provider.release();await turn;expect(provider.requests).toHaveLength(1);

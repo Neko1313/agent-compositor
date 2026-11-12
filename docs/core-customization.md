@@ -337,3 +337,25 @@ The selected
 `sessionProvider` replaces the assembled storage stack, including history and
 resumption; `ui.controllers` replaces its UI controllers. Their contracts and
 external-extension checks are documented in [ui-controllers.md](ui-controllers.md).
+
+### Coding completion checks
+
+With `agent.instructionsPreset: "coding"`, the default completion policy asks for
+verification after successful built-in `write`/`edit` calls even when no task plan
+was saved. General instructions retain their prior plan/explicit-verification
+behavior. `agent.verifyCompletion: false` still disables these default checks;
+an explicitly selected `service.agent.finish` provider can replace the policy.
+
+A recognized check must follow the latest successful built-in edit. Foreground
+`exec` and configured `project_check` runs require exit code zero. Common check
+names include test, typecheck, check, lint, build, verify, pytest, vitest and ci.
+Starting a background shell is insufficient: a matching later `exec_output` must
+report `done: true` and exit code zero, without successful cancellation. Read the
+actual terminal result before reporting that a background check passed.
+
+The existing bounded completion-feedback loop remains in force; repeated missing
+verification leaves the turn failed with saved progress. A concrete reason with
+`[verification unavailable]` or `[checks not applicable]` still reports a genuine
+limitation. This policy is a reminder based on recorded tool evidence, not proof
+that an arbitrary command or model assertion establishes project correctness.
+Independent acceptance tests remain necessary.

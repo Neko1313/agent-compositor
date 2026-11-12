@@ -81,6 +81,16 @@ its configured home. The installer does not edit shell profiles or use sudo.
 
 ## Build and smoke test
 
+The installed-runtime suite also runs a coding-preset completion probe with no
+saved task plan. An unchecked write must retain progress and fail after bounded
+feedback; a second case must execute a real project verification command before
+successful completion. Both preserve the user draft and checker source. The probe
+uses bounded local HTTP responses, records exit/error/result evidence in
+`dist/release/coding-smoke-PLATFORM.json`, and is required on every declared native
+release platform. This deterministic policy check does not establish live model
+coding quality.
+
+
 Run these commands on the target platform with Node.js >=22.19.0 (Node 26 in
 release CI), Bun 1.4.4 and Python 3 for the release verifier's real POSIX PTY:
 

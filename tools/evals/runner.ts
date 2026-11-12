@@ -31,6 +31,9 @@ export async function runCase(
     timeoutMs?: number;
     baseUrl?: string;
     harness?: string;
+    tools?: string[];
+    agentHarness?: boolean;
+    instructionsPreset?: "general"|"coding";
   }
 ) {
   const temp = await mkdtemp(join(tmpdir(), "compositor-eval-")),
@@ -56,7 +59,7 @@ export async function runCase(
     await writeFile(
       join(cwd, "agent-compositor.json"),
       JSON.stringify({
-        enabledPlugins:['todos','guard-secrets','guard-scope','plan-mode','network-proxy',...(test.expect.grader||test.navigationMode?['callix']:[])],
+        enabledPlugins:['todos','guard-secrets','guard-scope','plan-mode','network-proxy',...(options.agentHarness?['agent-harness']:[]),...(test.expect.grader||test.navigationMode?['callix']:[])],
         permissions: {
           rules: [
             { tool: "write", path: cwd + "/**", decision: "allow" },
@@ -69,6 +72,7 @@ export async function runCase(
             })),
           ],
         },
+        ...((options.tools||options.instructionsPreset)?{agent:{...(options.tools?{tools:options.tools,builtinTools:options.tools,controlTools:[],skills:false,projectContext:false,fileReferences:false}:{}),instructionsPreset:options.instructionsPreset}}:{}),
         compaction: { enabled: false },
       })
     );
@@ -218,6 +222,7 @@ export async function runCase(
     id: test.id,
     split: test.split,
     model: options.model,
+    composition:{tools:options.tools,agentHarness:options.agentHarness??false,instructionsPreset:options.instructionsPreset??"general"},
     ok: !error && checks.length > 0 && checks.every((c) => c.ok),
     checks,
     error,

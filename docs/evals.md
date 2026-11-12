@@ -464,3 +464,51 @@ input preflight, aggregate parallel-stage allocations, charged failures, child
 usage/profile forwarding and child-owned compaction. Default tool examples are
 checked against their parameter shapes; they are not blindly executed. No live
 Anthropic/OpenAI cache-hit or dollar-savings claim is made from these fixtures.
+
+## Offline CPU development diagnostic
+
+With `ollama` on PATH and an existing local model cache, run:
+
+```sh
+npm run eval:local-cpu -- --cache dist/local-qwen-eval/models \
+  --preset coding --repeat 2 --output dist/local-cpu-development-fresh
+```
+
+The command verifies the pinned `qwen3:1.7b` manifest and every layer's size/SHA256
+from `tools/evals/local-qwen.json` before starting inference. It does not pull a
+model or accept a cloud stub in place of those layers. Model weights are not
+vendored; prepare the matching cache separately. Missing/corrupt cache data fails
+closed. The output directory must be new so earlier failed trajectories survive.
+
+It owns a separate loopback Ollama server with an isolated home and the selected
+cache, disables cloud routing/GPU visibility in that child, and verifies that the
+loaded runtime reports zero VRAM. It does not reconfigure the user's running
+Ollama service. Completion transport refuses a different origin, model or redirect.
+Owned server processes are stopped on completion, failure or cancellation.
+
+The existing known `multi-file-bug` development case is selected by default;
+`--case` can select another entry in `agent-cases.json`. Before inference, the same
+assembled application and independent grader must reject absent behavior and
+accept the scripted reference. The model does not receive the grader or reference
+script. Fixtures and project-check environments remain isolated by `runCase`;
+this is environment hygiene, not an OS sandbox.
+
+The declared composition exposes read/write/edit/exec and enables the stock agent
+harness. `--preset coding` selects its existing coding instructions;
+`--preset general` selects general instructions. Both retain ordinary permission
+checks. This focused composition is an explicit experimental configuration, not
+an estimate of the full default tool catalog's quality. Existing callers of
+`runCase` keep their original composition unless they select these options.
+
+Limits are two CPU threads, seed 17, 16,384 configured context tokens, an estimated
+context guard before transport, 1,536 output tokens/request, twelve admitted
+requests/case, five minutes/case and twenty minutes overall. `--repeat` permits
+1–5 repetitions. Reports retain source revision/dirty state and evaluator input
+hashes, model/cache/runtime identity, request/token counts, tool events, independent
+checks and cleanup. Incomplete runs retain partial results with their error.
+A failed case exits nonzero. No paid provider/profile/credential is loaded.
+
+These are known development diagnostics. Preserve failed runs and label changes
+in preset, tools, instructions, budgets, cases or grader when comparing results.
+A small CPU model's success or failure does not establish general model quality,
+Claude Code parity, autonomous plugin delivery or 1.0 readiness.

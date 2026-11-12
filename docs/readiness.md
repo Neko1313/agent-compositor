@@ -184,6 +184,35 @@ The prior chat estimates were preliminary effort ranges, not a release deadline.
 This migration extends the 1.0 usability scope and does not change the authorized
 live-model spending limit or interrupt the current approval-work fixes.
 
+### Offline CPU coding diagnostic — 2026-11-13
+
+The maintained local CPU evaluator verifies an existing pinned Qwen cache, owns
+its loopback runtime and runs the actual app with an explicit focused tool
+composition. Preflight rejects absent behavior and accepts the scripted reference
+using the unchanged checkout-case grader. Four working-tree configurations were
+observed twice: general instructions, missing-edit feedback, coding instructions,
+and coding completion feedback. All scored 0/2 on this known task. Files covered
+by preservation assertions survived; runtime records confirmed CPU and cleanup.
+No paid model call was used. These are development diagnostics, not held-out
+quality gains or evidence of Claude Code parity.
+
+The coding-instruction runs exposed an unchecked completion path: without a saved
+plan, a model could write an unrelated file and claim checks passed without
+executing them. A manually authored harness repair now requests a successful
+recognized check after the latest built-in write/edit for the coding preset.
+Started background jobs do not count until matching terminal output, and passed
+checks before a later edit are stale. Deterministic regressions cover opt-out,
+general behavior, failed/unfinished/killed jobs and project_check cooperation.
+The live post-repair attempts still failed and did not perform a successful edit;
+they do not establish live repair success or directly exercise that write gate.
+
+An independent installed-binary probe rejects the previous archive's unchecked
+completion, then verifies the new archive's bounded failure and a real-check
+success while preserving the user draft and checker. It is now part of every
+native release smoke. This demonstrates completion-policy behavior, not autonomous
+model coding ability. See [offline CPU diagnostics](evals.md#offline-cpu-development-diagnostic)
+and [coding completion checks](core-customization.md#coding-completion-checks).
+
 ## Acceptance gates
 
 | Gate | Required evidence | Current assessment |

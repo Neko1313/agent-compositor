@@ -1,5 +1,79 @@
 # Project memory
 
+## Offline coding diagnostics and completion-policy repair — 2026-11-13
+
+New npm run eval:local-cpu uses the pinned existing qwen3:1.7b OCI cache, verifies
+all five layer hashes/sizes, and owns an isolated two-thread CPU Ollama server.
+No download/cloud model/profile/credential is admitted. A loopback-only completion
+fetch rejects origin/model changes and redirects; runtime ps confirms zero VRAM.
+New output directories protect old evidence. Case preflight runs the actual app
+and independent grader against absent and known-correct scripted behavior before
+inference; model workspaces never receive the reference script/grader. Existing
+runCase callers keep their composition; explicit tools/agentHarness/instructionsPreset
+options record the focused configuration. Seed17, context16384, output1536/request,
+twelve admitted completions/case, five minutes/case and twenty minutes overall
+are declared. This runner owns model routing, not the user's11434 service; its
+cache namespace is dist/local-qwen-eval/models. Setup/managed failure/cancellation
+retains diagnostics and cleanup; missing caches fail without starting a server.
+Group cleanup also kills a runner left after its server exits.
+
+Four known checkout configurations, two repeats each, all scored0/2: general,
+missing-edit feedback, coding preset, and coding completion feedback. Exactly35
+local completions were admitted across eight attempts, no paid calls. Frozen case
+and grader were unchanged; protected fixtures survived; all four owned runtime
+process groups were independently confirmed absent afterward. Reports are under
+dist/local-cpu-development-{0f3ec00,recovery,coding,verified-finish}; local diagnostic
+aggregate/integrity live under dist/coding-completion. These were explicitly
+working-tree runs on0f3ec00, not immutable-commit executions, unseen benchmarks or
+quality gains. General runs invented a filename and proposed more work; coding
+runs could create an unrelated result file and falsely claim tests passed.
+After the completion change the live attempts still failed and happened not to
+perform successful mutations, so they do not directly validate that new write
+gate. Do not attribute these manual harness repairs to Compositor or close the
+autonomous development/model-independence gates.
+
+An edit on an absent path now retains ENOENT and gives bounded recovery advice:
+discover actual project filenames; do not create a guessed replacement merely to
+satisfy edit. The red/green test proves no new file or undo record. The coding
+preset previously enforced post-edit checks only with task_plan or explicit
+verifyCompletion:true. It now requests a recognized successful check after the
+latest built-in write/edit even without a plan. General behavior, explicit false,
+replacement completion policies and concrete unavailability/inapplicability reports
+remain supported. Foreground exec/project_check need exit0. Starting a background
+check is insufficient: a matching later exec_output must be done with exit0;
+killed/failed/unrelated jobs and checks before a later edit do not count. This
+is still a heuristic reminder, not proof that arbitrary commands establish task
+correctness or that every plugin mutation is covered.
+
+Evidence: seven new coding-gate tests include actual write/check processes and
+bounded failed completion, failed checks, later edits, general/opt-out and matching
+background/project_check records. Evaluator tests cover pinned bytes, local route/
+redirect guards, unchanged output evidence and setup failure without runtime.
+The final coverage suite has1277 passed/three optional skips in159 files and passes
+all floors; types, gen/docs:gen/docs:check pass. Backend-only changes require no new
+visual layout scenario. Canonical agent features/core customization/evals/releases/
+readiness document behavior; terminal controls, workspace permissions and general
+architecture are unchanged.
+
+A new maintained coding-smoke probe ran against the previous extracted binary and
+rejected both old unchecked and missing-check successful exits (code0, two calls).
+The new complete Linux archive passes: unchecked writes retain progress and exit1
+after four bounded loopback responses; actual project verification exits0 after
+four responses. Both preserve user draft/checker and verify whether the real
+checker ran. The probe is now required by release:smoke on every declared platform
+and uploaded in coding-smoke-PLATFORM.json. Full local release:smoke passes all
+six installed-runtime probes. Integrity binds the retained archive/extracted
+binary, source and reports. Other-platform UI/model quality is not claimed.
+
+Prior0f3ec00 build-only release run43308384217 completed verify and all four native
+build/install jobs successfully; publish skipped. Resources source release and
+exact archive certification at0f3ec00 had already passed18 and4 cases respectively
+with matching bundled hooks; receipt dist/resources/committed-verification.json.
+No public host/plugin tag was published in this turn and no paid budget changed.
+Broader1.0, sustained development on capable real models, full tool/multi-model
+quality, CPU onboarding and OpenTUI remain open.
+
+
 ## Standalone process resource monitor implemented — 2026-11-13
 
 New native plugin resources 0.1.0 adds /resources as a declared UI command with

@@ -11,6 +11,7 @@ import { GifWriter } from 'omggif';
 import assert from 'node:assert/strict';
 import { callixRelease } from '../../plugins/callix/distribution.mjs';
 import { smokeContextTask } from './context-smoke.mjs';
+import { smokeCodingVerification } from './coding-smoke.mjs';
 import { smokeBackgroundTask } from './background-smoke.mjs';
 import { smokeApprovals } from './approval-smoke.mjs';
 import { smokePlainControls } from './plain-controls-smoke.mjs';
@@ -122,6 +123,8 @@ try {
   console.log('Installed structured approval/refusal:',JSON.stringify(approvalSmoke));
   const plainControls=await smokePlainControls(binary,resolve('dist/release',`plain-controls-smoke-${process.platform}-${process.arch}.json`));
   console.log('Installed plain controls and raw approval:',JSON.stringify(plainControls));
+  const codingSmoke=await smokeCodingVerification(binary,resolve('dist/release',`coding-smoke-${process.platform}-${process.arch}.json`));
+  console.log('Installed coding verification:',JSON.stringify(codingSmoke));
   const contextSmoke=await smokeContextTask(binary,resolve('dist/release',`context-smoke-${process.platform}-${process.arch}.json`));
   const backgroundSmoke=await smokeBackgroundTask(binary,resolve('dist/release',`background-smoke-${process.platform}-${process.arch}.json`));
   console.log('Installed background task retention:',JSON.stringify(backgroundSmoke));

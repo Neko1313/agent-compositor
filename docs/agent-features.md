@@ -473,7 +473,12 @@ model must substitute real returned values. Plugins can override guidance with
 copied into every repeated declaration. Existing `service.agent.instructions`
 and materialized Harness² `toolguide.md` remain ways to tune general behavior.
 The default policy favors narrow read/search, guarded edits, bounded delegation,
-minimal polling and stopping equivalent retries after a permission denial.
+minimal polling and stopping equivalent retries after a permission denial. The coding
+preset also requires a recognized successful check after the latest built-in
+write/edit before ordinary completion, without requiring a task plan. Starting a
+background test does not count as completion; inspect its finished output.
+See [coding completion checks](core-customization.md#coding-completion-checks)
+for opt-out, replacement policies and explicit limitations.
 
 A guarded `edit` must preserve the complete anchor returned by `read` or
 `code_query read_symbol`: `path`, `expectedHash`, `range` and `strict`. A missing
@@ -481,7 +486,10 @@ hash is reported separately from invalid offsets, including for insertions;
 copy the complete fresh anchor before retrying. The runtime never fills in a
 hash or drops the range automatically. Stale hashes still require a new read,
 and rejected edits do not change the file or add an undo entry. See
-[semantic navigation and edit anchors](../plugins/callix/README.md#precise-navigation-and-guarded-edits).
+[semantic navigation and edit anchors](../plugins/callix/README.md#precise-navigation-and-guarded-edits). Missing-file (`ENOENT`)
+edit errors preserve the underlying error and remind the model to discover actual
+project filenames before retrying, rather than creating a guessed replacement.
+The hint does not create files, relax guards or authorize a denied operation.
 
 Auto review remains opt-in (`/auto on`). A dedicated profile in `auto.json` is
 optional; if absent, the active model/provider performs the review. Blank or

@@ -3,6 +3,21 @@ import { atomicJson, type ProjectStorage } from '@agent-compositor/config';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ToolSpec } from '@agent-compositor/tools';
+/** A launched job is not a passed check; only a matching completed observation counts. */
+export function successfulVerification(tools:any[]):boolean {
+    const checkName=/\b(test|typecheck|check|lint|build|verify|pytest|vitest|ci)\b/;
+    let lastEdit=-1;tools.forEach((tool,index)=>{if(tool.ok&&['write','edit'].includes(tool.name))lastEdit=index;});
+    return tools.some((tool,index)=>{
+        if(index<=lastEdit||!tool.ok)return false;
+        if(tool.name==='project_check')return tool.args?.action==='run'&&checkName.test(String(tool.args?.name??''))&&tool.output?.exitCode===0;
+        if(tool.name!=='exec'||!checkName.test(String(tool.args?.command??'')))return false;
+        if(tool.output?.started!==true)return tool.output?.exitCode===0;
+        const id=tool.output?.shellId;if(typeof id!=='string')return false;
+        const later=tools.slice(index+1);
+        if(later.some(result=>result.name==='exec_kill'&&result.ok&&result.args?.id===id&&result.output?.killed===true))return false;
+        return later.some(result=>result.name==='exec_output'&&result.ok&&result.args?.id===id&&result.output?.id===id&&result.output?.done===true&&result.output?.exitCode===0);
+    });
+}
 /** A durable plan is distinct from a model's private reasoning. */
 export function harnessControls(storage: ProjectStorage, config: Record<string, any>, sessionId: () => string, core?:()=>import("@agent-compositor/core").AgentCore) {
     const tool: ToolSpec<any, any> = { name: 'task_plan', description: 'Save/update the current task goal, acceptance criteria and progress. Use for substantial tasks and checkpoints before stopping at a budget boundary. Preserve unresolved tasks; cite real tool evidence for completed items.',
@@ -67,10 +82,10 @@ export function harnessControls(storage: ProjectStorage, config: Record<string, 
                 if (lastPlan?.tasks?.some((t: any) => ['pending', 'running'].includes(t.status)))
                     return { value: { complete: false, continue: 'Your task plan still has unfinished work. Complete it or mark a concrete blocker with evidence using task_plan before finishing.' } };
                 const edits = e.tools.filter((t: any) => t.ok && ['write', 'edit'].includes(t.name));
-                const checks = e.tools.some((t: any) => t.ok && t.name === 'exec' && /\b(test|typecheck|check|lint|build|verify|pytest|vitest)\b/.test(String(t.args?.command ?? '')));
+                const checks = successfulVerification(e.tools);
                 // The second proposal can explicitly explain why automated checks do not apply.
                 // This is a reminder, not a claim that arbitrary test output proves correctness.
-                if (edits.length && (lastPlan || config.verifyCompletion === true) && !checks && !e.text.includes('[verification unavailable]') && !e.text.includes('[checks not applicable]'))
+                if (edits.length && (lastPlan || config.verifyCompletion === true || config.instructionsPreset === 'coding') && !checks && !e.text.includes('[verification unavailable]') && !e.text.includes('[checks not applicable]'))
                     return { value: { complete: false, continue: 'Files changed but no successful verification command is recorded. Run relevant checks and inspect their output. If unavailable or inapplicable, give the concrete reason and include [verification unavailable] or [checks not applicable] in the final report. Do not claim tests passed without evidence.' } };
                 return { value: { complete: true } };
             },

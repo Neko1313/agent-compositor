@@ -7,3 +7,10 @@ it('keeps parent credentials and home settings out of model-executed project che
  expect(result.checks,result.error).toContainEqual({name:'agent executed verification successfully',ok:true});
  expect(result.ok).toBe(true);
 });
+it('records a focused coding composition and injects its actual preset',async()=>{
+ const {ScriptedProvider,CODING_INSTRUCTIONS}=await import('../../packages/core/src/index.js');
+ const provider=new ScriptedProvider([{text:'Ready'}]);
+ const result=await runCase({id:'coding-composition',prompt:'Explain the project.',files:{},expect:{responseIncludes:'Ready'}},{model:'scripted',provider,tools:['read','edit'],agentHarness:true,instructionsPreset:'coding'});
+ expect(result.ok).toBe(true);expect(result.composition).toEqual({tools:['read','edit'],agentHarness:true,instructionsPreset:'coding'});
+ expect(provider.requests[0].messages[0].content).toBe(CODING_INSTRUCTIONS);expect(provider.requests[0].tools.map(tool=>tool.name).sort()).toEqual(['edit','read']);
+});

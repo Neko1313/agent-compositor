@@ -101,6 +101,11 @@ describe("read/write tools", () => {
 });
 
 describe("edit tool", () => {
+  it('explains a missing edit target without creating a replacement or undo record',async()=>{
+    const ctx=makeCtx(),result=await editTool.execute(ctx,{path:'guessed-file.ts',oldText:'old',newText:'new'});
+    expect(result.ok).toBe(false);if(!result.ok){expect(result.error).toContain('ENOENT');expect(result.error).toContain('Inspect actual project filenames');expect(result.error).toContain('Do not create a guessed replacement');}
+    expect(ctx.undo.pop()).toBeUndefined();await expect(fs.readFile(path.join(cwd,'guessed-file.ts'))).rejects.toMatchObject({code:'ENOENT'});
+  });
   const seed = async (content: string) => {
     await fs.writeFile(path.join(cwd, "f.txt"), content);
   };

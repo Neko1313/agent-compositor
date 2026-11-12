@@ -61,7 +61,9 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
       const {undo,...visible}=outcome;
       return { ok: true, data: visible };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      const message=err instanceof Error?err.message:String(err);
+      const recovery=/\bENOENT\b/.test(message)?' Edit requires an existing file. Inspect actual project filenames with the available discovery tools before retrying. Do not create a guessed replacement just to make this edit succeed.':'';
+      return { ok: false, error: message+recovery };
     }
   },
 };

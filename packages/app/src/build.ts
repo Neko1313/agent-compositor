@@ -356,7 +356,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
             });
             const managed=child.createCore(channels.approve,channels.ask);
             for(const entry of channels.workspace?.()??[])await managed.attachWorkspace(entry.path);
-            return {core:managed,close:child.close};
+            return {core:managed,close:child.close,history:async()=>(await child.store.load(record.sessionId,record.cwd)).events};
           },
           Math.min(
             16,

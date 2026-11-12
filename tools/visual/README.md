@@ -51,6 +51,15 @@ reopen command. File reads only verify saved state; all interactions use actual
 terminal input. Nine checks require exactly three loopback requests and zero paid
 requests. Unsent drafts intentionally do not survive restart.
 
+For saved agent history, select the same extracted host and run
+`VISUAL_AGENT_HISTORY=1 VISUAL_EXECUTABLE=/path/to/extracted/compositor VISUAL_OUTPUT=dist/agent-history-proof node tools/visual/agent-table-check.mjs`.
+It holds the main model while a second agent invokes the actual `read` tool,
+opens Saved activity, filters with mouse and arrow keys, expands saved arguments
+and output, checks narrow stacked fields, restarts and reopens the saved result.
+Eight checks require exactly one held-main and two tool-cycle loopback requests,
+with zero paid requests. The harness only seeds a temporary input file; the tool
+call/result must be produced by the actual application and survive its journal.
+
 Both overview and conversation scenarios use normal terminal input and isolated state, record
 binary mode/hash and fail unexpected model requests. Stream comments keep held
 fixture connections alive; a separate sixty-second deadline still bounds them.

@@ -180,6 +180,24 @@ after restart; unfinished actions are not replayed automatically. Archive retain
 the worktree and files. Merge requires a finished agent and committed changes;
 Git reports any conflicts.
 
+**Saved activity** in an agent conversation or expanded overview row opens that
+agent's persisted session journal. **All**, **Turns** and **Tools** tabs filter
+saved prompts, turn lifecycle/usage and tool calls/results. Click a row or use
+Up/Down and Enter to expand the original JSON record, including tool arguments,
+outputs, denial and failure details. Records are paged in groups of 25, initially
+showing the newest page. Large records have **Previous part** / **Next part**
+controls with 8000 Unicode code points per part; the complete saved record remains
+accessible. PageUp/PageDown scroll the current view.
+
+The history is a snapshot read from the agent's configured session repository;
+**Refresh history** reloads it, including events saved since opening. It is
+available after restart and does not submit a prompt or copy tool output into
+the main conversation. Reading shows progress; failures retain the previous
+snapshot and offer retry. Closing or archiving an agent prevents a pending read
+from reopening its history. The reader loads the session through the repository's
+existing full-session API; streaming large journal reads are not yet supported.
+The overview's short recent-activity preview remains limited to this process.
+
 Defaults allow 8 active agents, with up to 12 model steps and 50000 tokens per
 turn for a new agent, and 200000 tokens per session. `agent_control` accepts
 maxSteps and maxTokens; `agent.maxAgents` limits the count to at most 16.

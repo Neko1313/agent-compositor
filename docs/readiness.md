@@ -87,8 +87,13 @@ Per-agent conversation tabs now preserve separate drafts and histories, support
 button/Enter submission and grouped navigation through all sixteen allowed agents,
 and restore the selected pane with committed messages after restart. Source tests
 and a compiled Linux x64 PTY scenario cover these paths with a loopback provider.
-Deeper historical tool-journal drill-down remains open; native and
-real-model verification of these newer views is separate. Local extracted Linux
+Saved activity now exposes persisted per-agent prompts, turn lifecycle/usage and
+tool arguments/results/errors through filtered, paginated expandable records.
+Refresh reads an explicit snapshot through the configured session repository.
+Tests verify restart and complete long-record access. An extracted Linux x64 host
+passes eight real-PTY history checks with an actual read tool call, a held main
+stream and saved output restored after restart. Broader native UI coverage and
+real-model verification of these newer views remain separate gates. Local extracted Linux
 x64 archive checks now cover the agent overview with a held main model and the
 bundled workflow table through bounded loopback providers. They exposed and fixed
 host `/agents` immediate registration and explicit focus of existing/reopened

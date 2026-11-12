@@ -27,6 +27,26 @@ async function temp() {
 }
 const dirs = [join(process.cwd(), "plugins")];
 describe("independent agents, authentication and extensions", () => {
+  it('restores saved tool arguments and results after restart without a model request',async()=>{
+    const cwd=await temp();await writeFile(join(cwd,'history.txt'),'HISTORICAL_FILE_RESULT');
+    const provider=new ScriptedProvider([{toolCalls:[{name:'read',args:{path:'history.txt'}}]},{text:'Inspection complete'}]);
+    let app=await buildApp({cwd,env:{HOME:cwd},provider});let id='';
+    try{
+      let core=app.createCore(async()=>true);await core.start();
+      const created=await core.invokeTool('agent_control',{action:'create',name:'Historian',worktree:false});expect(created.ok).toBe(true);id=(created.output as any).id;
+      await core.invokeTool('agent_control',{action:'send',id,prompt:'Inspect history.txt'});
+      await vi.waitFor(()=>expect(provider.exhausted).toBe(true));
+      await vi.waitFor(async()=>{const listed=await core.invokeTool('agent_control',{action:'list',id});expect((listed.output as any[])[0].state).toBe('idle');});
+      await app.close();app=await buildApp({cwd,env:{HOME:cwd},provider:new ScriptedProvider([])});
+      const views=new Map<string,any>();core=app.createCore(async()=>true);core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface')views.set(String((event.input as any).id),(event.input as any).view);});await core.start();
+      await core.host.emit('ui.press',{site:'plugin-agent-hub-agent-'+id,key:'history:'+id});const site='plugin-agent-hub-history-'+id;
+      expect(views.get(site).table.rows.length).toBeGreaterThan(0);await core.host.emit('ui.press',{site,key:'filter:tools'});
+      const calls=views.get(site).table.rows;expect(calls.map((row:any)=>row.cells[1])).toEqual(['tool.call','tool.result']);
+      await core.host.emit('ui.press',{site,key:calls[0].action});expect(JSON.stringify(views.get(site))).toContain('history.txt');
+      await core.host.emit('ui.press',{site,key:calls[1].action});expect(JSON.stringify(views.get(site))).toContain('HISTORICAL_FILE_RESULT');
+      expect(core.getMessages().filter(message=>message.role==='user')).toHaveLength(0);expect(provider.requests).toHaveLength(2);
+    }finally{await app.close();}
+  });
   it('switches conversation tabs without mixing drafts or messages and sends the Reply draft by button',async()=>{
     const cwd=await temp(),provider=new ScriptedProvider([{text:'FIRST_RESULT'},{text:'SECOND_RESULT'}]);
     const app=await buildApp({cwd,env:{HOME:cwd},provider});let asks=0;

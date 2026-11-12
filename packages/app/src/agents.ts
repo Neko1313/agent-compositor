@@ -1,3 +1,5 @@
+import { agentHistory } from './agent-history.js';
+import type { SessionEvent } from '@agent-compositor/session';
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, writeFile, mkdir, rename, realpath } from "node:fs/promises";
@@ -28,6 +30,7 @@ type RuntimeEntry = {
   unsubscribe: () => void;
   delta: string;
   activity:string[];
+  history:ReturnType<typeof agentHistory>;
   close: () => Promise<void>;
 };
 type Channels = {
@@ -40,7 +43,7 @@ type Channels = {
 type Factory = (
   record: RecordEntry,
   channels: Channels
-) => Promise<{ core: AgentCore; close: () => Promise<void> }>;
+) => Promise<{ core: AgentCore; close: () => Promise<void>; history:()=>Promise<SessionEvent[]> }>;
 const exec = promisify(execFile);
 export async function agentManager(
   cwd: string,
@@ -118,6 +121,7 @@ export async function agentManager(
           },
           { text: "[ Send message ]", action: `send:${r.id}`, tone: "accent" },
           { text: "[ Stop ]", action: `stop:${r.id}` },
+          { text: "[ Saved activity ]", action: `history:${r.id}` },
           ...(entry.core.failure
             ? [{ text: entry.core.failure, tone: "danger" }]
             : []),
@@ -146,6 +150,7 @@ export async function agentManager(
       unsubscribe: () => {},
       delta: "",
       activity:[],
+      history:agentHistory(managed.history,(view,focus)=>host.ui.view('history-'+record.id,'Activity: '+record.name,view,{site:'inspector',focus})),
       close: managed.close,
     };
     entries.set(record.id, entry);
@@ -257,6 +262,7 @@ export async function agentManager(
                 {text:'Recent activity (this run)',bold:true},
                 ...(entry?.activity.length?entry.activity.map(text=>({text})):[{text:'No activity in this run. Open the conversation for saved messages.'}]),
                 {text:'[ Open conversation ]',action:`open:${record.id}`,tone:'accent' as const},
+                {text:'[ Saved activity ]',action:`history:${record.id}`},
               ]};
           }),
         },
@@ -335,6 +341,7 @@ export async function agentManager(
     if (args.action === "archive") {
       const existing = entries.get(record.id);
       if (existing) {
+        existing.history.close();
         existing.core.interrupt();
         await existing.run;
         existing.unsubscribe();
@@ -344,7 +351,7 @@ export async function agentManager(
       record.archived = true;
       await save();
       if (target === record.id && host) await select(undefined, host);
-      if(host)await host.ui.remove('agent-'+record.id);
+      if(host){await host.ui.remove('agent-'+record.id);await host.ui.remove('history-'+record.id);}
       await refreshConversationTabs();
       await show();
       return { archived: record.id, worktreePreserved: record.cwd };
@@ -501,6 +508,14 @@ export async function agentManager(
           if(expanded.has(id))expanded.delete(id);else expanded.add(id);
           await show();return;
         }
+        if(e.site.startsWith('plugin-agent-hub-history-')){
+          const id=e.site.slice('plugin-agent-hub-history-'.length),entry=entries.get(id);if(!entry||entry.record.archived)return;
+          if(e.key==='conversation')await focusConversation(id,$);
+          else if(e.key==='overview')await show(true,true);
+          else await entry.history.press(e.key);
+          return;
+        }
+        if(e.key.startsWith('history:')){const record=find(e.key.slice(8));if(record.archived)throw Error('Agent is archived');await(await load(record)).history.open();return;}
         const paneId=e.site.startsWith('plugin-agent-hub-agent-')?e.site.slice('plugin-agent-hub-agent-'.length):undefined;
         if(paneId&&e.key==='close'){if(target===paneId)await select(undefined,$);return;}
         if(paneId&&e.key==='conversation:overview'){await select(undefined,$);await show(true,true);return;}
@@ -611,7 +626,7 @@ export async function agentManager(
       channels = value;
     },
     close: async () => {
-      for (const entry of entries.values()) entry.core.interrupt();
+      for (const entry of entries.values()){entry.history.close();entry.core.interrupt();}
       await Promise.allSettled([...entries.values()].map((e) => e.run));
       for (const e of entries.values()) {
         e.unsubscribe();

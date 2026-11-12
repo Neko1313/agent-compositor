@@ -121,6 +121,7 @@ if(process.env.VISUAL_EXECUTABLE&&process.env.VISUAL_HARNESS){
  const paths=storagePaths(cwd,{...process.env,HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
  await writeFile(join(output,'fixture-launch.json'),JSON.stringify({cwd:paths.project,home:paths.home,state:paths.state,executable:resolve(process.env.VISUAL_EXECUTABLE)}));
 }
+if(process.env.VISUAL_AGENT_HISTORY)await writeFile(join(cwd,'history-proof.txt'),'HISTORICAL_TOOL_EVIDENCE');
 const workflowRequests=[];
 let terminalSize={cols:100,rows:30};
 async function start(ws) {
@@ -156,10 +157,14 @@ const server = Bun.serve({
     if(process.env.VISUAL_HARNESS&&url.pathname===`/model/${token}/v1/models`)return Response.json({data:[{id:'visual-fixture',context_window:32768}]});
     if(process.env.VISUAL_HARNESS&&url.pathname===`/model/${token}/v1/chat/completions`){
       const body=await request.json(),prompt=body.messages?.filter(message=>message.role==='user').at(-1)?.content??'';
-      const kind=typeof prompt!=='string'?'unknown':process.env.VISUAL_AGENT_TABLES&&prompt==='MAIN_TABLE_TASK'?'main':process.env.VISUAL_AGENT_TABLES&&prompt==='SIDE_TABLE_TASK'?'side':process.env.VISUAL_AGENT_TABLES&&prompt==='SECOND_TABLE_TASK'?'second':prompt.startsWith('PROOF_DISCOVER')?'discover':prompt.startsWith('PROOF_WORKER')?'worker':prompt.startsWith('PROOF_VERIFY')?'verify':prompt.startsWith('Automated workflow completion')?'completion':prompt==='Explain the current status'?'foreground':'unknown';
+      const kind=typeof prompt!=='string'?'unknown':process.env.VISUAL_AGENT_TABLES&&prompt==='MAIN_TABLE_TASK'?'main':process.env.VISUAL_AGENT_TABLES&&prompt==='SIDE_TABLE_TASK'?'side':process.env.VISUAL_AGENT_TABLES&&prompt==='SECOND_TABLE_TASK'?'second':process.env.VISUAL_AGENT_HISTORY&&prompt==='HISTORY_TABLE_TASK'?(body.messages.at(-1)?.role==='tool'?'history-result':'history-call'):prompt.startsWith('PROOF_DISCOVER')?'discover':prompt.startsWith('PROOF_WORKER')?'worker':prompt.startsWith('PROOF_VERIFY')?'verify':prompt.startsWith('Automated workflow completion')?'completion':prompt==='Explain the current status'?'foreground':'unknown';
       workflowRequests.push(kind);await writeFile(join(output,'workflow-transport.json'),JSON.stringify({requests:workflowRequests,paidRequests:0}));
       if(kind==='unknown'||workflowRequests.length>12)return new Response('Unexpected workflow fixture request',{status:400});
-      const reply=kind==='discover'?JSON.stringify([{id:'a',title:'Inspect source',prompt:'PROOF_WORKER_A'},{id:'b',title:'Inspect tests',prompt:'PROOF_WORKER_B'}]):kind==='worker'?'Worker evidence verified':kind==='verify'?'Combined verification complete':kind==='completion'?'Workflow completion delivered to main agent':kind==='side'?'SIDE_TABLE_DONE':kind==='second'?'SECOND_TABLE_DONE':'Main session remains responsive';
+      if(kind==='history-call'){
+        const delta={tool_calls:[{index:0,id:'history-proof-read',type:'function',function:{name:'read',arguments:JSON.stringify({path:'history-proof.txt'})}}]};
+        return new Response(`data: ${JSON.stringify({choices:[{delta,finish_reason:'tool_calls'}],usage:{prompt_tokens:11,completion_tokens:7}})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
+      }
+      const reply=kind==='history-result'?'HISTORY_INSPECTION_DONE':kind==='discover'?JSON.stringify([{id:'a',title:'Inspect source',prompt:'PROOF_WORKER_A'},{id:'b',title:'Inspect tests',prompt:'PROOF_WORKER_B'}]):kind==='worker'?'Worker evidence verified':kind==='verify'?'Combined verification complete':kind==='completion'?'Workflow completion delivered to main agent':kind==='side'?'SIDE_TABLE_DONE':kind==='second'?'SECOND_TABLE_DONE':'Main session remains responsive';
       const bytes=new TextEncoder().encode(`data: ${JSON.stringify({choices:[{delta:{content:reply},finish_reason:'stop'}],usage:{prompt_tokens:11,completion_tokens:7}})}\n\ndata: [DONE]\n\n`);
       if(kind==='main'){
         let cleanup=()=>{};

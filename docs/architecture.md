@@ -119,7 +119,11 @@ The session repository contract replaces history, journaling, search and resume
 together. Settings and window metadata have separate storage services.
 
 Task children and independent agents have separate execution contexts.
-Independent agents can also use Git worktrees. Workflow stages coordinate
+Independent agents can also use Git worktrees. Their Saved activity views read
+explicit snapshots from each child app's session repository router, so custom
+backends and worktree scopes match execution. Filtering, paging and expandable
+records stay in the host UI; inspecting journal data does not mutate model context
+or invoke a provider. Closing a view invalidates pending reads. Workflow stages coordinate
 bounded workers through a persistent dependency graph. Multiple views of one
 conversation do not create additional agents.
 

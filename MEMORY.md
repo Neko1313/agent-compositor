@@ -1,5 +1,54 @@
 # Project memory
 
+## Saved per-agent tool history implemented and exercised natively — 2026-11-13
+
+Saved activity is available from an agent conversation and its expanded overview
+row. It reads an explicit snapshot of the child app's configured session repository
+router (including worktree scope), not a new parallel JSON journal. All/Turns/Tools
+filters expose saved prompts, turn lifecycle/usage and tool calls/results. Tables
+page 25 records and start on the newest page; expandable JSON retains the saved
+arguments, output, denial/error and IDs. Long records have complete 8000-code-point
+parts without splitting surrogate pairs. This reveals the saved record, which may
+itself contain a tool's explicit truncation metadata. Inspection invokes no model,
+changes no conversation context and survives process restart. Recent overview
+labels remain an in-process preview. Session loading uses the existing full-load
+repository API; streaming large journal reads remain open.
+
+Refresh shows reading progress, retains the prior snapshot on failure and permits
+retry. Closing, archiving or host shutdown invalidates pending reads; no polling or
+live background redraw can resurrect the history pane. Archive also removes it.
+The change adds no event/extension contract or manual plugin version/changelog bump.
+
+Evidence: dist/first-run/agent-history-verified-tests.log reports 1257 passing tests
+and three optional skips in 156 files; types, event/docs generation and docs:check
+pass. Integration runs an actual read through an independent core, rebuilds the
+app and inspects old arguments/output with an exhausted provider. Other tests
+reconstruct a large Unicode result across parts, reach old pages, filter, retry
+storage failures and prevent publication after closure. Source PTY regression is
+green. The native Linux x64 fixture in dist/agent-history/native-restored passes
+eight real-input checks with exactly three loopback requests (held main, tool call,
+completion) and zero paid requests. Actual read output survives restart. Four
+screenshots (result, arguments, narrow stacked fields and restored result) were
+inspected in one batch. The detector returned no findings. integrity-ready.json
+binds retained archive, extracted binary, source/tests and evidence; binary SHA256
+91609862dc23b068c2ecc93c906fbd13bc8d57edf0bec9c68e7da6a350d38be9.
+
+Native scenario development exposed harness assumptions: a newly opened inspector
+need not inherit fullscreen; filter text can still be on the old frame; JSON
+output can require PageDown; fresh generation is not yet input readiness; and a
+small overview's row is offscreen before fullscreen. The fixture now observes
+fresh record counts/readiness, uses real fullscreen/scroll controls and reads the
+restored result. No timeouts or assertions were relaxed to conceal those failures.
+
+Prior f18a275 CI, docs and release preparation passed. Build-only release run
+43302677944 passed verify plus all four native build/install/model-smoke platforms;
+publish skipped. Twenty downloaded installed-runtime reports were checked under
+dist/conversation-tabs/release-runtime with audit JSON retained. This is not
+cross-platform interactive UI proof for the history change or a published release.
+Broad 1.0, sustained self-development/model-quality gates, resource-only plugin
+views, CPU-model onboarding and OpenTUI migration remain open. No paid model use.
+
+
 ## Independent agent conversation tabs verified locally — 2026-11-13
 
 Agent panes now expose Overview and agent-name tabs without sharing input or

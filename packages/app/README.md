@@ -209,6 +209,14 @@ group. Closing a pane preserves its draft within the process; restarting restore
 the selected pane and committed messages, but not unsent drafts. Archiving removes
 the agent's pane and tab while retaining its files and saved conversation.
 
+**Saved activity** opens an agent's persisted prompts, turn events and tool
+calls/results. Filter with All/Turns/Tools, expand records with mouse or keyboard,
+and inspect arguments, output or failures. The view starts on the newest page
+of 25 records; Previous/Next records reach earlier/later pages. Long records have
+Previous/Next part controls. Refresh history reads the latest saved snapshot.
+History survives restart and uses the configured session backend without a model
+request. PageUp/PageDown scroll; Open conversation returns to the agent's Reply.
+
 With `btw` and `agent-hub` enabled, `/btw <question>` opens an independent agent
 while the main turn continues. Type follow-ups in its Reply field; Enter sends
 and Ctrl+C in that pane stops only that agent. Alt+i returns to the main message

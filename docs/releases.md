@@ -121,6 +121,15 @@ Plain-session startup is checked with a real SDK plugin too: immediate EOF initi
 the plugin once without a model request, and startup finishes before the first
 model request in a second process. Its report is
 `dist/release/plain-startup-smoke-PLATFORM.json`.
+The installed bundled auto reviewer is exercised through `/auto on` and three
+controlled write proposals: task-context medium-risk approval executes the write,
+structured refusal stops it without a manual question, and an explicit host deny
+prevents both review and execution. Each case preserves an unrelated draft;
+review requests must contain the exact original task. This uses the actual
+packaged plugin and active-provider fallback with local structured responses,
+not a substitute permission-review plugin. The report is
+`dist/release/approval-smoke-PLATFORM.json`. Classification quality, uncertainty
+dialogs and cancellation require their separate checks.
 The smoke test also checks Callix provenance, version and license, then invokes `code_query`
 through the installed compositor against a two-file TypeScript project. The
 check requires a resolved cross-file call with `CALLIX_BIN` cleared and PATH

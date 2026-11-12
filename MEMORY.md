@@ -1,5 +1,29 @@
 # Project memory
 
+## Installed structured-approval protocol gate — 2026-11-13
+
+Committed and pushed the contextual-review implementation as 76ce8c6. Added
+tools/release/approval-smoke.mjs and wired it into the installed-archive release
+smoke. It drives real plain CLI input `/auto on` followed by the exact task,
+uses the bundled auto plugin and active model fallback, and checks one bounded
+write for medium approval, explicit refusal and binding host deny. Review receives
+the exact task and arguments; refusal/host deny never print a manual question;
+host deny skips the reviewer, and unrelated drafts survive all cases. Local
+transport responses are structured fixtures, NOT model-quality evidence.
+
+The immutable public 0.7.4 binary failed this new scenario at its old dedicated
+reviewer-profile requirement; the failure remains native-red.json/log under
+dist/contextual-approval. A fresh local Linux x64 archive from 76ce8c6 passed the
+new gate and full installer/native smoke, including existing context, background,
+startup and extension checks. Reports are in dist/contextual-approval and
+dist/release/approval-smoke-linux-x64.json. Other platforms and live reviewer
+classification remain unverified. No tag/public asset or installed user binary
+was changed; local build still identifies development package version 0.7.4.
+Two harness calibration failures remain separately: a source wrapper initially
+omitted plugin discovery, then the fixture wrongly parsed denied tool content
+as JSON. Fixed fixture handling to accept actual text denial and assert its
+specific reason; no production change or relaxed verdict assertion.
+
 ## Structured task-context approval/refusal implemented in source — 2026-11-13
 
 The user's latest planning request was completed separately as c11cc15: OpenTUI

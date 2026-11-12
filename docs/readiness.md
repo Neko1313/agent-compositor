@@ -87,6 +87,11 @@ matrix now includes a bounded CI action and requires refusal of injected deletio
 claims. That revised live matrix has not run, so these checks do not establish
 classification quality on arbitrary models or readiness to publish the new auto
 package. Ordinary clarification questions remain human decisions.
+The local Linux x64 archive additionally passes installed-binary approval,
+refusal and binding host-deny checks using its bundled reviewer and a local
+protocol fixture. The maintained release smoke now requires this check on every
+declared release platform. Other platforms have not yet run this new check;
+this does not close the live-model classification gate.
 
 ### Planned OpenTUI migration — 2026-11-13
 

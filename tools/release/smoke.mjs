@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { callixRelease } from '../../plugins/callix/distribution.mjs';
 import { smokeContextTask } from './context-smoke.mjs';
 import { smokeBackgroundTask } from './background-smoke.mjs';
+import { smokeApprovals } from './approval-smoke.mjs';
 const exec = promisify(execFile);
 // Permission rules and guarded edit anchors use canonical paths. macOS aliases
 // /var to /private/var, so fixture allow rules must use the same physical path.
@@ -116,6 +117,8 @@ try {
   await exec('sh', [installer, '--version', `v${expected}`, '--prefix', prefix], options);
   const binary = join(prefix, 'bin/compositor');
   assert.equal((await exec(binary, ['--version'], options)).stdout.trim(), `compositor ${expected}`);
+  const approvalSmoke=await smokeApprovals(binary,resolve('dist/release',`approval-smoke-${process.platform}-${process.arch}.json`));
+  console.log('Installed structured approval/refusal:',JSON.stringify(approvalSmoke));
   const contextSmoke=await smokeContextTask(binary,resolve('dist/release',`context-smoke-${process.platform}-${process.arch}.json`));
   const backgroundSmoke=await smokeBackgroundTask(binary,resolve('dist/release',`background-smoke-${process.platform}-${process.arch}.json`));
   console.log('Installed background task retention:',JSON.stringify(backgroundSmoke));

@@ -77,3 +77,48 @@ it('correlates same-name model and user tool cards when the older call completes
   expect(conversation).not.toContain('… shared');expect(conversation.indexOf('✓ shared')).toBeLessThan(conversation.indexOf('! shared'));
  }finally{finishModel();finishUser();await core.close();}
 });
+
+it.each(['titlebar','keyboard'] as const)('closes an active plugin with %s, settles its process and keeps the model, queue and draft intact',async mode=>{
+ const f=await fixture(),pidFile=join(f.root,'closing-worker.pid');let work:Promise<unknown>|undefined;
+ try{
+  f.send('Original task');await wait(()=>f.provider.requests.length===1);f.send('Next task');
+  f.key('i',['meta']);f.ui.receive({type:'input',surface:'input',data:{kind:'text',text:'UNSENT_CLOSE_DRAFT'}});
+  f.ui.core.host.registerPlugin({name:'close-worker',version:'1.0.0',trust:'trusted'},{'service.exec.run':(e,$)=>e.plugin==='git-review'?$.next({...e,cmd:process.execPath,args:['-e',`require('node:fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));setInterval(()=>{},1000);`]}):undefined});
+  work=f.ui.core.host.emit('ui.press',{site:'plugin-git-review-main',key:'status'});
+  let pid=0;await expect.poll(async()=>{pid=Number(await readFile(pidFile,'utf8').catch(()=>''));return pid>0;}).toBe(true);
+  const frame=f.messages.filter(m=>m.type==='layout').at(-1)!.frames.find(frame=>frame.surface==='plugin-git-review-main')!;
+  f.ui.receive({type:'input',surface:'plugin-git-review-main',data:{kind:'mouse',row:frame.y+1,col:mode==='titlebar'?frame.x+frame.width-3:frame.x+3,button:'left',action:'press'}});
+  if(mode==='keyboard')f.key('q',['meta']);
+  await wait(()=>!f.ui.core.hasActiveOperations);await work;
+  expect(()=>process.kill(pid,0)).toThrow();expect(f.ui.windows.has('plugin-git-review-main')).toBe(false);
+  await wait(()=>!(f.rendered.get('status')??'').includes('UI tools'));
+  await f.ui.core.host.emit('service.ui.view',{plugin:'git-review',id:'main',title:'Git review',view:{lines:[{text:'LATE_PLUGIN_PUBLICATION'}]}});
+  expect(f.ui.windows.has('plugin-git-review-main')).toBe(false);
+  expect(f.ui.core.getState()).toBe('running');expect(f.provider.requests[0].signal.aborted).toBe(false);expect(f.rendered.get('input')).toContain('UNSENT_CLOSE_DRAFT');
+  // An explicit plugin command is an intentional reopen; the queued model task
+  // must still remain separate from every panel operation.
+  f.key('i',['meta']);for(const _ of 'UNSENT_CLOSE_DRAFT')f.key('backspace');f.send('/git-review');await wait(()=>f.ui.windows.has('plugin-git-review-main'));
+  f.provider.release();await f.ui.settled();expect(f.provider.requests).toHaveLength(2);expect(f.provider.requests[1].messages.at(-1)?.content).toBe('Next task');
+ }finally{f.ui.core.cancelOperations();await work;f.provider.release();}
+});
+
+it.each(['separate','shared'] as const)('closing a pane with %s owners keeps unrelated work and the main model intact',async mode=>{
+ const provider=new ScriptedProvider([{text:'MAIN_IS_RUNNING',hold:true}]),signals=new Map<string,AbortSignal>();
+ const core=new AgentCore({cwd:process.cwd(),provider,rules:[{tool:'held',decision:'allow'}],tools:[{name:'held',description:'Controlled owned operation',parameters:{type:'object'},describe:()=>({tool:'held',readOnly:true}),execute:async(ctx,args:any)=>{signals.set(args.id,ctx.signal);await new Promise<void>(done=>{if(ctx.signal.aborted)done();else ctx.signal.addEventListener('abort',()=>done(),{once:true});});return{ok:false,error:'Cancelled'};}}]});
+ const ui=new AppUI(()=>core);uis.push(ui);const messages:WireMessage[]=[];ui.connect(m=>messages.push(m));ui.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Layout'],encodings:['jsonl']}));
+ ui.resize(160,40);
+ for(const name of ['first','second'])core.host.registerPlugin({name,version:'1.0.0',trust:'trusted'},{});
+ await core.start();const main=core.submit('Continue working');await wait(()=>provider.requests.length===1);
+ const first=core.invokeUserTool('held',{id:'first'},{owner:'first'}),second=core.invokeUserTool('held',{id:'second'},{owner:mode==='shared'?'first':'second'});
+ try{
+  const outcomes:unknown[]=[];void first.then(r=>outcomes.push(r));void second.then(r=>outcomes.push(r));
+  await expect.poll(()=>({started:[...signals.keys()].sort(),calls:provider.requests.length,active:core.getOperations(),outcomes})).toMatchObject({started:['first','second'],calls:1});
+  for(const [plugin,id]of [['first','main'],[mode==='shared'?'first':'second',mode==='shared'?'detail':'main']])await core.host.emit('service.ui.view',{plugin,id,title:plugin,view:{lines:[{text:'Working'}]}});
+  const frames=messages.filter(m=>m.type==='layout').at(-1)!.frames;expect(frames.map(f=>f.surface)).toContain('plugin-first-main');
+  const frame=frames.find(f=>f.surface==='plugin-first-main')!;
+  ui.receive({type:'input',surface:'plugin-first-main',data:{kind:'mouse',row:frame.y+1,col:frame.x+frame.width-3,button:'left',action:'press'}});
+  if(mode==='separate'){await first;expect(signals.get('first')!.aborted).toBe(true);expect(core.getOperations().map(op=>op.owner)).toEqual(['second']);}
+  else{await ui.settled();expect(signals.get('first')!.aborted).toBe(false);expect(core.getOperations().map(op=>op.owner)).toEqual(['first','first']);}
+  expect(signals.get('second')!.aborted).toBe(false);expect(provider.requests[0].signal.aborted).toBe(false);expect(ui.windows.has(mode==='shared'?'plugin-first-detail':'plugin-second-main')).toBe(true);
+ }finally{core.cancelOperations();provider.release();await Promise.all([first,second,main]);await core.close();}
+});

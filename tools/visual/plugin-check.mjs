@@ -128,11 +128,21 @@ try{
   const waitFile=async file=>{for(let i=0;i<200;i++){if(await readFile(file,'utf8').then(()=>true,()=>false))return;await new Promise(done=>setTimeout(done,10));}throw Error('Controlled report dependency did not settle: '+file);};
   async function slow(){await rm(entered,{force:true});await rm(exited,{force:true});await writeFile(gate,'controlled dependency');await clickText('Read report');await wait('Cancel read');await waitFile(entered);}
   await slow();await shot('01-report-reading',{includes:['Cancel read','FIRST_REPORT_DETAIL']});await clickText('Cancel read');await waitFile(exited);await wait('Report read cancelled.');await page.waitForFunction(()=>!visual.text().includes('Cancel read')&&!visual.text().includes('Cancelling read'));await working();await wait('› REPORT_DRAFT_UNSENT');
-  await slow();await clickText('Close');await waitFile(exited);await page.waitForFunction(()=>!visual.text().includes('Report path:'));await working();await rm(gate);await page.keyboard.press('Alt+i');for(const _ of 'REPORT_DRAFT_UNSENT')await page.keyboard.press('Backspace');await wait('Describe your task');await command('/test-report');await wait('Read report');await shot('01-report-cancelled',{includes:['Report read cancelled.']});
+  for(const mode of ['titlebar','keyboard']){
+   await slow();if(mode==='titlebar')await closePane('Test reports');else{await clickPane('Test reports');await page.keyboard.press('Alt+q');}
+   await waitFile(exited);await page.waitForFunction(()=>!visual.text().includes('Report path:')&&!visual.text().split('\n').slice(-2).some(line=>line.includes('UI tools')));await working();await wait('› REPORT_DRAFT_UNSENT');await rm(gate);
+   await shot('01-report-closed-'+mode,{includes:['REPORT_DRAFT_UNSENT'],excludes:['Report path:']});
+   await page.keyboard.press('Alt+i');for(const _ of 'REPORT_DRAFT_UNSENT')await page.keyboard.press('Backspace');await wait('Describe your task');await command('/test-report');await wait('Read report');
+   if(mode==='titlebar'){await page.keyboard.press('Alt+i');await page.keyboard.type('REPORT_DRAFT_UNSENT');await wait('› REPORT_DRAFT_UNSENT');}
+  }
+  await shot('01-report-cancelled',{includes:['Report read cancelled.']});
+
   // Management commands append to the composer draft; explicitly clear the
   // retained draft before the command rather than losing it silently.
   await page.keyboard.press('Alt+i');await page.keyboard.press('Control+u');await page.keyboard.press('Control+c');await wait('Interrupted');await command('Continue after reports');await wait('REPORT_AGENT_DONE');
-  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.close-cleanup','report.explicit-read','report.keyboard-failures','report.previous-results','settings.concurrent','draft.preserved');
+  await clickText('Read report');await wait('Report loaded.');await page.evaluate(()=>visual.terminal.resize(60,24));await wait('Test reports');await clickPane('Test reports');for(let i=0;i<10;i++)await page.keyboard.press('PageDown');await wait('LAST_REPORT_DIAGNOSTIC');await shot('01-report-narrow-diagnostic',{includes:['LAST_REPORT_DIAGNOSTIC']});for(let i=0;i<10;i++)await page.keyboard.press('PageUp');await wait('Report path:');await page.evaluate(()=>visual.terminal.resize(100,30));await wait('Report path: reports/tests.json');
+  report.checks.push('report.narrow-last-diagnostic','report.page-up-field');
+  report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.close-cleanup','report.explicit-read','report.keyboard-failures','report.previous-results','user-tool.titlebar-close','user-tool.keyboard-close','settings.concurrent','draft.preserved');
  }else if(name==='project-checks'){
   await clickText('Refresh scripts');await wait('Run check');
   await clickText('Run check');await wait('passed (exit 0)');await wait('PROJECT_CHECK_OUTPUT');await shot('01-check-pass');

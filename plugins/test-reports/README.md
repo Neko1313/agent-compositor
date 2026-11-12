@@ -26,12 +26,13 @@ press Enter. Opening the panel does not read a file. The summary shows complete
 counts; click a failure or press Up/Down to inspect its diagnostic. Tab cycles
 Read report, Configure report defaults and Close; Enter activates the highlighted
 action. Ctrl+U clears the panel path. Esc closes this panel; Alt+I returns to the
-message composer.
+message composer. PageUp/PageDown scroll through long diagnostics and back to
+the path field, including in a narrow split; scrolling does not change the path.
 
 The panel and its configuration form work while the main agent is running.
-Cancel read cancels only the report operation. The panel's Close action also
-cancels its operation; neither action cancels the main agent or sends the message
-draft. Previous results remain available during a new read and after a failed or
+Cancel read cancels only the report operation. Closing via the panel's Close
+action, titlebar `[x]` or Alt+Q also cancels its operation. These actions preserve
+the main agent and do not send the message draft. Previous results remain available during a new read and after a failed or
 cancelled read, explicitly labelled **Last loaded** with their original path.
 Reopening the panel retains results within the current session. A process restart
 restores saved defaults and starts with no loaded report; read explicitly again.
@@ -51,9 +52,10 @@ the saved effective values; explicit tool arguments override them. The tool stil
 requires its own `path`. Unknown or invalid settings fail with an error and can
 be repaired through Configure report defaults.
 
-Use a host containing the canonical custom-tool path fix (`ef0c26b`, after the
-public v0.7.3 release). The source package's alias-denial checks require that fix;
-a plugin archive alone cannot repair an older host's permission handling.
+Use a host containing the canonical custom-tool path fix (`ef0c26b`) and host
+scroll keys (catalog 0.24), both newer than public v0.7.3. The package's
+alias-denial and paging checks require these host features. A plugin archive
+alone cannot update an older host's permission handling or input routing.
 
 ## Read a report
 

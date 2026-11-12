@@ -84,6 +84,11 @@ cancellation. The source package now also provides a manually implemented
 restart and concurrent-agent/draft-preservation checks in the actual PTY.
 The composite lifecycle exercises the tool, command, view and configuration
 across install/reload/restart/update/rollback/disable/re-enable/remove.
+The maintained terminal case now requires `[x]` and Alt+Q to settle the owned
+operation while preserving the main model/draft, and requires reaching the final
+diagnostic line and returning to the path in a 60×24 split. The host keeps late
+publications hidden until an explicit plugin command/action. Opt-in host paging
+is an additive catalog0.24 field; legacy input routing stays unchanged.
 These checks do not establish autonomous plugin authoring. The source requires
 the canonical-path host repair after public0.7.3; public report-plugin publication
 still requires a patched host and exact-source native certification.

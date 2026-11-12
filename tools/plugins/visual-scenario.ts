@@ -12,6 +12,7 @@ await withCandidate(ctx,async directory=>{
  const loaded=JSON.parse(await readFile(join(output,'fixture-identity.json'),'utf8'));assert.equal(loaded.plugin,name);assert.equal(loaded.version,ctx.identity.version);assert.equal(loaded.directory,directory);
  const plan=certifiedTestPlanSchema.parse(JSON.parse(await readFile('plugins/'+name+'/plugin.test.json','utf8')));
  for(const requirement of requiredCases(plan.profiles,'release').filter(r=>r.kind==='visual'))assert.ok(report.checks.includes(requirement.id),'Missing real terminal observation: '+requirement.id);
+ if(name==='test-reports')for(const id of ['user-tool.titlebar-close','user-tool.keyboard-close','report.narrow-last-diagnostic','report.page-up-field'])assert.ok(report.checks.includes(id),'Missing report interaction: '+id);
 });
 const evidence=await Promise.all((await readdir(output)).filter(file=>/\.(json|png|ansi|jsonl)$/.test(file)).map(file=>scenarioEvidence('pty/'+file)));
 await finishScenario({id:ctx.caseId,kind:ctx.stage==='artifact'?'artifact':'visual',status:'passed',evidence});

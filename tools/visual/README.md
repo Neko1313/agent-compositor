@@ -425,7 +425,10 @@ These checks do not establish live GitHub network reliability.
 Vitest/Jest-shaped JSON, the actual report tool/panel and a controlled pre-tool
 wait. It checks explicit reads, keyboard/pointer failure selection, a missing-file
 error retaining labelled previous results, scoped configuration, narrow resize,
-restart, the unsent draft and concurrent main-agent work. Cancel and Close settle
-the controlled report operation without stopping that main model. This wait is a
+restart, the unsent draft and concurrent main-agent work. Cancel, titlebar `[x]`
+and Alt+Q settle the controlled report operation without stopping that model.
+At 60×24, PageDown must reach the final line of a long diagnostic; PageUp must
+return to the unchanged path field. These are mandatory source and installed
+archive observations for the report package. This wait is a
 fixture dependency, not a measurement of disk latency. No live model or user
 credentials are used. See the [package guide](../../plugins/test-reports/README.md).

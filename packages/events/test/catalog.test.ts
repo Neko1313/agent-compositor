@@ -50,6 +50,13 @@ describe("event catalog", () => {
         expect(signature.input.required??[]).not.toContain('profile');
         signature.input=structuredClone(signature.input);delete signature.input.properties.profile;
       }
+      // Reviewed additive change in 0.24: omitted scrollKeys preserves the
+      // existing input/non-input key routes; only an explicit mode changes them.
+      if(name==='service.ui.view'){
+        expect(signature.input.properties.view.properties.scrollKeys).toEqual({type:'string',enum:['host','plugin']});
+        expect(signature.input.properties.view.required??[]).not.toContain('scrollKeys');
+        signature.input=structuredClone(signature.input);delete signature.input.properties.view.properties.scrollKeys;
+      }
       expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
         `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);
     }

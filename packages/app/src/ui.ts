@@ -81,6 +81,7 @@ export class AppUI {
   private hitRows = new Map<string, Row[]>();
   private savedLayout = "";
   private pendingTextDraw?: ReturnType<typeof setTimeout>;
+  private pendingOperationDraw?: ReturnType<typeof setTimeout>;
   private reportedFocus = "";
   private activeAgentPane?: string;
   private fileCatalog?: string[];
@@ -132,6 +133,7 @@ export class AppUI {
   private visibility = new Map<string, string>();
   private composerViews = new Map<string, {plugin:string;surface:string;view:UiTextView}>();
   private pluginWindows = new Map<string, PluginWindow>();
+  private closedPluginWindows = new Map<string, string>();
   private panel?: PluginPanel;
   private placementController?:UiControllerLease;
   private drag?: Drag;
@@ -331,6 +333,24 @@ export class AppUI {
       this.draw();
     }));
   }
+  private dismissPluginWindow(site:string):boolean {
+    const owner=this.pluginWindows.get(site)?.plugin;
+    if(!owner)return false;
+    // Record user intent before cancellation can publish a final result. Keep
+    // updates hidden until an explicit action reopens this plugin's views.
+    this.closedPluginWindows.set(site,owner);
+    this.windows.forget(site);
+    if(![...this.pluginWindows.values()].some(view=>view.plugin===owner&&this.windows.has(view.id)))
+      this.core.cancelOperations(owner);
+    return true;
+  }
+  private closeFocusedPane():void {
+    const site=this.windows.focused;
+    if(!this.dismissPluginWindow(site)){this.windows.close();return;}
+    this.track(this.core.host.emit('ui.press',{site,key:'close'}).then(result=>{
+      if(result.faults.length)throw Error('Plugin close failed: '+JSON.stringify(result.faults));
+    }));
+  }
   private async press(site:string,key:string):Promise<void> {
     const manager=['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces'].includes(site);
     if(manager&&key.startsWith('navigate:')){
@@ -342,6 +362,12 @@ export class AppUI {
     if(manager&&(key.startsWith('manage:')||key==='updates')){
       if(site!=='plugin-extension-manager-extensions')this.windows.forget(site);
       site='plugin-extension-manager-extensions';
+    }
+    if(key==='close')this.dismissPluginWindow(site);
+    else if(!['cancel','escape'].includes(key)){
+      const owner=this.pluginWindows.get(site)?.plugin??this.closedPluginWindows.get(site);
+      this.closedPluginWindows.delete(site);
+      if(owner)for(const [id,plugin]of this.closedPluginWindows)if(plugin===owner)this.closedPluginWindows.delete(id);
     }
     const result=await this.core.host.emit('ui.press',{site,key});
     if(result.faults.length)throw Error('Plugin action failed: '+JSON.stringify(result.faults));
@@ -517,6 +543,7 @@ export class AppUI {
       if (name === "ui.appearance" || name === "ui.pluginRemoved") {
         const plugin = String(input.plugin ?? "custom");
         if (name === "ui.pluginRemoved") {
+          for(const [id,owner]of this.closedPluginWindows)if(owner===plugin)this.closedPluginWindows.delete(id);
           for(const [id,view] of this.composerViews)if(view.plugin===plugin)this.removeComposer(id);
         }
         if (name === "ui.pluginRemoved")
@@ -596,6 +623,7 @@ export class AppUI {
       }
       if (name === "ui.surface") {
         const id = String(input.id);
+        if(this.closedPluginWindows.has(id))return;
         const view = uiTextViewSchema.safeParse(input.view);
         if(view.success&&view.data.attachment){
           this.windows.forget(id); this.panes.delete(id); this.pluginWindows.delete(id);
@@ -669,7 +697,9 @@ export class AppUI {
       if(name==='tool.operation'&&input.phase==='completed'){
         const block=this.transcript.find(b=>b.kind==='tool'&&b.callId===input.callId&&b.state==='running');
         if(block){block.state=input.ok?'done':'error';block.text=String(input.error??'completed');}
-        this.pendingTextDraw??=setTimeout(()=>{this.pendingTextDraw=undefined;this.applyPendingReload();this.draw();},16);
+        // Completion is broadcast just before the core removes its operation.
+        // A normal draw must not cancel this final settlement refresh.
+        this.pendingOperationDraw??=setTimeout(()=>{this.pendingOperationDraw=undefined;this.applyPendingReload();this.draw();},16);
       }
       if (name === "turn.complete") {
         this.status = "Ready";
@@ -882,7 +912,7 @@ export class AppUI {
             data.col >= hit.x + hit.width - 4 &&
             data.col < hit.x + hit.width - 1
           ) {
-            this.windows.close();
+            this.closeFocusedPane();
             this.draw();
             return;
           }
@@ -1030,7 +1060,7 @@ export class AppUI {
       else if (key === "b") this.windows.axis = "horizontal";
       else if (key === "v") this.windows.axis = "vertical";
       else if (key === "f") this.windows.fullscreen = !this.windows.fullscreen;
-      else if (key === "q") this.windows.close();
+      else if (key === "q") this.closeFocusedPane();
       else if (key === "i") {
         this.windows.focused = "input";
       } else if (key === "=" || key === "+") this.windows.resize(0.05);
@@ -1057,6 +1087,17 @@ export class AppUI {
       this.draw();
       return;
     }
+    const focusedView=this.panes.get(this.windows.focused)?.view;
+    if(this.windows.focused!=='input'&&focusedView&&data.kind==='key'&&['pageup','pagedown'].includes(data.key)
+      &&(focusedView.scrollKeys??(focusedView.input?'plugin':'host'))==='host'){
+      const frame=this.windows.frames(this.columns,this.rows-this.dockHeight()).find(frame=>frame.surface===this.windows.focused);
+      const width=Math.max(1,(frame?.width??this.columns)-4),height=Math.max(1,(frame?.height??this.rows)-3);
+      const view=this.viewCache.get(this.windows.focused)?.view??focusedView;
+      const count=viewRows(view,width,height,this.nativeRaster).length+(focusedView.input?1:0);
+      const room=Math.max(1,height-(count>height?1:0)),maximum=Math.max(0,count-room);
+      this.offset=Math.max(0,Math.min(maximum,Math.min(maximum,this.offset)+(data.key==='pageup'?-1:1)*room));
+      this.draw();return;
+    }
     const editable = this.panes.get(this.windows.focused)?.view?.input;
     if (this.windows.focused !== "input" && editable) {
       const site = this.windows.focused;
@@ -1070,7 +1111,7 @@ export class AppUI {
         this.scroll.set(site, 0);
         this.track(this.core.host.emit("ui.change", { site, id: field.id, value: field.value }).then(() => {}));
       } else if (data.kind === "key") {
-        this.track(this.core.host.emit("ui.press", {site,key:data.key}).then(()=>{}));
+        this.track(this.press(site,data.key));
       }
       this.draw();return;
     }
@@ -1099,18 +1140,13 @@ export class AppUI {
       }
     }
     if (this.windows.focused !== "input") {
-      if (data.kind === "key" && data.key === "pageup")
+      if (data.kind === "key" && data.key === "pageup" && focusedView?.scrollKeys!=="plugin")
         this.offset = Math.max(0, this.offset + (this.panes.get(this.windows.focused)?.view ? -1 : 1) * Math.max(1, this.rows - 10));
-      else if (data.kind === "key" && data.key === "pagedown")
+      else if (data.kind === "key" && data.key === "pagedown" && focusedView?.scrollKeys!=="plugin")
         this.offset = Math.max(0, this.offset + (this.panes.get(this.windows.focused)?.view ? 1 : -1) * Math.max(1, this.rows - 10));
       else if (this.panes.get(this.windows.focused)?.kind === "plugin")
         this.track(
-          this.core.host
-            .emit("ui.press", {
-              site: this.windows.focused,
-              key: data.kind === "text" ? data.text : data.key,
-            })
-            .then(() => {})
+          this.press(this.windows.focused,data.kind === "text" ? data.text : data.key)
         );
       this.draw();
       return;
@@ -1830,7 +1866,7 @@ export class AppUI {
         const room=Math.max(1,height-(overflow?1:0));
         const offset=props.scrollable===true?Math.max(0,Math.min(Number(props.scrollOffset??0),Math.max(0,full.length-room))):0;
         entry.rows=full.slice(offset,offset+room);
-        if(overflow)entry.rows.push({text:`${offset>0?'↑ ':''}${offset+1}-${Math.min(full.length,offset+room)}/${full.length} ${offset+room<full.length?'↓ ':''}· PgUp/PgDn · Alt+f`,tone:'muted'});
+        if(overflow)entry.rows.push({text:`${offset>0?'↑ ':''}${offset+1}-${Math.min(full.length,offset+room)}/${full.length} ${offset+room<full.length?'↓ ':''}· ${props.hostScrollKeys?'PgUp/PgDn':'Wheel'} · Alt+f`,tone:'muted'});
         send(entry.rows, parsed.data);
       })
       .catch(() => {});
@@ -2075,7 +2111,7 @@ export class AppUI {
           : pane?.kind === "help"
           ? rows.slice(0, height)
           : rows.slice(Math.max(0, end - height), end);
-      if(overflow)visible.push({text:`${offset>0?'↑ ':''}${offset+1}-${Math.min(rows.length,offset+room)}/${rows.length} ${offset+room<rows.length?'↓ ':''}· PgUp/PgDn · Alt+f`,tone:'muted'});
+      if(overflow)visible.push({text:`${offset>0?'↑ ':''}${offset+1}-${Math.min(rows.length,offset+room)}/${rows.length} ${offset+room<rows.length?'↓ ':''}· ${(pane?.view?.scrollKeys??(pane?.view?.input?'plugin':'host'))==='host'?'PgUp/PgDn':'Wheel'} · Alt+f`,tone:'muted'});
       const plugin = this.pluginWindows.get(frame.surface);
       this.paint(
         frame.surface,
@@ -2092,7 +2128,7 @@ export class AppUI {
         {
           title: pane?.title,
           status: this.status,
-          ...(pane?.view?{lines:pane.view.lines,scrollable:true,scrollOffset:offset,fieldRows}:{}),
+          ...(pane?.view?{lines:pane.view.lines,scrollable:true,scrollOffset:offset,fieldRows,hostScrollKeys:(pane.view.scrollKeys??(pane.view.input?'plugin':'host'))==='host'}:{}),
           ...(pane?.view?.raster
             ? { raster: pane.view.raster, lines: pane.view.lines }
             : {}),
@@ -2155,6 +2191,7 @@ export class AppUI {
     if (this.closed) return;
     this.closed = true;
     clearTimeout(this.pendingTextDraw);this.pendingTextDraw=undefined;
+    clearTimeout(this.pendingOperationDraw);this.pendingOperationDraw=undefined;
     this.closePanel();
     this.uiLifetime.abort(new Error("UI closed"));this.editor?.dispose();this.controllerUnsubscribe?.();
     for(const id of this.composerViews.keys())this.removeComposer(id);

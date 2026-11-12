@@ -173,6 +173,10 @@ Cancelling the model turn leaves independent user operations active. Cancelling
 an operation, unloading its calling plugin or closing the core cancels its work;
 owned SDK subprocesses are drained before completion. Concurrent tools cannot
 clear, restore or compact the shared conversation or start a second turn there.
+The TUI cancels a plugin's independent operations when its last attached pane
+closes via `[x]`, Alt+Q or Close. Other plugins and the main model remain active.
+If another pane from that plugin remains attached, the surface's close handler
+owns finer cancellation instead of the host cancelling every plugin operation.
 Reload waits for all active operations. Trusted replacement services must uphold
 these boundaries themselves, including cancellation and resource cleanup.
 

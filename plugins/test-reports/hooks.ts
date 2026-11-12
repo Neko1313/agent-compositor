@@ -50,7 +50,7 @@ async function show($: HooksApi) {
       ] : [{ text: loaded.report.failed ? 'No failure detail fits the output limit. Increase the limits and read again.' : 'No failed assertions in this report.' }]),
     ] : [{ text: 'Enter a Vitest/Jest JSON report path above, then choose Read report.' }]),
   ];
-  await $.ui.view(PANEL, 'Test reports', { input: { id: `report-path:${$.state.get<number>(INPUT) ?? 0}`, label: 'Report path', value: draft.slice(0, 4000), placeholder: DEFAULTS.path }, lines, hint: 'Type path · Tab actions · Enter activate · ↑↓ failures · Esc close · Alt+i message' });
+  await $.ui.view(PANEL, 'Test reports', { scrollKeys: 'host', input: { id: `report-path:${$.state.get<number>(INPUT) ?? 0}`, label: 'Report path', value: draft.slice(0, 4000), placeholder: DEFAULTS.path }, lines, hint: 'Type path · Tab actions · Enter activate · ↑↓ failures · PgUp/PgDn scroll · Esc close' });
 }
 async function read($: HooksApi) {
   if ($.state.get(ACTIVE)) return;

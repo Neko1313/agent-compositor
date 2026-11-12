@@ -62,6 +62,25 @@ history. Supply visible progress, cancellation and errors in the panel, and do
 not reopen a panel the user closed while awaiting completion. See
 [operation limits and lifecycle](core-customization.md#concurrent-user-tool-operations).
 
+The TUI sends `ui.press {site, key: "close"}` for titlebar/Alt+Q dismissal as
+well as action-row Close. Handle it by marking the surface closed, cancelling
+its own work and calling `$.ui.remove`. The host cancels independent operations
+when the plugin's last attached pane closes and suppresses late publications of
+closed panes until an explicit plugin command/action. With several panes, the
+plugin close handler owns finer cancellation. Keep cleanup in `finally`; hiding
+a window alone is not evidence that its resources have settled.
+
+Since catalog 0.24, a `UiTextView` can select `scrollKeys: "host" | "plugin"`.
+`"host"` routes PageUp/PageDown to bounded viewport scrolling without emitting
+those keys as `ui.press`, including when `input` is present. `"plugin"` forwards
+them for custom pagination. Omission preserves existing behavior: host scrolling
+for ordinary views, plugin key handling for views with `input`. Mouse-wheel
+scrolling remains available. Host scrolling preserves the input value and clamps
+the offset at the end so PageUp moves immediately after repeated PageDown.
+Dialog controllers still own their own input algorithm. This option requires a
+host with catalog 0.24 or later; do not assume an older host accepts a new field.
+
+
 Command/panel starters declare a UI command route and implement `ui.press` as
 well as the prompt fallback. Keep both handlers in sync when replacing starter
 behavior. The TUI uses the UI handler, including while the model is active; the

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -2816,6 +2816,13 @@
           "view": {
             "type": "object",
             "properties": {
+              "scrollKeys": {
+                "type": "string",
+                "enum": [
+                  "host",
+                  "plugin"
+                ]
+              },
               "attachment": {
                 "type": "object",
                 "properties": {

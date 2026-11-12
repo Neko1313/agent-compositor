@@ -1,5 +1,59 @@
 # Project memory
 
+## Host panel dismissal, paging and settlement redraw — 2026-11-12
+
+Reproduced both open UI gaps through the actual PTY before changing production:
+X hides a report window but leaves its controlled SDK operation active; PageDown
+cannot reach the last diagnostic in a60x24 editable split. Before/after probes
+use e6d9443 source in an owned reference worktree, the same final grader files,
+and the same controlled report fixture. Reference production was unchanged;
+only the oracle fixture was copied in. Verified production/fixture/grader hashes
+and retained evidence in dist/panel-close-paging/integrity.json; reference
+worktree removed only after audit. This is source PTY proof, not compiled native
+CLI/public-release or paid-model proof. Initial paging probe reached the last
+line after repair but wrongly expected the complete path to fit a narrow field;
+corrected only that final assertion to widen before verifying the full path,
+then reran the frozen corrected probe on reference and candidate. Original
+calibration logs remain retained and are not represented as green runs.
+
+AppUI now dismisses owned panes consistently for titlebar X, Alt+Q and Close,
+sends ui.press close, and cancels independent operations when the plugin's last
+attached pane closes. A closed-surface map suppresses late publications until an
+explicit command/action for that plugin; unload clears it. With another pane of
+the same plugin attached, its close hook owns finer cancellation. Tests prove
+model/queue/draft preservation, actual child settlement, late-publication
+suppression, explicit reopen and isolation of both separate-plugin operations
+and same-plugin multi-pane work. Test fixture ownership was registered before
+user operations; all target panes were given enough viewport space to be visible.
+
+Catalog0.24 adds optional UiTextView.scrollKeys host/plugin. Omission retains
+legacy routes (host for ordinary views, plugin for editable views). Test reports
+opts into host paging; offsets include its input/actual rendered override and
+clamp at the end. PageUp moves immediately after repeated PageDown. Legacy and
+explicit plugin pagination remain covered, including noneditable views. Frozen
+event-version hashes still match after removing only this reviewed optional
+property in the compatibility assertion. Generators updated schema/events.json
+and docs/events.md; current behavior is documented in the app/authoring guides.
+
+A stronger settlement assertion also reproduced a stale UI-tools counter after
+the process had actually finished. tool.operation completion scheduled a redraw
+through the text timer, then the same event's immediate draw cancelled it before
+the core removed the operation. A separate operation-redraw timer now survives
+ordinary paints and is cleared at UI close. Both titlebar/keyboard counter tests
+failed before that repair and pass afterward. The final PTY waits for disappearance
+of the UI-tools count before claiming cleanup or capturing a closed window.
+
+All1161tests pass/3optional skips, types and docs/build pass. The full report PTY
+passes20 observations, including settled titlebar/Alt+Q closure and the final
+long diagnostic/return to path at60x24. Relevant before/after PNGs inspected.
+The standard complete visual:check also passes (windows, dialogs, settings and
+independent agents). Source/installed report certification now explicitly rejects
+missing strengthened close/narrow observations. Evidence dist/panel-close-paging/.
+No paid requests or budget changes. Prepare/release a patched host (0.7.4) and
+verify actual compiled/installed UI behavior before report-plugin publication;
+public0.7.3 remains immutable. Autonomous initial plugin delivery, broad real
+model/task coverage, sustained sessions and trust gates remain open; no1.0 claim.
+
 ## Report-panel archive proof and generated metadata merged — 2026-11-12
 
 Pushed manual panel49895976287ea6e1239daf639ab62089bd3dbbaf. Exact-source

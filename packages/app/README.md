@@ -150,6 +150,21 @@ session; creating a view does not spawn another agent. Scroll positions
 belong to individual windows. The application persists supported layout state
 and independent-agent metadata in project-scoped private storage for restart.
 
+Closing a plugin pane with its titlebar `[x]`, Alt+Q or its Close action sends
+`ui.press` with `key: "close"` to that surface. If it was the plugin's last
+attached pane, the host also cancels that plugin's independent user tool
+operations; those operations finish only after their ordinary cleanup. Other plugins and the main model
+continue; the message draft and queued prompts are preserved. Closing one of
+several panes from the same plugin leaves its other operations active; the plugin
+can cancel a surface-specific task in its close handler. Late publications do not
+reopen a closed pane. An explicit command or action for that plugin allows its
+views to open again. Unloading the plugin clears these dismissal records.
+
+Plugin views scroll with the mouse wheel. PageUp/PageDown scroll ordinary text
+views; editable views may explicitly opt into host scrolling. For example,
+`/test-report` keeps its path field and scrolls long diagnostics with these keys.
+The overflow footer advertises host page keys only when the host owns them.
+
 On macOS, configure your terminal's Option key as Meta to use the Alt shortcuts.
 
 | Shortcut | Action |

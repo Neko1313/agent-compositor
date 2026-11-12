@@ -1,5 +1,37 @@
 # Project memory
 
+## Native UI proof and repeated-read synchronization — 2026-11-13
+
+The local a6e778d Linux host 0.7.4 passed the maintained 20-observation report
+PTY flow and an independent paging probe. Actual /proc child executable paths,
+archive/binary hashes, two isolated native processes and local-only transport
+requests are retained in dist/panel-close-paging/native-ui-integrity.json.
+The Linux archive downloaded from host candidate 43247332260 at exact source
+973012a has the same executable SHA256, with archive SHA256
+a956f0cd9844f47881d6b61d51d0d5a750d127aa9939e8e9f195a1da31b6fe8f.
+Its full native PTY also passed. Four-platform host candidate remains live;
+inspect that exact run rather than dispatching another. No host tag yet.
+
+Plugin candidate 43247598100 at 973012a passed source and three platforms but
+failed the Intel macOS terminal case. Retained diagnostics under
+dist/test-reports-native-973012a/failed-macos-intel show the bench clicking
+configuration before a repeated read settled: its old success label could
+satisfy the completion wait before the new request even painted. The unchanged
+plugin correctly declines configuration during an active read. The actor now
+observes that read entering its controlled dependency, releases it, waits for
+completion and excludes Cancel read in the concurrent capture. This corrects
+synchronization, not the domain expectations or a product timeout. The revised
+actor passes all 20 observations on the exact downloaded native host in
+dist/v074-public/candidate-ui-synchronized/. Re-certify the committed fix on
+all platforms before publishing the plugin; do not count the failed candidate
+as a pass. A local release-certification attempt correctly refused the dirty
+snapshot before executing cases. Public host upgrade verifier and independent
+native audits are prepared under dist/v074-public, not yet executed.
+
+No paid model requests or budget changes. Original broad 1.0/model/development/
+trust requirements remain open. The proxy remains enabled for models/tools;
+all external CLI calls use dist/network-check/run.ts without logging secrets.
+
 ## Local prepared native0.7.4 basic smoke passed — 2026-11-12
 
 Clean sourcea6e778d1ae67c727905a953cef289ee80e855124 produced the Linux0.7.4

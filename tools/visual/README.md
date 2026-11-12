@@ -432,3 +432,8 @@ return to the unchanged path field. These are mandatory source and installed
 archive observations for the report package. This wait is a
 fixture dependency, not a measurement of disk latency. No live model or user
 credentials are used. See the [package guide](../../plugins/test-reports/README.md).
+
+A repeated successful read must enter the controlled dependency before the bench
+releases it and waits for completion. The retained `Report loaded.` label alone
+cannot acknowledge a new operation; configuring against that stale label can
+race an active read. The concurrent-read capture also rejects `Cancel read`.

@@ -122,11 +122,13 @@ try{
   await command('Work while I inspect reports');await wait('REPORT_AGENT_WORKING');await command('/test-report');await wait('Read report');
   const working=async()=>assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'Report operations must leave the main model active');await working();
   await page.keyboard.press('Alt+i');await page.keyboard.type('REPORT_DRAFT_UNSENT');await wait('› REPORT_DRAFT_UNSENT');
-  await clickText('Read report');await wait('Report loaded.');await working();await shot('01-report-concurrent',{includes:['REPORT_DRAFT_UNSENT','FIRST_REPORT_DETAIL']});
-  await clickText('Configure report defaults');await wait('Configure test reports');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure test reports'));await wait('› REPORT_DRAFT_UNSENT');await working();
   const entered=join(fixture.cwd,'.report-entered'),exited=join(fixture.cwd,'.report-exited'),gate=join(fixture.cwd,'.report-slow');
   const waitFile=async file=>{for(let i=0;i<200;i++){if(await readFile(file,'utf8').then(()=>true,()=>false))return;await new Promise(done=>setTimeout(done,10));}throw Error('Controlled report dependency did not settle: '+file);};
   async function slow(){await rm(entered,{force:true});await rm(exited,{force:true});await writeFile(gate,'controlled dependency');await clickText('Read report');await wait('Cancel read');await waitFile(entered);}
+  // A retained "Report loaded" status cannot acknowledge a new read. Observe
+  // this operation entering the dependency before releasing it and configuring.
+  await slow();await rm(gate);await waitFile(exited);await wait('Report loaded.');await working();await shot('01-report-concurrent',{includes:['REPORT_DRAFT_UNSENT','FIRST_REPORT_DETAIL'],excludes:['Cancel read']});
+  await clickText('Configure report defaults');await wait('Configure test reports');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure test reports'));await wait('› REPORT_DRAFT_UNSENT');await working();
   await slow();await shot('01-report-reading',{includes:['Cancel read','FIRST_REPORT_DETAIL']});await clickText('Cancel read');await waitFile(exited);await wait('Report read cancelled.');await page.waitForFunction(()=>!visual.text().includes('Cancel read')&&!visual.text().includes('Cancelling read'));await working();await wait('› REPORT_DRAFT_UNSENT');
   for(const mode of ['titlebar','keyboard']){
    await slow();if(mode==='titlebar')await closePane('Test reports');else{await clickPane('Test reports');await page.keyboard.press('Alt+q');}

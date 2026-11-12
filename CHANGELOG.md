@@ -2,6 +2,22 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.7.3 - 2026-11-12
+
+### Fixes
+- Show pending operation state in the panel ([d998964](https://github.com/Neko1313/agent-compositor/commit/d998964bccd86eede16e94134d75eabc2a2bd935))
+- Require published transitions on every native archive ([5ce76e5](https://github.com/Neko1313/agent-compositor/commit/5ce76e5c6963be27b873498a37c267bd52c17561))
+- Preserve user tasks across background follow-ups ([f393bff](https://github.com/Neko1313/agent-compositor/commit/f393bff5f6e6db821bee69a022bc8f8aac663be8))
+- Initialize session hooks before reading plain input ([2892517](https://github.com/Neko1313/agent-compositor/commit/2892517a4ff5ebdf1308b6b9e59b48539d99858f))
+
+
+### Tests
+- Verify installed binary task retention during compaction ([026e605](https://github.com/Neko1313/agent-compositor/commit/026e605c8745d90923caf8266f05e25406f5504f))
+- Wait for terminal paint before capturing plugin evidence ([e35c349](https://github.com/Neko1313/agent-compositor/commit/e35c3499b316c7ca961315ff11c5872433b05aad))
+- Await CI panel settlement after cancellation ([60c0fa7](https://github.com/Neko1313/agent-compositor/commit/60c0fa7860e636dab062a0eb17b8cb3721ce1bf8))
+- Control completion order around unsubscribe ([9a2314e](https://github.com/Neko1313/agent-compositor/commit/9a2314edf300324e64dcad2bcb6bd43b4e52e71b))
+- Verify background task retention and plain startup ([e234327](https://github.com/Neko1313/agent-compositor/commit/e2343272c09987d6e4a2dad8e75eee36a14918b7))
+
 ## v0.7.2 - 2026-11-11
 
 ### Documentation

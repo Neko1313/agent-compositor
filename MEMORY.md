@@ -1,5 +1,19 @@
 # Project memory
 
+## Prepared host0.7.3 for exact native gates — 2026-11-12
+
+Prepared root/app0.7.3 and matching lock metadata; generated host notes include
+f393bff task provenance and2892517 plain startup, despite the intervening
+independent plugin tag. Generators and docs/build pass with no unrelated drift.
+All1133tests pass/3optional skips, types pass, and a fresh local0.7.3 Linux
+archive passes the full installer/model/SDK/kernel/Monty/Callix/context smoke,
+including both new background/replay and plain-startup witnesses. The latter
+records two startup hooks in two processes, zero EOF model requests and one
+prompt whose model observes completed startup. Logs dist/background-binary-proof/v073-*.
+No v0.7.3 tag yet. Inspect CI/docs and the exact forthcoming four-platform
+build-only run, including new smoke reports on every native runner, before
+creating an immutable tag. Broader1.0 gates remain open and budget unchanged.
+
 ## Packed background-task proof and plain lifecycle startup — 2026-11-12
 
 Exact f393bff Node22/26 CI43124632687, docs43124632659 and build-only native

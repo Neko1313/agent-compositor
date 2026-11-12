@@ -665,3 +665,15 @@ view to reset it. Input never enters the model prompt. Handled UI commands are
 recorded as `prompt.dropped`, so new command records cannot become user messages
 after resume. Session list,
 search and mutations still use `service.session.control`/`service.session.store`.
+
+## Independent process resource charts
+
+Enable the `resources` plugin and run `/resources` to open a live window while an
+agent works. CPU/Memory tabs plot real process samples with labeled scales and
+current RSS/heap values. The plugin adds no model tool and sends no model request.
+Pause/Resume, Sample now and Clear history work independently of agent execution.
+Closing or hiding the window stops sampling; reopening retains this process's
+bounded history, while restart/reload starts fresh. See the
+[resource monitor guide](../plugins/resources/README.md) for measurement scope,
+CPU scaling, sample timing and limits. Child shell processes and external model
+servers are excluded; this is not per-agent or machine-wide attribution.

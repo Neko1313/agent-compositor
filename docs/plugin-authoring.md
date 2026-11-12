@@ -136,3 +136,15 @@ the Compositor binary does not provide a general Node executable on PATH.
 The [composition reference](../plugins/plugin-author/skills/create-plugin/references/composition.md)
 documents the full schema, packaging and lifecycle checks. Market catalog removal
 retains installed packages; extension removal remains a separate explicit action.
+
+## Views without agent tools
+
+A plugin can provide a UI command and view without defining any model-facing tool.
+The [resources plugin](../plugins/resources/README.md) is a maintained example:
+`/resources` routes to its declared UI site while the model is busy, and the
+`ui.press` handler receives `command:/resources`. Its timer reads local process
+counters and republishes a bounded text view. `ui.visibility` suspends hidden
+sampling; close and module `dispose()` stop the timer. CPU/Memory tabs and graph
+cells use existing portable view contracts, including a chart-switch fallback
+when tabs are unavailable. This pattern also fits standalone dashboards whose
+contents do not need to enter an agent conversation.

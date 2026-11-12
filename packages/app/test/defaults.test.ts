@@ -281,6 +281,7 @@ describe("default market: end-to-end through the assembled app", () => {
       "plan-mode",
       "plugin-author",
       "project-checks",
+      "resources",
       "session-ctl",
       "slash-commands",
       "test-reports",

@@ -3,6 +3,11 @@ export default {
     if(!process.env.VISUAL_EXECUTABLE)return;
     const result=await $.emit('service.extension.control',{action:'list'});
     if(result?.deny)throw Error(result.deny);
+    if(process.env.VISUAL_RESOURCES){
+      const resources=result?.value?.available?.filter((row:any)=>row.name==='resources'&&row.enabled)??[],loaded=e.plugins?.find((plugin:any)=>plugin.name==='resources');
+      if(resources.length!==1||!loaded||loaded.version!==resources[0].version)throw Error('Resource runtime identity differs from inventory');
+      await $.fs.write('native-resources-identity.json',JSON.stringify({plugin:loaded.name,version:loaded.version,directory:resources[0].directory}));
+    }
     const available=result?.value?.available?.filter((row:any)=>row.name==='workflows'&&row.enabled)??[];
     if(available.length!==1)throw Error('Expected exactly one enabled workflow package');
     const loaded=e.plugins?.find((plugin:any)=>plugin.name==='workflows');

@@ -75,8 +75,11 @@ draft, repeated restoration, workspace return, narrow history scrolling and
 restart. Core checks cover owner dispatch, failure isolation, tool permissions,
 auxiliary usage, cancellation, unload and shutdown bounds. This is source-runtime
 evidence; the immutable public 0.7.4 archive does not include these new contracts.
-Embedded inference-assisted onboarding, richer tables/drill-down and standalone
-resource charts remain implementation work. The development agent overview now
+Embedded inference-assisted onboarding and further table/drill-down work remain
+open. The development `resources` plugin provides a first standalone non-model
+window: live process CPU/RSS charts, pause/manual sampling and bounded in-memory
+history. It includes in-process agents but excludes child shells and model servers;
+per-agent attribution and broader resource integrations remain open. The development agent overview now
 uses catalog 0.27 semantic tables with expandable workspace/limits/activity,
 state filters and responsive stacked fields. This is an initial reusable table
 contract. The development workflows plugin adopts it for paginated run/stage

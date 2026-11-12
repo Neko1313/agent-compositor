@@ -292,6 +292,15 @@
       "source": "./examples/plugins/portable-example",
       "description": "Portable namespaced command example for Claude Code and Agent Compositor.",
       "version": "1.0.0"
+    },
+    {
+      "name": "resources",
+      "source": "./plugins/resources",
+      "description": "Independent process CPU and memory charts with no model requests.",
+      "version": "0.1.0",
+      "compositor": {
+        "format": "native"
+      }
     }
   ]
 }

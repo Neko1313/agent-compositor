@@ -1,3 +1,4 @@
+import {resourcesScenario} from './resources-scenario.mjs';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {spawn} from 'node:child_process';
@@ -20,7 +21,7 @@ try{
  const click=async value=>{await wait(value);const point=await page.evaluate(value=>{const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(value)),col=lines[row].indexOf(value)+1,rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};},value);await page.mouse.click(point.x,point.y);};
  const command=async value=>{await page.keyboard.press('Alt+i');await page.keyboard.type(value);await wait('› '+value);await page.keyboard.press('Enter');};
  const shot=async name=>{await page.screenshot({path:join(output,name+'.png')});report.screenshots.push(name+'.png');};
- if(process.env.VISUAL_AGENT_HISTORY){await agentHistoryScenario({page,wait,click,text,command,shot,report,output});}else if(process.env.VISUAL_CONVERSATION_TABS){await conversationTabsScenario({page,wait,click,text,command,shot,report,output});}else{
+ if(process.env.VISUAL_RESOURCES){await resourcesScenario({page,wait,text,command,click,shot,report,output,native:true});}else if(process.env.VISUAL_AGENT_HISTORY){await agentHistoryScenario({page,wait,click,text,command,shot,report,output});}else if(process.env.VISUAL_CONVERSATION_TABS){await conversationTabsScenario({page,wait,click,text,command,shot,report,output});}else{
  await wait('0/3 complete');await command('MAIN_TABLE_TASK');await wait('MAIN_TABLE_WORKING');
  await command('/agents');await wait('[All (0)]');
  assert.ok((await text()).includes('Working'));

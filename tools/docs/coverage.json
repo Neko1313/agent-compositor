@@ -28,6 +28,7 @@
     "tools/evals/": ["docs/evals.md"],
     "tools/visual/": ["tools/visual/README.md"],
     ".github/workflows/": ["docs/contributing.md", "docs/releases.md", "docs/documentation.md"],
-    "install.sh": ["docs/getting-started.md", "docs/releases.md"]
+    "install.sh": ["docs/getting-started.md", "docs/releases.md"],
+    "plugins/resources/": ["plugins/resources/README.md", "docs/agent-features.md"]
   }
 }

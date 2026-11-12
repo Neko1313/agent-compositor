@@ -1,3 +1,4 @@
+import {resourcesScenario} from './resources-scenario.mjs';
 import {btwScenario} from './btw-scenario.mjs';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
@@ -6,7 +7,7 @@ import {mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const name=process.argv[2],output=resolve(process.env.VISUAL_OUTPUT??'dist/plugin-visual/'+name);await mkdir(output,{recursive:true});
 const report={plugin:name,ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
-const entries={btw:['/btw','Side conversation'],'test-reports':['/test-report','Test reports'],'ci-review':['/ci','CI review'],'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto history','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
+const entries={resources:['/resources','Resources'],btw:['/btw','Side conversation'],'test-reports':['/test-report','Test reports'],'ci-review':['/ci','CI review'],'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto history','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
 assert.ok(entries[name],'Unknown UI profile');
 try{
  const{NO_COLOR,...env}=process.env;
@@ -40,7 +41,7 @@ try{
  }
  async function clickPane(title){const p=await panePosition(title);await clickCell(p.col,p.row);}
  async function closePane(title){await clickPane(title);const p=await panePosition(title,true);await clickCell(p.col,p.row);}
- if(name==='btw'){await btwScenario({page,wait,text,command,clickPane,closePane,shot,report});}else{
+ if(name==='btw'){await btwScenario({page,wait,text,command,clickPane,closePane,shot,report});}else if(name==='resources'){await resourcesScenario({page,wait,text,command,click:clickText,shot,report,output});}else{
  await wait('Describe your task');await command(entries[name][0]);await wait(entries[name][1]);await shot('00-open');
  if(name==='cost')await wait('42 input');
  if(name==='todos')await wait('Inspect project');

@@ -1,5 +1,70 @@
 # Project memory
 
+## Standalone process resource monitor implemented — 2026-11-13
+
+New native plugin resources 0.1.0 adds /resources as a declared UI command with
+no agent tool/model call. CPU and Memory tabs plot actual process observations
+with numeric axes/units; RSS and JavaScript heap-used values are explicit. CPU
+100% is one busy core and can exceed 100%. The process includes in-process agents
+but excludes child shell processes/model servers and does not attribute usage to
+individual agents. A sampler uses monotonic elapsed time plus process CPU counters;
+initial/reset CPU intervals are unavailable, not invented zeros. History is at most
+120 samples, the target interval is one second after each completed update, and
+the horizontal axis is sample order. The portable cell plot uses existing view/
+visibility contracts and a switch-action fallback on hosts without tabs. It is
+not an OpenTUI/media implementation or machine-wide dashboard.
+
+Pause, manual sample/retry and clear are local UI actions. Hidden/closed/unloaded
+views stop their timer; reopen retains this process's samples, restart/reload
+starts fresh. No metrics/preferences are written to disk. Counter failure surfaces
+an error with retry and stops automatic sampling. Module disposal revokes timers.
+A graph/runtime screenshot exposed heapUsed > heapTotal in this Bun runtime; the
+view now reports absolute JS heap used rather than a misleading used/total ratio.
+
+PR certification and package lifecycle/composite oracles cover install/enable,
+reload, fresh-process restart, disable/re-enable, synthetic update/rollback and
+removal. Explicit source bindings additionally require CPU arithmetic/multi-core,
+plot bounds, timer lifecycle, failure recovery/old-host fallback and a held-model
+UI command test. Initially a constructor default shadowed its counter source;
+the actual loaded-package test caught it. UI commands use command:/resources via
+ui.press; testing only prompt.submit did not exercise busy-model routing. An
+assembled-core routing test and actual PTY now cover that seam. The opted-in plugin
+inventory test was updated to include resources; no unrelated assertions relaxed.
+
+Evidence: resources-verified-tests.log has 1264 passing/three optional skipped tests
+in 157 files; types, marketplace validation, event/docs generation and docs:check
+pass. PR certificate is under reports/certification/resources/pr/linux-x64. Source
+and extracted-native scenarios pass thirteen checks: real counter growth, paused
+observation, tabs/keyboard, manual sampling, clear, narrow scrolling, close/reopen,
+fresh restart and no resource model call. Native fixture makes exactly one held
+main loopback request and verifies the actually loaded resources directory matches
+the extracted bundle. The first narrow fixture needed two PageDowns, and its close
+watch originally confused transient resize cells with a resurrected window; it now
+observes the actual pane header and final closed geometry. The model/request oracle
+was not weakened. Four native screenshots were inspected, then confirmed after
+the heap label correction. Detector reported no findings before that label change.
+
+Retained native evidence: dist/resources/native-ready and integrity-ready.json.
+The whole retained archive and extracted files match. Host binary SHA256 remains
+91609862dc23b068c2ecc93c906fbd13bc8d57edf0bec9c68e7da6a350d38be9 because no host
+code changed; the new bundled plugin is separately identified and hashed:
+59781fb9db09cb5016f3f46b49226bdfab0b95ebd39ecf4f5c4219e8aeaefeca.
+Release-stage source/artifact certification must run from the clean committed
+snapshot; this entry records the completed local development/PR/native checks,
+not publication. The initial manifest/catalog/changelog establish this new plugin;
+existing plugin versions/changelogs were not hand-bumped. Documentation impact on
+general certification/contribution contracts was reviewed: they are unchanged;
+the new plugin guide, authoring example, terminal guide, readiness and visual guide
+cover its behavior and limits. The coverage map and generated plugin reference
+include resources.
+
+Prior ae76972 build-only release run 43304797086 passed verify and all four native
+build/install jobs, publish skipped. This does not prove the new plugin's UI on
+other platforms. Broad 1.0/model self-development gates, per-agent/machine-wide
+resource attribution, CPU inference onboarding and OpenTUI remain open. No paid
+model calls or additional spending were used for this feature.
+
+
 ## Saved per-agent tool history implemented and exercised natively — 2026-11-13
 
 Saved activity is available from an agent conversation and its expanded overview

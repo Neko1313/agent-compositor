@@ -28,12 +28,16 @@ export class WorkspaceAccess {
     }
   }
   rootFor(path:string):string|undefined{return this.entries.filter(entry=>entry.kind==="directory"&&(path===entry.path||path.startsWith(entry.path.endsWith(sep)?entry.path:entry.path+sep))).sort((a,b)=>b.path.length-a.path.length)[0]?.path;}
-  async resolve(value:string,options:{missing?:boolean;directory?:boolean}={}):Promise<string>{
-    const path=this.expand(value);let canonical:string;
+  /** Resolve metadata for policy matching without granting access or attaching a root. */
+  async canonical(value:string,options:{missing?:boolean}={}):Promise<string>{
+    const path=this.expand(value);
     const existing=async(target:string):Promise<string>=>{
       try{return await realpath(target);}catch(error){if(!options.missing||(error as NodeJS.ErrnoException).code!=="ENOENT")throw error;const parent=dirname(target);if(parent===target)throw error;return resolve(await existing(parent),basename(target));}
     };
-    canonical=await existing(path);
+    return existing(path);
+  }
+  async resolve(value:string,options:{missing?:boolean;directory?:boolean}={}):Promise<string>{
+    const canonical=await this.canonical(value,options);
     const allowed=this.rootFor(canonical)||this.entries.some(entry=>entry.kind==="file"&&entry.path===canonical);
     if(!allowed)throw Error(`Path escapes attached workspaces: ${value}. Attach it with @path or /workspace add first.`);
     if(options.directory&&!(await stat(canonical)).isDirectory())throw Error(`Not a workspace directory: ${value}`);

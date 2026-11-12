@@ -68,6 +68,15 @@ behavior. The TUI uses the UI handler, including while the model is active; the
 line-based interface uses the prompt handler. See the
 [command routing contract](plugin-standard.md#commands-that-open-ui).
 
+File tools must describe the actual path they will access. The host canonicalizes
+path descriptors before permission rules, including custom tools and rewritten
+arguments, so symlink aliases cannot evade a target-path deny. Return relative
+paths relative to the selected workspace; do not resolve them against the host
+process's working directory. In `execute`, use `ctx.resolvePath` for workspace
+file access or the scoped storage API for plugin settings. Canonical policy
+metadata does not grant access or attach a workspace, and descriptor checks do
+not replace these execution-time boundaries.
+
 Native plugins can include `skills/<name>/SKILL.md` (or loose Markdown skills)
 with name/description frontmatter. The loader must enable and load the plugin
 before its skills enter discovery. Project/configured/user skill sources keep

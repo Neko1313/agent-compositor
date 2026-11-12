@@ -19,6 +19,14 @@ async function fixture() {
 }
 
 describe("workspace filesystem boundaries", () => {
+  it('canonicalizes policy metadata without granting an outside workspace',async()=>{
+    const f=await fixture(),alias=join(f.primary,'report.json');await symlink(f.file,alias);
+    const before=f.workspace.list();
+    expect(await f.workspace.canonical('report.json')).toBe(f.file);
+    expect(await f.workspace.canonical(join(f.extra,'new/report.json'),{missing:true})).toBe(join(f.extra,'new/report.json'));
+    expect(f.workspace.list()).toEqual(before);
+    await expect(f.workspace.resolve('report.json')).rejects.toThrow('escapes');
+  });
   it("allows creation beneath an attached directory while rejecting adjacent prefixes", async () => {
     const f = await fixture();
     await f.workspace.add("~/extra");

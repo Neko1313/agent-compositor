@@ -1,5 +1,28 @@
 # Project memory
 
+## Canonical permission paths for custom file tools — 2026-11-12
+
+Local structured-test-report authoring preflight exposed a host policy gap.
+Built-in read/write/edit paths resolved symlinks before permissions; custom tool
+paths were only expanded. A custom readonly report reader could therefore reach
+a deny-listed physical file through an alias. Three actual-file regressions
+failed before repair: path argument, differently named file argument and a
+hook-rewritten argument. A fourth red test caught a second issue: the host
+ignored the custom tool's mapped descriptor path in favor of args.path.
+
+The host now canonicalizes the actual declared custom descriptor before policy.
+Builtin file tools retain their workspace-confined argument resolution. New
+WorkspaceAccess.canonical is metadata-only and never adds a workspace grant;
+resolve still enforces attached roots. A new test resolves outside metadata but
+confirms no changed grants and denied access. Allowed aliases into explicitly
+attached projects still work. Custom tools remain responsible for ctx.resolvePath
+or scoped storage at execution; native trusted code is not an OS sandbox.
+Canonical authoring guidance updated. All1139tests pass/3optional skips, types
+and docs/build pass. Red/green logs dist/test-reports-authoring/path-*. No new
+paid requests. This change is not in immutable public0.7.3. Continue the real
+initial test-report plugin authoring case after this host prerequisite; a broad
+model matrix and full composite-plugin/UI gate remain open.
+
 ## Published host0.7.3 with native background/replay and startup proofs — 2026-11-12
 
 Immutable v0.7.3 points to79b97ee41c71fdfcc3c3ebbb238a2f2c763b0dbd. Exact-head

@@ -1569,10 +1569,10 @@ export class AgentCore {
         let descriptor: ToolCallDescriptor;
         try {
           descriptor = spec.describe(args);
-          if (descriptor.path && typeof (args as any).path === "string") {
+          if (descriptor.path) {
             const selected=spec;
             const nativeFile=[readTool,writeTool,editTool].some(tool=>selected.execute===tool.execute&&selected.describe===tool.describe);
-            descriptor.path=nativeFile?await this.workspace.resolve((args as any).path,{missing:true}):this.workspace.expand((args as any).path);
+            descriptor.path=nativeFile?await this.workspace.resolve((args as any).path,{missing:true}):await this.workspace.canonical(descriptor.path,{missing:true});
           }
           if(spec.execute===execTool.execute && spec.describe===execTool.describe){const commandCwd=this.workspace.expand((args as any).cwd??this.options.cwd);descriptor.readOnly=!(args as any).env&&!(args as any).background&&await isReadOnlyShell((args as any).command,commandCwd,this.workspace.rootFor(commandCwd)??this.options.cwd,{...process.env,...this.options.toolEnv?.()});}
         } catch (caught) {

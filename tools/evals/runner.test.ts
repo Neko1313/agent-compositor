@@ -27,3 +27,12 @@ it('refuses an unavailable requested tool before calling the model',async()=>{
  const result=await runCase({id:'missing-composition',prompt:'Work.',files:{},expect:{responseIncludes:'unused'}},{model:'scripted',provider,tools:['missing_composition_tool']});
  expect(result.ok).toBe(false);expect(result.error).toContain('Requested evaluation tools are unavailable: missing_composition_tool');expect(provider.requests).toHaveLength(0);
 });
+it.each([false,true])('uses ordinary directory attachments only when explicitly enabled: %s',async fileReferences=>{
+ const {ScriptedProvider}=await import('../../packages/core/src/index.js');const provider=new ScriptedProvider([{text:'Ready'}]);
+ const result=await runCase({id:'project-reference',prompt:'Inspect the project @.',files:{'known-source.mjs':'export const value=1;'},expect:{responseIncludes:'Ready',grader:'/* PRIVATE_GRADER_SENTINEL */'},script:[{text:'REFERENCE_SOLUTION_SENTINEL'}]},{model:'scripted',provider,tools:['read'],fileReferences});
+ expect(result.ok,result.error).toBe(true);
+ const context=provider.requests[0].messages.map(message=>message.content).join('\n');
+ expect(context.includes('Directory @.')).toBe(fileReferences);expect(context.includes('known-source.mjs')).toBe(fileReferences);
+ expect(context).not.toContain('PRIVATE_GRADER_SENTINEL');expect(context).not.toContain('REFERENCE_SOLUTION_SENTINEL');
+ expect(result.composition).toHaveProperty('fileReferences',fileReferences);
+});

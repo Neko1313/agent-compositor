@@ -503,6 +503,23 @@ checks. This focused composition is an explicit experimental configuration, not
 an estimate of the full default tool catalog's quality. Existing callers of
 `runCase` keep their original composition unless they select these options.
 
+Add `--project-reference` to enable ordinary file-reference expansion and append
+`Project directory: @.` to the case prompt. This uses the same bounded directory
+listing and ordinary project-instruction expansion available to the user. These
+coding fixtures contain no instruction files; their source contents are not
+automatically attached. Neither the reference solution nor independent grader is
+attached. Both preflight and inference use the resulting prompt.
+Reports record the reference flag, `fileReferences` composition option and the
+submitted prompt SHA-256 separately from the unchanged source case hash. This is a
+different context condition from the unassisted diagnostic; do not present it as
+an unchanged-prompt comparison or evidence of autonomous filename discovery.
+The default still disables file references in the focused tool composition.
+
+For CPU reports, `admitted` and `transportRequests.length` count actual local
+completion requests. The inherited `runCase.requests` field counts attempted
+model steps for a non-scripted provider and can include a step rejected by the
+pre-transport request guard; do not count it as an extra admitted request.
+
 Limits are two CPU threads, seed 17, 16,384 configured context tokens, an estimated
 context guard before transport, 1,536 output tokens/request, twelve admitted
 requests/case, five minutes/case and twenty minutes overall. `--repeat` permits

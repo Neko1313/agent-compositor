@@ -1,5 +1,51 @@
 # Project memory
 
+## Ordinary directory-reference CPU diagnostics — 2026-11-13
+
+The evaluator can explicitly enable ordinary fileReferences. The local CPU CLI
+adds --project-reference, appending Project directory: @. before /no_think and
+using that submitted prompt in both preflight and inference. The default focused
+composition remains unchanged. Configuration records the flag, composition and
+submitted-prompt hash separately from the frozen case/suite hashes. Request-body
+hashes remain separate. Tests prove directory names appear only with expansion
+enabled and grader/reference-solution sentinel content is absent from requests.
+No production runtime or extension contract changed in this turn.
+
+Two known checkout attempts scored1/2: one spent12 admitted calls on repetitive
+successful grep queries; the other used six calls to discover/read math.mjs,
+perform a hash/range-anchored edit, run npm test and pass independent held-out
+behavior checks. Both preserved package.json/checks.mjs. Two known greeting
+attempts scored0/2, each admitting12 calls; original project checks and held-out
+behavior still failed. One looped on successful read/grep; the other made a
+failed edit, then an identical oldText/newText edit, ran failing tests twice and
+correctly remained failed by the completion policy. This exposes two concrete
+next repairs: bounded recovery for repeated successful queries without progress,
+and rejecting no-op edits instead of reporting a successful mutation. Neither is
+implemented by this evaluator change. Directory attachment does not establish
+autonomous discovery or reliable coding; these four known diagnostics are not an
+unseen benchmark or unchanged-prompt comparison with earlier attempts.
+
+Exactly42 local completions were admitted across four attempts. runCase.requests
+can additionally count a model step rejected before transport; admitted and wire
+receipts are authoritative for actual request counts. Both isolated CPU servers
+reported zero VRAM and exited; their process groups507080/527742 were independently
+confirmed absent. No paid request, model download or profile/budget change.
+Evidence: dist/local-cpu-project-reference{,-greeting}, with source-input hashes
+matching the actual working-tree evaluator on7139daa; aggregate hashes and bounds
+are in dist/project-reference/evidence.json. Full coverage passes1291 tests with
+three optional skips in159 files; types and documentation checks pass.
+
+Prior runtime commit7139daa passed build-only release run43320159884, including
+verification and all four native builds/install checks. Independently downloaded
+and audited all28 installed-runtime JSON reports, including the four actual
+check-rerun cases on every platform; publication skipped. Reports are retained at
+dist/project-reference-prior-installed. Generated release PR9 was at7af4149 on
+base7139daa: explicitly dispatched CI/docs runs43320230640/43320233795 passed;
+PR-triggered runs required action, so gh pr checks alone reported none. Do not
+blindly redispatch already successful jobs or merge a stale head after the next
+main push. The PR was inspected read-only, not merged. Broad1.0, sustained real
+development, model-family coverage and OpenTUI remain open.
+
 ## Verification reruns cannot hide unresolved failures — 2026-11-13
 
 The completion policy previously accepted any successful recognized check after

@@ -35,6 +35,7 @@ export async function runCase(
     tools?: string[];
     agentHarness?: boolean;
     instructionsPreset?: "general"|"coding";
+    fileReferences?: boolean;
   }
 ) {
   const useCallix=!!(test.expect.grader||test.navigationMode||options.tools?.some(name=>['glob','grep','code_query'].includes(name)));
@@ -74,7 +75,7 @@ export async function runCase(
             })),
           ],
         },
-        ...((options.tools||options.instructionsPreset)?{agent:{...(options.tools?{tools:options.tools,builtinTools:options.tools.filter(name=>builtinTools.some(tool=>tool.name===name)),controlTools:[],skills:false,projectContext:false,fileReferences:false}:{}),instructionsPreset:options.instructionsPreset}}:{}),
+        ...((options.tools||options.instructionsPreset||options.fileReferences!==undefined)?{agent:{...(options.tools?{tools:options.tools,builtinTools:options.tools.filter(name=>builtinTools.some(tool=>tool.name===name)),controlTools:[],skills:false,projectContext:false,fileReferences:false}:{}),...(options.fileReferences!==undefined?{fileReferences:options.fileReferences}:{}),instructionsPreset:options.instructionsPreset}}:{}),
         compaction: { enabled: false },
       })
     );
@@ -225,7 +226,7 @@ export async function runCase(
     id: test.id,
     split: test.split,
     model: options.model,
-    composition:{tools:options.tools,agentHarness:options.agentHarness??false,instructionsPreset:options.instructionsPreset??"general"},
+    composition:{tools:options.tools,agentHarness:options.agentHarness??false,instructionsPreset:options.instructionsPreset??"general",...(options.fileReferences!==undefined?{fileReferences:options.fileReferences}:{})},
     ok: !error && checks.length > 0 && checks.every((c) => c.ok),
     checks,
     error,

@@ -144,7 +144,30 @@ protocol fixture. The maintained release smoke now requires this check on every
 declared release platform. Other platforms have not yet run this new check;
 this does not close the live-model classification gate.
 
+### Ordinary directory-reference coding diagnostic — 2026-11-13
+
+The CPU evaluator can now exercise the existing `@.` directory-reference flow
+using `--project-reference`. Under this explicitly different context condition,
+Qwen scored 1/2 on the known checkout task and 0/2 on the known greeting task.
+The successful attempt performed a guarded edit, ran the real project checks
+and passed independent behavior checks while preserving protected files. Across
+the four attempts, 42 local completions were admitted; no paid request occurred.
+
+The failures expose repeated successful read/search loops and an identical-text
+edit reported as successful, followed by failing verification. Completion remained
+failed. These are concrete harness/tool recovery gaps, not evidence that directory
+context alone supplies reliable coding. Prompts, source hashes, budgets, failures
+and cleanup are retained; this is not an unseen benchmark or an unchanged-prompt
+comparison. See [local evaluation controls](evals.md).
+
 ### Current verification evidence after reruns — 2026-11-13
+
+Build-only [run 43320159884](https://github.com/Neko1313/agent-compositor/actions/runs/43320159884)
+at `7139daa` passed verification and all four native build/install jobs. All 28
+downloaded runtime reports pass, including four coding-completion scenarios on
+each platform with actual process exit codes and run counts. Publication was
+skipped. This establishes the runtime checkpoint, not a public release or broad
+real-model readiness.
 
 The coding completion policy no longer accepts an earlier successful check when
 a subsequent attempt fails. Every recognized check attempted after the latest
@@ -158,7 +181,8 @@ establish live model quality or stable 1.0 readiness.
 The previous f14d3ce cross-platform build run failed in its verification job on
 the project-checks expiry/recovery test, before native jobs started. The test's
 artificial 100 ms expiry limit is now restored to the normal plugin limit before
-filesystem refresh. New cross-platform evidence is still required.
+filesystem refresh. The subsequent successful run above supplies the new
+cross-platform evidence for that runtime change.
 
 ### Navigation composition and discovery recovery diagnostic — 2026-11-13
 

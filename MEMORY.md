@@ -1,5 +1,38 @@
 # Project memory
 
+## Published host0.7.3 with native background/replay and startup proofs — 2026-11-12
+
+Immutable v0.7.3 points to79b97ee41c71fdfcc3c3ebbb238a2f2c763b0dbd. Exact-head
+Node22/26 CI43127607503 and docs43127607521 passed. Build-only43127709106 and
+full tagged43128862671 passed verification, all four native archive/install
+smokes and publication without reruns. Independently parsed each platform job's
+background/context/startup JSON from both runs and retained log hashes:
+dist/v073-public/native-integrity-{43127709106,43128862671}.json.
+Every native background probe executes six main/four summary calls, retains the
+actual task in both permission reviews/all summary references, preserves the
+draft, completes its single owned shell and resumes its original session.
+Every startup probe records one hook per process, no EOF model request and
+completed startup before the first prompt. Existing context smoke also passes.
+The grader remains3ed222c6406e5a54b558f5e4476d9f4400e841286ed3cd4ece5336069e2899c7.
+These deterministic installed-binary cases do not establish autonomous/model
+quality or close broader1.0 gates. Do not move this now-public tag.
+
+Six public assets are available (four native archives, installer and checksums).
+Using the saved proxy, verified the public installer checksum and exact tagged
+installer bytes, then switched an isolated prefix from the retained real public
+0.7.2 binary to public0.7.3. The previous binary and state sentinel survived.
+The actual publicly installed executable passed both maintained compaction and
+background/replay probes (three main/one summary/one write, then six main/four
+summary/two reviews/two process exits). Reports:
+dist/v073-public/{public-install-report,context-smoke,background-smoke}.json.
+The isolated prefix/context remains recorded for later upgrade checks; no user
+installation was changed. Canonical readiness now reflects the public release.
+All1133source tests pass/3optional skips, types/generators/docs/local native smoke
+passed before tagging. No paid API request or budget mutation in this goal turn.
+Independent CI0.1.1 and host0.7.2 tags remain unchanged. Continue broader real
+self-hosted authoring, model-family development, sustained-session and trust
+coverage; publication is a checkpoint, not1.0 completion.
+
 ## Prepared host0.7.3 for exact native gates — 2026-11-12
 
 Prepared root/app0.7.3 and matching lock metadata; generated host notes include

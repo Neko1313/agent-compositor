@@ -44,7 +44,7 @@ use. This scope does not raise the authorized live-model spending limit.
 | Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks 0.1.1 passed the same platform scope at f102fef after fixing macOS project-path aliases. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
-| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.2](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.2), revision 888bf8c, passed Node 22/26 CI, documentation checks, all 30 plugin deterministic contracts and four-platform native build/install smoke before publication. It ships task-reference preservation and bounded empty-response recovery. Public Linux upgrade and state preservation also pass. This verifies the release checkpoint; the broader 1.0 audit remains open. |
+| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.3](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.3), revision 79b97ee, passed Node 22/26 CI, documentation, required plugin deterministic contracts and four-platform native build/install smoke before publication. It preserves the original task across automatic background follow-ups and journal replay, and starts plain-session plugin hooks before input. Public Linux 0.7.2→0.7.3 upgrade, state preservation, compaction and background/replay probes pass. This verifies the release checkpoint; broader 1.0 gates remain open. |
 
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
@@ -163,9 +163,16 @@ Controlled regressions first reproduced an automatic build notification replacin
 the actual task for permission review and compaction. Queue ownership now marks
 that message as host feedback, with journal provenance preserved on replay;
 initial delegated tasks and literal user steering still count as requests.
-Session request previews also exclude host feedback. These source changes are
-not included in the immutable 0.7.2 host release. They do not establish broad
-long-session or adversarial-model coverage.
+Session request previews also exclude host feedback. The repair ships in
+[v0.7.3](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.3).
+Its [tagged native matrix](https://github.com/Neko1313/agent-compositor/actions/runs/43128862671)
+passes an installed-binary background/replay scenario on all four platforms,
+with the actual task retained in two permission reviews and every auxiliary
+summary. A separate startup witness checks immediate EOF without a model request
+and initialization before the first plain-session model request. Public Linux
+bytes pass the compaction/background/replay probes after an installer upgrade
+from 0.7.2 with state and the old binary preserved. These are controlled local
+transport cases, not broad long-session or adversarial-model coverage.
 
 Local Qwen3 1.7B CPU diagnostics at 0b48eca used three fixed small tasks with
 two repeats each. Default thinking passed 4/6 strict cases; explicit

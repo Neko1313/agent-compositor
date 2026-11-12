@@ -1,5 +1,54 @@
 # Project memory
 
+## Packed background-task proof and plain lifecycle startup — 2026-11-12
+
+Exact f393bff Node22/26 CI43124632687, docs43124632659 and build-only native
+matrix43124766342 all passed. No host tag/publication was created by that run.
+Downloaded its real Linux archive410e1cad45f1a7ee9e6cff27d03084da097b1982a5ceb588ec029b90220d67a1
+through the saved proxy, then executed the installed binary outside the repo.
+New maintained tools/release/background-smoke.mjs starts an owned shell behind
+a completion-file gate, delivers its completion, reads a large controlled file,
+forces automatic compaction and resumes the same session for another SDK-owned
+follow-up. A public SDK fixture records actual permission context without
+replacing core/context/session services. It checks original task/message/summary
+references, journal provenance, request previews, one successful shell exit and
+an unchanged unrelated draft. All transport is local; bounded20requests,
+200krequest bodies,2Mjournal/output and owned-child cleanup. Journal polling
+ignores only an unfinished final line, never a corrupt complete record.
+
+Fixture calibration first found an omitted explicit hooks.js entry, then a
+wrong startup assumption. Those incomplete attempts remain in dist/background-binary-proof/.
+The final comparison uses an explicit handled SDK continuation command after
+resume, without adding a new user task. The same frozen graderSHA
+3ed222c6406e5a54b558f5e4476d9f4400e841286ed3cd4ece5336069e2899c7
+fails public0.7.2 in six relevant ways and passes f393bff: both execute six main
+and four auxiliary requests, exit both processes normally and preserve the draft.
+Old permission/summary context chooses the notification and loses task/provenance/
+previews; the candidate retains the real task through resume. Receipt
+ dist/background-binary-proof/integrity.json binds source/run/archive/binary/grader.
+This is controlled installed-binary evidence, not autonomous live-model work.
+
+Calibration also exposed a real separate plain-REPL omission: runRepl never
+called core.start(), so session.start hooks did not run at all. Two tests failed
+before the fix (empty EOF and before first prompt). Commit2892517 now awaits
+startup after renderer subscriptions and before input processing. It submits no
+model prompt for EOF. Twelve CLI tests pass. Types caught a missing fixture
+provider name; corrected and rerun. Complete1133tests pass/3optional skips;
+types/docs and the locally compiled Linux full installed-archive smoke pass.
+
+The maintained release smoke now invokes the background scenario and an actual
+SDK startup witness: two plain processes run their startup hook exactly once,
+EOF needs zero model requests, and the first request of the second process
+observes completed startup. Reports background-smoke-PLATFORM.json and
+plain-startup-smoke-PLATFORM.json will be required on each native runner; they
+were added AFTER f393bff, so its old four-platform run does not establish those
+new gates. Actual local full-smoke logs and negative controls are retained under
+ dist/background-binary-proof/. The previous local smoke input e2c0d4ce7ea5b5925d740f30e6e1c2c064623ed181500108c471324c56bf240a
+was hash-backed up before replacing it with the verified candidate; f393 archive
+and extracted binary remain separately retained. Prepare0.7.3, inspect exact
+CI/docs plus new native gates before tagging. Broader1.0 gates remain open;
+no paid model requests or budget mutations in this turn.
+
 ## Published CI0.1.1; task provenance across automatic follow-ups — 2026-11-12
 
 Immutable plugin/ci-review/v0.1.1 points to9a2314edf300324e64dcad2bcb6bd43b4e52e71b.

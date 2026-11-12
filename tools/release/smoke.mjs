@@ -11,6 +11,7 @@ import { GifWriter } from 'omggif';
 import assert from 'node:assert/strict';
 import { callixRelease } from '../../plugins/callix/distribution.mjs';
 import { smokeContextTask } from './context-smoke.mjs';
+import { smokeBackgroundTask } from './background-smoke.mjs';
 const exec = promisify(execFile);
 // Permission rules and guarded edit anchors use canonical paths. macOS aliases
 // /var to /private/var, so fixture allow rules must use the same physical path.
@@ -21,7 +22,7 @@ const digest = createHash('sha256').update(archive).digest('hex');
 const expected = JSON.parse(await readFile('package.json')).version;
 const installer = resolve('install.sh');
 let corrupt = true;
-let callixResult, workflowResult, guardedEditResult, modelRequests=0;
+let callixResult, workflowResult, guardedEditResult, modelRequests=0, startupProofPath, startupReviewed=false;
 async function serve(req, res) {
   if (req.url.endsWith('/SHA256SUMS')) { res.end(`${corrupt ? '0'.repeat(64) : digest}  ${asset}\n`); return; }
   if (req.url.endsWith(`/${asset}`)) { res.end(archive); return; }
@@ -31,6 +32,10 @@ async function serve(req, res) {
     const request = JSON.parse(body);
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     const frame = (delta, finish_reason = null) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason }] })}\n\n`;
+    if(request.messages.some(m=>m.role==='user'&&m.content==='PLAIN_STARTUP_ORDER_CHECK')){
+      assert.equal(JSON.parse(await readFile(startupProofPath,'utf8')).calls,2,'Startup must finish before the first model request');startupReviewed=true;
+      res.end(frame({content:'PLAIN_STARTUP_VERIFIED'},'stop')+'data: [DONE]\n\n');return;
+    }
     if(request.messages.some(m=>m.role==='user'&&m.content==='AUTHOR_DISTRIBUTION_CHECK')) {
       assert.ok(request.tools.some(tool=>tool.function.name==='plugin_dev'));
       assert.ok(request.messages.some(m=>m.role==='system'&&m.content.includes('create-plugin:')));
@@ -112,6 +117,8 @@ try {
   const binary = join(prefix, 'bin/compositor');
   assert.equal((await exec(binary, ['--version'], options)).stdout.trim(), `compositor ${expected}`);
   const contextSmoke=await smokeContextTask(binary,resolve('dist/release',`context-smoke-${process.platform}-${process.arch}.json`));
+  const backgroundSmoke=await smokeBackgroundTask(binary,resolve('dist/release',`background-smoke-${process.platform}-${process.arch}.json`));
+  console.log('Installed background task retention:',JSON.stringify(backgroundSmoke));
   console.log(`Installed binary context smoke passed: ${JSON.stringify(contextSmoke)}`);
   assert.match((await exec(binary, ['--help'], options)).stdout, /--plugins/);
   const plain = exec(binary, ['--plain'], options);
@@ -120,6 +127,20 @@ try {
   const { stdout } = await plain;
   assert.doesNotMatch(stdout, /plugin load errors/);
   for (const name of ['mascot', 'monty', 'callix', 'todos', 'ui-theme', 'mcp', 'workflows', 'plugin-author']) assert.doesNotMatch(stdout, new RegExp(`${name}@`));
+  const startupProject=join(temp,'plain-startup-project'),startupPlugin=join(temp,'plain-startup-plugin');
+  await mkdir(startupProject);await mkdir(startupPlugin);startupProofPath=join(startupProject,'.agent-compositor/startup-proof.json');
+  await writeFile(join(startupProject,'agent-compositor.json'),JSON.stringify({enabledPlugins:['plain-startup-probe'],agent:{tools:[],builtinTools:[],controlTools:[],skills:false,projectContext:false,fileReferences:false}}));
+  await writeFile(join(startupPlugin,'plugin.json'),JSON.stringify({name:'plain-startup-probe',version:'1.0.0',main:'hooks.js',trust:'trusted',capabilities:['session.start'],compositor:{standard:1,apiVersion:1}}));
+  await writeFile(join(startupPlugin,'hooks.js'),`export default {'session.start':async(_,$)=>{const previous=await $.storage.config('startup-proof.json');await $.storage.configure('startup-proof.json',{calls:(previous.calls??0)+1},'project');}};`);
+  const startupOptions={...options,cwd:startupProject,env:{...env,AGENT_STORAGE_MODE:'project'}},beforeStartup=modelRequests;
+  const emptyStartup=exec(binary,['--plain','--plugins',startupPlugin],startupOptions);emptyStartup.child.stdin.end();await emptyStartup;
+  assert.equal(modelRequests,beforeStartup,'EOF must not submit a model prompt');assert.equal(JSON.parse(await readFile(startupProofPath,'utf8')).calls,1);
+  const promptedStartup=exec(binary,['--plain','--plugins',startupPlugin],startupOptions);promptedStartup.child.stdin.end('PLAIN_STARTUP_ORDER_CHECK\r');
+  assert.match((await promptedStartup).stdout,/PLAIN_STARTUP_VERIFIED/);assert.equal(startupReviewed,true);assert.equal(JSON.parse(await readFile(startupProofPath,'utf8')).calls,2);
+  assert.equal(modelRequests,beforeStartup+1);
+  const startupReport={ok:true,processes:2,startupHooks:2,emptyInputModelRequests:0,firstRequestSawStartup:startupReviewed,modelRequests:modelRequests-beforeStartup};
+  await writeFile(resolve('dist/release',`plain-startup-smoke-${process.platform}-${process.arch}.json`),JSON.stringify(startupReport,null,2)+'\n');
+  console.log('Installed plain startup:',JSON.stringify(startupReport));
   const marketplaces=await exec(binary,['-p','/marketplace','--output-format','stream-json'],options);
   assert.match(marketplaces.stdout,/agent-compositor/);
   // Positive feature probes explicitly choose their packages in project scope.

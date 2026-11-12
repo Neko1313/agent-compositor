@@ -109,7 +109,19 @@ verbatim in the next main request and every summary reference, the write must
 not repeat, and an unrelated user draft must survive. This deterministic check
 does not measure live-model development quality. Its report is written to
 `dist/release/context-smoke-PLATFORM.json` and printed in the smoke log. It
-also checks Callix provenance, version and license, then invokes `code_query`
+also starts a real owned background shell, delivers its completion while keeping
+the original task for permission review and automatic compaction, then resumes
+the same session and delivers another plugin-owned follow-up. The original task,
+journal provenance, request previews and unrelated draft must survive. A small
+public SDK fixture records permission context; it does not replace core,
+context or session services. All model traffic goes to a bounded local HTTP
+fixture. The report is `dist/release/background-smoke-PLATFORM.json`.
+These controlled checks do not establish long-session or live-model quality.
+Plain-session startup is checked with a real SDK plugin too: immediate EOF initializes
+the plugin once without a model request, and startup finishes before the first
+model request in a second process. Its report is
+`dist/release/plain-startup-smoke-PLATFORM.json`.
+The smoke test also checks Callix provenance, version and license, then invokes `code_query`
 through the installed compositor against a two-file TypeScript project. The
 check requires a resolved cross-file call with `CALLIX_BIN` cleared and PATH
 empty, proving use of the bundled binary.

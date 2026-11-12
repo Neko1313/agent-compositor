@@ -85,8 +85,9 @@ feedback during a subprocess, status removal after cancellation, preserved old
 results, concurrent main-agent work and restart behavior. This is one small known
 UI development case with supplied context, not autonomous investigation, initial
 plugin delivery or proof that the broader usability gates are closed. The busy
-feedback targets the next independent CI-plugin release; published 0.1.0 remains
-unchanged.
+feedback ships in the independent
+[CI-plugin 0.1.1 release](https://github.com/Neko1313/agent-compositor/releases/tag/plugin/ci-review/v0.1.1);
+the immutable 0.1.0 archive remains unchanged.
 
 Preparing that first update exposed a certification gap: native archives could
 omit previous-release transitions even though source release checks required
@@ -95,9 +96,15 @@ their platform's pinned previous archive. A regression rejects missing scenarios
 wrong versions/hashes and reused evidence from another platform. The CI scenario
 uses real 0.1.0 release bytes, normal marketplace install/enable/update/rollback,
 two restarts, retained settings/draft and actual tool/command probes without model
-requests. Linux source and archive preflights pass; certification of the exact
-refreshed candidate on all four native platforms remains required before 0.1.1
-publication.
+requests. Revision 9a2314e passed source and all four native candidate gates,
+Node 22/26 CI and documentation checks. Its
+[tagged publication workflow](https://github.com/Neko1313/agent-compositor/actions/runs/43123691496)
+also passed. Five public certificates, 136 evidence references and four archive
+checksums were independently checked. Public Linux bytes passed the actual
+manager's install/update/restart/rollback/restart flow through a local verified-byte
+mirror, preserving settings and draft without downloading during rollback.
+Visual review caught stale screenshot capture and early cancellation
+acknowledgment in the bench; both now synchronize on the actual rendered state.
 
 Initial CI-plugin authoring through Compositor exposed two evaluation-fixture
 settings mistakes, then a runtime compaction gap. The latest user request was
@@ -150,6 +157,15 @@ subject to the existing reduction/failure guards. Automatic-compaction, replay
 and permission-context regressions pass. The origin repair ships in 0.7.2.
 The maintained installed-binary regression was added later at 026e605 and passed
 [a separate four-platform candidate](https://github.com/Neko1313/agent-compositor/actions/runs/43110702555).
+
+A later source fix extends task preservation to plugin-owned automatic follow-ups.
+Controlled regressions first reproduced an automatic build notification replacing
+the actual task for permission review and compaction. Queue ownership now marks
+that message as host feedback, with journal provenance preserved on replay;
+initial delegated tasks and literal user steering still count as requests.
+Session request previews also exclude host feedback. These source changes are
+not included in the immutable 0.7.2 host release. They do not establish broad
+long-session or adversarial-model coverage.
 
 Local Qwen3 1.7B CPU diagnostics at 0b48eca used three fixed small tasks with
 two repeats each. Default thinking passed 4/6 strict cases; explicit

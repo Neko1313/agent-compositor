@@ -92,6 +92,13 @@ describe("session store", () => {
 });
 
 describe('conversation discovery',()=>{
+  it('keeps host follow-ups out of user request previews without matching text prefixes',async()=>{
+    const chat=await store.create(cwd);
+    await store.append(chat.id,[{type:'prompt.submit',text:'Implement the parser refactor'},{type:'prompt.submit',text:'Automated background completion: build finished',origin:'harness'}]);
+    expect((await store.list(cwd))[0]).toMatchObject({firstPrompt:'Implement the parser refactor',lastPrompt:'Implement the parser refactor',messageCount:1});
+    await store.append(chat.id,[{type:'prompt.submit',text:'Automated background completion: a literal new user request'}]);
+    expect((await store.list(cwd))[0]).toMatchObject({lastPrompt:'Automated background completion: a literal new user request',messageCount:2});
+  });
   it('keeps a generated title, explicit names, dates and bounded previews in sidecars',async()=>{
     const chat=await store.create(cwd);await store.append(chat.id,[{type:'prompt.submit',text:'/history'},{type:'prompt.submit',text:'Investigate\n\tlogin regression'},{type:'assistant.text',text:'fragment'},{type:'turn.complete',text:'Fixed authentication.'},{type:'prompt.submit',text:'Add tests'}]);
     const meta=(await store.list(cwd))[0];expect(meta).toMatchObject({firstPrompt:'Investigate login regression',lastPrompt:'Add tests',lastResponse:'Fixed authentication.',messageCount:3});expect(meta.updatedAt).toBeGreaterThan(meta.createdAt);

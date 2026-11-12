@@ -80,6 +80,7 @@ export function replayTranscript(
         messages.push({
           role: "user",
           content: typeof event.text === "string" ? event.text : "",
+          ...(event.type==='prompt.submit'&&event.origin==='harness'?{origin:'harness' as const}:{}),
         });
         break;
       }

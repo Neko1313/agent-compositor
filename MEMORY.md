@@ -1,5 +1,53 @@
 # Project memory
 
+## Published CI0.1.1; task provenance across automatic follow-ups — 2026-11-12
+
+Immutable plugin/ci-review/v0.1.1 points to9a2314edf300324e64dcad2bcb6bd43b4e52e71b.
+Candidate43122926444, exact-head Node22/26 CI43122855898, docs43122856018 and
+full tagged publication43123691496 all passed without rerunning failed assertions.
+Native candidate receipt dist/ci-review-native-9a2314e/integrity.json binds five
+certificates,136 evidence references and four archives. Reviewed final macARM
+pending/cancelled PNGs: busy status/Cancel/retained results match the actual
+state; main agent remains active. Earlier stale captures and early cancellation
+acknowledgment were fixed in e35c349/60c0fa7. The separate unsubscribe fixture
+race was reproduced deterministically and fixed at9a2314e, retaining its contract.
+Never move the now-public tag. Public host remains immutable0.7.2.
+
+Actual public CI0.1.1 bytes passed independent checks of five published
+certificates/all136 evidence hashes and all platform sidecars/catalog hashes.
+LinuxSHA fc9754db345175e46d2e52337b00ab47bfdd20cf21018972d16ec99eaa84e959.
+The normal manager using a verified-byte local mirror passed public0.1.0→0.1.1,
+restart, locked-backup rollback and restart; settings/draft/unrelated state and
+actual tool/command behavior survived all five phases, with no rollback download.
+Two mirror downloads, zero model requests. Report dist/ci-review-public-011/report.json
+states the transport limitation explicitly; it is not a claim of public install
+verification on all four user platforms. Ten release assets are public.
+
+While publication ran, an actual-core probe found a separate runtime bug:
+plugin-owned automatic prompts were recorded as new user requests. Permission
+review and compaction therefore selected the background notification over the
+original task. Probe dist/background-task-reference/before.json/log reproduces
+this with three scripted requests and one permitted controlled read, no live API.
+Three new core tests failed before repair (user task, initial delegated task,
+compaction); a separate session-preview test also failed before its repair.
+
+Queue ownership now supplies a host-only harness origin to the turn and journal;
+replay preserves it, and session request previews skip host feedback. Initial
+source:agent tasks remain requests; literal user text resembling automatic
+notifications remains a real request. Public prompt hook fields are unchanged;
+provenance is private journal metadata. Current core testSHA
+b7ae53c07906e72441fa732f5e0f482b30fad94ec118b22bceed234318f99c91.
+An isolated checkout passed99targeted checks, types and docs but full testing
+exposed three native-tool identity failures in web-workspaces. Restoring both
+core source files to unchanged9a reproduced exactly those same three failures
+in that checkout, retained as worktree-baseline-workspaces.log. Do not hide or
+call that full run green. Integrated into the normal checkout only after public
+release verification: all1131tests pass/3optional skips, and types pass, including
+all original workspace boundaries. Canonical context/readiness docs updated.
+This host source fix is not part of immutable0.7.2 or CI-plugin0.1.1; exact-head
+remote CI/native host certification and broad1.0 gates remain open. No paid
+requests or budget changes in this goal turn.
+
 ## Certified native candidate; controlled unsubscribe timing — 2026-11-12
 
 Candidate43122058056 at60c0fa7 passed source and all four native plugin gates.

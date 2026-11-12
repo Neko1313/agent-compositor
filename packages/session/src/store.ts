@@ -399,7 +399,7 @@ function summarizeEvent(meta: SessionMeta, event: SessionEvent): void {
   if (typeof event.text !== "string") return;
   const text = normalize(event.text);
   if (!text) return;
-  if (event.type === "prompt.submit" && !/^\/[a-z][\w-]*(?:\s|$)/i.test(text)) {
+  if (event.type === "prompt.submit" && event.origin !== "harness" && !/^\/[a-z][\w-]*(?:\s|$)/i.test(text)) {
     meta.firstPrompt ??= text.slice(0, 200);
     meta.lastPrompt = text.slice(0, 300);
     meta.messageCount = (meta.messageCount ?? 0) + 1;

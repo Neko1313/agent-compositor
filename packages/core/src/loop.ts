@@ -983,10 +983,10 @@ export class AgentCore {
 
   // ---- the turn engine -----------------------------------------------------
 
-  private runTurn(text: string,source:"user"|"agent"="user"): Promise<void> {
+  private runTurn(text: string,source:"user"|"agent"="user",origin?:"harness"): Promise<void> {
     const run=(async()=>{
       this.inputSource=source;
-      try {await this.runTurnUnchecked(text);}
+      try {await this.runTurnUnchecked(text,origin);}
       catch(error){
         this.lastTurnError=String(error);
         if(this.journalFailure){this.promptQueue=[];this.steerQueue=[];}
@@ -998,7 +998,7 @@ export class AgentCore {
     this.activeTurn=run;
     return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
   }
-  private async runTurnUnchecked(text: string): Promise<void> {
+  private async runTurnUnchecked(text: string,origin?:"harness"): Promise<void> {
     if(this.journalFailure)throw this.journalFailure;
     const turnId = randomUUID();
     this.currentTurnId = turnId;
@@ -1013,7 +1013,7 @@ export class AgentCore {
     this.inPromptHook = true;
     let submitted: unknown;
     try {
-      submitted = await this.emit("prompt.submit", { text });
+      submitted = await this.emit("prompt.submit", { text },undefined,origin?{origin}:undefined);
     } finally {
       this.inPromptHook = false;
     }
@@ -1045,6 +1045,7 @@ export class AgentCore {
     this.messages.push({
       role: "user",
       content: promptText,
+      ...(origin?{origin}:{}),
       ...(this.options.initialImages?.length
         ? { images: this.options.initialImages }
         : {}),
@@ -1453,7 +1454,8 @@ export class AgentCore {
         const next=this.promptQueue.shift()!;
         if(next.owner&&!this.host.hasPlugin(next.owner,'trusted'))continue;
         if(next.owner)while(this.promptQueue[0]?.owner===next.owner&&next.text.length+this.promptQueue[0].text.length<4096)next.text+='\n\n'+this.promptQueue.shift()!.text;
-        await this.runTurn(next.text,next.source);
+        // Queue ownership distinguishes host follow-ups from initial delegated tasks.
+        await this.runTurn(next.text,next.source,next.owner?"harness":undefined);
       }
     })().finally(()=>{this.draining=undefined;});
     return this.draining;
@@ -1811,7 +1813,9 @@ export class AgentCore {
   private async emit(
     event: string,
     input: Record<string, unknown>,
-    signal?:AbortSignal
+    signal?:AbortSignal,
+    // Host provenance is journal metadata, not a plugin-writable prompt field.
+    journalMeta?:{origin:"harness"}
   ): Promise<unknown> {
     const operation=this.userOperation.getStore();
     if(operation)input={...input,operationId:operation.id};
@@ -1819,7 +1823,7 @@ export class AgentCore {
     const value=result?.value;
     // Handled UI commands are audit records, not user messages on replay.
     const dropped=event==='prompt.submit'&&value&&typeof value==='object'&&'drop' in value;
-    await this.persist(dropped?'prompt.dropped':event,input);
+    await this.persist(dropped?'prompt.dropped':event,journalMeta?{...input,...journalMeta}:input);
     this.broadcast({ kind: "catalog", event, input });
     return value;
   }

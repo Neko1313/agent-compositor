@@ -128,6 +128,12 @@ summaries and review calls; denied resolution stops generation.
 
 The default context compactor preserves the latest user request verbatim and
 keeps recent complete tool groups within half the available transcript budget.
+Plugin-owned automatic follow-ups remain visible to the model as host feedback;
+they do not replace the task reference used for permission review, delegation
+or compaction. The host records their provenance in the session journal and
+preserves it on replay. Session request previews also retain the actual user
+request. Ordinary user messages and initial delegated tasks remain requests,
+regardless of whether their text resembles an automatic notification.
 An oversized newest group may be summarized in full, including on the first
 tool batch; compaction never re-executes its effects. Embedders using
 `compactTranscript` can opt into this selection with `maxTailTokens` and

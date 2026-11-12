@@ -33,6 +33,41 @@ evaluation of existing features.
 Prioritize gaps that block daily work, then repeated friction observed during
 use. This scope does not raise the authorized live-model spending limit.
 
+### Accepted usability work — 2026-11-13
+
+The user's daily-use feedback adds these implementation requirements:
+
+- Approval review must handle concrete CI/shell/plugin actions with the user's
+  actual task context and a validated structured decision. Enabling auto should
+  not silently require a second model profile. Explicit denies stay binding;
+  malformed or unavailable review is distinguishable from an actual decision.
+  Ordinary clarification questions must remain separate from permission review.
+- Commands need an immediate, non-model execution path independent of whether
+  they render a view. `/auto` should not require an otherwise unhelpful panel.
+  Long operations need progress, cancellation and an optional deeper view.
+- First launch should explain profiles and available plugins, recommend a useful
+  starting selection and help apply the user's choices. Investigate an optional
+  small CPU model embedded without an Ollama/server requirement. No implementation
+  or quality claim for that embedded model is established yet; first-run setup
+  must remain usable when no model is available.
+- Workflows and agents need reusable interactive tables, expandable details,
+  tabs and drill-down into an individual agent's actions. Replace static row/column
+  dumps where those interactions improve navigation; preserve keyboard/mouse
+  operation and narrow-terminal behavior.
+- Provide a convenient side conversation such as `/btw` with an independent
+  agent while the main task continues. A closed main conversation must be easy
+  to restore without losing its process, history or draft. Existing Alt+Enter
+  conversation creation needs explicit discoverability and behavioral proof.
+- Support useful views that need no agent, including live resource charts. An
+  explicit action may share a selected observation with an agent. Task-service
+  integrations such as Jira are examples to evaluate, not authorization to
+  connect an account or create external tasks automatically.
+
+These are acceptance requirements, not a claim that the current release supplies
+them. Prioritize approval behavior and conversation recovery, then the common
+command/view contracts and onboarding. Deterministic checks do not substitute
+for independent review of the complete real terminal flows.
+
 ## Acceptance gates
 
 | Gate | Required evidence | Current assessment |
@@ -44,11 +79,19 @@ use. This scope does not raise the authorized live-model spending limit.
 | Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks 0.1.1 passed the same platform scope at f102fef after fixing macOS project-path aliases. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
-| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.3](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.3), revision 79b97ee, passed Node 22/26 CI, documentation, required plugin deterministic contracts and four-platform native build/install smoke before publication. It preserves the original task across automatic background follow-ups and journal replay, and starts plain-session plugin hooks before input. Public Linux 0.7.2→0.7.3 upgrade, state preservation, compaction and background/replay probes pass. This verifies the release checkpoint; broader 1.0 gates remain open. |
+| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.4](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.4), revision 973012a, passed candidate and tagged four-platform build/install checks. It repairs canonical custom-tool permission targets, closed-plugin operation cleanup and opt-in editable-view paging. Public Linux 0.7.3→0.7.4 upgrade preserved state and the previous binary; installed context and background/replay probes passed. These establish this release checkpoint; broader 1.0 gates remain open. |
 
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
 contradictory or non-reproducible evidence leaves the gate open.
+
+The [check/report cooperation test](../packages/app/test/check-report-cooperation.test.ts)
+runs actual Vitest through `project_check`, reads its generated JSON through
+`test_report`, repairs the controlled fixture and repeats both tools. It checks
+that a failing check remains a failure, the second report reflects the repaired
+tests and an unrelated user file survives. This is a deterministic tool pipeline
+with zero model requests; the test host supplies the repair. It does not establish
+autonomous diagnosis or close the broader tool-cooperation gate.
 
 ## Evaluation rules
 
@@ -89,9 +132,9 @@ operation while preserving the main model/draft, and requires reaching the final
 diagnostic line and returning to the path in a 60×24 split. The host keeps late
 publications hidden until an explicit plugin command/action. Opt-in host paging
 is an additive catalog0.24 field; legacy input routing stays unchanged.
-These checks do not establish autonomous plugin authoring. The source requires
-the canonical-path host repair after public0.7.3; public report-plugin publication
-still requires a patched host and exact-source native certification.
+These checks do not establish autonomous plugin authoring. The required host repairs ship in [0.7.4](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.4).
+The report-plugin candidate at 4358ed1 passed source and all four native archive
+certifications; its independent tagged publication is still pending.
 A fresh live Compositor authoring attempt used a minimal task-specific profile
 with ordinary read/write/check tools and no reference implementation in its
 workspace. Three admitted requests only read repository context; the fourth

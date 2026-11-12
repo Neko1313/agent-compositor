@@ -1,5 +1,61 @@
 # Project memory
 
+## Public 0.7.4 upgrade proved; new daily-use requirements accepted — 2026-11-13
+
+Immutable host v0.7.4 at 973012a completed tagged workflow 43249760656 SUCCESS
+and is public with all six expected assets. Independent tagged four-platform
+installed context/background/startup audit passed under dist/v074-public.
+The unmodified public installer upgraded isolated public 0.7.3 bytes through
+the saved proxy; checksums, previous binary/state preservation and actual
+installed context/background replay passed. Receipt public-install-report.json,
+prefix /tmp/compositor-v074-public-rZRQGA/prefix. This did not change the user's
+global installation. Public host tag/assets remain immutable.
+
+After host proof and confirming tag/release absence, created independent
+plugin/test-reports/v0.1.1 at certified 4358ed1517d5a0f697096ee2993c791d07332434.
+Tagged workflow 43253266827 is confirmed live at that source. Candidate 43249394887
+and its five-certificate/four-archive/141-reference audit remain passed; they do
+not substitute for tagged publication. Inspect the same tagged handle, then run
+dist/test-reports-public-011/verify.ts with its completed run ID after success.
+The public verifier has not run. Do not retag the plugin at newer main.
+
+User added concrete auto/onboarding/interactive-table/agent-drilldown/side-chat/
+conversation-recovery/non-agent-graph requirements. Full accepted scope is saved
+in docs/readiness.md, including optional embedded CPU onboarding without a server
+and the distinction between approval and ordinary clarification. Jira was an
+example, not a request to connect an account. These requirements extend the broad
+1.0 goal; do not reduce them to the profile fix below or mark them complete.
+
+Found auto already hooks service.permission.review, passes exact task/arguments/
+descriptor context and validates structured JSON, but a missing dedicated profile
+made /auto on silently fall back to manual prompts. Committed da34f54 removes
+that requirement: omitted profile uses the active provider/model; invalid explicit
+profiles remain manual. Existing explicit denies, protected paths, review/audit/
+timeout/cancellation limits stay binding. Two regressions (missing profile and
+whitespace profile) failed first; focused 37 checks and final full 1168 tests
+passed with three optional skips. Types and docs/build passed. No live model or
+paid request was made. This source fix is not in immutable public 0.7.4 or an
+independently published auto update. Generated preparation owns the next version.
+
+Committed 268b2af adds a real Vitest/project_check/test_report cooperation test:
+one actual failing check produces JSON, parser reports 1 pass/1 fail/1 skip,
+the test host repairs the fixture, rerun succeeds and a fresh report shows
+2 pass/0 fail/1 skip. User file survives and provider request count stays zero.
+It proves a deterministic tool pipeline, not autonomous diagnosis/development.
+
+Next prioritize immediate headless commands and auto's unnecessary panel, then
+discoverable conversation restoration. Existing Alt+Enter/Alt+s creates a new
+conversation view, but /chat is absent and user cannot discover recovery. The
+UI management path currently keys concurrency to command.ui metadata; do not
+fake an invisible pane to make headless commands concurrent. Generic command
+dispatch must preserve the running model/draft and scoped ownership. Further
+auto confirmation semantics (validated yes/no/unknown, clear refusal/failure,
+all relevant approval paths) and complete real PTY flows remain open. Impeccable
+context ran successfully for packages/app/src/ui.ts; no PRODUCT/DESIGN files
+were found, scoped fixes proceed from existing UI. Skill floor/playbook read;
+no UI implementation changed yet, so no new visual pass is claimed.
+Broader model matrix, sustained development and trust gates remain open.
+
 ## Report candidate fully audited; host publication awaiting ARM runner — 2026-11-13
 
 Previous goal turn made concrete progress: synchronized actor fix, native CI-byte

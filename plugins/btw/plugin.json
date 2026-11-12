@@ -1,16 +1,17 @@
 {
   "name": "btw",
   "version": "1.2.2",
-  "description": "/btw <question> — ask a side question answered in isolation by a fresh model call (Claude Code /btw analog: the answer lands as a notification and never enters the conversation). Drop this folder to remove.",
+  "description": "Open or restore an independent side-agent conversation while the main task continues. Use /btw --once for an isolated answer notification.",
   "trust": "trusted",
   "capabilities": [
-    "prompt.submit"
+    "command.invoke"
   ],
   "commands": [
     {
       "name": "/btw",
-      "description": "Ask a side question",
-      "usage": "/btw <question>"
+      "execution": "immediate",
+      "description": "Open a side conversation, or reopen the last one",
+      "usage": "/btw [question] | /btw --once <question>"
     }
   ],
   "compositor": {
@@ -18,6 +19,6 @@
     "apiVersion": 1
   },
   "hookTimeouts": {
-    "prompt.submit": 45000
+    "command.invoke": 45000
   }
 }

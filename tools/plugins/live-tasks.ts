@@ -32,7 +32,17 @@ export async function liveTask(name:string,id:string,prompt:string,policy:any,di
   if(name==='btw'){
    if(id==='intended'||id==='untrusted'){await f.prompt(prompt);mathOracle(f.notices.at(-1).message);assert.equal(ref.frames.length,1);}
    if(id==='unrelated'){const r=await f.prompt(prompt);assert.ok(r.value===undefined||!r.value.drop);assert.equal(ref.frames.length,0);assert.equal(f.notices.length,0);}
-   if(id==='clarify'){await f.prompt('/btw');assert.match(f.notices.at(-1).message,/usage/);assert.equal(ref.frames.length,0);}
+   if(id==='clarify'){await f.prompt('/btw --once');assert.match(f.notices.at(-1).message,/usage/i);assert.equal(ref.frames.length,0);}
+   if(id==='side-conversation'){
+    const app=await f.app({enabledPlugins:['btw','agent-hub'],agent:{tools:[],builtinTools:[],controlTools:[],skills:false,projectContext:false,verifyCompletion:false}},ref,{agentHub:true});
+    const core=app.createCore(async()=>false);activeCore=core;await core.start();await core.invokeCommand(prompt);
+    const rows=async()=>((await core.host.emit('service.agent.control',{action:'list'})).value as any).value;
+    const until=Date.now()+policy.configuration.requestTimeoutMs;
+    while((await rows()).some((row:any)=>row.state==='running')&&Date.now()<until)await new Promise(done=>setTimeout(done,10));
+    const agents=await rows();assert.equal(agents.length,1);assert.equal(agents[0].state,'idle');mathOracle(agents[0].lastOutput);
+    const count=ref.frames.length;assert.ok(count>0);await core.invokeCommand('/btw');assert.equal(ref.frames.length,count);assert.equal((await rows()).length,1);
+    assert.equal(core.getMessages().filter(message=>message.role==='user').length,0);details.agent=agents[0].id;
+   }
    if(id==='failure'){ref.unavailable=true;await f.prompt(prompt);assert.match(f.notices.at(-1).message,/failed/);}
    if(id==='denied'){f.host.registerPlugin({name:'deny-model',version:'1.0.0',trust:'trusted',priority:100},{'service.model.complete':()=>({deny:'No model permission'})});await f.prompt(prompt);assert.match(f.notices.at(-1).message,/failed/);assert.equal(ref.frames.length,0);}
    if(id==='cancel'){let began:()=>void=()=>{};const started=new Promise<void>(done=>{began=done;});ref.onStart=began;const work=f.prompt(prompt,true);await started;f.abort.abort(Error('cancelled'));await work;assert.ok(!f.notices.some(n=>/^42$/.test(n.message)));}

@@ -15,7 +15,7 @@ const exec=promisify(execFile);
 export async function probe(app:BuiltApp,name:string,existingCore?:ReturnType<BuiltApp['createCore']>){
  const core=existingCore??app.createCore(async()=>true),events:any[]=[];
  core.subscribe(event=>{if(event.kind==='catalog')events.push(event);});await core.start();
- const command:Record<string,string>={'auto-approve':'/auto status',btw:'/btw What is two plus two?', 'checkpoint-history':'/checkpoints',cost:'/cost',doctor:'/doctor',export:'/export',mascot:'/mascot status',mcp:'/mcp','network-proxy':'/proxy status','output-style':'/style terse','session-ctl':'/clear','slash-commands':'/help',todos:'/todos','ui-theme':'/theme amber',web:'/web',workflows:'/workflows'};
+ const command:Record<string,string>={'auto-approve':'/auto status',btw:'/btw --once What is two plus two?', 'checkpoint-history':'/checkpoints',cost:'/cost',doctor:'/doctor',export:'/export',mascot:'/mascot status',mcp:'/mcp','network-proxy':'/proxy status','output-style':'/style terse','session-ctl':'/clear','slash-commands':'/help',todos:'/todos','ui-theme':'/theme amber',web:'/web',workflows:'/workflows'};
  const eventCount=events.length;
  const unrelated=await core.host.emit('ui.press',{site:'certification-unrelated-surface',key:'not-owned'});
  assert.deepEqual(unrelated.faults,[]);assert.equal(events.length,eventCount,'An unrelated UI event must have no owned effects');

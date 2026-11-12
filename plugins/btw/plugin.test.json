@@ -14,6 +14,12 @@
       "files": [
         "plugins/btw/tests/behavior.test.ts"
       ]
+    },
+    {
+      "layer": "unit",
+      "files": [
+        "packages/app/test/btw-conversation.test.ts"
+      ]
     }
   ],
   "profiles": {
@@ -245,7 +251,7 @@
       "kind": "live",
       "setup": "Actual plugin, isolated projects and the predeclared live Ollama reference. Three repetitions per task; controlled dependency failures and authoritative denials remain explicit.",
       "expect": [
-        "All seven task oracles pass in every repetition. Transcripts record the real reference requests, responses and provider-reported tokens.",
+        "All eight task oracles pass in every repetition. Transcripts record the real reference requests, responses and provider-reported tokens.",
         "Wrong or fabricated artifacts are rejected by negative-control graders."
       ],
       "forbidden": [
@@ -255,6 +261,60 @@
       "run": {
         "runner": "scenario",
         "file": "tools/plugins/live-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "conversation-visual",
+      "kind": "visual",
+      "requirements": [
+        "ui.keyboard",
+        "ui.pointer",
+        "ui.focus",
+        "ui.submit",
+        "ui.cancel",
+        "ui.restart",
+        "view.narrow"
+      ],
+      "setup": "Actual candidate plugin in the real PTY with a held main model and independent local provider; no paid requests.",
+      "expect": [
+        "A side agent answers and accepts follow-ups while the main request stays active.",
+        "Separate drafts survive pane closure, side cancellation preserves the main request, and history reopens after restart."
+      ],
+      "forbidden": [
+        "Injecting side messages into the main task, stopping the main request with the side pane, lost committed history or source-only substitutes for artifact UI."
+      ],
+      "timeoutMs": 150000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/visual-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "conversation-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "ui.keyboard",
+        "ui.pointer",
+        "ui.focus",
+        "ui.submit",
+        "ui.cancel",
+        "ui.restart",
+        "view.narrow"
+      ],
+      "setup": "Actual candidate plugin in the real PTY with a held main model and independent local provider; no paid requests.",
+      "expect": [
+        "A side agent answers and accepts follow-ups while the main request stays active.",
+        "Separate drafts survive pane closure, side cancellation preserves the main request, and history reopens after restart."
+      ],
+      "forbidden": [
+        "Injecting side messages into the main task, stopping the main request with the side pane, lost committed history or source-only substitutes for artifact UI."
+      ],
+      "timeoutMs": 150000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/visual-scenario.ts",
         "args": []
       }
     }
@@ -274,6 +334,6 @@
       "maxTokensPerTask": 60000,
       "requestTimeoutMs": 30000
     },
-    "taskSetSha256": "8bf0dec3dfbd025777f59daadfe6247ec6e7fae07542bc2923bbc7364d67b282"
+    "taskSetSha256": "eca97bac20077cc8d8f3f0a4fa28b942d7629076dceed01442f23ac1d3fb1de6"
   }
 }

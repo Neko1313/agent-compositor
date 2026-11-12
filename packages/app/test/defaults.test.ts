@@ -201,8 +201,7 @@ describe("default market: unit", () => {
   it("btw: side question is answered off-conversation via $.model.complete", async () => {
     const { $, notifications, modelCalls } = await fake$(tmp);
     const hooks = btw as unknown as Record<string, (e: any, $: any) => any>;
-    const drop = await hooks["prompt.submit"]({ text: "/btw what is 2+2" }, $);
-    expect(drop).toEqual({ drop: expect.any(String) });
+    await hooks['command.invoke']({name:'/btw',args:'--once what is 2+2'},$);
     expect(modelCalls).toHaveLength(1);
     expect(notifications.at(-1)!.message).toBe("mock model answer");
   });

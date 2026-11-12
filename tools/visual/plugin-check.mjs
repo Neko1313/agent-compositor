@@ -1,3 +1,4 @@
+import {btwScenario} from './btw-scenario.mjs';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {spawn} from 'node:child_process';
@@ -5,7 +6,7 @@ import {mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const name=process.argv[2],output=resolve(process.env.VISUAL_OUTPUT??'dist/plugin-visual/'+name);await mkdir(output,{recursive:true});
 const report={plugin:name,ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
-const entries={'test-reports':['/test-report','Test reports'],'ci-review':['/ci','CI review'],'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto history','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
+const entries={btw:['/btw','Side conversation'],'test-reports':['/test-report','Test reports'],'ci-review':['/ci','CI review'],'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto history','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
 assert.ok(entries[name],'Unknown UI profile');
 try{
  const{NO_COLOR,...env}=process.env;
@@ -39,6 +40,7 @@ try{
  }
  async function clickPane(title){const p=await panePosition(title);await clickCell(p.col,p.row);}
  async function closePane(title){await clickPane(title);const p=await panePosition(title,true);await clickCell(p.col,p.row);}
+ if(name==='btw'){await btwScenario({page,wait,text,command,clickPane,closePane,shot,report});}else{
  await wait('Describe your task');await command(entries[name][0]);await wait(entries[name][1]);await shot('00-open');
  if(name==='cost')await wait('42 input');
  if(name==='todos')await wait('Inspect project');
@@ -217,6 +219,7 @@ try{
  if(name==='network-proxy'){await command('/proxy configure');await wait('Configure network proxy');}
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(g=>visual.generation>g,generation);await wait('›');await command(entries[name][0]);await wait(entries[name][1]);
  if(name==='test-reports'){await wait('Limits: 2 failures · 4000 bytes');await wait('Report path: reports/tests.json');await clickText('Read report');await wait('FIRST_REPORT_DETAIL');}if(name==='ci-review'){await wait('fixture/repo');await wait('maxRuns 3');await clickText('Configure');await wait('Configure CI review');await wait('5000');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Configure CI review'));}if(name==='project-checks'){await wait('Refresh scripts');await clickText('Configure limits');await wait('Configure project checks');await wait('2000');await page.keyboard.press('Escape');}if(name==='git-review'){await wait('Choose an action');await clickText('Configure output');await wait('Configure Git review');await wait('8000');await page.keyboard.press('Escape');}if(name==='auto-approve')await wait('Mode: manual');if(name==='todos')await wait('Inspect project');if(name==='cost')await wait('42 input');if(name==='network-proxy')await wait('127.0.0.1:7890');
- await shot('04-restarted');report.checks.push('ui.restart');assert.equal(report.errors.length,0);report.ok=true;
+ await shot('04-restarted');report.checks.push('ui.restart');}
+ assert.equal(report.errors.length,0);report.ok=true;
 }catch(error){report.errors.push(String(error));await page?.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
 finally{await browser?.close();if(server&&server.exitCode===null){const end=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await end;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

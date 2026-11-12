@@ -156,6 +156,16 @@ or Alt+s can also open a conversation view without submitting the message draft.
 Closing a conversation window leaves the running model, transcript and draft
 intact; when no conversation is visible, the footer shows the recovery shortcut.
 
+With `btw` and `agent-hub` enabled, `/btw <question>` opens an independent agent
+while the main turn continues. Type follow-ups in its Reply field; Enter sends
+and Ctrl+C in that pane stops only that agent. Alt+i returns to the main message
+editor, and `/chat` restores its conversation window. `/btw` reopens the last
+side conversation for this project after closure or restart. Pane drafts survive
+closure within the process; only committed messages survive restart. These agents
+share the project workspace and ordinary permission rules. The previous isolated
+notification is available as `/btw --once <question>`. Opening a side conversation
+requires catalog 0.26 or later.
+
 Closing a plugin pane with its titlebar `[x]`, Alt+Q or its Close action sends
 `ui.press` with `key: "close"` to that surface. If it was the plugin's last
 attached pane, the host also cancels that plugin's independent user tool

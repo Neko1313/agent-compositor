@@ -1,5 +1,65 @@
 # Project memory
 
+## Independent side conversations implemented and exercised — 2026-11-13
+
+Kernel commit 31616b7 adds catalog 0.26 service.agent.open without changing any
+frozen input shape. Explicit user operations can create a shared-workspace agent
+or reopen one by id and focus its own Reply field. Independent command/tool
+provenance now uses the live async operation registry: unrelated model work and
+continuations after settlement cannot inherit that user authority. Existing
+agent panes accept direct editable messages without the main model queue;
+Alt+i returns to the main composer. Closing a pane no longer invokes a nonexistent
+agent_control close action. A closed agent can be explicitly restored. Opening
+a side conversation does not force the extra Agents list to appear.
+
+The btw plugin now exposes immediate `/btw <question>` to create an independent
+persisted conversation, and `/btw` to reopen the project-scoped last id (or create
+an empty one). `/btw --once <question>` preserves the prior notification-only
+model call with no tools/context. This default-behavior migration is intentionally
+a breaking plugin change; versions/changelogs stay bot-generated. Agent-hub is
+required only for side conversations. Missing support, oversized questions and
+archived/missing ids report errors rather than falling through to the main model.
+Side agents use the shared workspace and ordinary permissions, with existing
+independent count/token/step limits. Closing/removing btw does not stop or delete
+the separately managed agents. Pane drafts survive closure in-process; they are
+not persisted across restart. Committed transcripts resume normally.
+
+Evidence under dist/btw-conversation: final suite 1209 passed/three optional skips,
+151 files; types, generated contracts/docs, marketplace validation and docs/site
+checks passed. Real source PTY and extracted Linux plugin PTY each passed twelve
+observations; final extracted-candidate run is pty-shipping/report.json. Actual
+keyboard/mouse checks cover a held main model, inline follow-up, separate drafts,
+close/reopen, side-only interruption, narrow Reply field and continued history
+after restart. Relevant screenshots were inspected. Extracted package behavior
+also passes, including a real App/manager interaction while the main is held.
+Additional integration checks reject non-user opening, test unavailable hub and
+one-shot fallback, and retain a newer draft through a >1-second manual permission
+wait/refusal. Repeated Enter while a send is pending does not duplicate it.
+The internal agent-hub ui.press deadline now matches other user controls (five
+minutes), rather than timing out a person answering a permission question.
+
+Earlier PTY diagnostics remain separate: no matching default Playwright binary
+(used an already installed browser), omitted Alt+i before typing a main draft,
+the real close-action timeout repaired above, expecting an older transcript
+marker that had scrolled away (now checks authoritative primary Working status),
+and a long test draft clipped by the narrow label. The final narrow field uses
+the concise Reply label and checks a fully visible message. No failed attempt
+counts as passed evidence. Mechanical detector reported no findings.
+
+Live certification is revised, not passed: the previous seven tasks explicitly
+test --once, and an eighth side-conversation task uses a real independent host
+agent and checks arithmetic/reopening. Task digest and source/artifact PTY cases
+updated; fresh live/reference and native-host/platform proof remain open. All
+executed providers were local fixtures; no paid requests or budget change.
+OpenTUI remains planned, not implemented. Broad 1.0/model-development/onboarding,
+rich tables/charts and trust requirements remain active.
+
+Separately, build-only run 43269140300 for f21b50a completed successfully on all
+four native platforms, with publication skipped. Downloaded Actions logs contain
+the three installed approval/refusal/host-deny assertions on each platform. This
+proves the previous catalog0.25 candidate gate, not the new catalog0.26 runtime
+or live reviewer quality. Public host0.7.4 and published plugin tags stay immutable.
+
 ## Development marketplace descriptions follow prepared manifests — 2026-11-13
 
 Inspection of generated metadata PR9 found auto-approve's development catalog

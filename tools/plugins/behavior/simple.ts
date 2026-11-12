@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile,writeFile,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {Casebook,Fixture} from './fixture.js';
+import {ScriptedProvider} from '@agent-compositor/core';
 const secret='AKIAIOSFODNN7EXAMPLE';
 export function simple(f:Fixture,b:Casebook){
  const name=f.name;
@@ -13,9 +14,25 @@ export function simple(f:Fixture,b:Casebook){
   b.add('hook.repeat',async()=>{for(let i=0;i<3;i++){await f.prompt(secret);assert.equal(f.notices.at(-1).level,'error');assert.match(JSON.stringify((await f.emit('tool.call',{tool:'exec',input:{token:secret}})).value),/deny/);}assert.equal(f.models.length,0);});
   b.add('hook.failure',async()=>{const cyclic:any={};cyclic.self=cyclic;assert.equal((await f.emit('tool.call',{tool:'exec',input:cyclic},true)).faults.length,1);await f.prompt(secret);assert.match(f.notices.at(-1).message,/blocked/);assert.equal(f.models.length,0);});
  }
- const commands:Record<string,string>={'slash-commands':'/help','output-style':'/style terse','btw':'/btw Question','doctor':'/doctor','plan-mode':'/plan','session-ctl':'/compact'};
+ const commands:Record<string,string>={'slash-commands':'/help','output-style':'/style terse','btw':'/btw --once Question','doctor':'/doctor','plan-mode':'/plan','session-ctl':'/compact'};
  if(commands[name]){
-  b.add('hook.repeat',async()=>{const before=f.notices.length;for(let i=0;i<3;i++)await f.prompt(commands[name]);assert.equal(f.notices.length-before,3);});
+  b.add('hook.repeat',async()=>{
+   const before=f.notices.length;for(let i=0;i<3;i++)await f.prompt(commands[name]);assert.equal(f.notices.length-before,3);
+   if(name==='btw'){
+    const provider=new ScriptedProvider([{text:'MAIN_HELD',hold:true},{text:'SIDE_42'}]);
+    const app=await f.app({enabledPlugins:['btw','agent-hub'],agent:{verifyCompletion:false,projectContext:false,skills:false}},provider,{agentHub:true});
+    const core=app.createCore(async()=>true);await core.start();const main=core.submit('MAIN_TASK');
+    try{
+     const wait=async(count:number)=>{const end=Date.now()+5000;while(provider.requests.length<count&&Date.now()<end)await new Promise(done=>setTimeout(done,10));assert.equal(provider.requests.length,count);};
+     await wait(1);await core.invokeCommand('/btw SIDE_TASK');await wait(2);
+     assert.ok(!provider.requests[1].messages.some(message=>message.content==='MAIN_TASK'));assert.equal(core.getState(),'running');
+     const result=(await core.host.emit('service.agent.control',{action:'list'})).value as any;
+     assert.equal(result.value.filter((row:any)=>!row.archived).length,1);
+     await core.invokeCommand('/btw');assert.equal(provider.requests.length,2);
+     await core.host.emit('service.agent.control',{action:'archive',id:result.value.find((row:any)=>!row.archived).id});
+    }finally{core.interrupt();await main;await app.close();}
+   }
+  });
   b.add(['hook.failure','command.failure'],async()=>{
    f.failNotify=true;const failed=await f.prompt(commands[name],true);assert.equal(failed.faults.length,1);f.failNotify=false;const before=f.notices.length;await f.prompt(commands[name]);assert.equal(f.notices.length,before+1);
   });

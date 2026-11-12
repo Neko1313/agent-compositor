@@ -14,6 +14,7 @@ await withCandidate(ctx,async directory=>{
  for(const requirement of requiredCases(plan.profiles,'release').filter(r=>r.kind==='visual'))assert.ok(report.checks.includes(requirement.id),'Missing real terminal observation: '+requirement.id);
  if(name==='test-reports')for(const id of ['user-tool.titlebar-close','user-tool.keyboard-close','report.narrow-last-diagnostic','report.page-up-field'])assert.ok(report.checks.includes(id),'Missing report interaction: '+id);
  if(name==='auto-approve')for(const id of ['command.immediate','command.no-view','conversation.restore','conversation.idempotent','draft.preserved'])assert.ok(report.checks.includes(id),'Missing immediate-control interaction: '+id);
+ if(name==='btw')for(const id of ['conversation.concurrent','conversation.followup','conversation.restore','draft.preserved','conversation.cancel'])assert.ok(report.checks.includes(id),'Missing side-conversation interaction: '+id);
 });
 const evidence=await Promise.all((await readdir(output)).filter(file=>/\.(json|png|ansi|jsonl)$/.test(file)).map(file=>scenarioEvidence('pty/'+file)));
 await finishScenario({id:ctx.caseId,kind:ctx.stage==='artifact'?'artifact':'visual',status:'passed',evidence});

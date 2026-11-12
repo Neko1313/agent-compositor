@@ -75,8 +75,14 @@ draft, repeated restoration, workspace return, narrow history scrolling and
 restart. Core checks cover owner dispatch, failure isolation, tool permissions,
 auxiliary usage, cancellation, unload and shutdown bounds. This is source-runtime
 evidence; the immutable public 0.7.4 archive does not include these new contracts.
-Embedded onboarding, richer tables/drill-down, a complete `/btw` side conversation
-and standalone resource charts remain implementation work.
+Embedded onboarding, richer tables/drill-down and standalone resource charts
+remain implementation work. The newer source adds `/btw` side conversations
+through catalog 0.26: an independent persisted agent with its own Reply field,
+immediate opening/reopening, separate draft, focused-agent cancellation and
+restart history. Source integration and real PTY checks cover those paths with
+a held main model. It preserves the notification-only mode as `/btw --once`.
+Native release/platform checks and fresh live classification/development gates
+remain separate; this is not a published feature or a 1.0 readiness claim.
 
 The current auto-review source also validates structured `approved: true|false|null`
 decisions. Task-context low/medium approvals can proceed; refusals stop the call

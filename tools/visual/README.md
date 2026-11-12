@@ -33,6 +33,13 @@ before the plugin finishes publishing that panel.
 
 For manual inspection:
 
+`VISUAL_OUTPUT=dist/btw-proof node tools/visual/plugin-check.mjs btw` checks the
+actual side-conversation flow: opening while the main model is held, inline
+follow-ups, independent drafts, pane closure/reopening, side-only cancellation,
+narrow input and committed history after restart. All requests use a local
+protocol fixture. `VISUAL_PLUGIN_DIR` can select an extracted candidate package;
+the fixture checks and records that exact loaded package identity.
+
 ```sh
 npm run visual:serve
 ```

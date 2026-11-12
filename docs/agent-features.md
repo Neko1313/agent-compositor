@@ -123,6 +123,19 @@ Old snapshots are not deleted automatically.
 
 ## Independent agents and worktrees
 
+With `btw` and `agent-hub` enabled, `/btw <question>` immediately opens a separate
+persisted agent conversation while the main model continues. The focused pane
+has its own message field: Enter sends a follow-up without queuing behind the
+main turn. Ctrl+C stops the focused agent; closing the pane preserves its work.
+`/btw` reopens the last side conversation for this project after closure or restart,
+or opens an empty conversation if none exists. Alt+i followed by `/chat` returns
+to the main conversation. Pane drafts survive closure within the current process;
+only committed messages survive restart. These agents share the project workspace
+and permissions and have independent token/step limits, not isolated worktrees.
+The former isolated notification is available as `/btw --once <question>` without
+tools or transcript context. Side-conversation opening requires catalog 0.26 and
+an explicit user invocation; models cannot use it to change the user's focus.
+
 Each agent has its own AgentCore, transcript, session ID, permission state,
 budgets, and pane. The parent can send requests asynchronously and read results
 through `agent_control` with `action=list` and `id`; omitting id returns a short
@@ -134,7 +147,8 @@ Create makes an `agent/<uuid>` branch and worktree from HEAD under
 conversations are separate, but files are shared. Uncommitted changes in the main
 working tree are not copied to a new worktree.
 
-Click a pane to select the input recipient; the Message title shows its name.
+Click an agent pane to use its own Reply field. Alt+i focuses the main message
+editor and resets agent targeting; its draft is separate from each Reply field.
 Ctrl+C in the selected pane stops that agent. Stop cancels the current request
 and queued work. Approvals and questions from multiple agents are queued;
 cancellation removes a waiting dialog. Panes and conversations are restored

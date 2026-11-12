@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.4
+
+<!-- plugin-release:auto:start -->
+- canonicalize custom tool paths before policy ([ef0c26b](https://github.com/Neko1313/agent-compositor/commit/ef0c26b6c08d3d316f515f7a761ff6cb43573df8))
+<!-- plugin-release:auto:end -->
+
 ## 1.3.3
 
 <!-- plugin-release:auto:start -->

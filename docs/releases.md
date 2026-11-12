@@ -129,6 +129,10 @@ headless JSON; unavailable agent support must produce a failed result without
 a model request. Finally the existing Python PTY bridge drives a real raw-mode
 approval: an explicit `y` applies one controlled write and never becomes another
 model prompt. The CLI must then actually exit, rather than only print `bye`.
+The raw response remains streaming until the first Ctrl+C, so the verifier waits
+for the observable interrupted state before the second Ctrl+C exits. Text output
+alone is not evidence that turn cleanup has completed. Each native job preserves
+its smoke JSON reports as `installed-runtime-PLATFORM`, including on failure.
 The report is `dist/release/plain-controls-smoke-PLATFORM.json`. This uses bounded
 loopback responses, not live-model quality or graphical TUI evidence. Python is
 a verification dependency; the installed application does not require it for

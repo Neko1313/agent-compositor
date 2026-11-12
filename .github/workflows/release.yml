@@ -83,6 +83,13 @@ jobs:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_tag || '' }}
       - name: Verify archive, install, default plugins and model request
         run: npm run release:smoke
+      - name: Preserve installed-runtime evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installed-runtime-${{ matrix.platform }}
+          path: dist/release/*smoke-*.json
+          if-no-files-found: warn
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binary-${{ matrix.platform }}

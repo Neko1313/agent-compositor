@@ -49,7 +49,12 @@ export default{'command.invoke':async(e,$)=>{if(e.name!=='/native-control')retur
    const say=text=>res.end('data: '+JSON.stringify({choices:[{delta:{content:text},finish_reason:'stop'}],usage:{prompt_tokens:7,completion_tokens:3}})+'\n\ndata: [DONE]\n\n');
    if(prompt==='NATIVE_APPROVAL'){
     assert.deepEqual(body.messages.filter(message=>message.role==='user').map(message=>message.content),['NATIVE_APPROVAL']);
-    if(body.messages.at(-1)?.role==='tool'){assert.match(body.messages.at(-1).content,/native-approved/);say('APPROVAL_DONE');}
+    if(body.messages.at(-1)?.role==='tool'){
+     assert.match(body.messages.at(-1).content,/native-approved/);
+     // Text is observable before completion. Hold the stream until the user interrupts it.
+     res.write('data: '+JSON.stringify({choices:[{delta:{content:'APPROVAL_DONE'},finish_reason:null}]})+'\n\n');
+     await new Promise(done=>res.once('close',done));
+    }
     else res.end('data: '+JSON.stringify({choices:[{delta:{tool_calls:[{index:0,id:'controlled-native-write',type:'function',function:{name:'write',arguments:JSON.stringify({path:'native-approved.txt',content:'APPROVED'})}}]},finish_reason:'tool_calls'}]})+'\n\ndata: [DONE]\n\n');
    }else if(prompt==='NATIVE_MAIN 👩🏽‍💻'){
     await writeFile(join(cwd,'request-started'),'ready');await poll(()=>exists(join(cwd,'release-main')),'controlled main release');say('MAIN_FINISHED');
@@ -74,8 +79,9 @@ export default{'command.invoke':async(e,$)=>{if(e.name!=='/native-control')retur
   send('y\r');await poll(()=>raw.stdout.includes('APPROVAL_DONE')||raw.exited,'human answer consumed');
   assert.equal(await readFile(join(cwd,'native-approved.txt'),'utf8'),'APPROVED');assert.equal(requests,5);
   assert.doesNotMatch(raw.stdout,/\[steer\]|\[queued\]/,'The human answer must not be steered or queued as a task');
-  send('\x03');await poll(()=>raw.exited,'raw PTY exit');assert.match(raw.stdout,/bye/);assert.equal(requests,5);
-  const report={ok:errors.length===0,pastedCommand:true,eofWaitsForCommand:true,rawApprovalAnswerNotSubmitted:true,oneShotResponse:answer.response,oneShotUsage:answer.usage,missingCapabilityExit:unavailable.code,requests,runs,errors,paidRequests:0};
+  send('\x03');await poll(()=>raw.stdout.includes('[interrupted]')||raw.exited,'raw stream interruption');assert.equal(raw.exited,false);
+  send('\x03');await poll(()=>raw.exited,'idle raw PTY exit');assert.match(raw.stdout,/bye/);assert.equal(requests,5);
+  const report={ok:errors.length===0,pastedCommand:true,eofWaitsForCommand:true,rawApprovalAnswerNotSubmitted:true,rawInterruptThenExit:true,oneShotResponse:answer.response,oneShotUsage:answer.usage,missingCapabilityExit:unavailable.code,requests,runs,errors,paidRequests:0};
   if(output){await writeFile(output,JSON.stringify(report,null,2)+'\n');reportWritten=true;}assert.ok(report.ok,JSON.stringify(report));return report;
  }catch(error){
   if(output&&!reportWritten)await writeFile(output,JSON.stringify({ok:false,error:String(error),requests,runs,errors,paidRequests:0},null,2)+'\n');throw error;

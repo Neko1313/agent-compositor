@@ -1,5 +1,31 @@
 # Project memory
 
+## Prepared UI host source and metadata review complete — 2026-11-12
+
+Pushed365db5b plus host-version preparationedfb677b08a5e3fd82b32447b8c4cdd21960f785.
+Exact edfb677 Node22/26 CI43143452553 and documentation43143452567 passed.
+PR8 head4ee7b8f7d7cbe705c440cc10963e6cf6a00d148f was regenerated in a fresh
+clean edfb677 worktree; all nine generated files and hashes matched. Retained
+review dist/panel-close-paging/preparation-review.json. Its dispatched Node22/26
+CI43143518607 and docs43143521378 passed; approval-required duplicate PR-trigger
+runs were not counted as successes. Merged with a matching-head guard as
+917f12a76bd3b0d0c6cd1d7748f2a04c2e019147 and fast-forwarded local main.
+plugin:prepare is empty. Generated versions are mcp1.3.2, plugin-author1.3.2,
+test-reports0.1.1 and catalog1.0.9. They were not manually bumped. Host0.7.4
+remains a candidate; no tag/public release exists at the latest read-only check.
+
+Next build the clean prepared native Linux archive, retain its exact source/hash,
+and run maintained installer/SDK/kernel/Monty/Callix/context/background/startup
+smokes. Those checks do not prove compiled TUI close/paging. Complete actual
+compiled/installed CLI PTY proof using an isolated loopback provider (never the
+saved paid profile), then the four-platform host candidate and public-upgrade
+proof before an immutable host tag. The visual bench's VISUAL_EXECUTABLE path
+bypasses fixture.ts, so source ScriptedProvider/identity/pluginDirs need explicit
+binary fixture equivalents; existing local transport examples live in
+context-smoke.mjs/background-smoke.mjs and visual/server.mjs. Only publish the
+independent report archive after the patched host. Broader original1.0 and real
+model/development/trust gates remain active. No new paid request or budget change.
+
 ## Prepared host0.7.4 after closed-pane repairs — 2026-11-12
 
 Committed365db5b48594d16f7af157d77d4478e66857869d: host dismissal, explicit

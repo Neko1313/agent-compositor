@@ -127,8 +127,9 @@ Old snapshots are not deleted automatically.
 In current development builds, `/agents` focuses a live overview with Agent,
 State and Tokens used columns. Click a row or select it with Up/Down and Enter
 to expand its workspace, per-turn limits, failure and recent activity. **Open
-conversation** focuses that agent's Reply field. **View** cycles All, Running
-and Needs attention (interrupted or failed). Agent lifecycle and tool events
+conversation** focuses that agent's Reply field. **All**, **Running** and
+**Attention** tabs show counts; Attention contains interrupted or failed agents.
+Click a tab or use Left/Right in the focused pane. Agent lifecycle and tool events
 refresh the visible overview without submitting a prompt to the main model.
 Narrow panes stack labeled fields. Recent activity is limited to the last twelve
 turn/tool events in this process; open the saved conversation for earlier history.

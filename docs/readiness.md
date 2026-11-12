@@ -81,7 +81,9 @@ uses catalog 0.27 semantic tables with expandable workspace/limits/activity,
 state filters and responsive stacked fields. This is an initial reusable table
 contract. The development workflows plugin adopts it for paginated run/stage
 views, expandable results and state filters, preserving pause/resume and legacy
-journals. Agent tabs and deeper historical drill-down remain open; native and
+journals. The development UI now has reusable catalog 0.28 tabs for agent and
+workflow state filters, with mouse/keyboard selection and narrow wrapping.
+Per-agent conversation tabs and deeper historical drill-down remain open; native and
 real-model verification of these newer views is separate. Local extracted Linux
 x64 archive checks now cover the agent overview with a held main model and the
 bundled workflow table through bounded loopback providers. They exposed and fixed

@@ -1,5 +1,58 @@
 # Project memory
 
+## Semantic state tabs shipped in source and exercised natively — 2026-11-13
+
+Catalog 0.28 adds optional UiTextView.tabs: at most twelve uniquely identified
+tabs/actions, optional disabled state and at most one selected tab. Omission
+preserves the frozen view contract; the compatibility test isolates this additive
+property before comparing the old signature. Hooks expose supports('tabs');
+independent workflows retain the cycling table filter on table-only hosts and
+the older text view when tables are unavailable. Tests check both fallback tiers.
+
+AppUI resolves wrapped tab rows and individual cell hit ranges, so clicking a
+neighbor or the gap cannot activate the first tab accidentally. Selection uses
+accent/bold/underline; keyboard focus uses the normal selection background.
+Labels remain literal even with Markdown characters. Left/Right directly
+activates the next enabled tab and wraps; Up/Down/Enter traverses ordinary actions
+and tab actions together. Offscreen wrapped tabs scroll into view. Action
+deduplication uses a linear Set scan. No new wire element, React plugin execution
+or model request is introduced. ui.render receives semantic props.tabs, and core
+surface text includes the selected tab label.
+
+Agent/workflow overviews now show All/Running/Attention tabs with live counts;
+Attention means interrupted/failed agents and paused/failed/stopped workflows.
+This replaces the cycling state-filter control on current hosts. It does not
+complete the separate requirement for per-agent conversation tabs/historical
+drill-down, which remains open with resource views, embedded CPU onboarding,
+OpenTUI and model-driven development/quality gates.
+
+Evidence: dist/first-run/tabs-ready-tests.log has 1251 passed/three optional skips
+across 155 files; final types and generated documentation/site checks pass.
+Focused tests cover per-label/gap/disabled hits, literal/selected/focused styling,
+unique IDs/actions, selection/count limits, a twelve-tab short-pane case and main
+draft retention without model requests. The first short-pane fixture incorrectly
+used alt instead of protocol meta and was corrected with explicit focus/fullscreen
+assertions. Workflow captures now await terminal paint and the complete narrow
+tab strip; an earlier screenshot captured a partial redraw. The actual PTY input
+oracles and timeouts were not weakened. Detector returned no findings.
+
+Source agent/workflow scenarios pass. Final compiled/extracted Linux x64 proof is
+under dist/tabs/native-agents-ready (nine checks, two loopback requests) and
+native-workflows-ready (fourteen checks, six requests). Wide/narrow source
+and native screenshots were inspected in bounded batches. integrity-ready
+independently matches the binary and bundled workflow against the retained full
+archive dist/tabs/compositor-linux-x64.tar.gz and hashes reports/source inputs;
+binary SHA256 starts 380157c01ea21f7f. No paid provider requests or publication.
+
+The previous build-only run 43294358908 for d321d87 completed successfully on all
+four platforms, publish skipped. Twenty downloaded reports and raw exit0/no-stderr
+plus all seven protocol flags were independently audited under
+dist/tabs/prior-native-d321; this prior run does not cover the new tabs. Other
+native platforms/real terminal graphics and fresh live-model gates remain open.
+UI/API/plugin/testing/architecture/readiness/bench docs were updated. Historical
+03-contracts and controller/core selection guides need no rewrite: permission,
+controller selection and the existing service dispatch contracts are unchanged.
+
 ## Native table checks exposed and repaired independent-command/focus gaps — 2026-11-13
 
 Native verification of cc98705 first confirmed the bundled workflow through six

@@ -20,12 +20,12 @@ minimal Linux hosts. An existing compatible Chromium can be selected with
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/absolute/path/to/chrome`.
 
 The standard scenario also checks the semantic agent overview: expand by mouse
-and keyboard, cycle state filters, resize to stacked narrow fields and enter the
+and keyboard, click state tabs, switch with Left/Right, resize to stacked narrow fields and enter the
 selected agent's conversation. Screenshots include the expanded and narrow views.
 
 `VISUAL_OUTPUT=dist/workflow-proof node tools/visual/workflow-check.mjs` checks
 dynamic workflow tables with actual bounded workers: run/stage drill-down,
-pause/release/resume, expanded result, filters, keyboard collapse, narrow fields,
+pause/release/resume, expanded result, clickable state tabs, Left/Right switching, keyboard collapse, narrow fields,
 parent completion and restoration. `VISUAL_PLUGIN_DIR` selects an exact candidate
 package; the bench records and verifies its loaded identity. Workflow plugin
 certification runs this scenario as well as the legacy Python-journal UI scenario.

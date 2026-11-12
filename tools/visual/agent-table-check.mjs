@@ -19,15 +19,15 @@ try{
  const command=async value=>{await page.keyboard.press('Alt+i');await page.keyboard.type(value);await wait('› '+value);await page.keyboard.press('Enter');};
  const shot=async name=>{await page.screenshot({path:join(output,name+'.png')});report.screenshots.push(name+'.png');};
  await wait('0/3 complete');await command('MAIN_TABLE_TASK');await wait('MAIN_TABLE_WORKING');
- await command('/agents');await wait('View: All · 0/0');
+ await command('/agents');await wait('[All (0)]');
  assert.ok((await text()).includes('Working'));
  await command('/agents create-shared Native');await wait('Y allow once');await page.keyboard.type('y');await wait('Reply: Type a follow-up');
- await command('/agents');await wait('View: All · 1/1');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Agents'));await wait('Tokens used');
+ await command('/agents');await wait('[All (1)]');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Agents'));await wait('Tokens used');
  await click('+ Native');await wait('[ Open conversation ]');await shot('00-overview-main-held');
  await click('[ Open conversation ]');await wait('Reply: Type a follow-up');await page.keyboard.type('SIDE_TABLE_TASK');await wait('Reply: SIDE_TABLE_TASK');await page.keyboard.press('Enter');await wait('SIDE_TABLE_DONE');
  await command('/agents');await wait('Turn completed');assert.ok((await text()).includes('Working'));await shot('01-side-completed');
- await click('View: All');await wait('View: Running');await wait('No agents match this view');await click('View: Running');await click('View: Needs attention');await wait('View: All');
- for(let index=0;index<4;index++)await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
+ await click('[Running (0)]');await wait('No agents match this view');await page.keyboard.press('ArrowLeft');await wait('- Native');await page.keyboard.press('ArrowRight');await wait('No agents match this view');await click('[All (1)]');await wait('- Native');
+ for(let index=0;index<6;index++)await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
  await page.waitForFunction(()=>!visual.text().includes('[ Open conversation ]'));
  await page.evaluate(()=>visual.terminal.resize(48,18));await wait('State: idle');await shot('02-narrow');
  await page.evaluate(()=>visual.terminal.resize(100,30));await page.waitForFunction(()=>visual.text().split('\n').some(line=>line.includes('Agent')&&line.includes('State')&&line.includes('Tokens used')));
@@ -36,9 +36,9 @@ try{
  await command('/agents');await wait('[ Open conversation ]');await click('[ Open conversation ]');await wait('UNSENT_SIDE_DRAFT');
  await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(value=>visual.generation>value,generation);await wait('Describe your task');
- await command('/agents');await wait('View: All · 1/1');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Agents'));await wait('+ Native');await click('+ Native');await click('[ Open conversation ]');await wait('SIDE_TABLE_DONE');await shot('03-restored');
+ await command('/agents');await wait('[All (1)]');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Agents'));await wait('+ Native');await click('+ Native');await click('[ Open conversation ]');await wait('SIDE_TABLE_DONE');await shot('03-restored');
  report.transport=JSON.parse(await readFile(join(output,'workflow-transport.json'),'utf8'));assert.deepEqual([...report.transport.requests].sort(),['main','side']);assert.equal(report.transport.paidRequests,0);
- report.checks.push('native.agents.immediate-held-main','native.agents.side-conversation','native.agents.filter','native.agents.keyboard','native.agents.narrow','native.agents.draft-reopen','native.agents.restart','native.agents.bounded-transport');
+ report.checks.push('native.agents.immediate-held-main','native.agents.side-conversation','native.agents.filter','native.agents.tabs','native.agents.keyboard','native.agents.narrow','native.agents.draft-reopen','native.agents.restart','native.agents.bounded-transport');
  assert.deepEqual(report.errors,[]);report.ok=true;
 }catch(error){report.errors.push(String(error));await page?.screenshot({path:join(output,'failure.png')}).catch(()=>{});if(page)await writeFile(join(output,'failure.txt'),await page.evaluate(()=>visual.text()).catch(()=>''));}
 finally{await browser?.close();if(server&&server.exitCode===null){const ended=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await ended;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

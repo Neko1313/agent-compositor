@@ -181,6 +181,38 @@ view can preserve or replace the table. Plain surface text includes labeled rows
 and expanded details. No arbitrary frontend code is loaded. This table contract
 is independent of Ink; a future renderer can consume the same data directly.
 
+## Semantic tabs
+
+Development catalog 0.28 adds optional `UiTextView.tabs` for plugin panes. Check
+`$.ui.supports?.('tabs') === true` before using it from an independent package;
+table support alone does not imply tab support. Existing views without tabs are
+unchanged. A view can combine tabs, ordinary lines and a table:
+
+```ts
+await $.ui.view('jobs', 'Jobs', {
+  tabs: [
+    {id: 'all', label: 'All', action: 'filter:all', selected: true},
+    {id: 'running', label: 'Running', action: 'filter:running'},
+    {id: 'unavailable', label: 'Unavailable', action: 'filter:off', disabled: true},
+  ],
+  lines: [{text: 'Choose a job to inspect its progress.'}],
+});
+```
+
+Click a tab, select its action with Up/Down and Enter, or switch directly with
+Left/Right in the focused pane. Left/Right wraps and skips disabled tabs. The
+producer receives the ordinary `ui.press` action and republishes the chosen
+`selected` state; the host does not run a model or infer filter behavior. Disabled
+tabs have no click target. Selected tabs use accent, bold and underline; keyboard
+focus uses the normal selection background independently of selection.
+
+Tabs wrap onto additional rows in narrow panes; a label wider than the pane is
+elided. Keyboard switching scrolls an offscreen tab into view. Labels are literal
+text, not inline Markdown. Up to twelve tabs are allowed, with unique IDs and
+actions, labels up to sixty characters and at most one selected tab.
+`ui.render` receives `props.tabs`, and plain surface text identifies the selected
+tab. Renderers still receive resolved cells, not executable tab components.
+
 ## Animated plugin panes
 
 The optional default [mascot plugin](../plugins/mascot/README.md) demonstrates

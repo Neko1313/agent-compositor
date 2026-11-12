@@ -61,6 +61,9 @@ it('navigates live workflow tables without model requests and keeps a closed vie
  const oldHost:any={signal:new AbortController().signal,session:{cwd:f.app.storage.paths.project,id:f.core.sessionId},storage:{paths:f.app.storage.paths,config:async()=>({})},state:{get:(key:string)=>state.get(key),set:(key:string,value:unknown)=>state.set(key,value),delete:(key:string)=>state.delete(key)},ui:{view:async(_id:string,_title:string,view:unknown)=>{legacy=view;}},background:()=>oldHost};
  await workflowHooks['ui.press']({site:'plugin-workflows-runs',key:'command:/workflows'},oldHost);
  expect(legacy.table).toBeUndefined();expect(legacy.lines.some((line:any)=>line.text==='Table proof · completed')).toBe(true);
+ oldHost.ui.supports=(feature:string)=>feature==='table';
+ await workflowHooks['ui.press']({site:'plugin-workflows-runs',key:'command:/workflows'},oldHost);
+ expect(legacy.table).toBeDefined();expect(Object.hasOwn(legacy,'tabs')).toBe(false);
 });
 it('paginates all 500 stages and preserves large results in schema-valid expandable detail lines',()=>{
  const stages=Array.from({length:500},(_,index)=>({id:'stage-'+index,prompt:'p'.repeat(16000),status:'completed' as const,output:'o'.repeat(64000)}));

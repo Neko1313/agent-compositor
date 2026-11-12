@@ -376,7 +376,7 @@ export class AgentCore {
           event: "ui.surface",
           input: {
             ...input,
-            text: [...input.view.lines.map(row=>row.text),
+            text: [...(input.view.tabs?[input.view.tabs.map(tab=>tab.selected?'['+tab.label+']':tab.label).join(' · ')]:[]),...input.view.lines.map(row=>row.text),
               ...(input.view.table?input.view.table.rows.length?input.view.table.rows.flatMap(row=>[
                 row.cells.map((cell,index)=>`${input.view.table!.columns[index].label}: ${cell}`).join(' · '),
                 ...(row.expanded?row.details?.map(detail=>detail.text)??[]:[]),

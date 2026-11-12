@@ -19,7 +19,10 @@ try{
  const tabs=async(n)=>{for(let i=0;i<n;i++){const before=await focus();await page.keyboard.press('Tab');try{await page.waitForFunction(before=>{const lines=visual.text().split('\n'),i=lines.findIndex(l=>/^│ › /.test(l));return lines.slice(Math.max(0,i-1),i+1).join('\n')!==before;},before,{timeout:5000});}catch(e){throw Error('Tab focus stalled: '+JSON.stringify({before,after:await focus()}));}}};
  const replace=async(value)=>{await page.keyboard.press('Control+a');await page.keyboard.type(value);await wait(value);};
  const secret=async(value)=>{await page.keyboard.type(value);await wait('•'.repeat(value.length));};
- const shot=async(name)=>{await page.screenshot({path:resolve(output,name)});report.screenshots.push(name);};
+ const shot=async(name)=>{
+  await page.evaluate(()=>new Promise((done,fail)=>{const timer=setTimeout(()=>{subscription.dispose();fail(Error('Terminal paint timeout'));},5000);const subscription=visual.terminal.onRender(()=>{subscription.dispose();clearTimeout(timer);requestAnimationFrame(()=>requestAnimationFrame(done));});visual.terminal.refresh(0,visual.terminal.rows-1);}));
+  await page.screenshot({path:resolve(output,name)});report.screenshots.push(name);
+ };
  await wait('0/3 complete');await page.evaluate(()=>visual.terminal.resize(140,40));await page.waitForFunction(()=>visual.text().split('\n')[38]?.includes('[Settings]'));
  let loaded;
  if(process.env.VISUAL_EXECUTABLE){
@@ -40,13 +43,13 @@ try{
  await click('[ Resume workflow ]');await wait('Repository audit proof · completed');await click('+ Verify combined result');await wait('Combined verification complete');await shot('03-completed.png');
  report.checks.push('Actual workflow tool dynamically expands two parallel workers; mouse pause prevents the downstream stage from starting; resume joins results and exposes detail');
  report.checks.push('workflow.expand-join','workflow.pause-resume','workflow.result-detail');
- await click('[ All runs ]');await click('View: All');await wait('View: Running');await wait('No runs match this view');await click('View: Running');await click('View: Needs attention');await wait('View: All');
- for(let index=0;index<2;index++)await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
+ await click('[ All runs ]');await click('[Running (0)]');await wait('No runs match this view');await page.keyboard.press('ArrowLeft');await wait('[ Inspect stages ]');await page.keyboard.press('ArrowRight');await wait('No runs match this view');await click('[All (1)]');await wait('[ Inspect stages ]');
+ for(let index=0;index<5;index++)await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
  await page.waitForFunction(()=>!visual.text().includes('[ Inspect stages ]'));
- await page.evaluate(()=>visual.terminal.resize(48,18));await wait('State: completed');await shot('03a-narrow.png');
+ await page.evaluate(()=>visual.terminal.resize(48,18));await wait('State: completed');await wait('[Attention (0)]');await shot('03a-narrow.png');
  await page.evaluate(()=>visual.terminal.resize(140,40));await page.waitForFunction(()=>visual.text().split('\n').some(line=>line.includes('Workflow')&&line.includes('Progress')));
  report.checks.push('Workflow table supports keyboard expansion, state filters and labeled narrow fields');
- report.checks.push('workflow.table.keyboard','workflow.table.filter','workflow.table.narrow');
+ report.checks.push('workflow.table.keyboard','workflow.table.filter','workflow.table.narrow','workflow.tabs.keyboard','workflow.tabs.pointer');
  await page.keyboard.press('Alt+f');await wait('Workflow completion delivered to main agent');await shot('03b-parent-wake.png');report.checks.push('Terminal workflow completion automatically wakes the originating parent agent');
  const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');await page.waitForFunction(g=>visual.generation>g&&visual.frames>0,generation);await stageState('Repository audit proof','completed');await shot('04-restored.png');
  await page.keyboard.press('Alt+s');

@@ -77,6 +77,9 @@ tool contracts are unchanged.
 Catalog 0.27 adds optional semantic tables to `UiTextView`; omitted tables preserve
 the existing text-view contract. Columns, unique rows, expanded details and
 ordinary action IDs are renderer-independent. See [expandable tables](ui-theming.md#expandable-semantic-tables).
+Catalog 0.28 adds optional [semantic tabs](ui-theming.md#semantic-tabs). Independently
+distributed packages must feature-detect `$.ui.supports?.('tabs')` and retain an
+appropriate older-host view; the SDK version inside a bundle is not a host feature probe.
 
 An optional command route, `"ui":{"site":"main"}`, sends a TUI command directly
 to the existing `ui.press` chain. For plugin `project-helper`, the event is

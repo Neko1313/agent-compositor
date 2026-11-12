@@ -74,7 +74,7 @@ describe("independent agents, authentication and extensions", () => {
       await vi.waitFor(()=>expect(view.table.rows[0].details.some((line:any)=>line.text==='Tool finished: read')).toBe(true));
       expect(JSON.stringify(view)).not.toContain('PRIVATE_FILE_BODY');
       expect(view.table.rows[0].details.some((line:any)=>line.text==='Turn started')).toBe(true);
-      await core.host.emit('ui.press',{site:'plugin-agent-hub-agents',key:'filter'});expect(view.lines[1].text).toContain('Running');expect(view.table.rows).toHaveLength(1);
+      await core.host.emit('ui.press',{site:'plugin-agent-hub-agents',key:'filter'});expect(view.tabs.find((tab:any)=>tab.selected).id).toBe('running');expect(view.table.rows).toHaveLength(1);
       await core.invokeTool('agent_control',{action:'stop',id});await vi.waitFor(()=>expect(view.table.rows).toHaveLength(0));
       await core.host.emit('ui.press',{site:'plugin-agent-hub-agents',key:'filter'});expect(view.table.rows).toHaveLength(1);expect(view.table.rows[0].cells[1]).toBe('interrupted');
       expect(view.table.rows[0].details.some((line:any)=>line.text==='Turn interrupted')).toBe(true);

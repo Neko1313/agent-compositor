@@ -37,7 +37,7 @@ function stageDetails(stage:Stage):UiTextView['lines']{
 }
 
 /** Pure semantic views; the plugin owns navigation and the engine owns execution. */
-export function workflowView(runs:Run[],state:WorkflowViewState):UiTextView{
+export function workflowView(runs:Run[],state:WorkflowViewState,withTabs=false):UiTextView{
  const common:UiTextView['lines']=[{text:'Dynamic workflows',bold:true},{text:'[ Refresh ]',action:'refresh'}];
  const run=runs.find(run=>run.id===state.runId);
  if(state.mode==='stages'&&run){
@@ -58,8 +58,12 @@ export function workflowView(runs:Run[],state:WorkflowViewState):UiTextView{
  }
  const visible=runs.filter(run=>state.filter==='all'||(state.filter==='running'?run.status==='running':['failed','paused','stopped'].includes(run.status)));
  const page=pagination(visible.length,state.page);
- return{hint:'Enter or click a run to expand. Inspect stages opens its live stage table.',lines:[...common,
-  {text:`[ View: ${state.filter==='all'?'All':state.filter==='running'?'Running':'Needs attention'} · ${visible.length}/${runs.length} ]`,action:'filter',tone:'accent'},
+ return{...(withTabs?{tabs:[
+  {id:'all',label:`All (${runs.length})`,action:'filter:all',selected:state.filter==='all'},
+  {id:'running',label:`Running (${runs.filter(run=>run.status==='running').length})`,action:'filter:running',selected:state.filter==='running'},
+  {id:'attention',label:`Attention (${runs.filter(run=>['failed','paused','stopped'].includes(run.status)).length})`,action:'filter:attention',selected:state.filter==='attention'},
+ ]}:{}),hint:withTabs?'Left/Right switches tabs · Enter or click a run to expand · Inspect stages opens its stage table':'Enter or click a run to expand. Inspect stages opens its live stage table.',lines:[...common,
+  ...(!withTabs?[{text:`[ View: ${state.filter==='all'?'All':state.filter==='running'?'Running':'Needs attention'} · ${visible.length}/${runs.length} ]`,action:'filter',tone:'accent' as const}]:[]),
   {text:'[ Legacy Python journals ]',action:'legacy'},...page.lines,
  ],table:{columns:[{label:'Workflow',width:28},{label:'State',width:12},{label:'Progress',width:10}],empty:'No runs match this view. Change View or start a workflow.',rows:visible.slice(page.start,page.start+PAGE_SIZE).map(run=>({
   id:run.id,cells:[run.title.slice(0,500),run.status,`${run.stages.filter(stage=>stage.status==='completed').length}/${run.stages.length}`],

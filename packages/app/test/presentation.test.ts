@@ -4,7 +4,7 @@ import { hello, type WireMessage } from "@agent-compositor/protocol";
 import { uiAppearanceSchema, uiTextViewSchema } from "@agent-compositor/events";
 import themeHooks from "../../../plugins/ui-theme/hooks.js";
 import { AppUI } from "../src/ui.js";
-import { appearanceFrom, clean, gridFrom, transcriptRows, wrap, textRows, viewRows } from "../src/presentation.js";
+import { appearanceFrom, clean, gridFrom, transcriptRows, wrap, textRows, viewRows,rowActions,actionAt } from "../src/presentation.js";
 
 function setup(provider = new ScriptedProvider([])) {
   const ui = new AppUI(approve => new AgentCore({ cwd: process.cwd(), provider, onApproval: approve }));
@@ -148,4 +148,22 @@ it('renders semantic table columns, stacked narrow data and actionable expanded 
  expect(viewRows({...view,table:{...view.table!,rows:[],empty:'No matching agents'}},40,20)[0].text).toBe('No matching agents');
  expect(uiTextViewSchema.safeParse({lines:[],table:{...view.table,rows:[{id:'bad',cells:['only one']} ]}}).success).toBe(false);
  expect(uiTextViewSchema.safeParse({lines:[],table:{...view.table,rows:[view.table!.rows[0],view.table!.rows[0]]}}).success).toBe(false);
+});
+
+it('keeps tab hit ranges separate, wraps narrow labels and renders literal active/disabled states',()=>{
+ const tabs=[{id:'one',label:'**One**',action:'one',selected:true},{id:'off',label:'Disabled',action:'off',disabled:true},{id:'two',label:'Two',action:'two'}];
+ const view=uiTextViewSchema.parse({lines:[],tabs}),rows=viewRows(view,80,20),row=rows[0],theme=appearanceFrom([]);
+ expect(rowActions(row)).toEqual(['one','two']);
+ expect(actionAt(row,0)).toBe('one');expect(actionAt(row,9)).toBeUndefined();
+ const disabled=row.actions!.find(range=>range.disabled)!;expect(actionAt(row,disabled.start)).toBeUndefined();
+ const second=row.actions!.find(range=>range.action==='two')!;expect(actionAt(row,second.start)).toBe('two');
+ const cells=gridFrom([row],theme,80)[0];expect(cells.map(cell=>cell.ch).join('')).toBe(row.text);expect(cells[0]).toMatchObject({bold:true,underline:true,fg:theme.colors.accent});
+ const focused=gridFrom([{...row,actions:row.actions!.map(range=>({...range,focused:range.action==='two'}))}],theme,80)[0];
+ expect(focused[second.start].bg).toBe(theme.colors.selectionBackground);expect(focused[0].bg).toBeUndefined();
+ const narrow=viewRows(view,10,20);expect(narrow.length).toBe(3);expect(narrow.every(row=>Array.from(row.text).length<=10)).toBe(true);
+ expect(narrow.flatMap(rowActions)).toEqual(['one','two']);
+ expect(uiTextViewSchema.safeParse({...view,tabs:[tabs[0],{...tabs[0],id:'other',selected:false}]}).success).toBe(false);
+ expect(uiTextViewSchema.safeParse({...view,tabs:[tabs[0],{...tabs[0],action:'other',selected:false}]}).success).toBe(false);
+ expect(uiTextViewSchema.safeParse({...view,tabs:[tabs[0],{...tabs[2],selected:true}]}).success).toBe(false);
+ expect(uiTextViewSchema.safeParse({lines:[],tabs:Array.from({length:13},(_,index)=>({id:String(index),label:'Tab',action:String(index)}))}).success).toBe(false);
 });

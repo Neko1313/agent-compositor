@@ -30,7 +30,9 @@ export const DEFAULT_APPEARANCE = {
 };
 export type Appearance = typeof DEFAULT_APPEARANCE;
 export type Tone = NonNullable<UiTextView["lines"][number]["tone"]>;
-export type Row = UiTextView["lines"][number] & { cells?: Grid[number] };
+export type Row = UiTextView["lines"][number] & { cells?: Grid[number];actions?:{start:number;end:number;action?:string;selected?:boolean;focused?:boolean;disabled?:boolean}[] };
+export const rowActions=(row:Row):string[]=>[...new Set([...(row.action?[row.action]:[]),...(row.actions??[]).flatMap(range=>range.action?[range.action]:[])])];
+export const actionAt=(row:Row|undefined,column:number)=>row?.actions?.find(range=>column>=range.start&&column<range.end)?.action??(row?.actions?undefined:row?.action);
 export type Grid = NonNullable<RenderMessage["grid"]>;
 export interface TranscriptBlock {
   kind: "user" | "assistant" | "tool" | "notice";
@@ -158,6 +160,11 @@ export function gridFrom(
   literal = false
 ): Grid {
   return rows.map((row) => {
+    if(row.actions)return Array.from(clean(row.text)).slice(0,columns).map((ch,index)=>{
+      const range=row.actions!.find(range=>index>=range.start&&index<range.end);
+      return{ch,fg:range?.disabled?theme.colors.muted:range?.focused?theme.colors.selectionText:range?.selected?theme.colors.accent:theme.colors.muted,
+        ...(range?.focused&&!range.disabled?{bg:theme.colors.selectionBackground}:{}),...(range?.selected&&!range.disabled?{bold:true,underline:true}:{})};
+    });
     if (row.cells) return row.cells.slice(0, columns).map(cell => row.selected
       ? { ...cell, fg: theme.colors.selectionText, bg: theme.colors.selectionBackground }
       : cell);
@@ -184,7 +191,7 @@ export function gridFrom(
 /** Allocate the same cell rectangle for graphics and the portable fallback. */
 export function rasterForView(view: UiTextView, columns: number, height: number): RenderMessage['raster'] {
   const image = view.raster;
-  const textCount = view.lines.flatMap(row => wrap(row.text, columns)).length+(view.table?tableRows(view.table,columns).length:0);
+  const textCount = view.lines.flatMap(row => wrap(row.text, columns)).length+(view.table?tableRows(view.table,columns).length:0)+tabRows(view.tabs,columns).length;
   const available = Math.max(0, height - textCount);
   if (!image || !available || columns < 1) return;
   const scale = Math.min(columns / image.width, available * 2 / image.height, 1);
@@ -194,6 +201,21 @@ export function rasterForView(view: UiTextView, columns: number, height: number)
 }
 
 /** Portable true-colour half-block raster rendering, shared by all plugins. */
+export function tabRows(tabs:UiTextView['tabs'],columns:number):Row[]{
+  const rows:Row[]=[];let row:Row={text:'',actions:[]};const width=Math.max(1,columns);
+  for(const tab of tabs??[]){
+    const label=Array.from(clean(tab.label).replace(/\s+/g,' '));
+    const shown=label.length>width-2?label.slice(0,Math.max(0,width-3)).join('')+'…':label.join('');
+    const text=Array.from('['+shown+']').slice(0,width).join('');
+    const length=Array.from(row.text).length,size=Array.from(text).length;
+    if(length&&length+1+size>width){rows.push(row);row={text:'',actions:[]};}
+    const start=Array.from(row.text).length+(row.text?1:0);
+    row.text+=(row.text?' ':'')+text;
+    row.actions!.push({start,end:start+size,...(!tab.disabled?{action:tab.action}:{}),selected:tab.selected,disabled:tab.disabled});
+  }
+  if(row.text)rows.push(row);return rows;
+}
+
 export function tableRows(table:NonNullable<UiTextView['table']>,columns:number):Row[]{
   const result:Row[]=[];
   const widths=table.columns.map(column=>column.width??16);
@@ -221,7 +243,7 @@ export function viewRows(
   height: number,
   nativeRaster = false
 ): Row[] {
-  const text = [...view.lines.flatMap((row) =>
+  const text = [...tabRows(view.tabs,columns),...view.lines.flatMap((row) =>
     wrap(row.text, columns).map((text) => ({ ...row, text }))
   ),...(view.table?tableRows(view.table,columns):[])];
   const image = view.raster;

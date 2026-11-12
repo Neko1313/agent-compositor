@@ -92,7 +92,7 @@ async function show($:HooksApi,focus=false){
   const engine=engineFor(context($));await engine.load();
   if($.state.get('legacyView')||!engine.runs.size)return showLegacy($);
   if(!$.ui.supports?.('table'))return showText($);
-  await $.ui.view('runs','Workflows',workflowView([...engine.runs.values()].reverse(),viewState($)),{site:'inspector',size:.4,focus});
+  await $.ui.view('runs','Workflows',workflowView([...engine.runs.values()].reverse(),viewState($),$.ui.supports?.('tabs')===true),{site:'inspector',size:.4,focus});
 }
 async function showText($:HooksApi){
   const engine=engineFor(context($));await engine.load();
@@ -158,6 +158,7 @@ export default {
     const semantic=$.ui.supports?.('table')===true;
     if(semantic){
       const state=viewState($);
+      if(['filter:all','filter:running','filter:attention'].includes(event.key)){updateView($,{filter:event.key.slice(7) as WorkflowViewState['filter'],page:0});await show($);return;}
       if(event.key==='filter'){updateView($,{filter:state.filter==='all'?'running':state.filter==='running'?'attention':'all',page:0});await show($);return;}
       if(event.key==='previous'||event.key==='next'){updateView($,{page:Math.max(0,state.page+(event.key==='next'?1:-1))});await show($);return;}
       if(event.key==='back'){updateView($,{mode:'overview',page:0});await show($);return;}

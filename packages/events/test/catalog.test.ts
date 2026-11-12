@@ -60,6 +60,10 @@ describe("event catalog", () => {
         expect(signature.input.properties.view.required??[]).not.toContain('table');
         expect(signature.input.properties.view.properties.table.type).toBe('object');
         delete signature.input.properties.view.properties.table;
+        // Reviewed additive 0.28: omitted tabs preserve existing view behavior.
+        expect(signature.input.properties.view.required??[]).not.toContain('tabs');
+        expect(signature.input.properties.view.properties.tabs.type).toBe('array');
+        delete signature.input.properties.view.properties.tabs;
       }
       expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
         `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);

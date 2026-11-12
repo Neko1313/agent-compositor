@@ -51,8 +51,9 @@ validates IDs, dependencies, cycles, expansion limits and resource budgets.
 
 Current development hosts show a live semantic table of runs with state and
 progress. Click a run or use Up/Down and Enter to expand it, then **Inspect stages**
-to enter its stage table. **All runs** returns to the overview. **View** cycles
-All, Running and Needs attention (paused, failed or stopped). Narrow panes stack
+to enter its stage table. **All runs** returns to the overview. Current hosts show
+**All**, **Running** and **Attention** tabs with counts; click or use Left/Right
+in the focused pane. Attention includes paused, failed or stopped runs. Narrow panes stack
 labeled fields; Alt+f opens a full-width table. Run and stage lists use pages of
 100 items with Previous/Next controls, including workflows with 500 stages.
 
@@ -63,7 +64,10 @@ table shows current/last activity, attempts and accounted tokens (which can be
 estimates). Closing the panel suppresses background redraws; `/workflows` reopens
 it. **Legacy Python journals** opens the separate journal view; Refresh stays in
 that view and **Dynamic workflows** returns. Hosts without `$.ui.supports('table')`
-retain the earlier text interface. The new table uses catalog 0.27.
+retain the earlier text interface. Table-only hosts keep the cycling **View**
+control. Tables require catalog 0.27; optional tabs require catalog 0.28 and
+`$.ui.supports('tabs')`. Keyboard navigation skips disabled tabs and preserves
+the main draft; no model request is needed to switch a view.
 
 Pause stops new scheduling
 while active agents finish. Stop cancels active agents. Retry re-executes only a

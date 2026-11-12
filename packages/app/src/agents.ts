@@ -209,9 +209,13 @@ export async function agentManager(
       "agents",
       "Agents",
       {
+        tabs:[
+          {id:'all',label:`All (${active.length})`,action:'filter:all',selected:listFilter==='all'},
+          {id:'running',label:`Running (${active.filter(record=>state(record.id)==='running').length})`,action:'filter:running',selected:listFilter==='running'},
+          {id:'attention',label:`Attention (${active.filter(record=>state(record.id)==='interrupted'||!!entries.get(record.id)?.core.failure).length})`,action:'filter:attention',selected:listFilter==='attention'},
+        ],
         lines: [
           { text: "Independent agents", bold: true },
-          {text:`[ View: ${listFilter==='all'?'All':listFilter==='running'?'Running':'Needs attention'} · ${visible.length}/${active.length} ]`,action:'filter',tone:'accent'},
           { text: "[ New worktree agent ]", action: "create", tone: "accent" },
           {
             text: "[ New shared-workspace agent ]",
@@ -220,10 +224,10 @@ export async function agentManager(
           },
           { text: "[ Use main conversation ]", action: "parent" },
         ],
-        hint:'Enter or click a row to expand; Open conversation enters its Reply field. View cycles filters.',
+        hint:'Left/Right switches tabs · Enter or click expands a row · Open conversation enters its Reply field',
         table:{
           columns:[{label:'Agent',width:18},{label:'State',width:12},{label:'Tokens used',width:12}],
-          empty:active.length?'No agents match this view. Change View to see the others.':'No independent agents yet. Create one above or use /btw <question>.',
+          empty:active.length?'No agents match this view. Choose another tab to see the others.':'No independent agents yet. Create one above or use /btw <question>.',
           rows:visible.map(record=>{
             const entry=entries.get(record.id),budget=entry?.core.getBudget();
             return{id:record.id,cells:[record.name,state(record.id),String(budget?.spentTokens??0)],
@@ -464,6 +468,9 @@ export async function agentManager(
         host = $;
         if (!e.site.startsWith("plugin-agent-hub-")) return;
         if(e.site==='plugin-agent-hub-agents'&&e.key==='close'){listVisible=false;return;}
+        if(e.site==='plugin-agent-hub-agents'&&['filter:all','filter:running','filter:attention'].includes(e.key)){
+          listFilter=e.key.slice(7) as typeof listFilter;await show();return;
+        }
         if(e.site==='plugin-agent-hub-agents'&&e.key==='filter'){
           listFilter=listFilter==='all'?'running':listFilter==='running'?'attention':'all';await show();return;
         }

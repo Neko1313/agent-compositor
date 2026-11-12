@@ -84,6 +84,9 @@ stable rows, ordinary actions and expandable details. Producers own expansion an
 filter state and republish when data changes. AppUI chooses aligned or stacked
 rows for the viewport; the core retains a labeled text fallback. The contract
 does not depend on Ink or grant a plugin permission to execute frontend code.
+Catalog 0.28 adds semantic tabs with producer-owned selection and ordinary action
+IDs. AppUI resolves wrapped tab geometry, cell hit ranges and keyboard navigation;
+plugins do not need to manufacture padded strings or terminal coordinates.
 
 `AppUI` sends protocol frames to `renderer-ink`; input returns through that same
 protocol. The renderer draws and translates input. It does not own agent state

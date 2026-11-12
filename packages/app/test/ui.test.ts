@@ -137,6 +137,28 @@ describe("slash completions", () => {
 });
 
 describe("plugin placement integration", () => {
+  it('switches semantic tabs with arrows while skipping disabled tabs and preserving the main draft',async()=>{
+    const {ui,messages,text,key,provider}=setup(new ScriptedProvider([]));text('UNSENT_MAIN_DRAFT');let selected='one';
+    const view=()=>({tabs:[{id:'one',label:'One',action:'one',selected:selected==='one'},{id:'off',label:'Off',action:'off',disabled:true},{id:'two',label:'Two',action:'two',selected:selected==='two'}],lines:[{text:'Selected '+selected}]});
+    ui.core.host.registerPlugin({name:'tab-proof',version:'1.0.0',trust:'trusted'},{'ui.press':async(event,$)=>{if(event.site==='plugin-tab-proof-list'&&['one','two'].includes(event.key)){selected=event.key;await $.ui.view('list','Tabbed view',view(),{focus:false});}}});
+    await ui.core.host.emit('service.ui.view',{plugin:'tab-proof',id:'list',title:'Tabbed view',view:view(),placement:{focus:true}});
+    key('right');await ui.settled();expect(selected).toBe('two');
+    key('right');await ui.settled();expect(selected).toBe('one');
+    key('left');await ui.settled();expect(selected).toBe('two');
+    key('i',['meta']);expect(ui.windows.focused).toBe('input');
+    const input=messages.filter(message=>message.type==='render'&&message.surface==='input').at(-1);expect(input?.type==='render'?input.grid?.map(row=>row.map(cell=>cell.ch).join('')).join('\n'):'').toContain('UNSENT_MAIN_DRAFT');
+    expect(provider.requests).toHaveLength(0);expect(ui.core.getMessages().filter(message=>message.role==='user')).toHaveLength(0);ui.close();
+  });
+  it('keeps the selected wrapped tab visible in a short pane',async()=>{
+    const {ui,messages,key}=setup(new ScriptedProvider([]));let selected='0';
+    const view=()=>({tabs:Array.from({length:12},(_,index)=>({id:String(index),label:'Section '+index,action:String(index),selected:selected===String(index)})),lines:[{text:'Body'}]});
+    ui.core.host.registerPlugin({name:'many-tabs',version:'1.0.0',trust:'trusted'},{'ui.press':async(event,$)=>{if(event.site==='plugin-many-tabs-list'){selected=event.key;await $.ui.view('list','Many tabs',view(),{focus:false});}}});
+    ui.resize(40,16);await ui.core.host.emit('service.ui.view',{plugin:'many-tabs',id:'list',title:'Many tabs',view:view(),placement:{focus:true}});key('f',['meta']);expect(ui.windows.fullscreen).toBe(true);
+    for(let index=0;index<11;index++){key('right');await ui.settled();}
+    expect(selected).toBe('11');
+    const last=messages.filter(message=>message.type==='render'&&message.surface==='plugin-many-tabs-list').at(-1);
+    expect(last?.type==='render'?last.grid?.map(row=>row.map(cell=>cell.ch).join('')).join('\n'):'').toContain('Section 11');ui.close();
+  });
   it('focuses an explicitly reopened existing view in its current workspace without relocating it',async()=>{
     const {ui}=setup();
     const publish=(focus:boolean)=>ui.core.host.emit('service.ui.view',{plugin:'agent-hub',id:'agent-proof',title:'Proof',view:{lines:[{text:'Saved conversation'}]},placement:{site:'sidebar',focus}});

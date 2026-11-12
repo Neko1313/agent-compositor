@@ -34,6 +34,8 @@ import {
   appearanceFrom,
   gridFrom,
   viewRows,
+  rowActions,
+  actionAt,
   rasterForView,
   textRows,
   transcriptRows,
@@ -920,8 +922,7 @@ export class AppUI {
       if (!hit) return;
       if (data.button === "left") {
         this.windows.focused = hit.surface;
-        const action = this.hitRows.get(hit.surface)?.[data.row - hit.y - 2]
-          ?.action;
+        const action = actionAt(this.hitRows.get(hit.surface)?.[data.row - hit.y - 2],data.col-hit.x-2);
         if (
           action &&
           data.col >= hit.x + 2 &&
@@ -1121,6 +1122,23 @@ export class AppUI {
       return;
     }
     const focusedView=this.panes.get(this.windows.focused)?.view;
+    const tabs=(this.viewCache.get(this.windows.focused)?.view??focusedView)?.tabs;
+    if(this.windows.focused!=='input'&&tabs&&data.kind==='key'&&['left','right'].includes(data.key)&&!data.modifiers?.length){
+      const enabled=tabs.filter(tab=>!tab.disabled);
+      if(enabled.length){
+        let index=enabled.findIndex(tab=>tab.action===this.actionFocus.get(this.windows.focused));
+        if(index<0)index=enabled.findIndex(tab=>tab.selected);
+        const next=index<0?(data.key==='left'?enabled.length-1:0):(index+(data.key==='left'?-1:1)+enabled.length)%enabled.length;
+        this.actionFocus.set(this.windows.focused,enabled[next].action);
+        const frame=this.windows.frames(this.columns,this.rows-this.dockHeight()).find(frame=>frame.surface===this.windows.focused);
+        const width=Math.max(1,(frame?.width??this.columns)-4),height=Math.max(1,(frame?.height??this.rows)-3);
+        const rows=viewRows((this.viewCache.get(this.windows.focused)?.view??focusedView)!,width,height);
+        const target=rows.findIndex(row=>rowActions(row).includes(enabled[next].action)),room=Math.max(1,height-(rows.length>height?1:0));
+        this.scroll.set(this.windows.focused,Math.max(0,target-room+1));
+        this.track(this.press(this.windows.focused,enabled[next].action));
+      }
+      this.draw();return;
+    }
     if(this.windows.focused!=='input'&&focusedView&&data.kind==='key'&&['pageup','pagedown'].includes(data.key)
       &&(focusedView.scrollKeys??(focusedView.input?'plugin':'host'))==='host'){
       const frame=this.windows.frames(this.columns,this.rows-this.dockHeight()).find(frame=>frame.surface===this.windows.focused);
@@ -1159,12 +1177,15 @@ export class AppUI {
       const width=Math.max(1,(frame?.width??this.columns)-4),height=Math.max(1,(frame?.height??this.rows)-3);
       const view=this.viewCache.get(site)?.view??pane.view;
       const rows=view?viewRows(view,width,height):this.hitRows.get(site)??[];
-      const actions=rows.filter((r,i)=>r.action&&rows.findIndex(other=>other.action===r.action)===i);
+      const visited=new Set<string>();
+      const actions=rows.flatMap((row,index)=>rowActions(row).map(action=>({action,row:index}))).filter(item=>{
+        if(visited.has(item.action))return false;visited.add(item.action);return true;
+      });
       if (actions.length) {
         const current=actions.findIndex(r=>r.action===this.actionFocus.get(site));
         const index=current<0?(data.key==='up'?actions.length-1:0):(current+(data.key==='up'?-1:data.key==='down'?1:0)+actions.length)%actions.length;
         const action=actions[index].action!;this.actionFocus.set(site,action);
-        const target=rows.findIndex(r=>r.action===action),room=Math.max(1,height-(rows.length>height?1:0));
+        const target=actions[index].row,room=Math.max(1,height-(rows.length>height?1:0));
         const offset=this.scroll.get(site)??0;
         if(target<offset)this.scroll.set(site,target);
         else if(target>=offset+room)this.scroll.set(site,target-room+1);
@@ -1545,7 +1566,7 @@ export class AppUI {
               );
             if (
               frame &&
-              this.hitRows.get(frame.surface)?.[row - frame.y - 2]?.action
+              actionAt(this.hitRows.get(frame.surface)?.[row - frame.y - 2],col-frame.x-2)
             )
               shape = "pointer";
             else if (frame && row <= frame.y + 1) {
@@ -1853,7 +1874,7 @@ export class AppUI {
       surface: "terminal" as const,
       props: {
         ...props,
-        lines: props.lines ?? rows.map(({ cells, ...row }) => row),
+        lines: props.lines ?? rows.map(({ cells,actions, ...row }) => row),
       },
       viewport: { columns: width, rows: height },
     };
@@ -1867,6 +1888,7 @@ export class AppUI {
           flush: true,
           grid: gridFrom(content.slice(0, height).map((row) => {
             const selected = this.actionFocus.get(surface);
+            if(row.actions)return{...row,actions:row.actions.map(range=>({...range,focused:surface===this.windows.focused&&range.action!==undefined&&range.action===selected}))};
             return row.action && selected !== undefined && surface === this.windows.focused ? {...row,selected:row.action===selected} : row;
           }), this.theme, width, surface==='input'),
           ...(this.nativeRaster && props.attachmentRaster ? {raster:props.attachmentRaster as NonNullable<Extract<WireMessage,{type:"render"}>["raster"]>} : this.nativeRaster && view ? { raster: rasterForView(view, width, height) } : {}),
@@ -1875,7 +1897,7 @@ export class AppUI {
     // Host-owned input has no ui.render override. In particular, do not stringify
     // the composer's full RGBA image into a cache key on every animation frame.
     if(surface==='input'){send(rows);return;}
-    const defaultView = uiTextViewSchema.safeParse({ raster: props.raster, table:props.table, lines: input.props.lines }).data;
+    const defaultView = uiTextViewSchema.safeParse({ raster: props.raster, table:props.table,tabs:props.tabs, lines: input.props.lines }).data;
     const key = JSON.stringify(input);
     let cached = this.viewCache.get(surface);
     if (cached?.key === key) {
@@ -2162,7 +2184,7 @@ export class AppUI {
         {
           title: pane?.title,
           status: this.status,
-          ...(pane?.view?{lines:pane.view.lines,table:pane.view.table,scrollable:true,scrollOffset:offset,fieldRows,hostScrollKeys:(pane.view.scrollKeys??(pane.view.input?'plugin':'host'))==='host'}:{}),
+          ...(pane?.view?{lines:pane.view.lines,table:pane.view.table,tabs:pane.view.tabs,scrollable:true,scrollOffset:offset,fieldRows,hostScrollKeys:(pane.view.scrollKeys??(pane.view.input?'plugin':'host'))==='host'}:{}),
           ...(pane?.view?.raster
             ? { raster: pane.view.raster, lines: pane.view.lines }
             : {}),

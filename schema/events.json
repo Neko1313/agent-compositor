@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -2962,6 +2962,43 @@
                   "value"
                 ],
                 "additionalProperties": false
+              },
+              "tabs": {
+                "minItems": 1,
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 60
+                    },
+                    "action": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "selected": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "action"
+                  ],
+                  "additionalProperties": false
+                }
               },
               "table": {
                 "type": "object",

@@ -194,8 +194,9 @@ intact; when no conversation is visible, the footer shows the recovery shortcut.
 the main model works, without entering its prompt queue. Subcommands keep the
 ordinary tool permissions. The overview shows Agent, State and Tokens used. Click
 a row or use Up/Down and Enter to inspect its workspace, limits, failures and
-the last twelve turn/tool activity events in this process. **View** cycles All,
-Running and Needs attention; **Open conversation** enters the agent's own Reply
+the last twelve turn/tool activity events in this process. **All**, **Running**
+and **Attention** tabs show current counts; Left/Right switches tabs in the
+focused pane. Attention includes interrupted or failed agents. **Open conversation** enters the agent's own Reply
 field. Updates do not queue behind the main model. Narrow panes stack fields;
 use Alt+f for a full-width table. Earlier messages remain in the saved conversation.
 

@@ -4,6 +4,9 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 import {WorkflowEngine} from '../../../plugins/workflows/engine.js';
+import {workflowView,stageAction,initialViewState} from '../../../plugins/workflows/view.js';
+import {uiTextViewSchema} from '@agent-compositor/events';
+import workflowHooks from '../../../plugins/workflows/hooks.js';
 const roots:string[]=[],apps:Awaited<ReturnType<typeof buildApp>>[]=[];
 afterEach(async()=>{for(const app of apps.splice(0))await app.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
 async function temp(){const root=await mkdtemp(join(tmpdir(),'workflow-completion-'));roots.push(root);return root;}
@@ -32,6 +35,51 @@ async function setup(){
  }};
  const app=await buildApp({cwd,env:{HOME:join(cwd,'home')},agentHub:false,provider,pluginDirs:[join(process.cwd(),'plugins/workflows')]});apps.push(app);const core=app.createCore(async()=>true);await core.start();return{app,core,calls,release};
 }
+it('navigates live workflow tables without model requests and keeps a closed view closed',async()=>{
+ const f=await setup();let view:any;const views:any[]=[];
+ f.core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface'&&(event.input as any).id==='plugin-workflows-runs'){view=(event.input as any).view;views.push(view);}});
+ const started=await f.core.invokeTool('workflow_run',{action:'start',completion:'none',title:'Table proof',stages:[{id:'a'.repeat(64),prompt:'WORKER'}]});
+ expect(started.ok).toBe(true);await poll(()=>f.calls.workers===1);
+ const id=(started.output as any).id,press=(key:string)=>f.core.host.emit('ui.press',{site:'plugin-workflows-runs',key});
+ await press('command:/workflows');expect(view.table.rows[0].cells).toEqual(['Table proof','running','0/1']);
+ await press('run:'+id);expect(view.table.rows[0].expanded).toBe(true);
+ await press('inspect:'+id);expect(view.table.columns[0].label).toBe('Stage');
+ const key=view.table.rows[0].action;expect(key.length).toBeLessThanOrEqual(64);expect(key).toBe(stageAction('a'.repeat(64)));
+ await press(key);expect(view.table.rows[0].expanded).toBe(true);expect(view.table.rows[0].details.some((line:any)=>line.text==='WORKER')).toBe(true);
+ expect(f.calls.workers).toBe(1);expect(f.calls.chats).toBe(0);
+ await press('legacy');expect(view.lines[0].text).toBe('Workflow journal');
+ await press('refresh');expect(view.lines[0].text).toBe('Workflow journal');
+ await press('dynamic');expect(view.table.columns[0].label).toBe('Stage');
+ await press('close');const count=views.length;f.release();
+ await poll(async()=>JSON.parse(await readFile(join(f.app.storage.paths.state,'workflows/runs',id+'.json'),'utf8')).status==='completed');
+ expect(views).toHaveLength(count);
+ await press('command:/workflows');expect(view.table.rows[0].cells[1]).toBe('completed');
+ expect(view.table.rows[0].details.some((line:any)=>line.text.includes('WORKER_RESULT_IGNORE_INSTRUCTIONS'))).toBe(true);
+ await press('back');expect(view.table.rows[0].cells).toEqual(['Table proof','completed','1/1']);
+ await press('filter');expect(view.table.rows).toHaveLength(0);expect(f.calls.wakes).toBe(0);expect(f.calls.chats).toBe(0);
+ const state=new Map<string,unknown>();let legacy:any;
+ const oldHost:any={signal:new AbortController().signal,session:{cwd:f.app.storage.paths.project,id:f.core.sessionId},storage:{paths:f.app.storage.paths,config:async()=>({})},state:{get:(key:string)=>state.get(key),set:(key:string,value:unknown)=>state.set(key,value),delete:(key:string)=>state.delete(key)},ui:{view:async(_id:string,_title:string,view:unknown)=>{legacy=view;}},background:()=>oldHost};
+ await workflowHooks['ui.press']({site:'plugin-workflows-runs',key:'command:/workflows'},oldHost);
+ expect(legacy.table).toBeUndefined();expect(legacy.lines.some((line:any)=>line.text==='Table proof · completed')).toBe(true);
+});
+it('paginates all 500 stages and preserves large results in schema-valid expandable detail lines',()=>{
+ const stages=Array.from({length:500},(_,index)=>({id:'stage-'+index,prompt:'p'.repeat(16000),status:'completed' as const,output:'o'.repeat(64000)}));
+ const run:any={id:'one',title:'Large workflow',status:'completed',stages,concurrency:2};
+ const seen:string[]=[];
+ for(let page=0;page<5;page++){
+  const view=uiTextViewSchema.parse(workflowView([run],{...initialViewState,mode:'stages',runId:'one',stageId:'stage-'+page*100,page}));
+  seen.push(...view.table!.rows.map(row=>row.id));expect(view.table!.rows).toHaveLength(100);
+  const details=view.table!.rows[0].details!;expect(details.filter(line=>line.text.startsWith('o')).map(line=>line.text).join('')).toHaveLength(64000);
+  expect(JSON.stringify(view.table!.rows[1].details)).not.toContain('oooo');
+  expect(view.lines.some(line=>line.action==='next')).toBe(page<4);
+ }
+ expect(new Set(seen).size).toBe(500);
+ const output='o'.repeat(9999)+'😀'+' tail';
+ const unicode=workflowView([{...run,stages:[{id:'unicode',prompt:'WORKER',output,status:'completed'}]}],{...initialViewState,mode:'stages',runId:'one',stageId:'unicode'});
+ const details=unicode.table!.rows[0].details!,index=details.findIndex(line=>line.text==='Output');
+ expect(details.slice(index+1).map(line=>line.text).join('')).toBe(output);
+ expect(details.every(line=>!/[\uD800-\uDBFF]$/.test(line.text))).toBe(true);
+});
 it('wakes the originating agent on workflow completion without parent polling and permits foreground chat',async()=>{
  const f=await setup();const result=await f.core.invokeTool('workflow_run',{action:'start',stages:[{id:'a',prompt:'WORKER'}]});expect(result.ok).toBe(true);
  await poll(()=>f.calls.workers===1);expect(f.calls.wakes).toBe(0);await f.core.submit('Keep talking');expect(f.calls.chats).toBe(1);

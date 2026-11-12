@@ -23,6 +23,13 @@ The standard scenario also checks the semantic agent overview: expand by mouse
 and keyboard, cycle state filters, resize to stacked narrow fields and enter the
 selected agent's conversation. Screenshots include the expanded and narrow views.
 
+`VISUAL_OUTPUT=dist/workflow-proof node tools/visual/workflow-check.mjs` checks
+dynamic workflow tables with actual bounded workers: run/stage drill-down,
+pause/release/resume, expanded result, filters, keyboard collapse, narrow fields,
+parent completion and restoration. `VISUAL_PLUGIN_DIR` selects an exact candidate
+package; the bench records and verifies its loaded identity. Workflow plugin
+certification runs this scenario as well as the legacy Python-journal UI scenario.
+
 Run `CI=1 npm run visual:check` to exercise the same real PTY with inherited CI
 flags. The fixture preserves them: interactive output must appear before exit,
 just as it does outside CI. Renderer regressions separately check that piped

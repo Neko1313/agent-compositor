@@ -139,6 +139,12 @@ It does not verify a live model or every native terminal.
 Development catalog 0.27 adds optional `UiTextView.table`. Existing `lines` views
 are unchanged. Pass table data rather than padding column strings in a plugin:
 
+Check `$.ui.supports?.('table') === true` before publishing a table from an
+independently distributed plugin. Current hosts expose this read-only capability
+method; unknown features return false. Older hosts may omit the method. Keep a
+text view for those hosts; a plugin's bundled dependency version does not identify
+the capabilities of the running host.
+
 ```ts
 await $.ui.view('runs', 'Runs', {
   lines: [{text: 'Recent runs', bold: true}],

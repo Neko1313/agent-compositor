@@ -223,6 +223,11 @@ The scenario proves the loaded source/extracted candidate identity and retains
 terminal output, input, screenshots and a per-action report. It exercises visible
 content, input/focus, narrow layout, dismissal and process restart; interactive
 panels also use their actual actions. Composer attachments preserve editor input.
+For workflows, both source and artifact visual cases additionally run the dynamic
+run/stage table scenario with the exact same selected package. Its report must
+include expansion/join, pause/resume, result inspection, keyboard, filter and
+narrow-table observations. Both legacy-journal and table evidence is retained;
+a passing legacy-only view does not cover the newer workflow interface.
 
 Six model profiles use `tools/plugins/live-scenario.ts`. Every task starts in a
 fresh isolated project and runs the actual plugin against the predeclared Ollama

@@ -79,8 +79,10 @@ Embedded inference-assisted onboarding, richer tables/drill-down and standalone
 resource charts remain implementation work. The development agent overview now
 uses catalog 0.27 semantic tables with expandable workspace/limits/activity,
 state filters and responsive stacked fields. This is an initial reusable table
-contract; agent tabs, workflow adoption and deeper historical drill-down remain
-open. The newer source adds `/btw` side conversations
+contract. The development workflows plugin adopts it for paginated run/stage
+views, expandable results and state filters, preserving pause/resume and legacy
+journals. Agent tabs and deeper historical drill-down remain open; native and
+real-model verification of these newer views is separate. The newer source adds `/btw` side conversations
 through catalog 0.26: an independent persisted agent with its own Reply field,
 immediate opening/reopening, separate draft, focused-agent cancellation and
 restart history. Source integration and real PTY checks cover those paths with

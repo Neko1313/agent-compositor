@@ -1,5 +1,51 @@
 # Project memory
 
+## Workflow tables and exact-candidate visual checks implemented — 2026-11-13
+
+The workflows plugin adopts semantic tables for a filtered run overview and a
+separate stage view. Run expansion exposes Inspect stages; stage expansion shows
+IDs, dependencies, attempts, current/last activity, prompt, output/error and retry.
+All runs returns without changing engine execution. Both lists paginate at 100
+items, covering all 500 supported stages. Only the expanded stage carries its
+full detail payload; 16000-character prompts and 64000-character results use
+bounded schema-valid lines. Code-point iteration preserves emoji across those
+line boundaries. Stable hashed stage action IDs fit the 64-character action
+limit even for a valid 64-character stage ID.
+
+Closing the workflow view clears its open flag, so worker progress does not
+redraw/reopen it. Legacy Python-journal navigation remains selected through
+Refresh/engine changes and has a return action. Read-only optional
+`$.ui.supports('table')` advertises the host contract (unknown features false);
+independent plugin bundles without that host method retain the earlier text
+view. This is runtime feature detection, not an inference from bundled SDK
+versions or a new permission capability. The event catalog stays 0.27.
+
+Evidence: dist/first-run/workflow-table-all-tests-ready.log has 1245 passed/three
+optional skips across 155 files. The final focused run has 19 passed including
+Unicode line-boundary and actual host-session rebinding checks. The first full
+run exposed an obsolete assertion for a flattened UI string; it now asserts the
+matching run ID/title/completed cells emitted to the new foreground session.
+Integration covers active worker updates, no parent-model requests for navigation,
+closed-view suppression, selected result, all 500 stages and the older-host
+fallback. Types and documentation/site checks passed; detector has no findings.
+
+The maintained real PTY scenario exercises dynamic expansion into two workers,
+pause/release/resume, result drill-down, keyboard collapse, filters, narrow fields,
+parent completion wake and restart. Expanded/narrow screenshots were inspected.
+Plugin visual certification now runs that scenario as well as the legacy journal
+flow, requiring explicit table observation IDs and the same candidate identity.
+The focused real-pty-artifact case passes on the rebuilt/extracted Linux plugin
+under dist/workflow-table/artifact-final. It uses a source host and scripted
+provider: this is not native-host proof, full plugin certification, publication
+or real-model quality. No paid model requests or public tag/asset changes.
+
+Plugin/user/API/testing/bench guides and readiness were updated. The historical
+03-contracts proposal and UI-controller guide need no change: controller selection
+and permission semantics are unchanged. Native tables, tabs, historical agent
+drill-down, standalone resource views, embedded CPU onboarding and live-model
+development remain open. The preceding main CI 43288621339 (3d2bfb7) was confirmed
+successful; that earlier check does not cover this workflow change.
+
 ## Semantic agent overview implemented in source — 2026-11-13
 
 Catalog 0.27 adds optional UiTextView.table and exported UiTable/uiTableSchema.

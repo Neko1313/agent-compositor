@@ -78,6 +78,8 @@ export interface HooksApi {
     status(): { loggedIn: boolean; provider?: string } & PromiseLike<{ loggedIn: boolean; provider?: string }>;
   };
   ui: {
+    /** Read-only host view capabilities. Older hosts may omit this method. */
+    supports?(feature:string):boolean;
     controller(kind:UiControllerKind,data:unknown,fallback:UiControllerFactory,invalidate:()=>void,state?:unknown):UiControllerLease;
     ask(request:{question:string;options?:QuestionOption[];multi?:boolean;allowOther?:boolean}):Promise<string|string[]>;
     questionnaire(request:Questionnaire):Promise<QuestionnaireResult>;
@@ -372,6 +374,7 @@ export class HooksHost {
           if (!this.formHandler) throw new Error("Forms require an interactive UI");
           return this.formHandler(plugin, uiFormSchema.parse(request), signal);
         },
+        supports:feature=>feature==='table',
         view: async (id, title, view, placement) => {
           await callService("service.ui.view", { id, title, view, placement });
         },

@@ -78,3 +78,23 @@ it('uses completed turn text even when a custom strategy does not stream it', as
   expect(result.response).toBe('Final strategy answer');
   expect(result).not.toHaveProperty('error');
 });
+
+it.each(['text','json','stream-json'] as const)('returns an immediate command notification and accounts its auxiliary model in %s',async format=>{
+ const provider=new ScriptedProvider([{text:'Standalone answer',usage:{inputTokens:3,outputTokens:2}}]);
+ const core=new AgentCore({cwd:process.cwd(),provider,userCommands:()=>[{name:'/answer',plugin:'answer'}],plugins:[{
+  manifest:{name:'answer',version:'1.0.0',trust:'trusted'},hooks:{'session.start':async(_,$)=>{await $.ui.notify('Startup message');},'command.invoke':async(_,$)=>{
+   await $.emit('service.ui.notify',{plugin:'other',message:'Unrelated output',level:'info'});
+   const text=await $.model.complete({messages:[{role:'user',content:'Compute 21*2'}]});await $.ui.notify(String(text));
+  }},
+ }]});cores.push(core);
+ let output='';const code=await runHeadless({createCore:()=>core} as unknown as BuiltApp,'/answer',format,text=>{output+=text;});
+ expect(code).toBe(0);expect(provider.requests).toHaveLength(1);expect(core.getMessages().filter(message=>message.role==='user')).toHaveLength(0);
+ if(format==='text')expect(output).toBe('Standalone answer\n');
+ else expect(JSON.parse(output.trim().split('\n').at(-1)!)).toMatchObject({response:'Standalone answer',usage:{inputTokens:3,outputTokens:2}});
+});
+
+it('reports an immediate command error notification as a failed headless result',async()=>{
+ const core=new AgentCore({cwd:process.cwd(),provider:new ScriptedProvider([]),userCommands:()=>[{name:'/control',plugin:'control'}],plugins:[{manifest:{name:'control',version:'1.0.0',trust:'trusted'},hooks:{'command.invoke':async(_,$)=>{await $.ui.notify('Configuration unavailable','error');}}}]});cores.push(core);
+ let output='';expect(await runHeadless({createCore:()=>core} as unknown as BuiltApp,'/control','json',text=>{output+=text;})).toBe(1);
+ expect(JSON.parse(output)).toMatchObject({response:'Configuration unavailable',error:'Configuration unavailable'});
+});

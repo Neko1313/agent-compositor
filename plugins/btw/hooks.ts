@@ -5,8 +5,9 @@ export default {
     if(/^--once(?:\s|$)/.test(text)){
       const question=text.slice(6).trim();
       if(!question){await $.ui.notify('Usage: /btw --once <question>','warn');return;}
-      const answer=await $.model.complete({signal:$.signal,messages:[{role:'user',content:`Answer briefly and standalone (no conversation context): ${question}`}]}).catch((error:unknown)=>`btw failed: ${error instanceof Error?error.message:String(error)}`);
-      await $.ui.notify(String(answer??'(no answer)'),'info');return;
+      let failed=false;
+      const answer=await $.model.complete({signal:$.signal,messages:[{role:'user',content:`Answer briefly and standalone (no conversation context): ${question}`}]}).catch((error:unknown)=>{failed=true;return `btw failed: ${error instanceof Error?error.message:String(error)}`;});
+      await $.ui.notify(String(answer??'(no answer)'),failed?'error':'info');return;
     }
     if(text.length>4000){await $.ui.notify('Side conversation messages are limited to 4000 characters','warn');return;}
     try{

@@ -1,5 +1,63 @@
 # Project memory
 
+## Plain controls, human dialogs and command results repaired — 2026-11-13
+
+Follow-up to 2f1f5ae inspected the actual line REPL. Three regressions reproduced
+before repair: commands pasted after a prompt waited behind the complete model
+turn, Enter steered instead of queuing, and EOF returned before an independent
+command settled. The red test also exposed the old unhandled cancelled-command
+promise. REPL dispatch now schedules ordinary work through the core's queue and
+tracks every control/steer promise. Earlier setup commands precede their following
+prompt, while controls can run independently even when another idle control is
+held. Ctrl+C cancels accepted input not yet started and active work, and idle
+Ctrl+C exits. EOF waits for all accepted work. Input errors are rendered without
+poisoning the next input. AgentCore.hasImmediateCommand is a read-only live-owner
+registry query, not an event-schema change.
+
+The REPL owns a separate queued, abort-aware raw dialog input reader: permission
+answers and question selections do not become model prompts. Piped input cannot
+grant manual approval; EOF denies unanswered current and future requests. Existing
+injected test prompt bridges remain supported. UTF-8 split across byte chunks and
+grapheme backspace preserve the actual text. Raw-mode/listener cleanup and stdin
+pause are paired with shutdown. A real compiled PTY first printed bye but stayed
+alive because stdin was still flowing; the new cleanup fixes that observable
+failure. No snapshot or unit test was substituted for the repeated actual exit.
+
+Plain rendering now displays command notifications. Headless runs collect only
+the active immediate-command owner's notifications, excluding startup/other
+plugins, account its auxiliary model.usage, and return failure for error notices.
+The actual btw --once dependency error is now an error notice, not a successful
+info string. No user prompt is injected into the main transcript for these calls.
+
+Evidence: dist/plain-controls/ready-tests.log has 1230 passed/three optional skips,
+153 files; types, generated docs and docs/site checks passed. The focused dialog
+tests cover raw allow/deny/question answers, EOF and absence of answer prompts;
+control tests cover paste, setup order, concurrent controls, EOF, cancellation,
+failure recovery and split UTF-8. Installed full Linux archive smoke passed with
+the new maintained plain-controls-smoke: held model + pasted control, command
+drain after model completion/EOF, bundled one-shot response with exact local
+provider-reported usage, unavailable hub exit1 without a model request, and a real
+POSIX raw PTY approval applying one controlled write. The raw answer is neither
+queued nor steered, and the process actually exits. Five bounded loopback requests,
+zero paid requests; no real-model quality or broad terminal-UI claim.
+
+The initial native raw failure is retained as dist/plain-controls/native-smoke.json
+and .log; final proof is in installed-smoke.log and
+dist/release/plain-controls-smoke-linux-x64.json. A harness-only local variable
+initially shadowed process; corrected it before source/native gate use. The build
+uses an official Callix archive retained under dist/plain-controls and checked
+against the builder's existing pinned digest. Local build still identifies the
+development version 0.7.4; no public asset/tag or user installation was changed.
+
+The new release smoke runs this protocol gate on every platform using the existing
+Python PTY bridge. Python is a verifier dependency, not a plain-app runtime
+dependency. Native tests for this latest source on the other three platforms,
+native side-conversation TUI, fresh auto/btw live references, broader real-model
+development, onboarding, rich tables/charts and OpenTUI remain open. The previous
+2f1f5ae main CI was independently confirmed successful; its generated metadata
+PR9 head 811253f5 is stale after the upcoming push and must be refreshed/reviewed.
+Never count those earlier checks as this new source's release certification.
+
 ## Independent side conversations implemented and exercised — 2026-11-13
 
 Kernel commit 31616b7 adds catalog 0.26 service.agent.open without changing any

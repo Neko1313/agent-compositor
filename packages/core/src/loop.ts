@@ -921,6 +921,8 @@ export class AgentCore {
     const name=text.trim().split(/\s+/,1)[0];
     return this.options.userCommands?.().find(command=>command.name===name&&this.host.hasPlugin(command.plugin));
   }
+  /** Inspect the currently loaded command registry without invoking a handler. */
+  hasImmediateCommand(text:string):boolean{return !!this.immediateCommand(text);}
   /** Explicit user control: no prompt queue, transcript mutation or implied pane. */
   async invokeCommand(text:string):Promise<boolean>{
     if(this.closed)throw Error('Session is closed');

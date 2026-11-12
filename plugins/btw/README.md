@@ -17,6 +17,8 @@ the main conversation. `/agents` lists saved agents for further management.
 For the former notification-only behavior, use `/btw --once <question>`. It
 makes an isolated model call with no conversation context or tools and posts the
 answer as a notification. This remains useful in plain/headless sessions.
+Headless output returns that answer and its model usage. A failed one-shot call
+emits an error notification and a nonzero headless exit status.
 
 Side conversations require catalog 0.26 or later and enabled `agent-hub` support.
 If it is disabled, the command reports the missing capability; it does not send

@@ -82,7 +82,7 @@ its configured home. The installer does not edit shell profiles or use sudo.
 ## Build and smoke test
 
 Run these commands on the target platform with Node.js >=22.19.0 (Node 26 in
-release CI) and Bun 1.4.4:
+release CI), Bun 1.4.4 and Python 3 for the release verifier's real POSIX PTY:
 
 ```sh
 npm ci
@@ -121,6 +121,18 @@ Plain-session startup is checked with a real SDK plugin too: immediate EOF initi
 the plugin once without a model request, and startup finishes before the first
 model request in a second process. Its report is
 `dist/release/plain-startup-smoke-PLATFORM.json`.
+The installed plain interface also receives a pasted main prompt plus an immediate
+control that must release a held local request, and a separate EOF case that must
+wait for a pending command after the main response completes. The bundled
+`/btw --once` must return its notification and exact provider-reported usage in
+headless JSON; unavailable agent support must produce a failed result without
+a model request. Finally the existing Python PTY bridge drives a real raw-mode
+approval: an explicit `y` applies one controlled write and never becomes another
+model prompt. The CLI must then actually exit, rather than only print `bye`.
+The report is `dist/release/plain-controls-smoke-PLATFORM.json`. This uses bounded
+loopback responses, not live-model quality or graphical TUI evidence. Python is
+a verification dependency; the installed application does not require it for
+plain input.
 The installed bundled auto reviewer is exercised through `/auto on` and three
 controlled write proposals: task-context medium-risk approval executes the write,
 structured refusal stops it without a manual question, and an explicit host deny

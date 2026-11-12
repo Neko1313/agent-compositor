@@ -19,9 +19,11 @@ export type KeyCommand =
 export interface DecoderState {
   /** text typed so far (the decoder owns the buffer) */
   line: string;
-  /** is the agent mid-turn? flips Enter's meaning from submit to queue */
+  /** Pending work enables Tab steering and Ctrl+C interruption; Enter always submits. */
   running: boolean;
 }
+
+const graphemes=new Intl.Segmenter(undefined,{granularity:'grapheme'});
 
 export function decodeKeys(data: string, state: DecoderState): KeyCommand[] {
   const commands: KeyCommand[] = [];
@@ -29,7 +31,7 @@ export function decodeKeys(data: string, state: DecoderState): KeyCommand[] {
     if (ch === "\r" || ch === "\n") {
       const text = state.line;
       state.line = "";
-      commands.push(text.length === 0 && !state.running ? { type: "ignore" } : state.running ? { type: "steer", text } : { type: "submit", text });
+      commands.push(text.trim().length === 0 ? { type: "ignore" } : { type: "submit", text });
       continue;
     }
     if (ch === "\t") {
@@ -51,7 +53,8 @@ export function decodeKeys(data: string, state: DecoderState): KeyCommand[] {
       continue;
     }
     if (ch === "\x7f" || ch === "\b") {
-      state.line = state.line.slice(0, -1);
+      const last=Array.from(graphemes.segment(state.line)).at(-1);
+      state.line = state.line.slice(0,last?.index??0);
       commands.push({ type: "ignore" });
       continue;
     }

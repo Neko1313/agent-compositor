@@ -105,6 +105,24 @@ protocol. The interactive UI is the protocol-based product path.
 Session startup hooks run once before line input is processed, including an
 immediate EOF. An empty input stream does not submit a model prompt.
 
+In plain mode, Enter queues a new task and Tab steers the current turn. Registered
+immediate controls run independently while the model is busy, including commands
+in a pasted input block. Commands before a prompt finish their setup before that
+prompt starts; controls can still run concurrently with one another. EOF waits
+for accepted model work and commands. Ctrl+C interrupts active work or exits when
+idle. Command failures are printed and do not discard subsequent input.
+
+Plain command notifications are visible. For `-p` immediate commands, the command
+owner's notifications become the text/JSON response, auxiliary model tokens appear
+in `usage`, and error notifications produce a nonzero exit status. Startup and
+other plugins' notifications are not substituted for that command result.
+
+Interactive permission/question answers use a separate input buffer and never
+become model prompts. Piped plain input cannot grant interactive permission:
+configure scoped rules or opt into automatic review for authorized unattended
+work. EOF or cancellation denies unanswered requests. UTF-8 split across input
+chunks and grapheme deletion are preserved.
+
 ## App configuration
 
 ```json

@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {buildApp} from '../src/build.js';
 import {ScriptedProvider} from '@agent-compositor/core';
+import {runHeadless} from '../src/headless.js';
 
 it('opens and continues an independent btw agent while the main model is held, then restores it',async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'btw-conversation-'));
@@ -55,6 +56,16 @@ it('reports unavailable agent support and oversized questions without falling th
   await core.invokeCommand('/btw '+'x'.repeat(4001));expect(notices.at(-1).message).toMatch(/4000/);expect(provider.requests).toHaveLength(0);
   await core.invokeCommand('/btw --once What is 21*2?');expect(notices.at(-1).message).toBe('ONCE_ANSWER');expect(provider.requests).toHaveLength(1);
   expect(core.getMessages().filter(message=>message.role==='user')).toHaveLength(0);
+ }finally{await app.close();await rm(cwd,{recursive:true,force:true});}
+});
+
+it('returns a failed headless result when the actual one-shot model dependency fails',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'btw-once-failure-'));
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['btw'],agent:{projectContext:false,skills:false,verifyCompletion:false}}));
+ const app=await buildApp({cwd,env:{HOME:cwd},agentHub:false,pluginDirs:[join(process.cwd(),'plugins')],provider:{name:'unavailable-fixture',async *complete(){throw Error('CONTROLLED_PROVIDER_FAILURE');}}});
+ try{
+  let output='';expect(await runHeadless(app,'/btw --once Question','json',text=>{output+=text;})).toBe(1);
+  const result=JSON.parse(output);expect(result.response).toContain('CONTROLLED_PROVIDER_FAILURE');expect(result.error).toBe(result.response);
  }finally{await app.close();await rm(cwd,{recursive:true,force:true});}
 });
 

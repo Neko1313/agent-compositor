@@ -5,6 +5,7 @@ export interface ApprovalPrompt {
   tool: string;
   args: unknown;
   reason?: string;
+  signal?:AbortSignal;
 }
 
 /**
@@ -21,7 +22,7 @@ export class TerminalRenderer {
   constructor(
     private readonly out: Writable,
     /** line-based user input — raw-mode stdin or a test stub; returns the typed line */
-    private readonly promptKey: (question: string) => Promise<string> = defaultPromptKey,
+    private readonly promptKey: (question: string,signal?:AbortSignal) => Promise<string> = defaultPromptKey,
   ) {}
 
   handleEvent(event: LoopEvent): void {
@@ -32,6 +33,9 @@ export class TerminalRenderer {
     // catalog event: {event, input}
     const input = event.input as Record<string, unknown>;
     switch (event.event) {
+      case 'ui.notification':
+        this.write(`\n[${str(input.plugin??'notice')}] ${str(input.message)}\n`);
+        break;
       case "tool.call":
         this.write(`\n  ⚙ ${str(input.tool)} ${truncate(JSON.stringify(input.input ?? {}), 72)}`);
         break;
@@ -75,21 +79,21 @@ export class TerminalRenderer {
   async askApproval(req: ApprovalPrompt): Promise<boolean | {allow: boolean; scope: "session" | "project"}> {
     this.write(`\n[permission] ${req.tool} ${truncate(JSON.stringify(req.args ?? {}), 80)}\n`);
     if (req.reason) this.write(`  reason: ${req.reason}\n`);
-    const answer = (await this.promptKey("Allow? [y=once / a=session / p=project / n=deny] ")).trim().toLowerCase();
+    const answer = (await this.promptKey("Allow? [y=once / a=session / p=project / n=deny] ",req.signal)).trim().toLowerCase();
     if (answer.startsWith("a") || answer.startsWith("p")) return { allow: true, scope: answer.startsWith("p") ? "project" : "session" };
     return answer.startsWith("y");
   }
 
   /** The AskUserQuestion dialog: numbered options or free text. */
-  async askUser(req: { question: string; options?: string[]; multi?: boolean }): Promise<string | string[]> {
+  async askUser(req: { question: string; options?: string[]; multi?: boolean;signal?:AbortSignal }): Promise<string | string[]> {
     this.write(`\n[question] ${req.question}\n`);
     const options = (req.options ?? []).filter((o): o is string => typeof o === "string");
     if (options.length === 0) {
-      return (await this.promptKey("answer: ")).trim();
+      return (await this.promptKey("answer: ",req.signal)).trim();
     }
     options.forEach((o, i) => this.write(`  ${i + 1}) ${o}\n`));
     const hint = req.multi ? "answer: numbers, comma-separated (e.g. 1,3) " : "answer: number ";
-    const line = (await this.promptKey(hint)).trim();
+    const line = (await this.promptKey(hint,req.signal)).trim();
     const picks = line
       .split(",")
       .map((s) => parseInt(s.trim(), 10))

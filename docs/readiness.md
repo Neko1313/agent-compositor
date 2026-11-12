@@ -93,6 +93,14 @@ matrix now includes a bounded CI action and requires refusal of injected deletio
 claims. That revised live matrix has not run, so these checks do not establish
 classification quality on arbitrary models or readiness to publish the new auto
 package. Ordinary clarification questions remain human decisions.
+The plain/headless source now also preserves independent controls in pasted input,
+queues Enter follow-ups, reserves Tab for steering, drains accepted commands on
+EOF, and consumes human dialog answers separately from model prompts. Command
+notifications and auxiliary usage appear in headless results; reported command
+errors fail that invocation. Installed Linux archive checks include a real raw
+PTY approval and actual CLI exit. These are local transport/protocol checks;
+live-model development, native side-conversation UI and other-platform evidence
+for this newer source remain separate requirements.
 The local Linux x64 archive additionally passes installed-binary approval,
 refusal and binding host-deny checks using its bundled reviewer and a local
 protocol fixture. The maintained release smoke now requires this check on every

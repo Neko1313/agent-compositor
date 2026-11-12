@@ -27,6 +27,9 @@ it.each([false,true])('starts plain-session hooks before input (prompt: %s)',asy
 });
 
 describe("decodeKeys", () => {
+  it('backspaces one full grapheme without leaving a broken emoji or accent',()=>{
+    const state={line:'A👩🏽‍💻e\u0301',running:false};decodeKeys('\x7f',state);expect(state.line).toBe('A👩🏽‍💻');decodeKeys('\x7f',state);expect(state.line).toBe('A');
+  });
   it("idle: characters buffer, Enter submits and clears the line", () => {
     const state: DecoderState = { line: "", running: false };
     expect(decodeKeys("he", state).map((c) => c.type)).toEqual(["char", "char"]);
@@ -36,10 +39,10 @@ describe("decodeKeys", () => {
     expect(state.line).toBe("");
   });
 
-  it("running: Enter steers with the buffered text", () => {
+  it("running: Enter submits a queued follow-up", () => {
     const state: DecoderState = { line: "in french", running: true };
     const cmds = decodeKeys("\r", state);
-    expect(cmds).toEqual([{ type: "steer", text: "in french" }]);
+    expect(cmds).toEqual([{ type: "submit", text: "in french" }]);
     expect(state.line).toBe("");
   });
 
@@ -66,6 +69,11 @@ describe("decodeKeys", () => {
 });
 
 describe("TerminalRenderer", () => {
+  it('prints command notifications instead of silently discarding them',()=>{
+    const {out,get}=buffer();const renderer=new TerminalRenderer(out);
+    renderer.handleEvent({kind:'catalog',event:'ui.notification',input:{plugin:'btw',level:'info',message:'Standalone answer'}});
+    expect(get()).toContain('[btw] Standalone answer');
+  });
   it("streams text deltas verbatim; turn.complete closes with a newline", () => {
     const { out, get } = buffer();
     const r = new TerminalRenderer(out, async () => "n");

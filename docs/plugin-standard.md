@@ -58,6 +58,9 @@ than the active model turn's allowance. `command.operation` reports start and
 settlement. `AgentCore.invokeCommand(text)` returns false for an unregistered
 control; failures of registered controls are errors, never fallback prompts.
 Embedders supply loaded `{name,plugin}` registrations through `userCommands`.
+`AgentCore.hasImmediateCommand(text)` checks that live owner registry without
+invoking a handler, for input dispatchers that preserve setup ordering while
+keeping controls independent of the model queue.
 These additive contracts require catalog 0.25 or later.
 
 Catalog 0.26 adds `service.agent.open` for an explicit user control to open a

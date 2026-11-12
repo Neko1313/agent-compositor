@@ -92,8 +92,9 @@ export default {
                     maxReviews < 1 ||
                     maxReviews > 1000)
                     throw new Error("Invalid review budget");
-                if (typeof config.profile !== "string" || !config.profile)
-                    throw new Error("Set a dedicated profile in .agent-compositor/auto.json");
+                if (config.profile !== undefined &&
+                    (typeof config.profile !== "string" || !config.profile.trim()))
+                    throw new Error("Invalid reviewer profile in auto.json");
                 let candidate = e;
                 if (["write", "edit"].includes(e.descriptor?.tool ?? e.tool)) {
                     const path = resolve($.session.cwd, e.descriptor?.path ?? e.input?.path ?? "");
@@ -113,7 +114,7 @@ export default {
                 ]);
                 const response = await Promise.race([
                     $.model.complete({
-                        profile: config.profile,
+                        ...(config.profile === undefined ? {} : {profile: config.profile}),
                         maxOutputTokens: 512,
                         signal,
                         messages: [

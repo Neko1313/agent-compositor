@@ -18,6 +18,20 @@ async function fixture(config: any = {}, answer: any = allowed) {
                 throw Error('audit unavailable'); } }, ui: { view: async () => { } } };
     return { $, state, calls, failAudit: () => auditFails = true };
 }
+it('reviews with the active provider when no dedicated reviewer profile was configured', async () => {
+    const f = await fixture({profile: undefined});
+    expect(await review['service.permission.review']({tool: 'project_check', input: {action: 'run', name: 'test'}, context: {task: 'Run the project tests'}}, f.$))
+        .toMatchObject({value: allowed});
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0].profile).toBeUndefined();
+    expect(JSON.parse(f.calls[0].messages[1].content)).toMatchObject({tool: 'project_check', context: {task: 'Run the project tests'}});
+});
+it.each(['', '   ', 42])('does not silently switch providers for an invalid explicit reviewer profile %s', async profile => {
+    const f = await fixture({profile});
+    expect(await review['service.permission.review']({tool: 'project_check', input: {action: 'run', name: 'test'}}, f.$))
+        .toMatchObject({value: {decision: 'ask', risk: 'unknown'}});
+    expect(f.calls).toHaveLength(0);
+});
 it.each([
     ['exec', { command: 'curl https://example.com/docs' }],
     ['mcp_call', { action: 'call', server: 'docs', tool: 'search', arguments: { query: 'API' } }],
@@ -58,10 +72,10 @@ it('shares the review budget across tool types and honors immediate disable', as
     f.state.set('enabled', false);
     expect(await review['service.permission.review']({ tool: 'third_tool', input: {} }, f.$)).toBeUndefined();
 });
-it.each([false, true])('routes actual plugin tool calls through auto review and preserves deny=%s', async (deny) => {
+it.each([[false, true], [true, true], [false, false], [true, false]])('routes actual plugin tool calls through auto review and preserves deny=%s, dedicated=%s', async (deny, dedicated) => {
     const cwd = await temp();
     await mkdir(join(cwd, '.agent-compositor'));
-    await writeFile(join(cwd, '.agent-compositor/auto.json'), JSON.stringify({ profile: 'reviewer' }));
+    if (dedicated) await writeFile(join(cwd, '.agent-compositor/auto.json'), JSON.stringify({ profile: 'reviewer' }));
     if (deny)
         await writeFile(join(cwd, 'agent-compositor.json'), JSON.stringify({ permissions: { rules: [{ tool: 'plugin_inspect', decision: 'deny' }] } }));
     const call = { toolCalls: [{ name: 'plugin_inspect', args: { query: 'status' } }] };
@@ -75,10 +89,12 @@ it.each([false, true])('routes actual plugin tool calls through auto review and 
         await core.submit('Inspect local plugin status');
         expect(executed).toBe(deny ? 0 : 1);
         expect(asked).toBe(0);
-        const reviews = provider.requests.filter(r => r.profile === 'reviewer');
+        const reviews = provider.requests.filter(r => r.messages[0]?.content.includes('You assess one proposed tool action'));
         expect(reviews).toHaveLength(deny ? 0 : 1);
-        if (!deny)
+        if (!deny) {
+            expect(reviews[0].profile).toBe(dedicated ? 'reviewer' : undefined);
             expect(JSON.parse(reviews[0].messages[1].content)).toMatchObject({ description: 'Inspect local plugin status without changes', context: { task: 'Inspect local plugin status' } });
+        }
     }
     finally {
         await app.close();

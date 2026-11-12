@@ -39,7 +39,7 @@ Enable the mode explicitly for the current session. Approvals return to manual
 after restart. Disabling it with the button also invalidates a review already in
 progress: a stale review result cannot approve an action.
 
-Configure a separate small-model profile in `agent-compositor.json`:
+Optionally configure a separate small-model profile in `agent-compositor.json`:
 
 ```json
 {
@@ -55,8 +55,9 @@ Configure a separate small-model profile in `agent-compositor.json`:
 }
 ```
 
-For the same platform, set `small_model` to create a `small` profile using the
-main provider's settings. `.agent-compositor/auto.json`:
+Without a reviewer profile, `/auto on` uses the active model/provider. For a
+dedicated reviewer on the same platform, set `small_model` to create a `small`
+profile using the main provider's settings. `.agent-compositor/auto.json`:
 
 ```json
 {"profile":"small","maxReviews":50,"timeoutMs":8000}
@@ -412,7 +413,10 @@ hash or drops the range automatically. Stale hashes still require a new read,
 and rejected edits do not change the file or add an undo entry. See
 [semantic navigation and edit anchors](../plugins/callix/README.md#precise-navigation-and-guarded-edits).
 
-Auto review remains opt-in (`/auto on`) with a dedicated profile in `auto.json`.
+Auto review remains opt-in (`/auto on`). A dedicated profile in `auto.json` is
+optional; if absent, the active model/provider performs the review. Blank or
+invalid explicit profile settings return to manual approval without a fallback
+provider switch.
 Ephemeral children inherit the parent's enabled mode and shared review budget;
 turning it off stops subsequent inherited approvals. Review responses may be a
 single JSON object or a single fenced JSON object, as some Anthropic profiles

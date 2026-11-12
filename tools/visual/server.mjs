@@ -1,3 +1,4 @@
+import {seedReportFixture} from './test-report-fixture.mjs';
 import {seedCiFixture} from './ci-fixture.mjs';
 import {workspaceReply} from './workspaces-sample.ts';
 import {authorReply} from './author-sample.ts';
@@ -82,7 +83,8 @@ if(!process.env.VISUAL_MARKETPLACE){
 }
 if(process.env.VISUAL_CERT_PLUGIN){
  const name=process.env.VISUAL_CERT_PLUGIN;
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager',...(process.env.VISUAL_GIT_FIXTURE?['git-review-delay']:[])],compaction:{enabled:false},...(['git-review','project-checks','ci-review'].includes(name)?{permissions:{rules:[{tool:name==='git-review'?'git_review':name==='ci-review'?'ci_review':'project_check',decision:'allow'}]}}:{})}));
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,'extension-manager','marketplace-manager','session-manager',...(process.env.VISUAL_GIT_FIXTURE?['git-review-delay']:[]),...(name==='test-reports'?['test-report-delay']:[])],compaction:{enabled:false},...(['git-review','project-checks','ci-review','test-reports'].includes(name)?{permissions:{rules:[{tool:name==='git-review'?'git_review':name==='ci-review'?'ci_review':name==='test-reports'?'test_report':'project_check',decision:'allow'}]}}:{})}));
+ if(name==='test-reports')await seedReportFixture(cwd);
  if(name==='project-checks')await writeFile(join(cwd,'package.json'),JSON.stringify({scripts:{
   check:'node -e '+JSON.stringify('console.log("PROJECT_CHECK_OUTPUT")'),
   fail:'node -e '+JSON.stringify('console.error("PROJECT_CHECK_FAILURE");process.exit(7)'),

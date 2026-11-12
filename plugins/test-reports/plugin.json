@@ -3,5 +3,21 @@
   "version": "0.1.0",
   "description": "Read local Vitest/Jest JSON reports with complete counts and bounded failures",
   "trust": "trusted",
-  "compositor": { "standard": 1, "apiVersion": 1 }
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  },
+  "main": "hooks.ts",
+  "commands": [
+    {
+      "name": "/test-report",
+      "description": "Read a local test report and inspect failures",
+      "ui": {
+        "site": "main"
+      }
+    }
+  ],
+  "hookTimeouts": {
+    "ui.press": 300000
+  }
 }

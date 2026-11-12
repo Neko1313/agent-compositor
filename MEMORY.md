@@ -1,5 +1,55 @@
 # Project memory
 
+## Concurrent test-report panel and composite lifecycle — 2026-11-12
+
+Extended the manual test-reports source with /test-report, an inline report path,
+explicit Read report, complete counts, clickable/Up-Down failure selection and
+scoped configuration. Tab chooses actions, Enter activates, Ctrl+U clears only
+the panel path, Esc/explicit Close cancels the owned operation and closes the
+panel; Alt+I returns to the composer. No file/model request happens just from
+opening. Failed/cancelled reads retain labelled Last loaded results, never a
+false fresh success. Settings save path/maxFailures/maxBytes for project/global;
+project overrides global, omitted tool limits use effective defaults and explicit
+arguments override them. Changed input IDs reset the actual terminal field after
+saving; typing a new path resets and visibly selects Read. Invalid config can be
+repaired without reading; failed saves preserve previous config and retry input.
+
+Expanded independent certification profiles to hook/command/tool/view/interactive
+UI with persistence/mutation. Source PR certification passed package/domain/panel
+and composite lifecycle including synthetic update/rollback and all-component
+restart/re-enable. Additional domain tests cover error recovery, empty/result
+views, saved-scope isolation/migration, actual fresh-process restart and denied/
+invalid/cancelled settings writes with recovery. The original thirteen frozen
+report-domain observations remain separate. Tool input tests also cover scoped
+limits and explicit overrides. All1151tests pass/3optional skips and types pass.
+Generators ran; canonical package guide, readiness and bench guide updated.
+
+Actual PTY at dist/test-reports-ui/pty-round2 passes16 observations: explicit
+read, keyboard/pointer failure selection, missing-file retained results, saved
+limits, concurrent main scripted model, preserved unsent draft, cancelling/closing
+only the report operation, narrow resize and fresh-process restart. Relevant
+screenshots inspected (failures/settings/concurrent/narrow/restarted). Cancellation
+uses a controlled pre-tool dependency and awaits its settlement; it is not a disk
+latency measurement or paid-model proof. Initial browser attempt found missing
+expected cache revision; used the already installed compatible browser through
+environment override. First real PTY attempt reached cancellation/close but the
+scenario incorrectly assumed Ctrl+U clears the message composer. Retained draft
+was correctly preserved, then appended to the test command. Corrected only that
+fixture step to explicitly backspace the verified draft before a new command;
+second run passed. Original failure logs/captures retained, not counted green.
+
+Code inspection also found a separate open host concern: titlebar X/Alt+Q uses
+WindowManager.close without a plugin close notification; async plugin completion
+may reopen a hidden window. Reproduce through PTY and fix host ownership/visibility
+before claiming universal close behavior. This panel's explicit Close/Esc paths
+are verified; do not substitute them as proof for titlebar close while busy.
+Public host0.7.3 still predates ef0c26b canonical custom-tool policy. Do not publish
+test-reports ahead of a patched host/prepared source/native gates. Broader fresh
+model-authored plugin delivery, model/task matrix, sustained sessions and trust
+remain open; this manual panel/composite proof does not close1.0. No paid calls or
+budget changes. Previous exacte7869ac CI43135737322 and docs43135737303 passed;
+preparation PR7 refreshed to9a30a6b before this UI commit (not reviewed/merged).
+
 ## Initial test-report certification and metadata pipeline stop — 2026-11-12
 
 Pushed33fcdb7. Local clean-source release certification passes11cases/38evidence

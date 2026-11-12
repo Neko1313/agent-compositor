@@ -6,15 +6,23 @@
       "layer": "integration",
       "files": [
         "packages/app/test/test-reports.test.ts",
-        "packages/app/test/test-reports-input.test.ts"
+        "packages/app/test/test-reports-input.test.ts",
+        "packages/app/test/test-reports-panel.test.ts"
       ]
     }
   ],
   "profiles": {
     "components": [
-      "tool"
+      "hook",
+      "command",
+      "tool",
+      "view",
+      "interactive-ui"
     ],
-    "traits": []
+    "traits": [
+      "persistence",
+      "mutation"
+    ]
   },
   "platforms": [
     "linux-x64",
@@ -124,6 +132,188 @@
       "run": {
         "runner": "scenario",
         "file": "tools/plugins/test-reports-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "panel-domain",
+      "kind": "deterministic",
+      "requirements": [
+        "hook.intended",
+        "command.intended",
+        "hook.repeat",
+        "command.repeat",
+        "hook.unrelated",
+        "command.unrelated",
+        "hook.failure",
+        "command.failure",
+        "view.empty",
+        "view.content",
+        "view.error",
+        "view.lifecycle",
+        "state.fresh",
+        "state.invalid",
+        "state.restart",
+        "state.migration",
+        "state.isolation",
+        "mutation.result",
+        "mutation.invalid",
+        "mutation.denied",
+        "mutation.recovery"
+      ],
+      "setup": "Actual candidate package in isolated project/home; controlled JSON report and guarded dependency; real PTY for terminal cases.",
+      "expect": [
+        "Read/select/error/configuration behavior, saved scope and restart remain coherent across package lifecycle.",
+        "Terminal actions preserve the unsent draft and let the main scripted model continue while report reads are cancelled or closed."
+      ],
+      "forbidden": [
+        "Automatic file reads on open, false success, effects after disable/close, configuration lost on restart, report instructions treated as commands or cancelling the main agent from a report action."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "composite",
+      "kind": "deterministic",
+      "requirements": [
+        "composite.lifecycle"
+      ],
+      "setup": "Actual candidate package in isolated project/home; controlled JSON report and guarded dependency; real PTY for terminal cases.",
+      "expect": [
+        "Read/select/error/configuration behavior, saved scope and restart remain coherent across package lifecycle.",
+        "Terminal actions preserve the unsent draft and let the main scripted model continue while report reads are cancelled or closed."
+      ],
+      "forbidden": [
+        "Automatic file reads on open, false success, effects after disable/close, configuration lost on restart, report instructions treated as commands or cancelling the main agent from a report action."
+      ],
+      "timeoutMs": 300000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": [
+          "--composite"
+        ]
+      }
+    },
+    {
+      "id": "terminal-flow",
+      "kind": "visual",
+      "requirements": [
+        "view.narrow",
+        "ui.keyboard",
+        "ui.pointer",
+        "ui.focus",
+        "ui.submit",
+        "ui.cancel",
+        "ui.restart"
+      ],
+      "setup": "Actual candidate package in isolated project/home; controlled JSON report and guarded dependency; real PTY for terminal cases.",
+      "expect": [
+        "Read/select/error/configuration behavior, saved scope and restart remain coherent across package lifecycle.",
+        "Terminal actions preserve the unsent draft and let the main scripted model continue while report reads are cancelled or closed."
+      ],
+      "forbidden": [
+        "Automatic file reads on open, false success, effects after disable/close, configuration lost on restart, report instructions treated as commands or cancelling the main agent from a report action."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/visual-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "panel-domain-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "hook.intended",
+        "command.intended",
+        "hook.repeat",
+        "command.repeat",
+        "hook.unrelated",
+        "command.unrelated",
+        "hook.failure",
+        "command.failure",
+        "view.empty",
+        "view.content",
+        "view.error",
+        "view.lifecycle",
+        "state.fresh",
+        "state.invalid",
+        "state.restart",
+        "state.migration",
+        "state.isolation",
+        "mutation.result",
+        "mutation.invalid",
+        "mutation.denied",
+        "mutation.recovery"
+      ],
+      "setup": "Actual candidate package in isolated project/home; controlled JSON report and guarded dependency; real PTY for terminal cases.",
+      "expect": [
+        "Read/select/error/configuration behavior, saved scope and restart remain coherent across package lifecycle.",
+        "Terminal actions preserve the unsent draft and let the main scripted model continue while report reads are cancelled or closed."
+      ],
+      "forbidden": [
+        "Automatic file reads on open, false success, effects after disable/close, configuration lost on restart, report instructions treated as commands or cancelling the main agent from a report action."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": []
+      }
+    },
+    {
+      "id": "composite-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "composite.lifecycle"
+      ],
+      "setup": "Actual candidate package in isolated project/home; controlled JSON report and guarded dependency; real PTY for terminal cases.",
+      "expect": [
+        "Read/select/error/configuration behavior, saved scope and restart remain coherent across package lifecycle.",
+        "Terminal actions preserve the unsent draft and let the main scripted model continue while report reads are cancelled or closed."
+      ],
+      "forbidden": [
+        "Automatic file reads on open, false success, effects after disable/close, configuration lost on restart, report instructions treated as commands or cancelling the main agent from a report action."
+      ],
+      "timeoutMs": 300000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/behavior-scenario.ts",
+        "args": [
+          "--composite"
+        ]
+      }
+    },
+    {
+      "id": "terminal-flow-artifact",
+      "kind": "artifact",
+      "requirements": [
+        "view.narrow",
+        "ui.keyboard",
+        "ui.pointer",
+        "ui.focus",
+        "ui.submit",
+        "ui.cancel",
+        "ui.restart"
+      ],
+      "setup": "Actual candidate package in isolated project/home; controlled JSON report and guarded dependency; real PTY for terminal cases.",
+      "expect": [
+        "Read/select/error/configuration behavior, saved scope and restart remain coherent across package lifecycle.",
+        "Terminal actions preserve the unsent draft and let the main scripted model continue while report reads are cancelled or closed."
+      ],
+      "forbidden": [
+        "Automatic file reads on open, false success, effects after disable/close, configuration lost on restart, report instructions treated as commands or cancelling the main agent from a report action."
+      ],
+      "timeoutMs": 180000,
+      "run": {
+        "runner": "scenario",
+        "file": "tools/plugins/visual-scenario.ts",
         "args": []
       }
     }

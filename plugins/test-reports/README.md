@@ -1,9 +1,10 @@
 # Test reports
 
 `test_report` reads a saved Vitest or Jest JSON report and returns complete
-assertion counts plus a bounded list of failures. It does not run tests, install
-dependencies, request a model or change files. This initial version provides a
-tool; it has no panel or slash command.
+assertion counts plus a bounded list of failures. `/test-report` opens an
+interactive report panel. Reading does not run tests, install dependencies,
+request a model or change the report. Explicitly saving defaults changes only
+the selected configuration scope.
 
 ## Enable
 
@@ -17,6 +18,42 @@ From a checkout with the package available in the local plugin market:
 For a remote package, install its published version through `/marketplace` before
 activation. Source availability does not imply a published archive exists.
 See [plugin lifecycle](../../docs/marketplace.md).
+
+## Inspect reports alongside the agent
+
+Open `/test-report`, enter a path in the panel and choose **Read report** or
+press Enter. Opening the panel does not read a file. The summary shows complete
+counts; click a failure or press Up/Down to inspect its diagnostic. Tab cycles
+Read report, Configure report defaults and Close; Enter activates the highlighted
+action. Ctrl+U clears the panel path. Esc closes this panel; Alt+I returns to the
+message composer.
+
+The panel and its configuration form work while the main agent is running.
+Cancel read cancels only the report operation. The panel's Close action also
+cancels its operation; neither action cancels the main agent or sends the message
+draft. Previous results remain available during a new read and after a failed or
+cancelled read, explicitly labelled **Last loaded** with their original path.
+Reopening the panel retains results within the current session. A process restart
+restores saved defaults and starts with no loaded report; read explicitly again.
+
+**Configure report defaults** saves a starting path, maximum failures and maximum
+output bytes for this project or all projects. Project settings override global
+settings. The form reports the effective limits after saving. Unsaved path edits
+stay local to the panel. Saving defaults resets the panel path to the effective
+starting path but does not read it. Cancel leaves saved defaults unchanged.
+
+```json
+{"path":"reports/tests.json","maxFailures":10,"maxBytes":12000}
+```
+
+These are the defaults for scoped `test-reports.json`. Omitted tool limits use
+the saved effective values; explicit tool arguments override them. The tool still
+requires its own `path`. Unknown or invalid settings fail with an error and can
+be repaired through Configure report defaults.
+
+Use a host containing the canonical custom-tool path fix (`ef0c26b`, after the
+public v0.7.3 release). The source package's alias-denial checks require that fix;
+a plugin archive alone cannot repair an older host's permission handling.
 
 ## Read a report
 

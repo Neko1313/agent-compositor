@@ -55,3 +55,14 @@ it.skipIf(process.platform==='win32')('test-reports: rejects a FIFO without wait
  const path=join(cwd,'pipe');execFileSync('mkfifo',[path]);
  expect(await tool.execute(ctx,{path:'pipe'})).toMatchObject({ok:false,error:expect.stringContaining('regular file')});
 },2000);
+
+it('test-reports: applies scoped defaults while explicit call limits take precedence',async()=>{
+ const report={testResults:[{name:'test.ts',status:'failed',assertionResults:[1,2,3].map(n=>({name:`failure ${n}`,status:'failed',failureMessages:['diagnostic']}))}]};
+ await writeFile(join(cwd,'report.json'),JSON.stringify(report));
+ const configured={...ctx,settings:async()=>({maxFailures:1,maxBytes:2048})};
+ const defaults=await tool.execute(configured,{path:'report.json'});
+ expect(defaults).toMatchObject({ok:true,data:{failed:3,failures:[{name:'failure 1'}],truncated:true}});
+ const explicit=await tool.execute(configured,{path:'report.json',maxFailures:2});
+ expect(explicit.ok).toBe(true);if(explicit.ok)expect(explicit.data.failures).toHaveLength(2);
+ expect(await tool.execute({...ctx,settings:async()=>({maxBytes:null})},{path:'report.json'})).toMatchObject({ok:false,error:expect.stringContaining('Maximum bytes')});
+});

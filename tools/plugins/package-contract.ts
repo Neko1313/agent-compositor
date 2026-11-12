@@ -71,6 +71,7 @@ export async function probe(app:BuiltApp,name:string,existingCore?:ReturnType<Bu
   await writeFile(file,JSON.stringify({testResults:[{name:'contract.test.ts',status:'failed',assertionResults:[{fullName:'retained failure',status:'failed',failureMessages:['expected 42']}]}]}));
   const result=await core.invokeTool('test_report',{path:file});assert.equal(result.ok,true,result.error??'Report read failed');
   assert.equal((result.output as any).failed,1);assert.equal((result.output as any).failures[0].message,'expected 42');
+  await core.submit('/test-report');assert.equal(events.filter(e=>e.event==='ui.surface'&&e.input.title==='Test reports').length,1);
  }else if(name==='project-checks'){
   await writeFile(join(app.storage.paths.project,'package.json'),JSON.stringify({scripts:{check:'node -e "console.log(123)"'}}));
   const listed=await core.invokeTool('project_check',{action:'list'});assert.equal(listed.ok,true,listed.error??'Discovery failed');assert.equal((listed.output as any).scripts[0].name,'check');

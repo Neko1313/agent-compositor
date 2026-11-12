@@ -417,3 +417,15 @@ previous painted frame cannot silently stand in for the requested state.
 Cancellation waits for both the error and removal of the panel's busy state;
 the conversation's earlier tool-error event alone does not acknowledge cleanup.
 These checks do not establish live GitHub network reliability.
+
+
+## Structured test reports
+
+`node tools/visual/plugin-check.mjs test-reports` uses the real PTY with local
+Vitest/Jest-shaped JSON, the actual report tool/panel and a controlled pre-tool
+wait. It checks explicit reads, keyboard/pointer failure selection, a missing-file
+error retaining labelled previous results, scoped configuration, narrow resize,
+restart, the unsent draft and concurrent main-agent work. Cancel and Close settle
+the controlled report operation without stopping that main model. This wait is a
+fixture dependency, not a measurement of disk latency. No live model or user
+credentials are used. See the [package guide](../../plugins/test-reports/README.md).

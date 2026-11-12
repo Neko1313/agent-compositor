@@ -79,7 +79,14 @@ The initial `test-reports` backend tool reads real local Vitest/Jest JSON,
 derives assertion totals and returns bounded failure records through normal
 canonical-path permissions. Its independent package checks include explicit
 activation/removal, malformed input, UTF-8 byte bounds, symlink denial and
-cancellation. This is a manually implemented tool slice, without a report panel.
+cancellation. The source package now also provides a manually implemented
+`/test-report` panel with explicit reads, failure selection, scoped defaults,
+restart and concurrent-agent/draft-preservation checks in the actual PTY.
+The composite lifecycle exercises the tool, command, view and configuration
+across install/reload/restart/update/rollback/disable/re-enable/remove.
+These checks do not establish autonomous plugin authoring. The source requires
+the canonical-path host repair after public0.7.3; public report-plugin publication
+still requires a patched host and exact-source native certification.
 A fresh live Compositor authoring attempt used a minimal task-specific profile
 with ordinary read/write/check tools and no reference implementation in its
 workspace. Three admitted requests only read repository context; the fourth

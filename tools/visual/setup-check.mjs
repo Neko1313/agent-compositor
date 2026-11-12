@@ -3,9 +3,11 @@ import {chromium} from 'playwright';
 import {spawn} from 'node:child_process';
 import {mkdir,readFile,writeFile,stat} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
+import {createHash} from 'node:crypto';
 const output=resolve(process.env.VISUAL_OUTPUT??'dist/setup-proof');await mkdir(output,{recursive:true});
-const report={ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
+const report={ok:false,mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[]};let server,browser,page;
 try{
+ if(process.env.VISUAL_EXECUTABLE)report.executable={path:resolve(process.env.VISUAL_EXECUTABLE),sha256:createHash('sha256').update(await readFile(process.env.VISUAL_EXECUTABLE)).digest('hex')};
  server=spawn('bun',['tools/visual/server.mjs'],{env:{...process.env,VISUAL_ONBOARDING:'1',VISUAL_OUTPUT:output},stdio:['ignore','pipe','inherit']});
  const url=await new Promise((done,fail)=>{let text='';const timer=setTimeout(()=>fail(Error('Setup bench startup timeout')),15000);server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);done(match[1]);}});server.once('exit',code=>{clearTimeout(timer);fail(Error('Bench exited '+code));});});
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});

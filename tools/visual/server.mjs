@@ -6,6 +6,7 @@ import {uxTool,uxReply} from './ux-sample.ts';
 import {seedHistory,historyReply} from './history-sample.ts';
 import {questionsSample,questionsReply} from './questions-sample.ts';
 import {markdownSample} from './markdown-sample.ts';
+import {storagePaths} from '../../packages/config/src/storage.ts';
 import { mkdtemp, mkdir, writeFile, cp, rm, readdir, readFile } from 'node:fs/promises';
 import { appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -104,7 +105,12 @@ const token = crypto.randomUUID();
 let active;
 let marketplaceRequests=0;
 let onboardingRequests=0;
-if(process.env.VISUAL_ONBOARDING){await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));await writeFile(join(output,'onboarding-identity.json'),JSON.stringify({cwd,home:workspaceHome}));await writeFile(join(output,'onboarding-transport.json'),JSON.stringify({requests:0}));}
+if(process.env.VISUAL_ONBOARDING){
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
+ const paths=storagePaths(cwd,{...process.env,HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
+ await writeFile(join(output,'onboarding-identity.json'),JSON.stringify({cwd:paths.project,home:paths.home,state:paths.state}));
+ await writeFile(join(output,'onboarding-transport.json'),JSON.stringify({requests:0}));
+}
 let terminalSize={cols:100,rows:30};
 async function start(ws) {
   if(process.env.VISUAL_PERFORMANCE)appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'start',...terminalSize})+'\n');

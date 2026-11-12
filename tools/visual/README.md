@@ -39,6 +39,10 @@ short connection editor, chosen-plugin installation/enable/reload, draft retenti
 narrow layout, completion persistence and a first task through a saved local
 endpoint. The guide must make zero completion requests; only the explicit first
 task uses the bounded loopback response. Credentials in this fixture are synthetic.
+Set `VISUAL_EXECUTABLE` to the executable from an extracted release archive to
+run the same flow against a compiled app. The bench records actual storage paths
+for both modes; the report identifies source/binary mode and hashes the selected
+binary. Keep the complete archive contents beside that executable.
 
 `VISUAL_OUTPUT=dist/btw-proof node tools/visual/plugin-check.mjs btw` checks the
 actual side-conversation flow: opening while the main model is held, inline

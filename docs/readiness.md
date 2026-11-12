@@ -109,8 +109,10 @@ preserves installed pins, applies reload through the normal UI path and returns
 to the first task without losing a draft. A real source PTY flow verifies automatic
 offer, persisted skip/completion, masked/private credentials, actual selected-plugin
 installation and activation, narrow layout and one first task through a saved
-loopback connection. No model is called during setup itself. This does not prove
-native onboarding or embedded CPU-model quality; the embedded model remains open.
+loopback connection. The same eleven checks also pass against the compiled app
+from a locally built and extracted Linux x64 archive (source e60ce22); screenshots
+cover the private form, narrow guide and first task. No model is called during
+setup itself. Other native platforms and embedded CPU-model quality remain open.
 The local Linux x64 archive additionally passes installed-binary approval,
 refusal and binding host-deny checks using its bundled reviewer and a local
 protocol fixture. The maintained release smoke now requires this check on every

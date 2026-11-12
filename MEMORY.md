@@ -1,5 +1,24 @@
 # Project memory
 
+## First-run guide exercised from an extracted Linux archive — 2026-11-13
+
+Built e60ce22 with the checksum-pinned official Callix archive, extracted the
+complete Linux x64 tarball into dist/first-run/extracted-e60 and ran the maintained
+setup-check through its compiled executable. All eleven checks pass in
+dist/first-run/native-extracted-e60/report.json; it records binary mode, selected
+executable path and SHA256. No paid requests; the only completion is the explicit
+first task through the loopback provider with the selected plugin tool advertised.
+The same scenario passes source mode after the harness change under
+dist/first-run/source-storage-paths. The native narrow screenshot was inspected:
+controls remain readable, the main draft is retained and the plugin is active.
+
+Previously onboarding-identity.json depended on the source fixture overwriting
+an incomplete server record. The bench now derives the actual storage paths for
+compiled launches too, using the same config path resolver and launch environment.
+This is a test-harness change, not an application path/storage contract change.
+Native onboarding on macOS/arm64, embedded CPU inference, fresh real-model gates
+and overall 1.0 readiness remain open. Public release tags/assets were not changed.
+
 ## First-run model and plugin guide verified in source — 2026-11-13
 
 The optional host setup-guide now opens on a fresh interactive launch without an

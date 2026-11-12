@@ -4,6 +4,7 @@ import {spawn} from 'node:child_process';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
+import {conversationTabsScenario} from './agent-conversation-scenario.mjs';
 assert.ok(process.env.VISUAL_EXECUTABLE,'Select an extracted native application with VISUAL_EXECUTABLE');
 const output=resolve(process.env.VISUAL_OUTPUT??'dist/native-agent-table');await mkdir(output,{recursive:true});
 const report={ok:false,mode:'binary',checks:[],screenshots:[],errors:[]};let server,browser,page;
@@ -18,6 +19,7 @@ try{
  const click=async value=>{await wait(value);const point=await page.evaluate(value=>{const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(value)),col=lines[row].indexOf(value)+1,rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};},value);await page.mouse.click(point.x,point.y);};
  const command=async value=>{await page.keyboard.press('Alt+i');await page.keyboard.type(value);await wait('› '+value);await page.keyboard.press('Enter');};
  const shot=async name=>{await page.screenshot({path:join(output,name+'.png')});report.screenshots.push(name+'.png');};
+ if(process.env.VISUAL_CONVERSATION_TABS){await conversationTabsScenario({page,wait,click,text,command,shot,report,output});}else{
  await wait('0/3 complete');await command('MAIN_TABLE_TASK');await wait('MAIN_TABLE_WORKING');
  await command('/agents');await wait('[All (0)]');
  assert.ok((await text()).includes('Working'));
@@ -39,6 +41,7 @@ try{
  await command('/agents');await wait('[All (1)]');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Agents'));await wait('+ Native');await click('+ Native');await click('[ Open conversation ]');await wait('SIDE_TABLE_DONE');await shot('03-restored');
  report.transport=JSON.parse(await readFile(join(output,'workflow-transport.json'),'utf8'));assert.deepEqual([...report.transport.requests].sort(),['main','side']);assert.equal(report.transport.paidRequests,0);
  report.checks.push('native.agents.immediate-held-main','native.agents.side-conversation','native.agents.filter','native.agents.tabs','native.agents.keyboard','native.agents.narrow','native.agents.draft-reopen','native.agents.restart','native.agents.bounded-transport');
+ }
  assert.deepEqual(report.errors,[]);report.ok=true;
 }catch(error){report.errors.push(String(error));await page?.screenshot({path:join(output,'failure.png')}).catch(()=>{});if(page)await writeFile(join(output,'failure.txt'),await page.evaluate(()=>visual.text()).catch(()=>''));}
 finally{await browser?.close();if(server&&server.exitCode===null){const ended=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await ended;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

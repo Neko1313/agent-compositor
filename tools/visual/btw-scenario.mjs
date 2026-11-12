@@ -18,6 +18,6 @@ export async function btwScenario({page,wait,text,command,clickPane,closePane,sh
  await page.evaluate(()=>visual.terminal.resize(60,24));await page.keyboard.type('NARROW42');await wait('NARROW42');await shot('02-side-narrow');await page.keyboard.press('Control+u');
  await page.evaluate(()=>visual.terminal.resize(100,30));
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(value=>visual.generation>value,generation);await wait('›');
- await command('/btw');await wait('SIDE_FOLLOWUP');await clickPane('Side conversation');await page.keyboard.type('AFTER_RESTART');await wait('AFTER_RESTART');await page.keyboard.press('Enter');await wait('SIDE_RESUMED');await shot('03-side-restored');
+ await command('/btw');await wait('SIDE_FOLLOWUP');await clickPane('Side conversation');await page.keyboard.type('AFTER_RESTART');await wait('AFTER_RESTART');await page.keyboard.press('Enter');await wait('Reply: Type a follow-up');await page.keyboard.press('PageDown');await wait('SIDE_RESUMED');await shot('03-side-restored');
  report.checks.push('view.narrow','ui.keyboard','ui.pointer','ui.focus','ui.submit','ui.cancel','ui.restart');
 }

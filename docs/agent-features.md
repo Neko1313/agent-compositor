@@ -164,6 +164,15 @@ working tree are not copied to a new worktree.
 
 Click an agent pane to use its own Reply field. Alt+i focuses the main message
 editor and resets agent targeting; its draft is separate from each Reply field.
+Conversation tabs show Overview and up to eleven active agents. Click a name or
+use Left/Right to focus that agent's existing pane, preserving separate Reply
+drafts and histories. Enter or **Send message** sends the pane's draft;
+PageUp/PageDown scroll its history. For larger agent lists, **Previous agents** /
+**Next agents**, or Ctrl+p / Ctrl+n, open the first agent in the adjacent group.
+Closing and reopening retains drafts within this process. Restart restores the
+selected pane and committed history; unsent drafts are not persisted. Archived
+agents disappear from conversation tabs and their panes close.
+
 Ctrl+C in the selected pane stops that agent. Stop cancels the current request
 and queued work. Approvals and questions from multiple agents are queued;
 cancellation removes a waiting dialog. Panes and conversations are restored

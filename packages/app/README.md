@@ -200,6 +200,15 @@ focused pane. Attention includes interrupted or failed agents. **Open conversati
 field. Updates do not queue behind the main model. Narrow panes stack fields;
 use Alt+f for a full-width table. Earlier messages remain in the saved conversation.
 
+Each agent conversation has **Overview** and agent-name tabs. Click a name or
+use Left/Right to focus its existing pane; each agent keeps its own Reply draft
+and transcript. Enter or **Send message** sends the current Reply draft.
+PageUp/PageDown scroll history. With more than eleven active agents, **Previous
+agents** / **Next agents** (Ctrl+p / Ctrl+n) open the first agent in the adjacent
+group. Closing a pane preserves its draft within the process; restarting restores
+the selected pane and committed messages, but not unsent drafts. Archiving removes
+the agent's pane and tab while retaining its files and saved conversation.
+
 With `btw` and `agent-hub` enabled, `/btw <question>` opens an independent agent
 while the main turn continues. Type follow-ups in its Reply field; Enter sends
 and Ctrl+C in that pane stops only that agent. Alt+i returns to the main message

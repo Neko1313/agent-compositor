@@ -200,7 +200,10 @@ await $.ui.view('jobs', 'Jobs', {
 ```
 
 Click a tab, select its action with Up/Down and Enter, or switch directly with
-Left/Right in the focused pane. Left/Right wraps and skips disabled tabs. The
+Left/Right in the focused pane. Left/Right wraps and skips disabled tabs, starting
+from the producer's selected tab. If none is selected, it starts from the last
+focused tab action. This keeps navigation correct when returning to a pane whose
+selection differs from its previous keyboard focus. The
 producer receives the ordinary `ui.press` action and republishes the chosen
 `selected` state; the host does not run a model or infer filter behavior. Disabled
 tabs have no click target. Selected tabs use accent, bold and underline; keyboard

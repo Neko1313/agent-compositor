@@ -83,7 +83,11 @@ contract. The development workflows plugin adopts it for paginated run/stage
 views, expandable results and state filters, preserving pause/resume and legacy
 journals. The development UI now has reusable catalog 0.28 tabs for agent and
 workflow state filters, with mouse/keyboard selection and narrow wrapping.
-Per-agent conversation tabs and deeper historical drill-down remain open; native and
+Per-agent conversation tabs now preserve separate drafts and histories, support
+button/Enter submission and grouped navigation through all sixteen allowed agents,
+and restore the selected pane with committed messages after restart. Source tests
+and a compiled Linux x64 PTY scenario cover these paths with a loopback provider.
+Deeper historical tool-journal drill-down remains open; native and
 real-model verification of these newer views is separate. Local extracted Linux
 x64 archive checks now cover the agent overview with a held main model and the
 bundled workflow table through bounded loopback providers. They exposed and fixed

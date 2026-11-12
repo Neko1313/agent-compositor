@@ -42,7 +42,16 @@ With the same `VISUAL_EXECUTABLE`, `node tools/visual/agent-table-check.mjs` che
 the compiled agent overview while a main stream is held: immediate management,
 manual create approval, side reply, filters, keyboard expansion, narrow fields,
 close/reopen draft and restart transcript. It expects exactly two loopback
-requests. Both scenarios use normal terminal input and isolated state, record
+requests. For conversation tabs, run
+`VISUAL_CONVERSATION_TABS=1 VISUAL_EXECUTABLE=/path/to/extracted/compositor VISUAL_OUTPUT=dist/conversation-tabs-proof node tools/visual/agent-table-check.mjs`.
+It creates two agents while the main stream is held and checks tab switching,
+isolated transcripts, independent drafts, button submission, closed-pane reopening,
+narrow layout, persisted selected-window identity and restart history without a
+reopen command. File reads only verify saved state; all interactions use actual
+terminal input. Nine checks require exactly three loopback requests and zero paid
+requests. Unsent drafts intentionally do not survive restart.
+
+Both overview and conversation scenarios use normal terminal input and isolated state, record
 binary mode/hash and fail unexpected model requests. Stream comments keep held
 fixture connections alive; a separate sixty-second deadline still bounds them.
 

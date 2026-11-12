@@ -1,5 +1,46 @@
 # Project memory
 
+## Independent agent conversation tabs verified locally — 2026-11-13
+
+Agent panes now expose Overview and agent-name tabs without sharing input or
+transcripts. Switching focuses the existing pane and does not request a model.
+Each pane retains its draft within the process; Enter and Send message submit
+that draft through ordinary agent_control permissions. PageUp/PageDown scroll
+history. Groups of eleven agents plus Overview respect the catalog's twelve-tab
+limit; Previous/Next buttons and Ctrl+p/Ctrl+n reach all sixteen allowed agents.
+Archive removes the pane/tab while preserving the saved record, transcript and
+files; stale selection cannot revive it. Restart restores selected pane/history,
+not unsent drafts. Existing catalog 0.28 contracts and plugin versions are unchanged.
+
+A native regression exposed stale keyboard action focus after returning to an
+agent pane. Left/Right now starts from the producer-selected tab before falling
+back to old action focus. A red/green unit test covers switching back and forth.
+A separate first persistence checker read layout.focused instead of the actual
+layout.windows.focused; fixing the checker required no product persistence change.
+The /btw regression initially waited for an offscreen final reply after the extra
+tab rows reduced available history space. It now waits for draft submission to
+complete and presses PageDown through the real terminal; all twelve checks pass.
+
+Evidence: dist/first-run/conversation-tabs-final-tests.log reports 1254 passing
+and three optional skipped tests across 155 files. Typecheck, event/docs generation,
+docs:check and the existing source PTY scenario pass. The native Linux x64 scenario
+in dist/conversation-tabs/native-selection passes nine checks with exactly three
+loopback requests and zero paid requests, including draft/context isolation,
+button submission, close/reopen, narrow layout and saved selection restored after
+restart without a reopen command. Wide/narrow/restored screenshots were inspected.
+The /btw restored screenshot was inspected too. The design detector reported no
+findings. dist/conversation-tabs/integrity-ready.json binds retained archive,
+extracted binary, source/tests and evidence hashes. Binary SHA256:
+6f3f4c86724a6906ddb41a9a98fbeded7d13495128899c85fc5eaf61b5e5523a.
+
+Prior-head 4afc96e build-only release run 43298188526 completed successfully
+(verify and all four native archive/install/model smoke platforms; publish skipped).
+This does not establish multi-platform UI behavior for the new conversation tabs.
+Broader 1.0, sustained model-driven development, historical tool-journal drill-down,
+resource-only views, embedded CPU onboarding and OpenTUI migration remain open.
+No live-model calls or additional spending were used for this change.
+
+
 ## Semantic state tabs shipped in source and exercised natively — 2026-11-13
 
 Catalog 0.28 adds optional UiTextView.tabs: at most twelve uniquely identified

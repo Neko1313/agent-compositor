@@ -81,9 +81,18 @@ export async function agentManager(
     if (matches.length !== 1) throw new Error("Agent not found or ambiguous");
     return matches[0];
   };
+  const conversationNavigation=(id:string)=>{
+    const active=records.filter(record=>!record.archived),page=Math.floor(Math.max(0,active.findIndex(record=>record.id===id))/11),start=page*11;
+    return{active,page,start,pages:Math.ceil(active.length/11),tabs:[
+      {id:'overview',label:'Overview',action:'conversation:overview',selected:false},
+      ...active.slice(start,start+11).map(record=>({id:record.id,label:record.name.slice(0,60).replace(/[\uD800-\uDBFF]$/,''),action:'conversation:'+record.id,selected:record.id===id})),
+    ]};
+  };
+  async function refreshConversationTabs(skip?:string){for(const entry of entries.values())if(entry.record.id!==skip)await paint(entry);}
   async function paint(entry: RuntimeEntry, focus=false) {
-    if (!host) return;
+    if (!host||entry.record.archived) return;
     const r = entry.record;
+    const navigation=conversationNavigation(r.id);
     const messages = entry.core
       .getMessages()
       .filter((m) => ["user", "assistant"].includes(m.role))
@@ -92,9 +101,15 @@ export async function agentManager(
       `agent-${r.id}`,
       r.name,
       {
+        tabs:navigation.tabs,scrollKeys:'host',
         input:{id:`message-${draftIds.get(r.id)??0}`,label:'Reply',value:drafts.get(r.id)??'',placeholder:'Type a follow-up'},
-        hint:'Enter sends · Ctrl+C stops this agent · Alt+i, then /chat returns to the main conversation',
+        hint:'Left/Right switches agents · Enter sends · PgUp/PgDn history · Ctrl+C stops this agent · Alt+i returns to main',
         lines: [
+          ...(navigation.pages>1?[
+            {text:`Agents ${navigation.start+1}-${Math.min(navigation.active.length,navigation.start+11)}/${navigation.active.length}`,tone:'muted' as const},
+            ...(navigation.page>0?[{text:'[ Previous agents · Ctrl+p ]',action:'conversation-page:previous'}]:[]),
+            ...(navigation.page+1<navigation.pages?[{text:'[ Next agents · Ctrl+n ]',action:'conversation-page:next'}]:[]),
+          ]:[]),
           {
             text: `${entry.core.getState()} · ${
               r.branch ?? "shared workspace"
@@ -309,6 +324,7 @@ export async function agentManager(
       await save();
       const entry = await load(record);
       await paint(entry);
+      await refreshConversationTabs(record.id);
       await show(reveal);
       if (args.prompt)
         await control({ action: "send", id, prompt: args.prompt }, provided);
@@ -328,6 +344,8 @@ export async function agentManager(
       record.archived = true;
       await save();
       if (target === record.id && host) await select(undefined, host);
+      if(host)await host.ui.remove('agent-'+record.id);
+      await refreshConversationTabs();
       await show();
       return { archived: record.id, worktreePreserved: record.cwd };
     }
@@ -394,6 +412,10 @@ export async function agentManager(
       label: id ? find(id).name : undefined,
     });
   };
+  async function focusConversation(id:string,$:any){
+    const record=find(id);if(record.archived)throw Error('Agent is archived');
+    const entry=await load(record);await select(record.id,$);await paint(entry,true);
+  }
   async function handleCommand(text:string,$:any){
     host=$;
         const [command, action, id, ...rest] = text.trim().split(/\s+/);
@@ -481,7 +503,15 @@ export async function agentManager(
         }
         const paneId=e.site.startsWith('plugin-agent-hub-agent-')?e.site.slice('plugin-agent-hub-agent-'.length):undefined;
         if(paneId&&e.key==='close'){if(target===paneId)await select(undefined,$);return;}
-        if(paneId&&e.key==='enter'){
+        if(paneId&&e.key==='conversation:overview'){await select(undefined,$);await show(true,true);return;}
+        if(paneId&&e.key.startsWith('conversation:')){await focusConversation(e.key.slice('conversation:'.length),$);return;}
+        if(paneId&&['conversation-page:next','conversation-page:previous','n','p'].includes(e.key)){
+          const navigation=conversationNavigation(paneId),next=['n','conversation-page:next'].includes(e.key);
+          const page=Math.max(0,Math.min(navigation.pages-1,navigation.page+(next?1:-1)));
+          if(page!==navigation.page)await focusConversation(navigation.active[page*11].id,$);return;
+        }
+        if(paneId&&['up','down','left','right','pageup','pagedown','tab','escape'].includes(e.key))return;
+        if(paneId&&(e.key==='enter'||(e.key===`send:${paneId}`&&drafts.get(paneId)?.trim()))){
           const draft=drafts.get(paneId),prompt=draft?.trim();if(!prompt||sending.has(paneId))return;
           sending.add(paneId);
           try{
@@ -498,8 +528,7 @@ export async function agentManager(
           return;
         }
         if (action === "open") {
-          await select(id, $);
-          await paint(await load(find(id ?? "")),true);
+          await focusConversation(id??'', $);
           return;
         }
         let args: any = { action, id };

@@ -27,6 +27,48 @@ async function temp() {
 }
 const dirs = [join(process.cwd(), "plugins")];
 describe("independent agents, authentication and extensions", () => {
+  it('switches conversation tabs without mixing drafts or messages and sends the Reply draft by button',async()=>{
+    const cwd=await temp(),provider=new ScriptedProvider([{text:'FIRST_RESULT'},{text:'SECOND_RESULT'}]);
+    const app=await buildApp({cwd,env:{HOME:cwd},provider});let asks=0;
+    try{
+      const core=app.createCore(async()=>true,async()=>{asks++;return'unexpected question';});const views=new Map<string,any>();
+      core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface')views.set(String((event.input as any).id),(event.input as any).view);});await core.start();
+      const create=async(name:string)=>{const result=await core.invokeTool('agent_control',{action:'create',name,worktree:false});expect(result.ok).toBe(true);return(result.output as any).id as string;};
+      const one=await create('First'),two=await create('Second'),site=(id:string)=>'plugin-agent-hub-agent-'+id;
+      const press=(id:string,key:string)=>core.host.emit('ui.press',{site:site(id),key});
+      const change=(id:string,value:string)=>core.host.emit('ui.change',{site:site(id),id:views.get(site(id)).input.id,value});
+      expect(views.get(site(one)).tabs.map((tab:any)=>tab.id)).toEqual(['overview',one,two]);
+      await change(one,'First task');await press(one,'send:'+one);
+      await vi.waitFor(()=>expect(views.get(site(one)).lines.some((line:any)=>line.text==='FIRST_RESULT')).toBe(true));expect(asks).toBe(0);
+      await press(one,'conversation:'+two);expect(views.get(site(two)).tabs.find((tab:any)=>tab.selected).id).toBe(two);expect(provider.requests).toHaveLength(1);
+      await change(two,'Second task');await press(two,'enter');await vi.waitFor(()=>expect(provider.requests).toHaveLength(2));
+      expect(provider.requests[1].messages.some(message=>message.content==='First task'||message.content==='FIRST_RESULT')).toBe(false);
+      await change(one,'FIRST_DRAFT');await change(two,'SECOND_DRAFT');
+      await press(two,'conversation:'+one);expect(views.get(site(one)).input.value).toBe('FIRST_DRAFT');
+      await press(one,'conversation:'+two);expect(views.get(site(two)).input.value).toBe('SECOND_DRAFT');
+      await press(two,'conversation:overview');expect(views.get('plugin-agent-hub-agents').table).toBeDefined();
+      expect((await core.invokeTool('agent_control',{action:'archive',id:one})).ok).toBe(true);
+      expect(views.get(site(two)).tabs.some((tab:any)=>tab.id===one)).toBe(false);
+      const stale=await press(two,'conversation:'+one);expect(stale.faults.length).toBeGreaterThan(0);
+      const listed=await core.invokeTool('agent_control',{action:'list',id:one});expect((listed.output as any[])[0]).toMatchObject({archived:true,state:'saved'});
+      expect(provider.requests).toHaveLength(2);expect(asks).toBe(0);
+    }finally{await app.close();}
+  });
+  it('keeps all sixteen agent conversations keyboard-reachable within twelve tabs',async()=>{
+    const cwd=await temp(),provider=new ScriptedProvider([]);await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-hub'],agent:{maxAgents:16}}));
+    const app=await buildApp({cwd,env:{HOME:cwd},provider});
+    try{
+      const core=app.createCore(async()=>true),views=new Map<string,any>();
+      core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface')views.set(String((event.input as any).id),(event.input as any).view);});await core.start();
+      const ids:string[]=[];for(let index=0;index<16;index++){const result=await core.invokeTool('agent_control',{action:'create',name:'Agent '+index,worktree:false});expect(result.ok).toBe(true);ids.push((result.output as any).id);}
+      const site=(id:string)=>'plugin-agent-hub-agent-'+id;
+      const first=views.get(site(ids[0]));expect(first.tabs).toHaveLength(12);expect(first.lines.some((line:any)=>line.action==='conversation-page:next')).toBe(true);
+      await core.host.emit('ui.press',{site:site(ids[0]),key:'n'});
+      const last=views.get(site(ids[11]));expect(last.tabs.find((tab:any)=>tab.selected).id).toBe(ids[11]);expect(last.tabs.map((tab:any)=>tab.id)).toEqual(['overview',...ids.slice(11)]);
+      await core.host.emit('ui.press',{site:site(ids[11]),key:'p'});expect(views.get(site(ids[0])).tabs.find((tab:any)=>tab.selected).id).toBe(ids[0]);
+      expect([...views.values()].filter(view=>view?.input).every(view=>view.tabs.length<=12)).toBe(true);expect(provider.requests).toHaveLength(0);
+    }finally{await app.close();}
+  });
   it('keeps plugin-owned agent commands authoritative and hides the disabled host command',async()=>{
     const cwd=await temp(),directory=join(cwd,'override');await mkdir(directory);
     await writeFile(join(directory,'plugin.json'),JSON.stringify({name:'agents-override',version:'1.0.0',main:'hooks.js',trust:'trusted',commands:[{name:'/agents',description:'Custom agent screen'}]}));

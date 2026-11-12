@@ -1126,8 +1126,8 @@ export class AppUI {
     if(this.windows.focused!=='input'&&tabs&&data.kind==='key'&&['left','right'].includes(data.key)&&!data.modifiers?.length){
       const enabled=tabs.filter(tab=>!tab.disabled);
       if(enabled.length){
-        let index=enabled.findIndex(tab=>tab.action===this.actionFocus.get(this.windows.focused));
-        if(index<0)index=enabled.findIndex(tab=>tab.selected);
+        let index=enabled.findIndex(tab=>tab.selected);
+        if(index<0)index=enabled.findIndex(tab=>tab.action===this.actionFocus.get(this.windows.focused));
         const next=index<0?(data.key==='left'?enabled.length-1:0):(index+(data.key==='left'?-1:1)+enabled.length)%enabled.length;
         this.actionFocus.set(this.windows.focused,enabled[next].action);
         const frame=this.windows.frames(this.columns,this.rows-this.dockHeight()).find(frame=>frame.surface===this.windows.focused);

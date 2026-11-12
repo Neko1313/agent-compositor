@@ -137,6 +137,15 @@ describe("slash completions", () => {
 });
 
 describe("plugin placement integration", () => {
+  it('switches from the selected tab after returning to a previously focused pane',async()=>{
+    const {ui,key}=setup(new ScriptedProvider([]));
+    const view=(id:string)=>({tabs:['overview','first','second'].map(value=>({id:value,label:value,action:value,selected:value===id})),lines:[{text:'Conversation '+id}]});
+    ui.core.host.registerPlugin({name:'tab-switcher',version:'1.0.0',trust:'trusted'},{'ui.press':async(event,$)=>{await $.ui.view(event.key,event.key,view(event.key),{focus:true});}});
+    await ui.core.host.emit('service.ui.view',{plugin:'tab-switcher',id:'first',title:'first',view:view('first'),placement:{focus:true}});
+    key('right');await ui.settled();expect(ui.windows.focused).toBe('plugin-tab-switcher-second');
+    key('left');await ui.settled();expect(ui.windows.focused).toBe('plugin-tab-switcher-first');
+    key('right');await ui.settled();expect(ui.windows.focused).toBe('plugin-tab-switcher-second');ui.close();
+  });
   it('switches semantic tabs with arrows while skipping disabled tabs and preserving the main draft',async()=>{
     const {ui,messages,text,key,provider}=setup(new ScriptedProvider([]));text('UNSENT_MAIN_DRAFT');let selected='one';
     const view=()=>({tabs:[{id:'one',label:'One',action:'one',selected:selected==='one'},{id:'off',label:'Off',action:'off',disabled:true},{id:'two',label:'Two',action:'two',selected:selected==='two'}],lines:[{text:'Selected '+selected}]});

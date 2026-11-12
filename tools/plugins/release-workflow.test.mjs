@@ -1,6 +1,8 @@
 import {it,expect} from 'vitest';
-import {execFileSync} from 'node:child_process';
-import {resolve} from 'node:path';
+import {execFileSync,spawnSync} from 'node:child_process';
+import {resolve,join} from 'node:path';
+import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 const workflow=JSON.parse(execFileSync('bun',['-e',
  'console.log(JSON.stringify(Bun.YAML.parse(await Bun.file(process.argv[1]).text())))',
  resolve('.github/workflows/plugin-release.yml')],{encoding:'utf8'}));
@@ -48,4 +50,19 @@ it('requires browser readiness before UI certification without reinstalling host
   expect(job.steps.slice(index+1).some(step=>step.run?.includes('plugin:certify'))).toBe(true);
   expect(job['timeout-minutes']).toBe(30);
  }
+});
+
+it('stops at failed release metadata even when its diagnostics are piped through tee',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'plugin-workflow-failure-'));
+ try{
+  const step=workflow.jobs.verify.steps.find(step=>step.id==='metadata'),output=join(root,'outputs');
+  await writeFile(output,'');
+  const script=step.run.replace('bun tools/plugins/release-metadata.mjs','bun '+JSON.stringify(resolve('tools/plugins/release-metadata.mjs')));
+  // GitHub enables pipefail for explicit bash; its unspecified Linux shell is bash -e.
+  const flags=step.shell==='bash'?['--noprofile','--norc','-e','-o','pipefail','-c']:['-e','-c'];
+  const result=spawnSync('bash',[...flags,script],{cwd:root,encoding:'utf8',env:{...process.env,GITHUB_OUTPUT:output,PLUGIN_RELEASE_TAG:'invalid-tag',PLUGIN_CANDIDATE_NAME:'',PLUGIN_CANDIDATE_SHA:''}});
+  expect(result.stderr).toContain('Use plugin/<name>/v<SemVer>');
+  expect(result.status).not.toBe(0);
+  expect(await readFile(output,'utf8')).toBe('');
+ }finally{await rm(root,{recursive:true,force:true});}
 });

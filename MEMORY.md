@@ -1,5 +1,32 @@
 # Project memory
 
+## Initial test-report certification and metadata pipeline stop — 2026-11-12
+
+Pushed33fcdb7. Local clean-source release certification passes11cases/38evidence
+references; actual Linux0.1.0 archive passes artifact certification2cases/2evidence
+references. Independently verified every evidence digest and archive binding:
+dist/test-reports-authoring/local-integrity.json, archiveSHA256
+21de8b0ed57650d6126115bb58459b01b0db34c3c2dcc6a80f9ce50dcc48c26a.
+Documentation43135266186 passed; inspect exact-head CI43135266311 to completion.
+Candidate workflow43135294400 was dispatched too early: expected preparation
+rejection correctly refused unprepared test-reports. No native matrix/publication
+ran. Its Bash-e/tee pipeline hid the metadata failure, so the job continued to
+plugin:test with an empty name and failed there. A new behavioral regression
+executes the actual metadata command with an invalid tag through the workflow
+pipeline and fails on old behavior (exit0); explicit shell:bash supplies GitHub's
+pipefail behavior and stops at metadata. Do not bypass the preparation guard or
+blindly rerun the failed candidate. Preparation PR7 at0f033b0 includes expected
+Callix1.3.4/checkpoint-history1.2.3, initial test-reports0.1.0 and catalog1.0.8;
+review its refreshed exact generated content and dispatched CI before merging.
+
+Do not publicly release the new report plugin ahead of a patched host. Public
+host0.7.3 predates ef0c26b canonical custom-tool policy; the plugin's alias-denial
+proof uses repaired source. Package source/Linux proof is useful, but a new host
+release and prepared exact-source four-platform candidate remain release gates.
+No new tag/public release created and no paid request after the earlier three.
+Continue report UI/composite authoring, wider real development/model matrix and
+sustained/trust gates; this is not1.0 completion.
+
 ## Structured test-report tool and bounded initial authoring attempt — 2026-11-12
 
 Implemented test-reports0.1.0 as a useful first backend/tool slice: readonly

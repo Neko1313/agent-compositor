@@ -240,6 +240,8 @@ Release notes contain only the selected version's changelog entry.
 Before creating a tag, manually dispatch `plugin-release.yml` on `main` with
 `candidate_name` and `candidate_sha`. The SHA must be the full 40-character commit
 of a pushed, clean source snapshot that includes this candidate workflow support.
+The metadata step uses explicit Bash pipeline failure handling: a rejected
+source stops verification even when its output is also saved with `tee`.
 Pending automatic version preparation still blocks certification; merge its
 generated PR first. All release checks, mandatory UI/live cases and the four
 native archive checks remain required. For example:

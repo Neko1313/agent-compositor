@@ -75,8 +75,8 @@ draft, repeated restoration, workspace return, narrow history scrolling and
 restart. Core checks cover owner dispatch, failure isolation, tool permissions,
 auxiliary usage, cancellation, unload and shutdown bounds. This is source-runtime
 evidence; the immutable public 0.7.4 archive does not include these new contracts.
-Embedded onboarding, richer tables/drill-down and standalone resource charts
-remain implementation work. The newer source adds `/btw` side conversations
+Embedded inference-assisted onboarding, richer tables/drill-down and standalone
+resource charts remain implementation work. The newer source adds `/btw` side conversations
 through catalog 0.26: an independent persisted agent with its own Reply field,
 immediate opening/reopening, separate draft, focused-agent cancellation and
 restart history. Source integration and real PTY checks cover those paths with
@@ -101,6 +101,16 @@ errors fail that invocation. Installed Linux archive checks include a real raw
 PTY approval and actual CLI exit. These are local transport/protocol checks;
 live-model development, native side-conversation UI and other-platform evidence
 for this newer source remain separate requirements.
+
+The current development source also provides a deterministic optional `/setup`
+guide for first launch without a configured model. It configures an existing/new
+provider through a short private editor, suggests explicit optional plugin choices,
+preserves installed pins, applies reload through the normal UI path and returns
+to the first task without losing a draft. A real source PTY flow verifies automatic
+offer, persisted skip/completion, masked/private credentials, actual selected-plugin
+installation and activation, narrow layout and one first task through a saved
+loopback connection. No model is called during setup itself. This does not prove
+native onboarding or embedded CPU-model quality; the embedded model remains open.
 The local Linux x64 archive additionally passes installed-binary approval,
 refusal and binding host-deny checks using its bundled reviewer and a local
 protocol fixture. The maintained release smoke now requires this check on every

@@ -1,5 +1,50 @@
 # Project memory
 
+## First-run model and plugin guide verified in source — 2026-11-13
+
+The optional host setup-guide now opens on a fresh interactive launch without an
+explicit model. `/setup` reopens it; a private user setting remembers Skip or
+completion. Plain/headless runs and explicit resumes do not auto-open it. The
+guide is deterministic and needs neither a model nor an inference server. An
+embedded CPU onboarding model remains a separate, unimplemented requirement.
+
+The guide reuses the provider editor with five initial fields and an Advanced
+action. Keys use the existing private credential store; saving never silently
+tests a connection. Optional coding/research recommendations use normal plugin
+inventory, installation, project activation and reload. Existing pins and local
+installations are preserved. Completion waits for selected tools to be loaded.
+The guide respects disabled host capabilities and survives plugin reload.
+
+Evidence: dist/first-run/complete-tests.log has 1241 passed/three optional skips
+across 155 files; type checking and generated documentation/site checks passed.
+dist/first-run/pty-shipping/report.json proves eleven first-run interactions,
+including real plugin install/enable/reload, private credential storage, draft
+retention, narrow layout and the first task. Only that explicit task calls the
+loopback provider; its request advertises the installed project-check tool.
+No paid provider was used. Native onboarding and real-model quality remain open.
+Maintained user guides, command inventory and bench instructions were updated;
+architecture.md needs no contract update: this composes existing host views,
+provider storage and extension services without changing the event catalog.
+
+The standard PTY regression initially failed because its main-editor helper sent
+the purported independent message to the parent; screenshot 18 shows the response
+in the parent and an empty child. It now types in the child's Reply field and
+requires the response in that pane. The full scenario passes under
+dist/first-run/regression-inline-ready; the inspected restored screenshot shows
+the independent conversation in its own pane with the parent still empty.
+
+Two release verifier fixes are already pushed as 173f5f1 and d9b964e. The original
+e7a6bd1 native run 43277943356 failed the raw-interruption race. Run 43282256667
+was green but its downloaded macOS receipts exposed bridge cleanup errors/code1;
+dist/first-run/ci-native-173-audit.json records that negative audit. The Python
+bridge now propagates actual child status and reaps before process-group cleanup;
+the verifier requires raw bridge code0. Strict run 43284931754 completed success
+on all four platforms; the downloaded reports independently pass the seven
+protocol flags and raw code0/no-stderr audit in ci-native-d9-audit.json. This is
+build-only evidence, not publication or native
+proof of the still-uncommitted setup guide. Keep broad 1.0, model-driven
+development, richer workflows/agent tables, independent charts and OpenTUI open.
+
 ## Plain controls, human dialogs and command results repaired — 2026-11-13
 
 Follow-up to 2f1f5ae inspected the actual line REPL. Three regressions reproduced

@@ -125,6 +125,22 @@ chunks and grapheme deletion are preserved.
 
 ## App configuration
 
+Fresh interactive launches without explicit model settings offer **Get started**.
+The optional `/setup` guide helps select or create a provider, choose tools, apply
+plugin changes and return to the conversation. **Settings → Setup guide** opens
+it without replacing the message draft. The guide uses existing private provider
+storage and the normal plugin installer/activation rules; displaying it does not
+query a model or install anything. Skip is stored in private user `setup.json`.
+It is not offered automatically for plain/headless execution or explicit resume,
+and it respects `enabledPlugins`/`disabledPlugins` for the `setup-guide` host
+component. There is no embedded inference model in this implementation.
+
+The short connection editor has five fields, with the full editor behind
+**Advanced settings**. Optional plugin choices do not disable existing plugins or
+replace installed pins. Installation can need network access; failures are shown.
+New activation requires **Apply plugin changes**, which uses the ordinary deferred
+reload path while another agent is running. See [first-run setup](../../docs/getting-started.md).
+
 ```json
 {
   "permissions": {

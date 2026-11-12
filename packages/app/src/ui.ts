@@ -378,10 +378,10 @@ export class AppUI {
     }));
   }
   private async press(site:string,key:string):Promise<void> {
-    const manager=['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces'].includes(site);
+    const manager=['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces','plugin-setup-guide-setup'].includes(site);
     if(manager&&key.startsWith('navigate:')){
       const target=key.slice(9);
-      if(['extensions','marketplace','reload','placement'].includes(target))this.managementCommand('/'+target);
+      if(['extensions','marketplace','reload','placement','settings'].includes(target))this.managementCommand('/'+target);
       return;
     }
     // Result views keep the original surface, but management belongs to Extensions.

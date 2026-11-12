@@ -13,6 +13,7 @@ import { extensionManager } from "./extensions.js";
 import { authentication } from "./auth.js";
 import { agentManager } from "./agents.js";
 import { quotaReader } from "./quota.js";
+import {setupGuide} from './setup.js';
 import { installSessionServices, sessionControls } from "./sessions.js";
 import { approvalStore } from "./approval-store.js";
 import { realpathSync } from "node:fs";
@@ -72,6 +73,7 @@ export interface BuildAppOptions {
 }
 
 export interface BuiltApp {
+  shouldOfferSetup?:()=>Promise<boolean>;
   storage: ProjectStorage;
   close: () => Promise<void>;
   config: LoadedConfig;
@@ -221,7 +223,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   }
   if (env.AGENT_MODEL && profiles[env.AGENT_MODEL])
     router.select(env.AGENT_MODEL);
-  const controls = modelControls(router, storage, auth, network.fetch("models")),
+  const controls = modelControls(router, storage, auth, network.fetch("models"),()=>hostEnabled('setup-guide')),
     sessionPlugin = sessionControls();
   const approvals = await approvalStore(
     options.cwd,
@@ -384,6 +386,18 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   };
   const hostEnabled = (name:string,source=plugins) => !disabled().includes(name) &&
     (!config.config.enabledPlugins || config.config.enabledPlugins.includes(name)) && !source.some(p=>p.manifest.name===name);
+  const setupModel=async()=>{
+    const saved=await storage.config('providers.json').catch(()=>({}));
+    const selected=await readFile(path.join(storage.paths.state,'model.json'),'utf8').then(JSON.parse).catch(()=>undefined);
+    const explicit=!!options.provider||!!env.AGENT_MODEL||!!config.config.model||!!(profileConfig.default as any)?.model||!!selected||router.credentialProfile!=='default'||!!saved.profiles?.default?.model;
+    return{configured:explicit,profile:router.credentialProfile,model:router.model};
+  };
+  const setup=setupGuide(storage,{
+    model:setupModel,
+    configure:async $=>{if(!hostEnabled(controls.manifest.name))throw Error('Model settings are disabled by this project configuration');const status=await setupModel();await controls.configureSetup($,Object.keys(router.profiles).filter(name=>name!=='default'||status.configured));},
+    enabled:()=>extensions.enabled(),loaded:()=>plugins.map(plugin=>plugin.manifest.name),
+    control:async(args,signal)=>hostEnabled(extensions.plugin.manifest.name)?extensions.userControl(args,signal):{ok:false,error:'Plugin management is disabled by this project configuration'},
+  });
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
   const cores=new Set<AgentCore>();
@@ -535,7 +549,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           events: p.events,
           controllers:p.controllers,
         })),
-        ...[controls,sessionPlugin,extensions.plugin,market.plugin,auth.plugin,...(hub?[hub.plugin]:[])]
+        ...[controls,setup.plugin,sessionPlugin,extensions.plugin,market.plugin,auth.plugin,...(hub?[hub.plugin]:[])]
           .filter(plugin=>hostEnabled(plugin.manifest.name)),
       ],
       // PluginTool is a structural mirror of core's ToolSpec (validated by
@@ -583,7 +597,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           events: p.events,
           controllers:p.controllers,
         })),
-        ...[controls,sessionPlugins.get(core)!,extensions.plugin,market.plugin,auth.plugin,...(hub?[hub.plugin]:[])]
+        ...[controls,setup.plugin,sessionPlugins.get(core)!,extensions.plugin,market.plugin,auth.plugin,...(hub?[hub.plugin]:[])]
           .filter(plugin=>hostEnabled(plugin.manifest.name,next.plugins)),
       ],
       next.plugins.flatMap((p) => p.tools) as NonNullable<
@@ -648,6 +662,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
             ]
           : []),
         ...['/workspace','/settings', '/providers', '/models', '/tasks', '/continue'].map(name => [name, {name,description:name==='/workspace'?'List or attach working directories':name==='/tasks'?'Show saved task progress':name==='/continue'?'Continue unfinished work':'Manage model providers and connections',usage:name}] as const),
+        ['/setup',{name:'/setup',description:'Set up a model and choose optional tools',usage:'/setup',ui:{site:'plugin-setup-guide-setup'}}] as const,
         ...["/auth", "/login", "/logout"].map(
           (name) =>
             [
@@ -698,6 +713,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     ].filter(command=> {
       if(plugins.some(p=>p.commands?.some(c=>c.name===command.name)))return true;
       const owners:Record<string,string>={
+        '/setup':setup.plugin.manifest.name,
         '/workspace':'agent-harness','/tasks':'agent-harness','/continue':'agent-harness',
         '/settings':controls.manifest.name,'/providers':controls.manifest.name,'/models':controls.manifest.name,'/model':controls.manifest.name,
         '/auth':auth.plugin.manifest.name,'/login':auth.plugin.manifest.name,'/logout':auth.plugin.manifest.name,
@@ -754,6 +770,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     createCore,
     reloadPlugins,
     commands,
+    shouldOfferSetup:async()=>!options.resumeSessionId&&resumedEvents.length===0&&hostEnabled(setup.plugin.manifest.name)&&await setup.shouldOffer(),
     savePlacement,
   };
 }

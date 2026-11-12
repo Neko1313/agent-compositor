@@ -405,8 +405,15 @@ try {
   );
   await clickText("Visual");
   await waitText("Message → Visual");
-  await submit("Inspect independently");
-  await waitText("Independent agent response");
+  await clickText("Reply: Type a follow-up");
+  await page.keyboard.type("Inspect independently");
+  await waitText("Reply: Inspect independently");
+  await page.keyboard.press("Enter");
+  // Require the reply in the agent pane, not a response accidentally sent to
+  // the main composer. Clicking the main editor deliberately resets its target.
+  await page.waitForFunction(() => visual.text().split("\n").some(line =>
+    line.slice(Math.floor(visual.terminal.cols / 2)).includes("Independent agent response")
+  ));
   await screenshot("18-independent-agent.png");
   const independentGeneration = await page.evaluate(() => visual.generation);
   await page.click("#restart");

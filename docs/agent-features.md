@@ -8,6 +8,7 @@ shared service events and tool.call let other handlers replace them.
 
 | Feature | Command / tool |
 |---|---|
+| First-run model and tool setup | `/setup`, Settings → Setup guide |
 | Automatic approval review | `/auto on`, `/auto off`, `/auto status` |
 | Code and conversation history | `/checkpoints`, `/restore <id> code\|conversation\|both`, `/rewind` |
 | Change review | `/review [id]`, Keep change / Revert file buttons |

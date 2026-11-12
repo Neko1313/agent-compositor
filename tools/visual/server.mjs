@@ -72,7 +72,7 @@ if(process.env.VISUAL_WORKSPACES){
   await writeFile(join(cwd,'.agent-compositor/callix.json'),'{"background":false}');
   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness','web','callix','session-manager'],agent:{skills:false,controlTools:[],projectContext:false},permissions:{rules:[{tool:'web_search',decision:'allow'},{tool:'web_fetch',decision:'allow'}]}}));
 }
-if(!process.env.VISUAL_MARKETPLACE){
+if(!process.env.VISUAL_MARKETPLACE&&!process.env.VISUAL_ONBOARDING){
   // Existing positive scenarios explicitly select their fixture packages.
   const all=(await readdir(join(root,'plugins'),{withFileTypes:true})).filter(entry=>entry.isDirectory()).map(entry=>entry.name);
   const configFile=join(cwd,'agent-compositor.json'),config=await readFile(configFile,'utf8').then(JSON.parse).catch(()=>({}));
@@ -103,6 +103,8 @@ const ciBin=process.env.VISUAL_CERT_PLUGIN==='ci-review'?await seedCiFixture(cwd
 const token = crypto.randomUUID();
 let active;
 let marketplaceRequests=0;
+let onboardingRequests=0;
+if(process.env.VISUAL_ONBOARDING){await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));await writeFile(join(output,'onboarding-identity.json'),JSON.stringify({cwd,home:workspaceHome}));await writeFile(join(output,'onboarding-transport.json'),JSON.stringify({requests:0}));}
 let terminalSize={cols:100,rows:30};
 async function start(ws) {
   if(process.env.VISUAL_PERFORMANCE)appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'start',...terminalSize})+'\n');
@@ -134,6 +136,14 @@ const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(process.env.PORT ?? 0),
   async fetch(request, server) {
     const url = new URL(request.url);
+    if(process.env.VISUAL_ONBOARDING&&url.pathname===`/model/${token}/v1/models`)return Response.json({data:[{id:'onboarding-fixture',context_window:32768}]});
+    if(process.env.VISUAL_ONBOARDING&&url.pathname===`/model/${token}/v1/chat/completions`){
+      const body=await request.json();onboardingRequests++;
+      await writeFile(join(output,'onboarding-transport.json'),JSON.stringify({requests:onboardingRequests,model:body.model,credentialReceived:request.headers.get('authorization')==='Bearer PRIVATE_FIRST_RUN_KEY',projectCheckAdvertised:body.tools?.some(tool=>tool.function?.name==='project_check')===true}));
+      if(onboardingRequests>3)return new Response('Unexpected model loop',{status:500});
+      return new Response('data: '+JSON.stringify({choices:[{delta:{content:'FIRST_TASK_ANSWER: the configured connection is working.'},finish_reason:'stop'}],usage:{prompt_tokens:7,completion_tokens:3}})+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});
+    }
+
     if(process.env.VISUAL_MARKETPLACE_BUSY&&url.pathname===`/model/${token}/v1/chat/completions`&&request.method==='POST'){
       await request.json();const step=marketplaceRequests++;
       const event=delta=>`data: ${JSON.stringify({choices:[{delta,finish_reason:null}]})}\n\n`;

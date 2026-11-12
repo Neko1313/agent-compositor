@@ -177,7 +177,7 @@ describe("command discovery", () => {
     const metadata = { name: "custom", version: "1.0.0", trust: "trusted", commands: [{ name: "/custom", description: "Custom action" }] };
     await fs.writeFile(manifest, JSON.stringify(metadata));
     const app = await buildApp({ cwd: tmp, env: { HOME: tmp }, provider: new ScriptedProvider([]) });
-    const builtins = ["/workspace", "/history", "/tasks", "/continue", "/agents","/auth", "/login", "/logout", "/extensions", "/marketplace", "/archive", "/fork", "/model", "/models", "/providers", "/settings", "/reload", "/rename", "/resume", "/sessions", "/unarchive", "/chat"];
+    const builtins = ["/workspace", "/history", "/tasks", "/continue", "/agents","/auth", "/login", "/logout", "/extensions", "/marketplace", "/archive", "/fork", "/model", "/models", "/providers", "/settings", "/reload", "/rename", "/resume", "/sessions", "/unarchive", "/chat", "/setup"];
     expect(app.commands().map(c => c.name)).toEqual([...builtins, "/custom"].sort());
     const core = app.createCore(async () => false);
     metadata.commands = [{ name: "/changed", description: "Changed action" }];

@@ -12,7 +12,7 @@ const presets={
   gemini:{label:'Gemini',type:'gemini',baseUrl:'https://generativelanguage.googleapis.com/v1beta',model:''},
   compatible:{label:'Compatible API / gateway',type:'openai-compat',baseUrl:'http://127.0.0.1:8080/v1',model:''},
 };
-export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:{setKey:(name:string,key:string)=>Promise<void>;refresh:(name:string,signal:AbortSignal)=>Promise<void>},fetcher:typeof fetch):CorePlugin {
+export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:{setKey:(name:string,key:string)=>Promise<void>;refresh:(name:string,signal:AbortSignal)=>Promise<void>},fetcher:typeof fetch,setupAvailable:()=>boolean=()=>false):CorePlugin & {configureSetup:($:HooksApi,existing:string[])=>Promise<void>} {
   const scopeFile=(scope:string)=>join(scope==='global'?storage.paths.home:storage.paths.state,'providers.json');
   async function saveProfile(name:string,value:unknown,scope:string){
     const file=scopeFile(scope);const existing=await readFile(file,'utf8').then(JSON.parse).catch((e:any)=>{if(e.code!=='ENOENT')throw e;return{};});
@@ -23,6 +23,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
     {text:`Active: ${router.credentialProfile} · ${router.model}`,bold:true},
     {text:`Reasoning: ${router.reasoningEffort??'provider default'}`,tone:'muted'},
     {text:'[ Add provider ]',action:'add',tone:'accent'},
+    ...(setupAvailable()?[{text:'[ Setup guide ]',action:'setup'}]:[]),
     {text:'[ Network proxy ]',action:'proxy'},
     {text:'[ Provider access ]',action:'access'},
     ...Object.entries(router.profiles).flatMap(([name,p])=>[
@@ -40,13 +41,14 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
     const result=await $.ui.form({title:'Available models',description:'Choose a model returned by this provider. You can also enter a model ID in the connection editor.',fields:[{id:'model',label:'Model',type:'select',value:models.includes(current)?current:models[0],options:models.map(value=>({value,label:value}))}],actions:[{id:'use',label:'Use selected model'},{id:'cancel',label:'Cancel'}]});
     return result&&result.action!=='cancel'?String(result.values.model):undefined;
   }
-  async function edit(existing:string|undefined,$:HooksApi){
+  async function edit(existing:string|undefined,$:HooksApi,simple=false){
+    const forSetup=simple;
     let initial:any=existing?router.profiles[existing]:undefined;
     let id=existing??'';let scope='project';let pendingKey='';let clearKey=false;
     if(!initial){const preset=await $.ui.form({title:'Add provider',fields:[{id:'preset',label:'Provider',type:'select',value:'ollama',options:Object.entries(presets).map(([value,p])=>({value,label:p.label}))}],actions:[{id:'next',label:'Continue'},{id:'cancel',label:'Cancel'}]});if(!preset)return;const p=presets[String(preset.values.preset) as keyof typeof presets];initial={...p};id=String(preset.values.preset);}
     let message='API keys are stored privately in your user credentials file. Blank key keeps the current key.';
     while(true){
-      const result=await $.ui.form({title:existing?`Edit provider · ${existing}`:'New provider connection',description:message,fields:[
+      const fields:Parameters<HooksApi['ui']['form']>[0]['fields']=[
         {id:'id',label:'Profile ID',type:'text',value:id,required:true,hint:existing?'Keep this ID, or save a copy with another ID.':undefined},
         {id:'type',label:'API protocol',type:'select',value:initial.type??'openai-compat',options:[{value:'openai-compat',label:'OpenAI-compatible / Ollama'},{value:'openai-responses',label:'OpenAI Responses'},{value:'anthropic',label:'Anthropic'},{value:'gemini',label:'Gemini'}]},
         {id:'baseUrl',label:'Base URL',type:'url',value:initial.baseUrl,required:true},
@@ -58,10 +60,12 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
         {id:'scope',label:'Save connection for',type:'select',value:scope,hint:'Project settings override global defaults.',options:[{value:'project',label:'This project (private user storage)'},{value:'global',label:'All projects'}]},
         {id:'contextWindow',label:'Context window (tokens)',type:'text',value:initial.contextWindow?String(initial.contextWindow):'',hint:'Blank detects provider limits; unknown models use a marked conservative fallback.'},
         {id:'reasoningEffort',label:'Reasoning effort',type:'select',value:initial.reasoningEffort??'',options:reasoningOptions(String(initial.type??'openai-compat') as ProviderProfile['type'],initial.reasoningEffort),hint:'Support depends on the selected model. Provider default omits the setting.'},
-      ],actions:[{id:'save',label:'Save profile'},{id:'discover',label:'Test & discover models'},{id:'cancel',label:'Cancel'}]});
+       ];
+      const result=await $.ui.form({title:existing?`Edit provider · ${existing}`:'New provider connection',description:message,fields:simple?fields.filter(field=>['id','baseUrl','model','key','scope'].includes(field.id)):fields,actions:[{id:'save',label:'Save profile'},{id:'discover',label:'Test & discover models'},...(simple?[{id:'advanced',label:'Advanced settings'}]:[]),{id:'cancel',label:'Cancel'}]});
       if(!result)return;const v=result.values;id=String(v.id).trim();scope=String(v.scope);clearKey=v.clearKey===true;
       if(v.key)pendingKey=String(v.key);
       initial={...initial,...v};delete initial.key;
+      if(result.action==='advanced'){simple=false;continue;}
       try{
         profileId(id);
         const model=String(v.model).trim();
@@ -79,12 +83,13 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
         const effective=scope==='global'?profileSettings((await storage.config('providers.json')).profiles[id]):saved;
         router.profiles[id]={...router.profiles[id],...effective,maxOutputTokens:effective.maxOutputTokens,timeoutMs:effective.timeoutMs,contextWindow:effective.contextWindow,reasoningEffort:effective.reasoningEffort,apiKey:router.profiles[id]?.apiKey??'',fetch:fetcher};
         if(pendingKey||clearKey||(existing&&existing!==id&&key))await auth.setKey(id,clearKey?'':pendingKey||key);
-        await choose(id,$);await show($);return;
+        await choose(id,$);if(!forSetup)await show($);return;
       }catch(error){message=(error as Error).message;}
     }
   }
   const action=async(key:string,$:HooksApi)=>{
     const [kind,name]=key.split(':');
+    if(kind==='setup'){if(!setupAvailable()){await $.ui.notify('Setup guide is disabled','warn');return;}await $.emit('prompt.submit',{text:'/setup'});await $.ui.remove('models');return;}
     if(kind==='settings'){await show($);return;}
     if(kind==='add'){await edit(undefined,$);return;}
     if(kind==='proxy'){await $.emit('prompt.submit',{text:'/proxy configure'});return;}
@@ -111,7 +116,10 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
     if(kind==='test'){await $.ui.notify(`Connection OK · ${models.length} models`);return;}
     const selected=await pickModel(models,router.profiles[name].model,$);if(selected){await choose(name,$);router.select(selected);await atomicJson(join(storage.paths.state,'model.json'),{profile:name,model:selected});await $.ui.notify(`Model: ${selected}`);await show($);}
   };
-  return {manifest:{name:'model-selector',version:'1.1.0',trust:'trusted',hookTimeouts:{'ui.press':300000,'prompt.submit':300000}},hooks:{
+  return {configureSetup:async($,existing)=>{
+    if(existing.length){const selected=await $.ui.form({title:'Choose a connection',fields:[{id:'profile',label:'Profile',type:'select',value:existing.includes(router.credentialProfile)?router.credentialProfile:existing[0],options:[...existing.map(value=>({value,label:value})),{value:'__new__',label:'Add a new provider'}]}],actions:[{id:'choose',label:'Continue'},{id:'cancel',label:'Cancel'}]});if(!selected)return;if(selected.values.profile!=='__new__'){await choose(String(selected.values.profile),$);return;}}
+    await edit(undefined,$,true);
+  },manifest:{name:'model-selector',version:'1.1.0',trust:'trusted',hookTimeouts:{'ui.press':300000,'prompt.submit':300000}},hooks:{
     'prompt.submit':async(e,$)=>{const[command,...rest]=e.text.trim().split(/\s+/);if(!['/model','/models','/providers','/settings'].includes(command))return;try{if(command==='/model'&&rest.length)await choose(rest.join(' '),$);else await show($);}catch(error){await $.ui.notify((error as Error).message,'error');}return{drop:'model-selector: handled'};},
     'ui.press':async(e,$)=>{if(e.site!=='plugin-model-selector-models')return;try{await action(e.key,$);}catch(error){await $.ui.notify((error as Error).message,'error');}},
   }};

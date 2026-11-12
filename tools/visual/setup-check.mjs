@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright';
+import {spawn} from 'node:child_process';
+import {mkdir,readFile,writeFile,stat} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+const output=resolve(process.env.VISUAL_OUTPUT??'dist/setup-proof');await mkdir(output,{recursive:true});
+const report={ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
+try{
+ server=spawn('bun',['tools/visual/server.mjs'],{env:{...process.env,VISUAL_ONBOARDING:'1',VISUAL_OUTPUT:output},stdio:['ignore','pipe','inherit']});
+ const url=await new Promise((done,fail)=>{let text='';const timer=setTimeout(()=>fail(Error('Setup bench startup timeout')),15000);server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);done(match[1]);}});server.once('exit',code=>{clearTimeout(timer);fail(Error('Bench exited '+code));});});
+ browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
+ page=await browser.newPage({viewport:{width:1400,height:1100}});page.on('pageerror',error=>report.errors.push(error.message));await page.goto(url);
+ const wait=text=>page.waitForFunction(text=>visual.text().includes(text),text,{timeout:15000});
+ const text=()=>page.evaluate(()=>visual.text());
+ const click=async label=>{await wait(label);const point=await page.evaluate(label=>{const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(label)),col=lines[row].indexOf(label)+1,rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};},label);await page.mouse.click(point.x,point.y);};
+ const shot=async label=>{await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));await page.screenshot({path:join(output,label+'.png')});report.screenshots.push(label+'.png');await writeFile(join(output,label+'.txt'),await text());};
+ const transport=async()=>JSON.parse(await readFile(join(output,'onboarding-transport.json'),'utf8'));
+ await wait('Get started');await wait('Set up model');assert.equal((await transport()).requests,0);await shot('00-first-launch');report.checks.push('setup.automatic','setup.no-model-needed');
+ await click('Skip for now');await page.waitForFunction(()=>!visual.text().includes('Get started'));
+ const restart=async()=>{const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(generation=>visual.generation>generation,generation);await wait('Describe your task');};
+ await restart();assert.ok(!(await text()).includes('Get started'));assert.equal((await transport()).requests,0);report.checks.push('setup.skip-persisted');
+ await page.keyboard.press('Alt+i');await page.keyboard.type('UNSENT_SETUP_DRAFT');await wait('UNSENT_SETUP_DRAFT');await page.keyboard.press('Alt+,');await wait('Models & providers');await click('Setup guide');await wait('Get started');await wait('UNSENT_SETUP_DRAFT');
+ await click('Set up model');await wait('Add provider');for(let index=0;index<4;index++)await page.keyboard.press('ArrowRight');await wait('Compatible API');await click('Continue');await wait('New provider connection');
+ const address=new URL(url),base=`${address.origin}/model/${address.searchParams.get('token')}/v1`;
+ await page.keyboard.press('Tab');await page.keyboard.press('Control+a');await page.keyboard.type(base);await wait('/v1');await page.keyboard.press('Tab');await page.keyboard.type('onboarding-fixture');await wait('onboarding-fixture');await page.keyboard.press('Tab');await page.keyboard.type('PRIVATE_FIRST_RUN_KEY');await wait('•');assert.ok(!(await text()).includes('PRIVATE_FIRST_RUN_KEY'));await shot('01-private-connection');
+ await page.keyboard.press('Tab');await page.keyboard.press('Tab');await click('Save profile');await wait('Model selected: compatible');assert.equal((await transport()).requests,0);report.checks.push('setup.profile-saved','setup.key-masked');
+ await click('Choose recommended tools');await wait('Choose your work');await click('Continue');await wait('Choose optional tools');await click('Install and enable selected');await wait('Apply pending tools: project-checks');await shot('02-selected-tools');
+ const identity=JSON.parse(await readFile(join(output,'onboarding-identity.json'),'utf8'));
+ const selection=JSON.parse(await readFile(join(identity.state,'extensions-state.json'),'utf8'));
+ assert.ok(selection.installed['project-checks'],'The chosen plugin must actually be installed');
+ const installed=JSON.parse(await readFile(join(selection.bindings['project-checks'],'plugin.json'),'utf8'));assert.equal(installed.name,'project-checks');
+ await click('Apply plugin changes');await wait('Tools: 1 suggested plugins active');assert.equal((await transport()).requests,0);report.checks.push('setup.install-enable-reload');
+ const credentials=await readFile(join(identity.home,'credentials.json'),'utf8');assert.ok(credentials.includes('PRIVATE_FIRST_RUN_KEY'));assert.equal((await stat(join(identity.home,'credentials.json'))).mode&0o077,0);assert.ok(!(await readFile(join(identity.state,'providers.json'),'utf8')).includes('PRIVATE_FIRST_RUN_KEY'));report.checks.push('setup.private-credential-storage');
+ const resize=async(cols,rows)=>{const before=await page.evaluate(()=>visual.frames);await page.evaluate(({cols,rows})=>visual.terminal.resize(cols,rows),{cols,rows});await page.waitForFunction(before=>visual.frames>before,before);await wait('Start chatting');};
+ await resize(60,24);await shot('03-setup-narrow');await resize(100,30);await wait('Connect a model, choose tools, then start a task.');
+ await click('Start chatting');await page.waitForFunction(()=>!visual.text().includes('Get started'));await wait('UNSENT_SETUP_DRAFT');await page.keyboard.press('Alt+i');for(const _ of 'UNSENT_SETUP_DRAFT')await page.keyboard.press('Backspace');await wait('Describe your task');
+ await page.keyboard.type('FIRST_TASK');await wait('› FIRST_TASK');await page.keyboard.press('Enter');await wait('FIRST_TASK_ANSWER');await shot('04-first-task');
+ const actual=await transport();assert.equal(actual.model,'onboarding-fixture');assert.equal(actual.credentialReceived,true);assert.equal(actual.projectCheckAdvertised,true);assert.equal(actual.requests,1);report.checks.push('setup.first-task','draft.preserved');
+ await restart();assert.ok(!(await text()).includes('Get started'));assert.equal((await transport()).requests,1);report.checks.push('setup.completion-persisted','setup.narrow');
+ assert.equal(report.errors.length,0);report.ok=true;
+}catch(error){report.errors.push(String(error));await page?.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
+finally{await browser?.close();if(server&&server.exitCode===null){const ended=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await ended;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

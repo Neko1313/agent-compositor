@@ -19,6 +19,19 @@ Keep the executable beside its bundled plugin and dependency directories.
 
 ## Connect a model
 
+Current development builds open **Get started** on a fresh interactive launch
+without an explicitly configured model. Published 0.7.4 predates this guide.
+The guide itself runs locally without a model or inference server. You can skip
+it and reopen it with `/setup` or **Settings → Setup guide**. Skip is remembered
+privately for your user; plain/headless runs and explicit session resumes do not
+open it automatically.
+
+**Set up model** lets you choose an existing connection or create one using five
+fields: profile ID, endpoint, model ID, optional API key, and save scope. Keys are
+masked and kept in the private credentials file. **Advanced settings** opens the
+full editor. Saving does not issue a completion or test the connection; model
+discovery/testing is an explicit action.
+
 Start `compositor` and open **Settings**, or use `/settings`, to add a provider
 connection. Select a model and supply credentials when your provider requires
 them. Ollama, OpenAI Responses, Anthropic, Gemini and compatible gateways have
@@ -54,6 +67,16 @@ start with `--add-dir PATH`. Read [workspace access](workspaces-and-web.md) befo
 granting more scope.
 
 ## Enable useful extensions
+
+In the setup guide, **Choose recommended tools** asks what work you plan to do
+and lets you select optional project checks, test reports, change review and web
+research. Coding initially suggests project checks; research suggests web access.
+Only checked additions are installed if needed and enabled for the project.
+Downloads may be needed, and existing installations, versions and active plugins
+are retained. The guide does not change explicit plugin restrictions or tool
+permissions. Use **Apply plugin changes** before **Start chatting**; reload waits
+for an active agent when necessary. Failures remain visible so you can retry or
+continue without optional tools. No model is invoked by these setup steps.
 
 Since host v0.4.0, bundled filesystem plugins start inactive. Installation and
 activation are separate, and `/reload` applies plugin changes between turns.

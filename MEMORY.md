@@ -1,5 +1,33 @@
 # Project memory
 
+## Local prepared native0.7.4 basic smoke passed — 2026-11-12
+
+Clean sourcea6e778d1ae67c727905a953cef289ee80e855124 produced the Linux0.7.4
+archive with the verified cached Callix1.7.0 distribution. ArchiveSHA256
+c73678734f64cae0220eb7f96a3a13fdd118cbae5c8b79c98aa9fa89632b5f05,
+binarySHA2564015874077f48c4211951a5f93a90d9712831255a2722972340d8dceed48ab43.
+Exact archive retained under dist/panel-close-paging/a6e778d1ae67c727905a953cef289ee80e855124/;
+context/digests dist/panel-close-paging/native-context.json. Bundled versions
+were explicitly checked: mcp1.3.2, plugin-author1.3.2, test-reports0.1.1.
+
+Maintained release:smoke passed actual versioned/latest installation and checksum
+rejection, SDK/kernel extension and scoped session tests, Monty/GIF/licenses,
+bundled Callix analysis/editing, startup and state preservation. Actual installed
+background/replay smoke records6main/4summary calls, two preserved task reviews,
+one owned shell and an unchanged draft. Context smoke records3main/1summary/
+one correct write; plain startup records two processes/two startup hooks, no EOF
+model request and startup visible to the first prompt. All providers were local
+fixtures; no paid request or budget change. Smoke log retained with a digest.
+
+This is not yet an interactive compiled-TUI proof: complete titlebar/Alt+Q owned
+cancellation and narrow diagnostic paging on the actual native executable before
+host publication. Then inspect the exact four-platform candidate and public
+upgrade against immutable0.7.3. No host/plugin tag or public0.7.4 release created.
+Original broad1.0/model/development/trust goal stays active. The current dist/release
+stage is reusable; use the retained archive/hash to avoid mistaking a later build
+for this candidate. A memory-only follow-up commit does not change its tested
+runtime, but final release gates still need their exact immutable source identity.
+
 ## Prepared UI host source and metadata review complete — 2026-11-12
 
 Pushed365db5b plus host-version preparationedfb677b08a5e3fd82b32447b8c4cdd21960f785.

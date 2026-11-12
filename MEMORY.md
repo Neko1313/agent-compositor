@@ -1,5 +1,38 @@
 # Project memory
 
+## Host 0.7.4 tag and live certification handles — 2026-11-13
+
+Host candidate 43247332260 completed successfully at exact 973012a8ca3631c1e14910ab4944e974a097d6e7.
+Independent four-platform installed context/background/startup log audit passed:
+dist/v074-public/native-integrity-43247332260.json. All platforms retain two
+original task reviews, six main/four summary calls, owned process completion,
+the user draft, replay, initialization before input and no EOF model request.
+Linux CI archive passed the corrected 20-observation native PTY with exact ELF
+identity recorded in dist/v074-public/native-ui-integrity.json. Its revised
+actor comes from 4358ed1; that change affects bench synchronization/docs only,
+not the host or bundled plugin runtime. Screenshots were inspected.
+
+After confirming the tag/release did not exist, created and pushed immutable
+v0.7.4 at 973012a. Tagged release workflow 43249760656 is confirmed live at that
+exact source. Do not create another tag, move this tag or infer publication
+from the push. Inspect that run; if successful, independently audit it using
+dist/v074-public/audit-native.ts, then execute verify-public.ts with that run ID
+through the saved tool-proxy wrapper. The public verifier upgrades isolated
+public 0.7.3 bytes, verifies installer checksums, preserves state/old binary and
+checks actual installed context/background replay. Prior public binary exists.
+
+Pushed synchronization fix 4358ed1517d5a0f697096ee2993c791d07332434. Docs/build,
+committed local release certification and native CI-archive PTY pass. Clean
+plugin:prepare is empty, so no runtime version was manually bumped. Replacement
+plugin candidate 43249394887 explicitly targets 4358ed1; source verify passed,
+four package jobs were queued at the last live read. Previous 43247598100 stays
+failed, with its Intel diagnostics preserved. Independently download/audit all
+five certificates and four archives before any plugin tag, and publish only
+after the patched host is public. Adapt dist/audit-test-reports-973012a.ts to
+the replacement candidate's source/run/output before using it; it currently
+names the failed old source and must not be mistaken for a completed audit.
+No paid requests. Broad 1.0 remains active; release success alone cannot close it.
+
 ## Native UI proof and repeated-read synchronization — 2026-11-13
 
 The local a6e778d Linux host 0.7.4 passed the maintained 20-observation report

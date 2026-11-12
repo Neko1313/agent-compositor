@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2
+
+<!-- plugin-release:auto:start -->
+- settle closed panels and page editable views ([365db5b](https://github.com/Neko1313/agent-compositor/commit/365db5b48594d16f7af157d77d4478e66857869d))
+<!-- plugin-release:auto:end -->
+
 ## 1.3.1
 
 <!-- plugin-release:auto:start -->

@@ -1,5 +1,22 @@
 # Project memory
 
+## OpenTUI migration explicitly added to the plan — 2026-11-13
+
+After discussing migration effort, native image/video support, mascot animation
+and ready input components, the user explicitly requested adding OpenTUI migration
+to the plans. Recorded the staged target and acceptance gates in docs/readiness.md.
+The intended end state is an OpenTUI terminal frontend replacing Ink, preserving
+core/providers/permissions/tools/sessions and compatible extension views. Begin
+with an isolated renderer prototype (composer, original Ghost, agent tabs and an
+expandable workflow table), then migrate production screens and validate actual
+PTY behavior, native media, resources and all declared release platforms before
+switching the default. Do not reduce the request to an indefinitely optional
+demo or claim the migration is implemented. No rewrite or dependency installation
+has been performed yet. Ordinary approval fixes continue; the request was to
+plan migration, not to discard the current work. Preserve original artwork/alpha/
+timing, verify APNG/GIF animation and avoid automatic block-art substitution.
+Prior rough time estimates are not a delivery commitment. No model-budget change.
+
 ## Immediate controls and conversation recovery implemented in source — 2026-11-13
 
 Added additive catalog 0.25 command.invoke/command.operation and optional

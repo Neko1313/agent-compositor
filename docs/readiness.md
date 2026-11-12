@@ -78,6 +78,46 @@ evidence; the immutable public 0.7.4 archive does not include these new contract
 Embedded onboarding, richer tables/drill-down, a complete `/btw` side conversation
 and standalone resource charts remain implementation work.
 
+### Planned OpenTUI migration — 2026-11-13
+
+The user explicitly requested adding migration to OpenTUI to the plan. OpenTUI
+is the intended future terminal frontend, subject to the acceptance checks below;
+this is not a claim that migration has started or that the current renderer has
+been replaced. Preserve the agent core, provider adapters, permissions, tools,
+session state and extension ownership contracts throughout the migration.
+
+1. Build a separate `renderer-opentui` prototype using the existing Bun/React
+   stack. Exercise the message editor, the original Ghost beside the composer,
+   agent tabs and one expandable workflow table. Verify actual interaction and
+   media behavior before extending the implementation to all screens.
+2. Evolve the UI description where needed so OpenTUI receives reusable interactive
+   components rather than only preformatted rows/cells. Keep existing plugin
+   views usable through an adapter; plugins must not require a wholesale rewrite
+   or execute arbitrary frontend code merely to show a view.
+3. Move the production conversation, input, approvals/questions, onboarding,
+   settings, plugin management, workflows and agent drill-down onto the new
+   frontend. Use native input/selection/scrolling components and explicit
+   expandable details. Keep non-model commands independent of rendering.
+4. Verify the original character assets, transparency, frame timing, state
+   transitions, resize/clipping and terminal protocols. Test actual APNG/GIF
+   animation support rather than inferring it from static image decoding. Retain
+   the user's choice against substituting block artwork. Video is an additional
+   supported media path to evaluate, not a reason to convert transparent assets
+   to an unsuitable format or invent animation frames.
+5. Pass real PTY keyboard/mouse/paste/Unicode/focus tests, draft and session
+   restoration, concurrent tools/agents, and compiled archive/install checks on
+   all declared platforms. Verify native library/resource packaging. Switch the
+   default renderer only after the replacement passes those gates; retire the
+   Ink frontend after the migration is complete.
+
+Initial technical references are the official [OpenTUI components](https://opentui.com/docs/components/),
+[image](https://opentui.com/docs/components/image/),
+[video](https://opentui.com/docs/components/video/) and
+[runtime/platform requirements](https://opentui.com/docs/getting-started/runtime-support/).
+The prior chat estimates were preliminary effort ranges, not a release deadline.
+This migration extends the 1.0 usability scope and does not change the authorized
+live-model spending limit or interrupt the current approval-work fixes.
+
 ## Acceptance gates
 
 | Gate | Required evidence | Current assessment |

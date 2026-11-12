@@ -1,5 +1,42 @@
 # Project memory
 
+## Report-panel archive proof and generated metadata merged — 2026-11-12
+
+Pushed manual panel49895976287ea6e1239daf639ab62089bd3dbbaf. Exact-source
+Node22/26 CI43137513588 and docs43137513578 passed. Local source release
+certification passes14cases/54evidence references; Linux artifact certification
+passes5cases/18references, including the real PTY and composite lifecycle.
+Every evidence digest, matching source/artifact identity and archive binding was
+independently checked. ArchiveSHA256
+2a5cf67d2a89993b4be6d577e8d5a3230e9138ebfc0055d851229cf72b97e63e.
+Copies of the archive and both complete certificate/evidence directories are
+retained by source revision at dist/test-reports-ui/49895976287ea6e1239daf639ab62089bd3dbbaf/;
+audit dist/test-reports-ui/integrity.json. The ordinary version-only dist/reports
+outputs are reusable build outputs, not immutable historical storage. Earlier
+33fcdb7 local archive/certificates were replaced there by the UI build; its old
+hash/audit/logs remain historical observations, not current retained archive bytes.
+
+PR7 headc069c126a682e2afe3756b5985e92037a8c11678 was reviewed against a fresh
+clean4989597 worktree running the actual release generator and docs generator.
+All eight generated file hashes and the exact file set matched; review retained
+in dist/test-reports-ui/preparation-review.json. Its dispatched Node22/26 CI
+43137578622 and docs43137581414 passed; separate approval-required duplicate
+PR-trigger runs were not represented as successes. Merged with a matching-head
+guard as cc982a371c08b97743144ccb4f69c5440d3e6c9a, fast-forwarded local main,
+and confirmed plugin:prepare returns no pending files/plugins. Generated metadata
+now prepares Callix1.3.4, checkpoint-history1.2.3, test-reports0.1.0 and catalog1.0.8.
+No plugin/host tag or public release was created. Public host0.7.3 still needs the
+canonical-path patch; do not release the report plugin ahead of that host fix.
+
+Next host UX work: reproduce titlebar X/Alt+Q hiding an active plugin without
+notifying/cancelling it; explicit panel Close/Esc is already covered. Also inspect
+narrow diagnostic navigation: the editable-view key branch forwards page keys,
+but this panel currently handles only action/failure keys. Existing generic
+view.narrow evidence proves resize/title/draft preservation, not every diagnostic
+being reachable in a compact split. Keep that stronger requirement open, rather
+than treating the generic certificate as exhaustive UX proof. Original broad
+model/task/self-hosted/trust goals remain active and no new paid calls occurred.
+
 ## Concurrent test-report panel and composite lifecycle — 2026-11-12
 
 Extended the manual test-reports source with /test-report, an inline report path,

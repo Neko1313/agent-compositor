@@ -10,6 +10,11 @@ version independently of the host, then enable explicitly with
 `/extensions enable auto-approve --project` (or `--user`), then `/reload`.
 
 `/auto on` enables review for the current session using the active model/provider.
+`/auto on|off|status` are immediate user controls, including while the model is
+working. They respond with notifications and do not open a panel. `/auto history`
+explicitly opens the optional audit view with mode controls. Closing that view
+does not disable review or cause subsequent reviews to reopen it. This command
+path requires a host with catalog 0.25 or later.
 A separate reviewer profile is optional: set `profile` in scoped `auto.json` to
 use one. An invalid explicit profile returns to manual approval rather than
 silently selecting another provider. Review limits, exact-call context and

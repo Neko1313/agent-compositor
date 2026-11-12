@@ -49,7 +49,13 @@ export class Fixture {
   if(this.module)this.host.registerPlugin(this.module.manifest,this.module.hooks,this.module.tier,this.module.events,this.module.controllers);
  }
  async emit(event:string,input:any,allowFault=false){let result;try{result=await this.host.emit(event,{...(event.startsWith('tool.')?{callId:'behavior-call'}:{}),...input});}catch(error){if(!allowFault)throw error;return{value:undefined,faults:[error]};}if(!allowFault)assert.deepEqual(result.faults,[],`${this.name} ${event} faults: ${JSON.stringify(result.faults)}`);return result as any;}
- async prompt(text:string,allowFault=false){return this.emit('prompt.submit',{text},allowFault);}
+ async prompt(text:string,allowFault=false){
+  if(typeof text!=='string')return this.emit('prompt.submit',{text},allowFault);
+  const trimmed=text.trim(),name=trimmed.split(/\s+/,1)[0];
+  if(this.module?.commands?.some((command:any)=>command.name===name&&command.execution==='immediate'))
+   return this.emit('command.invoke',{plugin:this.name,name,text:trimmed,args:trimmed.slice(name.length).trimStart()},allowFault);
+  return this.emit('prompt.submit',{text},allowFault);
+ }
  async start(){await this.emit('session.start',{sessionId:'behavior',cwd:this.cwd,plugins:[]});}
  text(){return JSON.stringify({views:this.views,notices:this.notices,appearances:this.appearances});}
  file(name:string){return join(this.storage.paths.state,name);}

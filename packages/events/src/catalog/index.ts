@@ -22,6 +22,8 @@ export const catalog: readonly EventDef[] = [
   session.sessionEnd,
   session.sessionCompact,
   // prompts before tools: a turn starts with a prompt
+  prompts.commandInvoke,
+  prompts.commandOperation,
   prompts.promptSubmit,
   prompts.promptCompose,
   prompts.skillPrompt,

@@ -427,6 +427,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     const sessionApprovals = new ApprovalSession();
     sessionApprovals.restore(approvals.session.list());
     const coreOptions: ConstructorParameters<typeof AgentCore>[0] = {
+      userCommands:()=>[...new Map(plugins.flatMap(plugin=>(plugin.commands??[]).filter(command=>command.execution==='immediate').map(command=>[command.name,{name:command.name,plugin:plugin.manifest.name}] as const))).values()],
       cwd: options.cwd,
       homeDir:env.HOME??env.USERPROFILE,
       workspacePaths:[...(options.workspacePaths??[]),...(config.config.workspacePaths??[])],
@@ -611,6 +612,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       ...new Map<string,AppCommand>([
         ...plugins
           .flatMap(plugin=>(plugin.commands??[]).map(command=>({...command,
+            ...(command.execution?{plugin:plugin.manifest.name}:{}),
             ...(command.ui?{ui:{site:`plugin-${plugin.manifest.name}-${command.ui.site}`}}:{}),
           })))
           .map((command) => [command.name, command] as const),
@@ -618,6 +620,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           "/reload",
           { name: "/reload", description: "Reload disk plugins" },
         ] as const,
+        ['/chat',{name:'/chat',description:'Return to the main conversation'}] as const,
         [
           "/extensions",
           {

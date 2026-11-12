@@ -54,6 +54,8 @@ type MouseInput = Extract<
 >;
 export interface AppCommand {
   name:string;description:string;usage?:string;
+  execution?:'immediate';
+  plugin?:string;
   /** Fully qualified surface owned by the declaring, loaded plugin. */
   ui?:{site:string};
 }
@@ -313,6 +315,15 @@ export class AppUI {
       this.applyPendingReload();return true;
     }
     if(command==='/placement'){this.openPanel();return true;}
+    if(command==='/chat'){
+      if(text.trim()!==command){this.transcript.push({kind:'notice',text:'Usage: /chat'});this.draw();return true;}
+      this.openConversation();return true;
+    }
+    const registered=this.commandList().find(entry=>entry.name===command);
+    if(registered?.execution==='immediate'){
+      if(registered.plugin)for(const [id,owner]of this.closedPluginWindows)if(owner===registered.plugin)this.closedPluginWindows.delete(id);
+      this.track(this.core.invokeCommand(text).then(()=>{}));return true;
+    }
     if(['/settings','/models','/providers'].includes(command)){this.openManagement('plugin-model-selector-models','settings');return true;}
     const owner=command==='/plugins'||command==='/extensions'?'extension-manager-extensions':command==='/marketplace'?'marketplace-manager-marketplaces':undefined;
     if(!owner){
@@ -332,6 +343,21 @@ export class AppUI {
       this.windows.focused=site;
       this.draw();
     }));
+  }
+  private openConversation():void {
+    let id=[...this.panes].find(([id,pane])=>pane.kind==='session'&&this.windows.has(id))?.[0];
+    if(!id)id=[...this.panes].find(([,pane])=>pane.kind==='session')?.[0];
+    if(!id){id=`window-${++this.serial}`;this.panes.set(id,{kind:'session',title:'Conversation'});}
+    const workspace=this.windows.workspaceOf(id);
+    if(workspace!==undefined)this.windows.switchTo(workspace);
+    if(!this.windows.has(id))this.windows.open(id);
+    this.windows.focused=id;this.selectMainConversation();this.draw();
+  }
+  private selectMainConversation():void {
+    this.activeAgentPane=undefined;
+    // Conversation copies have distinct window IDs, but share the main input
+    // destination. Reset routing even if this window was already focused.
+    this.track(this.core.host.emit('ui.focus',{site:'session'}).then(()=>{}));
   }
   private dismissPluginWindow(site:string):boolean {
     const owner=this.pluginWindows.get(site)?.plugin;
@@ -694,8 +720,8 @@ export class AppUI {
       }
       if (name === "prompt.queued")
         this.status = `Working · ${input.depth} queued`;
-      if(name==='tool.operation'&&input.phase==='completed'){
-        const block=this.transcript.find(b=>b.kind==='tool'&&b.callId===input.callId&&b.state==='running');
+      if(['tool.operation','command.operation'].includes(name)&&input.phase==='completed'){
+        const block=name==='tool.operation'?this.transcript.find(b=>b.kind==='tool'&&b.callId===input.callId&&b.state==='running'):undefined;
         if(block){block.state=input.ok?'done':'error';block.text=String(input.error??'completed');}
         // Completion is broadcast just before the core removes its operation.
         // A normal draw must not cancel this final settlement refresh.
@@ -1083,6 +1109,7 @@ export class AppUI {
           kind,
         });
         this.windows.open(id);
+        if(kind==='session')this.selectMainConversation();
       }
       this.draw();
       return;
@@ -1717,9 +1744,10 @@ export class AppUI {
     }));
     if (!/^\/[^\s]*$/.test(this.draft)) return [];
     return [
-      ...this.commandList().filter((command) => command.name !== "/plugins"),
+      ...this.commandList().filter((command) => !['/plugins','/chat'].includes(command.name)),
       { name: "/plugins", description: "Install, enable and update plugins" },
       { name: "/placement", description: "Arrange plugin windows" },
+      { name: "/chat", description: "Return to the main conversation" },
     ].filter((command) => command.name.startsWith(this.draft));
   }
   private visibleCompletions() {
@@ -2179,6 +2207,7 @@ export class AppUI {
       :this.drag?this.dragHint()
       :(this.windows.focused==='input'?this.editor?.lastView?.hint:undefined)??pane?.view?.hint??(pane?.view?.input?'Type search · ↑↓ select · Enter resume · Esc close'
       :pane?.kind==='plugin'?narrow?'↑↓ actions · Enter · PgDn scroll · Esc leave':'↑↓ actions · Enter activate · PgUp/PgDn scroll · Esc leave'
+      :!frames.some(frame=>this.panes.get(frame.surface)?.kind==='session')?'Alt+Enter or /chat: restore conversation'
       :this.status.startsWith('Working')?'Ctrl+C stop · Tab steer · Enter queue'
       :narrow?'/ commands · Ctrl+J newline':'/ commands · Ctrl+J newline · Alt+t tools · Alt+? shortcuts');
     this.statusNavigationRows=tabs.length>barWidth?2:1;
@@ -2227,7 +2256,7 @@ Alt+h/j/k/l or Alt+arrows: directional focus
 Alt+Shift+direction: move window
 Alt+b: next split side by side
 Alt+v: next split top/bottom
-Alt+Enter / Alt+s: open conversation view
+Alt+Enter / Alt+s: open conversation view; /chat: return or restore
 Alt+t: open tools view
 Alt+q: close focused window
 Alt+f: toggle fullscreen

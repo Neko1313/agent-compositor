@@ -150,6 +150,12 @@ session; creating a view does not spawn another agent. Scroll positions
 belong to individual windows. The application persists supported layout state
 and independent-agent metadata in project-scoped private storage for restart.
 
+`/chat` returns to an existing main conversation window on its workspace or
+restores it after closing. Repeated calls do not create duplicates. Alt+Enter
+or Alt+s can also open a conversation view without submitting the message draft.
+Closing a conversation window leaves the running model, transcript and draft
+intact; when no conversation is visible, the footer shows the recovery shortcut.
+
 Closing a plugin pane with its titlebar `[x]`, Alt+Q or its Close action sends
 `ui.press` with `key: "close"` to that surface. If it was the plugin's last
 attached pane, the host also cancels that plugin's independent user tool
@@ -241,8 +247,10 @@ Declare commands in `plugin.json` to make your plugin discoverable:
 }
 ```
 
-The declaration supplies UI metadata; the plugin still handles execution
-in its `prompt.submit` hook.
+By default the declaration supplies discovery metadata and the plugin handles
+execution in `prompt.submit`. An explicit `execution: "immediate"` instead
+dispatches `command.invoke` without a model turn or implied panel. See the
+[command contract](../../docs/plugin-standard.md#immediate-user-commands).
 
 ## Placement rules for plugin windows
 
@@ -335,8 +343,10 @@ prompts to finish. Reload errors are reported; retry after resolving them.
 Closing the app discards unapplied deferred file operations. Saved installation
 and activation choices survive restart. Ordinary model prompts still queue;
 plugin slash commands with an explicit UI route open immediately. Git review,
-Usage, Todos, MCP, Workflows and Proxy provide these routes. Other commands
-retain their normal prompt/queue behavior.
+Usage, Todos, MCP, Workflows and Proxy provide these routes. Explicit immediate
+commands such as `/auto on|off|status` also run while the agent works, without
+opening a pane; `/auto history` requests the optional audit view. Unmarked
+commands retain their normal prompt/queue behavior.
 
 Actions in an already-open plugin panel can call guarded tools while the agent
 works. These operations keep normal tool permissions and separate cancellation;

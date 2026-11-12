@@ -31,6 +31,35 @@ explicit selection and must preserve policy, privacy, journal and budget behavio
 `dispose()` stops subprocesses, connections, timers and listeners; reload restores
 required state without depending on the previous module instance.
 
+## Immediate user commands
+
+Declare `"execution":"immediate"` on a command to handle an explicit user
+control independently of model turns. The host dispatches `command.invoke`
+with `{plugin,name,text,args}` to its loaded owner. For example:
+
+```json
+{"name":"/control","description":"Change session controls","execution":"immediate"}
+```
+
+Handle `command.invoke` in the plugin; validate `args` before taking action.
+The loader rejects immediate declarations without that handler.
+Arguments are literal text, not shell input. A notification is enough for a
+short control; a handler may explicitly publish a view for richer interaction.
+No UI component, prompt hook, model request or conversation entry is implied.
+This works in the TUI and through `AgentCore.submit`/`steer`, including while
+the model runs or user prompts are queued. Agent-origin follow-ups do not use
+this user-control path. Unmarked commands retain their existing prompt behavior.
+
+The core tracks at most four simultaneous commands separately from user tools,
+with five-minute deadlines, owner-scoped cancellation and shutdown cleanup.
+Hook deadlines still apply. Tools use ordinary permissions and independent
+user operations; auxiliary model usage consumes session/command budgets rather
+than the active model turn's allowance. `command.operation` reports start and
+settlement. `AgentCore.invokeCommand(text)` returns false for an unregistered
+control; failures of registered controls are errors, never fallback prompts.
+Embedders supply loaded `{name,plugin}` registrations through `userCommands`.
+These additive contracts require catalog 0.25 or later.
+
 ## Commands that open UI
 
 An optional command route, `"ui":{"site":"main"}`, sends a TUI command directly
@@ -43,7 +72,7 @@ use lowercase letters, digits and hyphens, begin with a letter and have at most
 Handle that event in `ui.press`, validate arguments, and render progress/errors.
 The TUI runs these explicit UI commands during an agent turn, without entering
 prompt hooks, model context or the prompt queue. Successful opens focus the
-declared surface on its workspace. Commands without this declaration retain
+declared surface on its workspace. Commands without either immediate execution or this route retain
 normal queued prompt behavior. Keep a `prompt.submit` handler for the line-based
 interface and older hosts. Do not opt conversation-changing/model-prompt commands
 into this route. Tool calls from the handler still use `$.agent.tool` and its
@@ -53,6 +82,9 @@ Only loaded plugins contribute command routes; activation/reload controls when
 they appear. The route does not grant execution or activate a plugin. See
 [authoring contracts](../plugins/plugin-author/skills/create-plugin/references/contracts.md)
 for an example.
+
+Do not combine `execution` and `ui` on one declaration. An immediate handler can
+open its own view; the `ui` field preserves the older surface-specific route.
 
 ## Activation and scope
 

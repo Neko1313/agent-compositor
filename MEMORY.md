@@ -1,5 +1,71 @@
 # Project memory
 
+## Immediate controls and conversation recovery implemented in source — 2026-11-13
+
+Added additive catalog 0.25 command.invoke/command.operation and optional
+manifest execution:"immediate". Loader rejects missing handlers or ambiguous
+execution+ui routes. buildApp qualifies the loaded owner; only that plugin handles
+the command. Core submit/steer/invokeCommand route explicit user controls outside
+the model queue and conversation. Agent-origin prompts cannot borrow this path.
+Commands have independent lifetimes, four-operation bounds, five-minute deadlines,
+owner cancellation, unload/clear/close cleanup and auxiliary session usage accounting
+without consuming the active turn's allowance. Commands can call guarded user
+tools without resetting the model turn. Lifecycle settlement refreshes the UI.
+Legacy ui routes and unmarked prompt commands retain their behavior.
+
+Auto on/off/status now notify immediately without a pane, including while a main
+model is running. /auto history explicitly opens the optional audit/control view;
+closing it suppresses subsequent automatic publication. Active-model fallback
+from da34f54 remains. The risk-review decision policy itself is still the existing
+allow+low/manual policy; contextual yes/no/refusal semantics requested by the user
+need further work, not a claim that every CI confirmation is solved.
+
+/chat restores/focuses one main conversation, returns to its workspace and avoids
+duplicates. Footer/help/slash discovery expose recovery. Alt+Enter/Alt+s still
+create a conversation copy without consuming the draft. Both explicit recovery
+paths reset main-agent input routing through the canonical session focus signal,
+even when a copy has its own window ID or the selected window was already focused.
+Invalid /chat arguments report usage instead of becoming a model prompt.
+
+Final full suite: 1179 passed, three optional skips, 149 files. Typecheck,
+generated contracts/docs and docs/build pass. Eight core command tests cover owner
+dispatch, queue preservation, failure isolation, ordinary deny policy, agent-origin
+separation, auxiliary usage, unload and close/concurrency bounds. Actual source
+PTY passes 12 observations (auto/no-view/working model, draft, restoration,
+workspace return, narrow history scrolling, cancellation, restart) under
+dist/immediate-commands/pty-settled; inspected headless/narrow captures. Broader
+standard UI regression passed in standard-ready before final /chat argument
+validation; final full/packet tests cover that additional branch. Digested scope
+and final source files are retained in integrity.json. Not compiled/native proof.
+
+Calibration failures are retained: the first actor tried unsupported composer
+Ctrl+U to clear its own retained draft; the corrected actor uses Backspace.
+Narrow history needed actual bounded PageUp traversal, not a stale visibility
+predicate. Full-suite adjustments preserve /chat in command discovery and request
+optional auto history explicitly. Extra fixtures initially used a too-small main
+request budget, observed host ui.focus through the wrong subscription seam and
+read LoadIssue.error instead of reason; corrected fixtures, not weakened policy.
+
+Public independent test-reports 0.1.1 at immutable 4358ed1 completed tagged
+workflow 43253266827 SUCCESS. Public verifier dist/test-reports-public-011/report.json
+checked all five published certificates/141 evidence references/four sidecars
+and Linux public archive e99ff52c724f29acc6f77e29bede522c5342f6f0d8b3b66f08d2515b46caa3c4.
+Normal manager activation, 13 report/domain/policy/cancellation/removal checks
+pass using a verified-byte mirror, with zero model requests. Host public 0.7.4
+and its successful public upgrade remain immutable and unchanged.
+
+Next inspect automatic metadata PR9 only after it refreshes to this new feature;
+do not merge its old auto1.3.2 plan. Do not hand-bump plugin versions. Prepare the
+next host version and exact-source compiled UI/native gates before publishing
+catalog0.25-dependent auto updates: public0.7.4 lacks immediate commands. The
+broader goal remains active: contextual review semantics, convenient onboarding/
+optional embedded CPU model, complete /btw side-agent flow, expandable tables/
+agent drill-down, standalone charts, broad live-model development and trust gates.
+No paid model calls or budget changes. Documentation impact: canonical command,
+core, architecture, app and auto guides updated; general marketplace/certification
+and private UI-controller contracts do not change. The inherited default command
+guidance remains explicit about prompt versus user-control execution.
+
 ## Public 0.7.4 upgrade proved; new daily-use requirements accepted — 2026-11-13
 
 Immutable host v0.7.4 at 973012a completed tagged workflow 43249760656 SUCCESS

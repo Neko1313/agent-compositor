@@ -36,6 +36,12 @@ beforeEach(() => {
   host = attach(runtime, { session: { id: "s1", cwd: dir } });
 });
 
+it('rejects immediate command metadata without an executable owner handler',async()=>{
+  writePlugin(dir,'control',{trust:'trusted',commands:[{name:'/control',description:'Control',execution:'immediate'}]},'export default {};');
+  const report=await new PluginLoader(host,{dirs:[dir]}).loadAll();
+  expect(report.loaded).toHaveLength(0);expect(report.failed[0].reason).toContain('command.invoke handler');
+});
+
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("PluginLoader / disk discovery", () => {

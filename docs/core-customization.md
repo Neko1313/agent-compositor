@@ -71,6 +71,12 @@ Core embedders have equivalent `AgentCoreOptions.tools`, `controlTools`,
 the disk `SessionStore` are optional. `SessionJournal` is a structural interface;
 the selected streaming service may provide the model instead.
 
+`AgentCoreOptions.userCommands` supplies the currently loaded immediate user
+controls. `submit` and `steer` dispatch them outside the prompt queue;
+`invokeCommand` explicitly attempts this path and returns false if unregistered.
+Owner cancellation, auxiliary usage accounting and teardown remain independent
+of the active turn. See the [command contract](plugin-standard.md#immediate-user-commands).
+
 ## Replace execution strategies
 
 `service.shell.jobs` inspects core-owned background shell metadata, and

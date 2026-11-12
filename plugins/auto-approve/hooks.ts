@@ -48,23 +48,25 @@ async function show($: any) {
 async function mode($: any, enabled: boolean) {
     $.state.set("enabled", enabled);
     $.state.set("generation", ($.state.get("generation") ?? 0) + 1);
-    await show($);
+    if ($.state.get('historyVisible')) await show($);
     await $.ui.notify(enabled
         ? "Auto review enabled for this session"
         : "Manual approvals enabled");
 }
 export default {
-    "prompt.submit": async (e: any, $: any) => {
-        const [command, arg] = e.text.trim().split(/\s+/);
-        if (command !== "/auto")
-            return;
+    "command.invoke": async (e: any, $: any) => {
+        if (e.name !== '/auto') return;
+        const arg = e.args.trim();
         if (arg === "on" || arg === "off")
             await mode($, arg === "on");
-        else
-            await show($);
-        return { drop: "auto-approve: handled" };
+        else if (arg === 'history') { $.state.set('historyVisible', true); await show($); }
+        else if (!arg || arg === 'status') await $.ui.notify(`Mode: ${$.state.get('enabled') ? 'auto' : 'manual'} · ${($.state.get('history') ?? []).length} reviews. /auto on|off|history`);
+        else await $.ui.notify('Usage: /auto on|off|status|history', 'warn');
     },
     "ui.press": async (e: any, $: any) => {
+        if (e.site === 'plugin-auto-approve-approvals' && e.key === 'close') {
+            $.state.set('historyVisible', false); await $.ui.remove('approvals'); return;
+        }
         if (e.site === "plugin-auto-approve-approvals" &&
             ["on", "off"].includes(e.key))
             await mode($, e.key === "on");
@@ -177,7 +179,7 @@ export default {
             Object.assign(history[history.length - 1], verdict);
             $.state.set("history", history);
         }
-        await show($);
+        if ($.state.get('historyVisible')) await show($);
         if (verdict.decision === "allow" && (!$.state.get("enabled") || generation !== $.state.get("generation") || $.signal.aborted)) {
             verdict = { decision: "ask", risk: "unknown", reason: "Auto review disabled or cancelled" };
             Object.assign(history[history.length - 1], verdict);
@@ -185,7 +187,7 @@ export default {
             try {
                 await $.fs.write(`.agent-compositor/approval-audit-${$.session.id}.json`, JSON.stringify(history, null, 2));
             } catch { /* Cancellation can never produce an automatic grant. */ }
-            await show($);
+            if ($.state.get('historyVisible')) await show($);
         }
         return { value: verdict };
     },

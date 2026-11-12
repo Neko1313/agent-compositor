@@ -5,7 +5,7 @@ import {mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const name=process.argv[2],output=resolve(process.env.VISUAL_OUTPUT??'dist/plugin-visual/'+name);await mkdir(output,{recursive:true});
 const report={plugin:name,ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
-const entries={'test-reports':['/test-report','Test reports'],'ci-review':['/ci','CI review'],'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto status','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
+const entries={'test-reports':['/test-report','Test reports'],'ci-review':['/ci','CI review'],'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto history','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
 assert.ok(entries[name],'Unknown UI profile');
 try{
  const{NO_COLOR,...env}=process.env;
@@ -176,7 +176,24 @@ try{
   await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');await command('Continue after checks');await wait('CHECK_AGENT_DONE');
   report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit','user-command.concurrent-open','user-tool.concurrent','user-tool.cancel-isolated','user-tool.process-cleanup','user-tool.close-cleanup');
  }else if(name==='auto-approve'){
-  await wait('Mode: manual');await command('/auto on');await wait('Mode: auto');await clickText('Disable auto');await wait('Mode: manual');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
+  await wait('Mode: manual');await closePane('Auto approvals');await page.waitForFunction(()=>!visual.text().includes('Auto approvals'));
+  await command('/auto on');await wait('Auto review enabled for this session');assert.ok(!(await text()).includes('Auto approvals'));
+  await command('Keep working while I change controls');await wait('CONTROL_AGENT_WORKING');
+  const stillWorking=async()=>assert.ok((await text()).split('\n').slice(-2).some(line=>line.includes('Working')),'Immediate controls must leave the main model running');
+  await command('/auto off');await wait('Manual approvals enabled');await stillWorking();await command('/auto status');await wait('Mode: manual');await page.waitForFunction(()=>!visual.text().split('\n').slice(-2).some(line=>line.includes('UI tools')));assert.ok(!(await text()).includes('Auto approvals'));
+  await shot('01-controls-headless',{includes:['CONTROL_AGENT_WORKING','Manual approvals enabled'],excludes:['Auto approvals']});
+  await page.keyboard.press('Alt+i');await page.keyboard.type('CONTROL_DRAFT_UNSENT');await wait('› CONTROL_DRAFT_UNSENT');
+  await closePane('Conversation');await page.waitForFunction(()=>!visual.text().includes('CONTROL_AGENT_WORKING'));await wait('› CONTROL_DRAFT_UNSENT');await stillWorking();
+  await page.keyboard.press('Alt+Enter');await wait('CONTROL_AGENT_WORKING');await wait('› CONTROL_DRAFT_UNSENT');await stillWorking();
+  await shot('01-conversation-shortcut-restored',{includes:['CONTROL_AGENT_WORKING','CONTROL_DRAFT_UNSENT']});
+  await page.keyboard.press('Alt+i');for(const _ of 'CONTROL_DRAFT_UNSENT')await page.keyboard.press('Backspace');await wait('Describe your task');await closePane('Conversation');await page.waitForFunction(()=>!visual.text().includes('CONTROL_AGENT_WORKING'));
+  await command('/chat');await wait('CONTROL_AGENT_WORKING');await stillWorking();await command('/chat');await stillWorking();
+  assert.equal((await text()).split('\n').filter(line=>line.includes('Conversation')).length,1,'Repeated /chat focuses one conversation');
+  await page.keyboard.press('Alt+2');await page.waitForFunction(()=>!visual.text().includes('CONTROL_AGENT_WORKING'));await command('/chat');await wait('CONTROL_AGENT_WORKING');await stillWorking();
+  await page.evaluate(()=>visual.terminal.resize(60,24));await command('/auto status');await wait('Mode: manual');await command('/chat');for(let i=0;i<8&&!(await text()).includes('CONTROL_AGENT_WORKING');i++){const before=await text();await page.keyboard.press('PageUp');await page.waitForFunction(before=>visual.text()!==before,before);}await wait('CONTROL_AGENT_WORKING');await stillWorking();await shot('01-conversation-narrow-restored',{includes:['CONTROL_AGENT_WORKING']});
+  await page.evaluate(()=>visual.terminal.resize(100,30));await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');await command('Continue after controls');await wait('CONTROL_AGENT_DONE');
+  await command('/auto history');await wait('Auto approvals');await command('/auto on');await wait('Mode: auto');await clickText('Disable auto');await wait('Mode: manual');
+  report.checks.push('command.immediate','command.no-view','conversation.restore','conversation.idempotent','draft.preserved','ui.keyboard','ui.pointer','ui.focus','ui.submit');
  }else if(name==='mcp'){
   await clickText('Refresh tools');await wait('Approval required');await page.keyboard.press('Alt+i');await page.keyboard.press('y');await wait('no MCP config');await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));await clickPane('MCP');await page.keyboard.press('Alt+f');await wait('Last operation');await page.keyboard.press('Alt+f');report.checks.push('ui.keyboard','ui.pointer','ui.focus','ui.submit');
  }else if(name==='workflows'){

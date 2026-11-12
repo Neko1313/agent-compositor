@@ -1,6 +1,19 @@
 import { z } from "zod";
 import { defineEvent } from "../define.js";
 
+export const commandInvoke = defineEvent({
+  name: 'command.invoke', since: '0.25.0', version: 1,
+  summary: 'An explicitly registered immediate user command. Only its owning plugin handles it; no model prompt or view is implied.',
+  input: z.object({plugin:z.string().min(1),name:z.string().min(1),text:z.string(),args:z.string()}),
+  responses: [], frozen: true,
+});
+export const commandOperation = defineEvent({
+  name:'command.operation',since:'0.25.0',version:1,
+  summary:'An independently owned user command starts or settles, outside the model turn.',
+  input:z.object({operationId:z.string(),name:z.string(),plugin:z.string(),phase:z.enum(['started','completed']),ok:z.boolean().optional(),error:z.string().optional()}),
+  responses:[],frozen:true,
+});
+
 export const promptSubmit = defineEvent({
   name: "prompt.submit",
   since: "0.1.0",

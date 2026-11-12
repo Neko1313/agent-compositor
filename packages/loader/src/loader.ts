@@ -466,6 +466,8 @@ export class PluginLoader {
       ? await importTools(toolsPath, lastToolsModule)
       : { tools: [], module: undefined };
     const hookCount = Object.keys(hooks).length;
+    if(manifest.commands?.some(command=>command.execution==='immediate')&&!Object.entries(hooks).some(([name,handler])=>name==='command.invoke'&&typeof handler==='function'))
+      throw new Error('Immediate commands require a command.invoke handler');
     const controllers=module?.controllers as import("@agent-compositor/hooks").UiControllers|undefined;
     const sessionRepository=module?.sessionRepository as import("@agent-compositor/session").SessionRepositoryFactory|undefined;
     if(sessionRepository!==undefined && (manifest.trust!=="trusted" || typeof sessionRepository!=="function"))

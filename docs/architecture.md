@@ -55,6 +55,13 @@ history and foreground cancellation intact. Plugin file changes requested while
 busy are staged until explicit application at idle; plugin reload remains a
 composition boundary.
 
+Immediate manifest commands use the separate `command.invoke` path in both the
+TUI and headless core. Only the loaded owner handles an explicit user command;
+it can notify, call guarded tools or open a view. Command operations have their
+own lifetime, cancellation and auxiliary usage accounting. Their start/settlement
+events do not rewrite the running model's task or insert a queued prompt. See
+the [command contract](plugin-standard.md#immediate-user-commands).
+
 The `$` API exposes host services through these contracts. Private controller
 requests carry editor and dialog state only to the selected implementation.
 They are not broadcast as ordinary event payloads.

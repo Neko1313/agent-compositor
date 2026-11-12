@@ -31,6 +31,17 @@ it('uses the actual plugin tool, keeps the current model and queued prompt intac
  expect(f.rendered.get('plugin-git-review-main')).toContain('review-evidence.txt');expect(f.ui.core.getMessages()).toEqual(before);expect(f.ui.core.getState()).toBe('running');expect(f.provider.requests).toHaveLength(1);
  f.provider.release();await f.ui.settled();expect(f.provider.requests).toHaveLength(2);expect(JSON.stringify(f.provider.requests[1].messages)).not.toContain('git_review');expect(f.ui.core.failure).toBeUndefined();
 });
+it('restores the closed main conversation through /chat without duplicating or prompting the model',async()=>{
+ const f=await fixture(false);f.send('Original task');await wait(()=>f.provider.requests.length===1);
+ const before=structuredClone(f.ui.core.getMessages());f.ui.windows.focused='session';f.key('q',['meta']);expect(f.ui.windows.has('session')).toBe(false);
+ f.send('/chat');await wait(()=>f.ui.windows.has('session'));expect(f.rendered.get('session')).toContain('MODEL_CONTINUES');
+ const focus:string[]=[];f.ui.core.host.registerPlugin({name:'focus-observer',version:'1.0.0',trust:'trusted'},{'ui.focus':event=>{focus.push(String(event.site));}});
+ const ids=f.ui.windows.ids();f.send('/chat');await wait(()=>focus.includes('session'));expect(f.ui.windows.ids()).toEqual(ids);f.ui.core.host.unregisterPlugin('focus-observer');
+ f.key('2',['meta']);expect(f.ui.windows.workspace).toBe(2);f.send('/chat');await wait(()=>f.ui.windows.workspace===1);
+ f.send('/chat unexpected');await wait(()=>f.rendered.get('session')?.includes('Usage: /chat')===true);
+ expect(f.ui.core.getMessages()).toEqual(before);expect(f.provider.requests).toHaveLength(1);expect(f.ui.core.getState()).toBe('running');
+ f.provider.release();await f.ui.settled();
+});
 it('opens and reopens a declared plugin panel immediately without entering the active model or its prompt queue',async()=>{
  const f=await fixture(false);f.send('Original task');await wait(()=>f.provider.requests.length===1);f.send('Next task');
  const before=structuredClone(f.ui.core.getMessages());

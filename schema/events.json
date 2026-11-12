@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -970,6 +970,86 @@
           }
         }
       }
+    },
+    "command.invoke": {
+      "since": "0.25.0",
+      "version": 1,
+      "summary": "An explicitly registered immediate user command. Only its owning plugin handles it; no model prompt or view is implied.",
+      "namespace": "command",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "plugin": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string"
+          },
+          "args": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plugin",
+          "name",
+          "text",
+          "args"
+        ]
+      },
+      "responses": {}
+    },
+    "command.operation": {
+      "since": "0.25.0",
+      "version": 1,
+      "summary": "An independently owned user command starts or settles, outside the model turn.",
+      "namespace": "command",
+      "generator": false,
+      "aliases": [],
+      "frozen": true,
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plugin": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "started",
+              "completed"
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "name",
+          "plugin",
+          "phase"
+        ]
+      },
+      "responses": {}
     },
     "prompt.submit": {
       "since": "0.1.0",

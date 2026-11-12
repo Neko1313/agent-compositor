@@ -26,9 +26,11 @@ export const diskManifestSchema = manifestSchema.extend({
         name: z.string().regex(/^\/[a-z][a-z0-9-]*(?::[a-z0-9][a-z0-9_-]*)?$/),
         description: z.string(),
         usage: z.string().optional(),
+        /** User controls dispatched through command.invoke, independently of model turns. */
+        execution: z.literal('immediate').optional(),
         /** Explicit user-interface route; omitted commands remain model prompts. */
         ui: z.object({site:z.string().regex(/^[a-z][a-z0-9-]{0,63}$/)}).strict().optional(),
-      })
+      }).refine(command=>!(command.execution&&command.ui), 'Choose command.invoke execution or the legacy UI route')
     )
     .optional(),
   /** entry file relative to the plugin root */

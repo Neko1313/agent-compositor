@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.24.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.25.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -24,6 +24,8 @@
 | `session.reload` | 0.1.0 | 1 | Plugin set changed. In-memory plugin state is recreated; reload is a state-recovery point. | `next` | — |
 | `session.end` | 0.1.0 | 1 | Session ends, or /clear, /resume, /branch runs. | `next` | `classic.SessionEnd` |
 | `session.compact` | 0.1.0 | 1 | The conversation is about to be compacted. | `next`, `skip` | — |
+| `command.invoke` | 0.25.0 | 1 | An explicitly registered immediate user command. Only its owning plugin handles it; no model prompt or view is implied. | — | — |
+| `command.operation` | 0.25.0 | 1 | An independently owned user command starts or settles, outside the model turn. | — | — |
 | `prompt.submit` | 0.1.0 | 1 | A prompt is submitted. Rewrite text/context via next(), or drop it. | `next`, `text`, `drop` | — |
 | `prompt.compose` | 0.1.0 | 1 | The system prompt is being assembled. Respond with ordered sections. | `sections` | — |
 | `skill.prompt` | 0.1.0 | 1 | A skill's text is expanded for the model. | `next`, `text` | — |
@@ -113,6 +115,7 @@
 - **workspace**: `workspace.changed`
 - **shell**: `shell.completed`
 - **session**: `session.start`, `session.reload`, `session.end`, `session.compact`
+- **command**: `command.invoke`, `command.operation`
 - **prompt**: `prompt.submit`, `prompt.compose`, `prompt.steer`, `prompt.queued`
 - **skill**: `skill.prompt`
 - **tool**: `tool.call`, `tool.operation`, `tool.check`, `tool.describe`, `tool.result`

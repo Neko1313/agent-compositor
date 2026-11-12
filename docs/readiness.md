@@ -68,6 +68,16 @@ them. Prioritize approval behavior and conversation recovery, then the common
 command/view contracts and onboarding. Deterministic checks do not substitute
 for independent review of the complete real terminal flows.
 
+Current source implements catalog 0.25 immediate commands independently of views,
+headless `/auto on|off|status`, an explicitly requested `/auto history` view and
+idempotent `/chat` restoration. Actual PTY checks cover a held model, unchanged
+draft, repeated restoration, workspace return, narrow history scrolling and
+restart. Core checks cover owner dispatch, failure isolation, tool permissions,
+auxiliary usage, cancellation, unload and shutdown bounds. This is source-runtime
+evidence; the immutable public 0.7.4 archive does not include these new contracts.
+Embedded onboarding, richer tables/drill-down, a complete `/btw` side conversation
+and standalone resource charts remain implementation work.
+
 ## Acceptance gates
 
 | Gate | Required evidence | Current assessment |
@@ -133,8 +143,11 @@ diagnostic line and returning to the path in a 60×24 split. The host keeps late
 publications hidden until an explicit plugin command/action. Opt-in host paging
 is an additive catalog0.24 field; legacy input routing stays unchanged.
 These checks do not establish autonomous plugin authoring. The required host repairs ship in [0.7.4](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.4).
-The report-plugin candidate at 4358ed1 passed source and all four native archive
-certifications; its independent tagged publication is still pending.
+The [independent report-plugin 0.1.1 release](https://github.com/Neko1313/agent-compositor/releases/tag/plugin/test-reports/v0.1.1)
+at 4358ed1 passed source and all four native archive certifications and tagged
+publication. Five public certificates, 141 evidence references and the public
+Linux archive passed independent checks, including 13 actual report/package
+behavior cases without a model request.
 A fresh live Compositor authoring attempt used a minimal task-specific profile
 with ordinary read/write/check tools and no reference implementation in its
 workspace. Three admitted requests only read repository context; the fourth

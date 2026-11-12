@@ -51,6 +51,7 @@ import type {
 } from "./provider.js";
 
 interface UserToolOperation {
+  command?:boolean;
   id:string;callId:string;tool:string;owner?:string;controller:AbortController;signal:AbortSignal;
   tools:ToolSpec[];messages:ChatMessage[];records:Array<{name:string;args:unknown;ok:boolean;output?:unknown}>;
   tokens:number;usage:{inputTokens:number;outputTokens:number};promise:Promise<unknown>;
@@ -65,6 +66,8 @@ export interface CorePlugin {
 }
 
 export interface AgentCoreOptions {
+  /** Explicit controls from the currently loaded plugin manifests. */
+  userCommands?:()=>readonly {name:string;plugin:string}[];
   homeDir?:string;
   workspacePaths?:string[];
   uiControllers?:ConstructorParameters<typeof HooksHost>[1]["uiControllers"];
@@ -204,10 +207,12 @@ export class AgentCore {
   private invokingTool = false;
   private readonly userOperation=new AsyncLocalStorage<UserToolOperation>();
   private readonly userOperations=new Map<string,UserToolOperation>();
+  private readonly commandOperations=new Map<string,UserToolOperation>();
+  private activeOperations(){return [...this.userOperations.values(),...this.commandOperations.values()];}
   private readonly journalSignal=new AbortController().signal;
-  get hasActiveOperations():boolean{return this.userOperations.size>0;}
-  getOperations(){return [...this.userOperations.values()].map(op=>({id:op.id,tool:op.tool,owner:op.owner,tokens:op.tokens}));}
-  cancelOperations(owner?:string):boolean{let cancelled=false;for(const op of this.userOperations.values())if(owner===undefined||op.owner===owner){op.controller.abort(Error('User tool operation cancelled'));cancelled=true;}return cancelled;}
+  get hasActiveOperations():boolean{return this.userOperations.size>0||this.commandOperations.size>0;}
+  getOperations(){return this.activeOperations().map(op=>({id:op.id,tool:op.tool,owner:op.owner,tokens:op.tokens}));}
+  cancelOperations(owner?:string):boolean{let cancelled=false;for(const op of this.activeOperations())if(owner===undefined||op.owner===owner){op.controller.abort(Error('User operation cancelled'));cancelled=true;}return cancelled;}
   private get executionMessages(){return this.userOperation.getStore()?.messages??this.messages;}
   private get executionRecords(){return this.userOperation.getStore()?.records??this.turnToolRecords;}
   private get executionTools(){return this.userOperation.getStore()?.tools??this.toolSpecs;}
@@ -721,6 +726,8 @@ export class AgentCore {
 
   /** UI calls share policy and session costs but never reset an active turn. */
   async invokeUserTool(name:string,args:unknown,options:{owner?:string;signal?:AbortSignal}={}):Promise<{ok:boolean;output?:unknown;error?:string}>{
+    const command=this.userOperation.getStore();
+    if(command?.command)return this.userOperation.exit(()=>this.invokeUserTool(name,args,{owner:options.owner??command.owner,signal:AbortSignal.any([command.signal,...(options.signal?[options.signal]:[])])}));
     if(this.userOperation.getStore())return{ok:false,error:'Nested user tool operations are not supported'};
     if(this.state!=='running'&&!this.hasActiveOperations)return this.invokeTool(name,args,options.signal);
     if(this.closed||this.journalFailure)return{ok:false,error:this.journalFailure?.message??'Session is closed'};
@@ -906,12 +913,40 @@ export class AgentCore {
     return this.started;
   }
 
-  /** Renderer entry: send a prompt. If busy, it queues (codex Enter). */
+  private immediateCommand(text:string){
+    const name=text.trim().split(/\s+/,1)[0];
+    return this.options.userCommands?.().find(command=>command.name===name&&this.host.hasPlugin(command.plugin));
+  }
+  /** Explicit user control: no prompt queue, transcript mutation or implied pane. */
+  async invokeCommand(text:string):Promise<boolean>{
+    if(this.closed)throw Error('Session is closed');
+    const command=this.immediateCommand(text);if(!command)return false;
+    if(this.userOperation.getStore())throw Error('Nested immediate commands are not supported');
+    if(text.length>64000)throw Error('Command input exceeds 64000 characters');
+    if(this.commandOperations.size>=4)throw Error('Four immediate commands are already active');
+    const controller=new AbortController(),signal=controller.signal;
+    const op:UserToolOperation={command:true,id:randomUUID(),callId:randomUUID(),tool:command.name,owner:command.plugin,controller,signal,tools:[],messages:[],records:[],tokens:0,usage:{inputTokens:0,outputTokens:0},promise:Promise.resolve()};
+    this.commandOperations.set(op.id,op);
+    const timer=setTimeout(()=>controller.abort(Error('Immediate command timed out after five minutes')),300000);timer.unref();
+    const work=Promise.resolve().then(()=>this.userOperation.run(op,async()=>{
+      signal.throwIfAborted();
+      await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'started'});
+      const trimmed=text.trim(),args=trimmed.slice(command.name.length).trimStart();
+      const result=await this.host.emit('command.invoke',{plugin:command.plugin,name:command.name,text:trimmed,args},signal);
+      signal.throwIfAborted();
+      if(result.faults.length)throw Error('Command failed: '+JSON.stringify(result.faults));
+    })).then(async()=>{await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'completed',ok:true});},async error=>{
+      await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'completed',ok:false,error:String(error)});throw error;
+    }).finally(()=>{clearTimeout(timer);this.commandOperations.delete(op.id);});
+    op.promise=work;await work;return true;
+  }
+  /** Renderer entry: immediate user controls dispatch; ordinary busy prompts queue. */
   async submit(text: string,source:"user"|"agent"="user"): Promise<void> {
     const cancellation=this.promptCancellation;
     if(this.resettingBackground)await this.resetBackground;
     if(this.closed)throw Error('Session is closed');
     if(cancellation!==this.promptCancellation)return;
+    if(source==='user'&&this.immediateCommand(text)){await this.invokeCommand(text);return;}
     // Terminal hooks and journal writes still belong to the previous turn.
     // Let its cleanup settle before a resume can replace shared turn context.
     if(this.activeTurn&&this.state!=="running"){
@@ -934,6 +969,7 @@ export class AgentCore {
 
   /** Renderer entry: steer the running turn (codex Tab). Idles fall back to submit. */
   async steer(text: string): Promise<void> {
+    if(this.immediateCommand(text)){await this.invokeCommand(text);return;}
     if (this.state !== "running") {
       await this.submit(text);
       return;
@@ -1321,7 +1357,7 @@ export class AgentCore {
     this.promptQueue=[];clearTimeout(this.queueTimer);this.queueTimer=undefined;
     this.resettingBackground=true;
     this.cancelOperations();
-    this.resetBackground=Promise.allSettled([...this.userOperations.values()].map(op=>op.promise)).then(()=>this.host.emit('session.end',{reason:'clear'})).then(async()=>{
+    this.resetBackground=Promise.allSettled(this.activeOperations().map(op=>op.promise)).then(()=>this.host.emit('session.end',{reason:'clear'})).then(async()=>{
       if(!this.closed)await this.host.emit('session.start',{sessionId:this.sessionId,cwd:this.options.cwd,plugins:(this.options.plugins??[]).map(p=>({name:p.manifest.name,version:p.manifest.version,tier:p.tier??'user'}))});
     }).catch(()=>{}).finally(()=>{this.resettingBackground=false;});
     this.messages = this.messages.filter((m) => m.role === "system");
@@ -1333,7 +1369,7 @@ export class AgentCore {
     if(this.closed)return;
     this.closed=true;this.interrupt();this.promptQueue=[];this.cancelOperations();clearTimeout(this.queueTimer);this.queueTimer=undefined;
     await this.resetBackground;
-    await Promise.allSettled([this.activeTurn,this.draining,...[...this.userOperations.values()].map(op=>op.promise)]);
+    await Promise.allSettled([this.activeTurn,this.draining,...this.activeOperations().map(op=>op.promise)]);
     await this.host.emit('session.end',{reason:'other'});
     await this.stopShells();
     this.host.close();
@@ -1854,7 +1890,7 @@ export class AgentCore {
     } catch(error) {
       this.journalFailure=new Error(`Session journal failed; execution stopped. Repair storage and reopen/resume the session before continuing. ${String(error)}`);
       this.abort.abort(this.journalFailure);
-      for(const op of this.userOperations.values())op.controller.abort(this.journalFailure);
+      for(const op of this.activeOperations())op.controller.abort(this.journalFailure);
       throw this.journalFailure;
     }
   }

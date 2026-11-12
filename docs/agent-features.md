@@ -14,7 +14,7 @@ shared service events and tool.call let other handlers replace them.
 | Independent agents | `/agents`, `/agents create <name>`, `/agents create-shared <name>` |
 | Message an agent | `/agents send <id> <prompt>` or click its pane and type |
 | Agent controls | `/agents stop <id>`, `/agents archive <id>`, `/agents merge <id>` |
-| Main conversation | Click Conversation or use `/agents parent` |
+| Main conversation | `/chat` restores/focuses it; Alt+Enter opens a view; `/agents parent` resets agent targeting |
 | Extensions | `/extensions list\|install\|update\|enable\|disable\|remove [name] [ref]` |
 | Login and keys | `/auth`, `/login <profile> [ENV_VAR]`, `/logout <profile>` |
 | Models | `/model`, `/model <profile-or-model>` |
@@ -38,6 +38,11 @@ See [the management flow](../packages/app/README.md#manage-plugins-while-the-age
 Enable the mode explicitly for the current session. Approvals return to manual
 after restart. Disabling it with the button also invalidates a review already in
 progress: a stale review result cannot approve an action.
+
+`/auto on|off|status` execute immediately during a model turn without a panel.
+`/auto history` explicitly opens the optional audit view. Merely completing a
+review never opens that view. The immediate command contract requires catalog
+0.25 or later. Closing the audit view leaves the enabled mode unchanged.
 
 Optionally configure a separate small-model profile in `agent-compositor.json`:
 
@@ -76,7 +81,7 @@ data as untrusted content. Explicit deny remains binding even if tool.check
 tries to override it. Decisions never become broad permissions for future
 commands.
 
-The panel shows the reason and risk. The last 100 decisions are saved in
+The optional `/auto history` view shows the reason and risk. The last 100 decisions are saved in
 `.agent-compositor/approval-audit-<session>.json`. To replace the handler, use
 `serviceProviders: {"service.permission.review":"other-reviewer"}`.
 Model review helps select approvals; execution still passes through permissions

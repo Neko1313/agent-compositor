@@ -12,8 +12,9 @@
   "commands": [
     {
       "name": "/auto",
+      "execution": "immediate",
       "description": "Configure automatic risk review",
-      "usage": "/auto on|off|status"
+      "usage": "/auto on|off|status|history"
     }
   ],
   "compositor": {

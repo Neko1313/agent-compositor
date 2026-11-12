@@ -366,6 +366,8 @@ try {
     );
   };
   await submit("/auto on");
+  await waitText('Auto review enabled for this session');
+  await submit('/auto history');
   await waitText("Mode: auto");
   await screenshot("15-auto-mode.png");
   await clickText("[ Disable auto ]");

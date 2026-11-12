@@ -437,3 +437,16 @@ A repeated successful read must enter the controlled dependency before the bench
 releases it and waits for completion. The retained `Report loaded.` label alone
 cannot acknowledge a new operation; configuring against that stale label can
 race an active read. The concurrent-read capture also rejects `Cancel read`.
+
+## Immediate controls and conversation recovery
+
+`node tools/visual/plugin-check.mjs auto-approve` opens the optional audit history
+explicitly, then closes it and runs `/auto on|off|status` while a controlled model
+stream stays active. Those short commands must not reopen a pane. It closes the
+main conversation with an unsent draft, restores it through Alt+Enter, then uses
+`/chat` to restore/focus one existing conversation and return from workspace 2.
+At 60×24 it pages through retained history to find the original held response.
+The main model must continue independently, and a later prompt must still get
+the second scripted response. The normal keyboard/mouse/restart checks follow.
+This is actual source-app PTY evidence, not an external-model quality assessment
+or proof of a compiled host archive. The fixture uses no saved profile or key.

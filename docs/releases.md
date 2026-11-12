@@ -92,7 +92,10 @@ it establishes packaged tool behavior, not live model coding quality.
 The installed-runtime suite also runs a coding-preset completion probe with no
 saved task plan. An unchecked write must retain progress and fail after bounded
 feedback; a second case must execute a real project verification command before
-successful completion. Both preserve the user draft and checker source. The probe
+successful completion. Two further cases rerun a real check: a pass followed by
+a failure must reject completion; a third successful run must resolve that failure.
+All four preserve the user draft and checker source and record the real run count.
+The probe
 uses bounded local HTTP responses, records exit/error/result evidence in
 `dist/release/coding-smoke-PLATFORM.json`, and is required on every declared native
 release platform. This deterministic policy check does not establish live model

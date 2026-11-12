@@ -38,3 +38,27 @@ it('invalidates an earlier passed check after a later edit',async()=>{
  const f=await fixture([write,{toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},{toolCalls:[{name:'write',args:{path:'result.txt',content:'regressed'}}]},{text:'The previous check passed.'},{toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},{text:'Passed.'},{text:'Passed.'}]);
  await f.core.submit('Keep the final change verified');expect(f.provider.requests).toHaveLength(7);expect(f.core.failure).toContain('Completion checks remain unsatisfied');
 });
+
+it.each([false,true])('uses the latest real execution of a check, recovered=%s',async recovered=>{
+ const run={toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]};
+ const final=[{text:'All checks passed.'},{text:'All checks passed.'},{text:'All checks passed.'}];
+ const f=await fixture([write,run,run,...(recovered?[run]:[]),...final],{instructionsPreset:'coding'},"import{existsSync,readFileSync,writeFileSync}from'node:fs';const n=existsSync('attempts')?Number(readFileSync('attempts','utf8')):0;writeFileSync('attempts',String(n+1));process.exit(n===1?1:0);");
+ await f.core.submit('Verify the final result');
+ if(recovered){expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(5);}
+ else{expect(f.core.failure).toContain('Completion checks remain unsatisfied');expect(f.provider.requests).toHaveLength(6);}
+});
+
+it('keeps each attempted check unresolved until that check succeeds again',async()=>{
+ const {successfulVerification:verified}=await import('../src/harness.js');
+ const check=(command:string,exitCode:number,cwd?:string)=>({name:'exec',ok:true,args:{command,cwd},output:{exitCode}});
+ const test=check('npm test',0),bad=check('npm test',1),lint=check('npm run lint',0);
+ expect(verified([test,bad])).toBe(false);expect(verified([bad,lint])).toBe(false);
+ expect(verified([bad,lint,test])).toBe(true);expect(verified([bad,{...test,ok:false}])).toBe(false);
+ expect(verified([check('npm test',1,'a'),check('npm test',0,'b')])).toBe(false);
+ expect(verified([{name:'project_check',ok:true,args:{action:'run',name:'test'},output:{exitCode:1}},lint])).toBe(false);
+ const start={name:'exec',ok:true,args:{command:'npm test'},output:{started:true,shellId:'job'}};
+ const done={name:'exec_output',ok:true,args:{id:'job'},output:{id:'job',done:true,exitCode:0}};
+ expect(verified([test,start,lint])).toBe(false);expect(verified([start,lint,done])).toBe(true);
+ expect(verified([start,bad,done])).toBe(false);
+ expect(verified([start,{name:'write',ok:true},done])).toBe(false);
+});

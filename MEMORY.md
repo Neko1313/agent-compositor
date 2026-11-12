@@ -1,5 +1,40 @@
 # Project memory
 
+## Verification reruns cannot hide unresolved failures — 2026-11-13
+
+The completion policy previously accepted any successful recognized check after
+the latest built-in edit, even when its next execution failed. A real Node check
+that exits0, then1 reproduces this defect. The harness now tracks the latest
+attempt per tool, exact trimmed command/check name and explicit cwd; every
+recognized attempted check must currently pass. Another passing command cannot
+hide a failure. Matching background completion can resolve only its own current
+attempt; killed jobs and stale observations cannot restore a superseded result.
+Existing opt-out, replacement policy and explicit unavailable/inapplicable
+reports remain. This is still command-name evidence, not general task correctness.
+
+New process tests prove refusal after a pass/fail sequence and recovery after a
+third successful run. Additional evidence covers distinct checks/cwd, denied
+tools, running jobs and stale observations across retries/edits. Coverage passes
+1289 tests with three optional skips in159 files. Type checking passes. The
+installed coding probe now requires four scenarios on every release platform:
+unchecked, checked, regressed and recovered. The prior f14d3ce Linux archive
+incorrectly accepts the regressed case and never performs the recovery rerun;
+the new archive rejects it and performs all three real checks before recovery.
+Evidence is under dist/latest-check and dist/first-run/latest-check-*.
+
+The prior build-only run43319353670 at f14d3ce failed during test:ci; native jobs
+and publication were skipped. The failing project-checks recovery test retained
+its synthetic100ms expiry budget while refreshing package metadata. Restore the
+real plugin timeout before refresh; expiry/cancellation assertions remain intact.
+This test-only correction does not change runtime UI behavior. Canonical core,
+agent features and release guides document the completion policy; terminal
+controls, renderer, workspace permissions and event contracts are unchanged.
+The final focused checks pass15 tests after restoring the expiry-test timeout;
+documentation generation/checks and all seven Linux installed-runtime probes pass.
+Archive/extracted host equality and report/source hashes are retained in
+dist/latest-check/integrity-ready.json. No paid model calls or public release.
+OpenTUI and broad model quality remain open.
+
 ## Discovery recovery and explicit navigation diagnostics — 2026-11-13
 
 The CPU diagnostic now accepts --composition focused|navigation, preserving the

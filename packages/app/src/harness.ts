@@ -3,20 +3,30 @@ import { atomicJson, type ProjectStorage } from '@agent-compositor/config';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ToolSpec } from '@agent-compositor/tools';
-/** A launched job is not a passed check; only a matching completed observation counts. */
+/** Each attempted check needs current passing evidence after the latest edit. */
 export function successfulVerification(tools:any[]):boolean {
     const checkName=/\b(test|typecheck|check|lint|build|verify|pytest|vitest|ci)\b/;
     let lastEdit=-1;tools.forEach((tool,index)=>{if(tool.ok&&['write','edit'].includes(tool.name))lastEdit=index;});
-    return tools.some((tool,index)=>{
-        if(index<=lastEdit||!tool.ok)return false;
-        if(tool.name==='project_check')return tool.args?.action==='run'&&checkName.test(String(tool.args?.name??''))&&tool.output?.exitCode===0;
-        if(tool.name!=='exec'||!checkName.test(String(tool.args?.command??'')))return false;
-        if(tool.output?.started!==true)return tool.output?.exitCode===0;
-        const id=tool.output?.shellId;if(typeof id!=='string')return false;
-        const later=tools.slice(index+1);
-        if(later.some(result=>result.name==='exec_kill'&&result.ok&&result.args?.id===id&&result.output?.killed===true))return false;
-        return later.some(result=>result.name==='exec_output'&&result.ok&&result.args?.id===id&&result.output?.id===id&&result.output?.done===true&&result.output?.exitCode===0);
+    const checks=new Map<string,{attempt:number;passed:boolean}>();
+    const jobs=new Map<string,{key:string;attempt:number;killed:boolean}>();
+    tools.forEach((tool,index)=>{
+        if(index<=lastEdit)return;
+        const command=tool.name==='project_check'&&tool.args?.action==='run'?tool.args?.name:tool.name==='exec'?tool.args?.command:undefined;
+        if(typeof command==='string'&&checkName.test(command)){
+            const key=JSON.stringify([tool.name,tool.args?.cwd??'',command.trim()]);
+            checks.set(key,{attempt:index,passed:tool.ok===true&&tool.output?.started!==true&&tool.output?.exitCode===0});
+            if(tool.ok&&tool.name==='exec'&&tool.output?.started===true&&typeof tool.output.shellId==='string')
+                jobs.set(tool.output.shellId,{key,attempt:index,killed:false});
+            return;
+        }
+        if(!tool.ok||!['exec_output','exec_kill'].includes(tool.name))return;
+        const job=jobs.get(tool.args?.id);if(!job)return;
+        const check=checks.get(job.key);if(check?.attempt!==job.attempt)return;
+        if(tool.name==='exec_kill'&&tool.output?.killed===true){job.killed=true;check.passed=false;}
+        if(tool.name==='exec_output'&&!job.killed&&tool.output?.id===tool.args.id&&tool.output?.done===true)
+            check.passed=tool.output.exitCode===0;
     });
+    return checks.size>0&&[...checks.values()].every(check=>check.passed);
 }
 /** A durable plan is distinct from a model's private reasoning. */
 export function harnessControls(storage: ProjectStorage, config: Record<string, any>, sessionId: () => string, core?:()=>import("@agent-compositor/core").AgentCore) {
@@ -86,7 +96,7 @@ export function harnessControls(storage: ProjectStorage, config: Record<string, 
                 // The second proposal can explicitly explain why automated checks do not apply.
                 // This is a reminder, not a claim that arbitrary test output proves correctness.
                 if (edits.length && (lastPlan || config.verifyCompletion === true || config.instructionsPreset === 'coding') && !checks && !e.text.includes('[verification unavailable]') && !e.text.includes('[checks not applicable]'))
-                    return { value: { complete: false, continue: 'Files changed but no successful verification command is recorded. Run relevant checks and inspect their output. If unavailable or inapplicable, give the concrete reason and include [verification unavailable] or [checks not applicable] in the final report. Do not claim tests passed without evidence.' } };
+                    return { value: { complete: false, continue: 'Files changed but no successful verification command is recorded for every attempted check. A failed, running or cancelled check is not cleared by an earlier success or a different check. Rerun unresolved checks and inspect their output. If unavailable or inapplicable, give the concrete reason and include [verification unavailable] or [checks not applicable] in the final report. Do not claim tests passed without evidence.' } };
                 return { value: { complete: true } };
             },
         } };

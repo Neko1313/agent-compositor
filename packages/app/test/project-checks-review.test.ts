@@ -28,6 +28,8 @@ it('clears the running operation after the initiating hook expires',async()=>{
  await f.core.host.emit('ui.press',{site:'plugin-project-checks-main',key:'run:check'});
  await expect.poll(()=>f.views.at(-1)?.view.lines.some((line:any)=>line.action==='refresh')).toBe(true);
  expect(JSON.stringify(f.views.at(-1))).toMatch(/failed|cancel|expired|timeout/i);
+ // The 100 ms budget tests expiry, not filesystem discovery speed under CI load.
+ f.core.host.unregisterPlugin('project-checks');f.core.host.registerPlugin(plugin.manifest,plugin.hooks);
  await f.core.host.emit('ui.press',{site:'plugin-project-checks-main',key:'refresh'});
  expect(JSON.stringify(f.views.at(-1))).toContain('echo PASS');
 });

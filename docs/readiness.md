@@ -144,6 +144,22 @@ protocol fixture. The maintained release smoke now requires this check on every
 declared release platform. Other platforms have not yet run this new check;
 this does not close the live-model classification gate.
 
+### Current verification evidence after reruns — 2026-11-13
+
+The coding completion policy no longer accepts an earlier successful check when
+a subsequent attempt fails. Every recognized check attempted after the latest
+built-in edit requires current passing evidence; another passing command does
+not hide a failure. Actual process tests and the installed Linux archive prove
+refusal after pass/fail and recovery after a third successful check. The native
+release probe now requires all four unchecked/checked/regressed/recovered cases.
+Coverage passes 1289 tests with three optional skips. These policy checks do not
+establish live model quality or stable 1.0 readiness.
+
+The previous f14d3ce cross-platform build run failed in its verification job on
+the project-checks expiry/recovery test, before native jobs started. The test's
+artificial 100 ms expiry limit is now restored to the normal plugin limit before
+filesystem refresh. New cross-platform evidence is still required.
+
 ### Navigation composition and discovery recovery diagnostic — 2026-11-13
 
 The local CPU evaluator can explicitly compose read/write/edit/exec with Callix

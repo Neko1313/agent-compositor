@@ -11,22 +11,24 @@ import {pathToFileURL} from 'node:url';
 export async function smokeCodingVerification(binary,output){
  const root=await realpath(await mkdtemp(join(tmpdir(),'compositor-coding-smoke-'))),cases=[],errors=[];
  try{
-  for(const mode of ['unchecked','checked']){
+  for(const mode of ['unchecked','checked','regressed','recovered']){
+   const repeated=mode==='regressed'||mode==='recovered',requestLimit=repeated?6:4;
    const cwd=join(root,mode),home=join(root,mode+'-home');await mkdir(cwd);await mkdir(home);
-   const check="import a from 'node:assert/strict';import{readFileSync,writeFileSync}from'node:fs';a.equal(readFileSync('result.txt','utf8'),'fixed');a.equal(readFileSync('user-draft.txt','utf8'),'PRESERVED');writeFileSync('verification-ran','yes');console.log('PACKED_CHECK_OK');";
+   const check="import a from 'node:assert/strict';import{readFileSync,writeFileSync,existsSync}from'node:fs';a.equal(readFileSync('result.txt','utf8'),'fixed');a.equal(readFileSync('user-draft.txt','utf8'),'PRESERVED');writeFileSync('verification-ran','yes');"+(repeated?"const n=existsSync('attempts')?Number(readFileSync('attempts','utf8')):0;writeFileSync('attempts',String(n+1));if(n===1)process.exit(1);":"")+"console.log('PACKED_CHECK_OK');";
    await writeFile(join(cwd,'verify.mjs'),check);await writeFile(join(cwd,'user-draft.txt'),'PRESERVED');
    await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness'],agent:{instructionsPreset:'coding',tools:['write','exec'],builtinTools:['write','exec'],controlTools:[],skills:false,projectContext:false,fileReferences:false},compaction:{enabled:false},permissions:{rules:[{tool:'write',path:cwd+'/**',decision:'allow'},{tool:'exec',command:'node verify.mjs',decision:'allow'}]}}));
    let requests=0,feedback=false,server;
    try{
     server=createServer(async(req,res)=>{try{
      if(req.url==='/v1/models'){res.setHeader('content-type','application/json');res.end(JSON.stringify({data:[{id:'packed-coding-probe',context_window:16384}]}));return;}
-     assert.equal(req.url,'/v1/chat/completions');assert.ok(++requests<=4,'Bounded coding model requests');let raw='';for await(const chunk of req){raw+=chunk;assert.ok(raw.length<=200000);}
+     assert.equal(req.url,'/v1/chat/completions');assert.ok(++requests<=requestLimit,'Bounded coding model requests');let raw='';for await(const chunk of req){raw+=chunk;assert.ok(raw.length<=200000);}
      const body=JSON.parse(raw);assert.equal(body.model,'packed-coding-probe');assert.ok(body.messages.some(message=>message.role==='system'&&message.content.includes('autonomous coding agent')));
      res.writeHead(200,{'content-type':'text/event-stream'});
      const frame=(delta,finish_reason='stop')=>'data: '+JSON.stringify({choices:[{delta,finish_reason}]})+'\n\n';
      const call=(name,args)=>frame({tool_calls:[{index:0,id:'coding-'+requests,type:'function',function:{name,arguments:JSON.stringify(args)}}]},'tool_calls');
-     if(requests>=3){feedback=body.messages.some(message=>message.role==='user'&&message.content.includes('no successful verification command'));assert.ok(feedback,'Coding completion must request verification without a plan');}
-     const delta=requests===1?call('write',{path:'result.txt',content:'fixed'}):mode==='checked'&&requests===3?call('exec',{command:'node verify.mjs'}):frame({content:mode==='checked'&&requests===4?'Verified PACKED_CHECK_OK.':'Everything passed without running a check.'});
+     if(requests>=(repeated?5:3)){feedback=body.messages.some(message=>message.role==='user'&&message.content.includes('no successful verification command'));assert.ok(feedback,'Coding completion must request current verification without a plan');}
+     const runCheck=mode==='checked'&&requests===3||repeated&&(requests===2||requests===3||mode==='recovered'&&requests===5);
+     const delta=requests===1?call('write',{path:'result.txt',content:'fixed'}):runCheck?call('exec',{command:'node verify.mjs'}):frame({content:'All checks passed.'});
      res.end(delta+'data: [DONE]\n\n');
     }catch(error){errors.push(String(error));res.destroy(error);}});
     await new Promise(done=>server.listen(0,'127.0.0.1',done));
@@ -38,11 +40,12 @@ export async function smokeCodingVerification(binary,output){
     let result;try{result=JSON.parse(execution.stdout);}catch{errors.push('Native coding response was not JSON');}
     const preserved=(await readFile(join(cwd,'user-draft.txt'),'utf8'))==='PRESERVED'&&(await readFile(join(cwd,'verify.mjs'),'utf8'))===check;
     const fileCorrect=await readFile(join(cwd,'result.txt'),'utf8').then(text=>text==='fixed',()=>false),checkRan=await readFile(join(cwd,'verification-ran'),'utf8').then(text=>text==='yes',()=>false);
-    const ok=requests===4&&feedback&&preserved&&fileCorrect&&execution.stderr===''&&(mode==='checked'?execution.code===0&&!result?.error&&checkRan:execution.code===1&&String(result?.error).includes('Completion checks remain unsatisfied')&&!checkRan);
-    cases.push({mode,ok,requests,feedback,preserved,fileCorrect,checkRan,execution,result});
+    const attempts=await readFile(join(cwd,'attempts'),'utf8').then(Number,()=>0),accepted=mode==='checked'||mode==='recovered';
+    const ok=requests===requestLimit&&feedback&&preserved&&fileCorrect&&execution.stderr===''&&(accepted?execution.code===0&&!result?.error&&checkRan:execution.code===1&&String(result?.error).includes('Completion checks remain unsatisfied'))&&checkRan===(mode!=='unchecked')&&attempts===(mode==='recovered'?3:mode==='regressed'?2:0);
+    cases.push({mode,ok,requests,feedback,preserved,fileCorrect,checkRan,attempts,execution,result});
    }finally{if(server){server.closeAllConnections();await new Promise(done=>server.close(()=>done()));}}
   }
-  const report={ok:errors.length===0&&cases.length===2&&cases.every(test=>test.ok),cases,errors,paidRequests:0};if(output)await writeFile(output,JSON.stringify(report,null,2)+'\n');assert.ok(report.ok,'Installed coding verification failed: '+JSON.stringify(report));return report;
+  const report={ok:errors.length===0&&cases.length===4&&cases.every(test=>test.ok),cases,errors,paidRequests:0};if(output)await writeFile(output,JSON.stringify(report,null,2)+'\n');assert.ok(report.ok,'Installed coding verification failed: '+JSON.stringify(report));return report;
  }finally{await rm(root,{recursive:true,force:true});}
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){if(!process.argv[2])throw Error('Provide an installed compositor binary');console.log(JSON.stringify(await smokeCodingVerification(process.argv[2],process.argv[3])));}

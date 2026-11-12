@@ -353,6 +353,14 @@ Starting a background shell is insufficient: a matching later `exec_output` must
 report `done: true` and exit code zero, without successful cancellation. Read the
 actual terminal result before reporting that a background check passed.
 
+Every recognized check attempted after that edit must have a current successful
+result. A failed rerun invalidates its earlier success; passing a different check
+does not clear it. Check identity uses the tool, exact trimmed command or configured
+check name, and explicit working-directory argument. A successful rerun of the
+same check resolves its failure. Background attempts remain unresolved while
+running or cancelled; observations from an older attempt cannot replace a newer
+result. This does not infer equivalence between differently written commands.
+
 The existing bounded completion-feedback loop remains in force; repeated missing
 verification leaves the turn failed with saved progress. A concrete reason with
 `[verification unavailable]` or `[checks not applicable]` still reports a genuine

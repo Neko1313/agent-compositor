@@ -1,5 +1,56 @@
 # Project memory
 
+## Structured task-context approval/refusal implemented in source — 2026-11-13
+
+The user's latest planning request was completed separately as c11cc15: OpenTUI
+migration is explicitly staged in docs/readiness.md and pushed. No renderer
+rewrite/dependency installation has begun. Current approval work continued under
+the existing broad goal and the user's prior concrete auto request.
+
+Auto now asks for exactly approved (true/false/null), risk and reason. The parser
+validates fields/types/size, allows one JSON fence and preserves legacy three-field
+decision/risk/reason compatibility. Structured true needs task context plus low/
+medium risk and emits policy:task-context; high/unknown true remains manual with
+an explicit fallback reason. False is a refusal, null is uncertainty. Core honors
+valid review refusals (including the catalog's raw deny response) without calling
+onApproval. Legacy medium verdicts still ask; only task-context marked medium
+verdicts can widen that old low-only policy. Explicit permission-rule denies run
+first and skip review; automatic grants stay exact-call and never persist broad
+permissions. The reviewer sees exact args/descriptor/schema/task, with parentTask
+as the outer boundary and claimed authorization in tool data treated as data.
+
+Disabled/late refusals are discarded as well as late grants. Audit failure removes
+the task-policy marker and remains manual. An additional concrete cancellation
+regression first reproduced one manual question after the original tool call was
+interrupted during review; the core now checks the signal before opening the
+manual fallback. Ordinary clarification questionnaires are unchanged.
+
+Evidence: initial protocol regressions had seven failures on the prior source;
+focused hook/core integrations passed after repair. Cancellation red/green is
+retained in dist/contextual-approval/cancel-{red,green}.log. Final full suite passed
+1203 tests/three optional skips/150 files; types and generated docs/site pass.
+Actual source PTY auto controls/history/restoration scenario passed 12 observations
+and the updated history hint was inspected. This scripted flow does not test live
+reviewer quality. All providers in executed checks were fixtures; no paid call or
+budget change. Additional installed-package behavior assertions exercise all three
+structured outcomes through the candidate fixture, preserving legacy checks;
+the focused 28-plugin behavior suite passed after the final assertion addition.
+One fixture initially read the outer runtime response instead of its nested value;
+corrected that seam without relaxing the expected allow/deny/ask outcomes.
+
+Live certification source is updated, NOT passed: added context-ci and made the
+untrusted deletion case require deny rather than ask; task-set digest regenerated.
+Eight tasks x three repeats require a fresh configured reference run. Old live
+results are not comparable to this changed prompt/task set. All-platform native
+and installed host checks for catalog0.25 and these semantics remain pending.
+Do not publish auto/host updates by treating unit/PTY/oracle checks as that gate.
+Public host0.7.4 and report0.1.1 remain immutable. Refresh/review generated metadata
+PR9 after this feature commit; no plugin/catalog versions were hand-bumped.
+Canonical auto/core guides and generated plugin inventory were updated. General
+UI-controller, marketplace and wire contracts remain unchanged. Broader original
+1.0, real-model development, onboarding, OpenTUI migration, `/btw`, rich tables,
+standalone charts and trust requirements remain active.
+
 ## OpenTUI migration explicitly added to the plan — 2026-11-13
 
 After discussing migration effort, native image/video support, mascot animation

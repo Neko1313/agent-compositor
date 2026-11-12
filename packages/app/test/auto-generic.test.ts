@@ -18,6 +18,73 @@ async function fixture(config: any = {}, answer: any = allowed) {
                 throw Error('audit unavailable'); } }, ui: { view: async () => { } } };
     return { $, state, calls, failAudit: () => auditFails = true };
 }
+it.each([
+    [true, 'medium', 'allow'], [false, 'high', 'deny'], [null, 'unknown', 'ask'],
+    [true, 'high', 'ask'], [true, 'unknown', 'ask'],
+])('interprets structured approval=%s risk=%s as %s', async (approved, risk, decision) => {
+    const f=await fixture({}, {approved,risk,reason:'Concrete action evaluated against the user task'});
+    const result=await review['service.permission.review']({tool:'project_check',input:{action:'run',name:'test'},context:{task:'Run the configured project test script'}},f.$);
+    expect(result).toMatchObject({value:{decision,risk}});
+    if(decision==='allow')expect(result).toMatchObject({value:{policy:'task-context'}});
+});
+it.each([
+    {approved:'yes',risk:'low',reason:'bad type'},
+    {approved:true,risk:'low',reason:'',extra:'data'},
+    {approved:true,risk:'low',reason:'mixed formats',decision:'allow'},
+])('keeps invalid structured approval manual: %j',async answer=>{
+    const f=await fixture({},answer);
+    expect(await review['service.permission.review']({tool:'project_check',context:{task:'Run tests'}},f.$)).toMatchObject({value:{decision:'ask',risk:'unknown'}});
+});
+it('does not widen a medium-risk approval when there is no user task context',async()=>{
+    const f=await fixture({}, {approved:true,risk:'medium',reason:'No task supplied'});
+    expect(await review['service.permission.review']({tool:'project_check'},f.$)).toMatchObject({value:{decision:'ask'}});
+});
+it.each([[true,'medium',1,0],[false,'high',0,0],[null,'unknown',0,1]] as const)('uses the actual auto hook for approval=%s risk=%s',async(approved,risk,effects,questions)=>{
+    const cwd=await temp();let executed=0,asked=0;
+    const provider=new ScriptedProvider([
+        {toolCalls:[{name:'ci_check',args:{script:'test'}}]},
+        {text:JSON.stringify({approved,risk,reason:'Evaluated the configured project check against the task'})},
+        {text:'Check outcome reported'},
+    ]);
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins')]});
+    app.plugins.push({manifest:{name:'ci-fixture',version:'1.0.0',trust:'trusted'},hooks:{},tools:[{
+        name:'ci_check',description:'Run one configured project test script',parameters:{type:'object',properties:{script:{type:'string'}},required:['script']},
+        describe:()=>({tool:'ci_check'}),execute:async()=>{executed++;return{ok:true,data:'CI check completed'};},
+    }]} as any);
+    const core=app.createCore(async()=>{asked++;return false;});
+    try{
+        await core.submit('/auto on');await core.submit('Run the configured project test script');
+        expect(executed).toBe(effects);expect(asked).toBe(questions);
+        expect(JSON.parse(provider.requests[1].messages[1].content)).toMatchObject({tool:'ci_check',input:{script:'test'},context:{task:'Run the configured project test script'}});
+        if(approved===false)expect(core.getMessages().find(message=>message.role==='tool')?.content).toContain('denied by automatic review');
+    }finally{await app.close();}
+});
+it('drops a late refusal after auto is disabled while saving its audit',async()=>{
+    const f=await fixture({}, {approved:false,risk:'high',reason:'Refused'});
+    f.$.fs.write=async()=>{f.state.set('enabled',false);};
+    expect(await review['service.permission.review']({tool:'ci_check',context:{task:'Run tests'}},f.$)).toMatchObject({value:{decision:'ask',risk:'unknown'}});
+});
+it('removes task-policy metadata when the approval audit fails',async()=>{
+    const f=await fixture({}, {approved:true,risk:'medium',reason:'Requested test run'});f.failAudit();
+    const result=await review['service.permission.review']({tool:'ci_check',context:{task:'Run tests'}},f.$);
+    expect(result).toMatchObject({value:{decision:'ask',risk:'unknown'}});
+    expect(result?.value).not.toHaveProperty('policy');expect(f.state.get('history').at(-1)).not.toHaveProperty('policy');
+});
+it('runs /auto off immediately during a pending structured refusal and restores manual control',async()=>{
+    const cwd=await temp();let asked=0,executed=0;
+    const provider=new ScriptedProvider([{toolCalls:[{name:'ci_check',args:{}}]},
+        {text:JSON.stringify({approved:false,risk:'high',reason:'Late refusal'}),hold:true},{text:'Outcome reported'}]);
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins')]});
+    app.plugins.push({manifest:{name:'ci-fixture',version:'1.0.0',trust:'trusted'},hooks:{},tools:[{name:'ci_check',description:'Run configured tests',parameters:{type:'object'},describe:()=>({tool:'ci_check'}),execute:async()=>{executed++;return{ok:true,data:'checked'};}}]} as any);
+    const core=app.createCore(async()=>{asked++;return false;});
+    try{
+        await core.submit('/auto on');const main=core.submit('Run configured tests');
+        await expect.poll(()=>provider.requests.length).toBe(2);await core.submit('/auto off');
+        expect(core.getState()).toBe('running');expect(provider.requests).toHaveLength(2);
+        provider.release();await main;expect(asked).toBe(1);expect(executed).toBe(0);
+        expect(core.getMessages().filter(message=>message.role==='user').map(message=>message.content)).toEqual(['Run configured tests']);
+    }finally{provider.release();await app.close();}
+});
 it('reviews with the active provider when no dedicated reviewer profile was configured', async () => {
     const f = await fixture({profile: undefined});
     expect(await review['service.permission.review']({tool: 'project_check', input: {action: 'run', name: 'test'}, context: {task: 'Run the project tests'}}, f.$))

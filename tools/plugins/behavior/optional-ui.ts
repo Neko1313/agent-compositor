@@ -8,7 +8,19 @@ export function optionalUi(f:Fixture,b:Casebook){
   const review=()=>f.emit('service.permission.review',{callId:'review',tool:'read',input:{path:'README.md'},descriptor:{tool:'read',path:join(f.cwd,'README.md'),readOnly:true},description:'Inspect project documentation',parameters:{type:'object'},context:{task:'Read the project documentation'}});
   const setup=async()=>{await writeFile(join(f.cwd,'README.md'),'Project documentation');await f.storage.configure('auto.json',config);f.model=async()=>JSON.stringify(allowed);await f.prompt('/auto on');};
   b.add(['state.fresh','view.empty'],async()=>{f.resetHost();await f.prompt('/auto history');assert.match(f.text(),/Mode: manual/);await review();assert.equal(f.models.length,0);});
-  b.add(['hook.repeat','mutation.result','view.content'],async()=>{await setup();for(let i=0;i<3;i++)assert.match(JSON.stringify((await review()).value),/allow/);assert.equal(JSON.parse(await f.saved('approval-audit-behavior.json')).length,3);await f.prompt('/auto history');assert.match(f.text(),/read.*allow/);assert.equal(f.models.length,3);});
+  b.add(['hook.repeat','mutation.result','view.content'],async()=>{
+   await setup();for(let i=0;i<3;i++)assert.match(JSON.stringify((await review()).value),/allow/);
+   assert.equal(JSON.parse(await f.saved('approval-audit-behavior.json')).length,3);
+   const proposal={callId:'ci-review',tool:'project_check',input:{action:'run',name:'test'},descriptor:{tool:'project_check'},context:{task:'Run the configured project test script'}};
+   for(const [approved,risk,decision]of [[true,'medium','allow'],[false,'high','deny'],[null,'unknown','ask']] as const){
+    f.model=async()=>JSON.stringify({approved,risk,reason:'Configured project CI action evaluated against the task'});
+    const response=await f.emit('service.permission.review',proposal),result=response.value?.value??response.value;
+    assert.equal(result.decision,decision);if(approved===true)assert.equal(result.policy,'task-context');
+   }
+   await f.prompt('/auto history');assert.match(f.text(),/read.*allow/);assert.match(f.text(),/project_check.*deny/);
+   assert.equal(f.models.length,6);assert.equal(JSON.parse(await f.saved('approval-audit-behavior.json')).length,6);
+   f.model=async()=>JSON.stringify(allowed);
+  });
   b.add('mutation.invalid',async()=>{f.model=async()=>'malformed response';const r=await review();assert.match(JSON.stringify(r.value),/ask/);assert.equal(JSON.parse(await f.saved('approval-audit-behavior.json')).at(-1).decision,'ask');f.model=async()=>JSON.stringify(allowed);});
   b.add('mutation.denied',async()=>{const app=await f.app({permissions:{rules:[{tool:'write',decision:'deny'}]}});const core=app.createCore(async()=>true);await core.submit('/auto on');assert.equal((await core.invokeTool('write',{path:'denied.txt',content:'forbidden'})).ok,false);await assert.rejects(readFile(join(f.cwd,'denied.txt')));});
   b.add(['hook.failure','command.failure','mutation.recovery','view.error'],async()=>{await setup();f.failWrite=true;assert.match(JSON.stringify((await review()).value),/ask/);assert.match(JSON.stringify((await review()).value),/audit/);f.failWrite=false;assert.match(JSON.stringify((await review()).value),/allow/);f.failView=true;assert.equal((await f.prompt('/auto history',true)).faults.length,1);f.failView=false;await f.prompt('/auto history');assert.match(f.text(),/auto/);});

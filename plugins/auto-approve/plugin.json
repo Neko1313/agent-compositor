@@ -2,7 +2,7 @@
   "name": "auto-approve",
   "version": "1.3.1",
   "trust": "trusted",
-  "description": "Opt-in risk review for arbitrary console, plugin, MCP and workflow tool actions. Only low-risk decisions pass automatically; explicit denies remain binding.",
+  "description": "Opt-in task-context review for console, plugin, MCP and workflow actions, with structured approval/refusal/uncertainty and binding host denies.",
   "provides": [
     "service.permission.review"
   ],

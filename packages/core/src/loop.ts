@@ -1650,6 +1650,7 @@ export class AgentCore {
           }`;
         } else if (decision.decision === "ask") {
           let automatic = false;
+          let refused = false;
           let reviewReason: string | undefined;
           try {
             const review = await this.emit("service.permission.review", {
@@ -1663,19 +1664,23 @@ export class AgentCore {
             });
             const verdict = (
               review as {
-                value?: { decision?: string; risk?: string; reason?: string };
+                deny?:string;value?: { decision?: string; risk?: string; reason?: string;policy?:string };
               }
             )?.value;
-            reviewReason=typeof verdict?.reason === "string" ? verdict.reason : undefined;
+            const directDeny=(review as {deny?:unknown})?.deny;
+            reviewReason=typeof directDeny==='string'?directDeny:typeof verdict?.reason === "string" ? verdict.reason : undefined;
+            const validReason=typeof reviewReason==='string'&&reviewReason.trim().length>0&&reviewReason.length<=1000;
+            refused=validReason&&(typeof directDeny==='string'||verdict?.decision==='deny');
             automatic =
               verdict?.decision === "allow" &&
-              verdict.risk === "low" &&
-              typeof verdict.reason === "string" &&
-              verdict.reason.length > 0;
+              (verdict.risk === "low"||(verdict.risk==='medium'&&verdict.policy==='task-context'&&!!this.latestUserTask()?.trim())) && validReason && !refused;
           } catch {
             /* reviewer failure returns control to manual approval */
           }
-          const answer = automatic
+          signal.throwIfAborted();
+          const answer = refused
+            ? false
+            : automatic
             ? true
             : this.onApproval
             ? await (async () => {
@@ -1718,7 +1723,7 @@ export class AgentCore {
           }
           if (!allowed) {
             denied = true;
-            error = "denied: no approval (headless or user declined)";
+            error = refused?`denied by automatic review: ${reviewReason}`:"denied: no approval (headless or user declined)";
           }
         }
 

@@ -6,7 +6,7 @@ All 31 filesystem plugins start inactive. [Install and explicitly enable](../mar
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
-| [auto-approve](../../plugins/auto-approve/README.md) | 1.3.1 | Opt-in risk review for arbitrary console, plugin, MCP and workflow tool actions. Only low-risk decisions pass automatically; explicit denies remain binding. |
+| [auto-approve](../../plugins/auto-approve/README.md) | 1.3.1 | Opt-in task-context review for console, plugin, MCP and workflow actions, with structured approval/refusal/uncertainty and binding host denies. |
 | [background-jobs](../../plugins/background-jobs/README.md) | 0.1.0 | Event-driven completion subscriptions for background exec shells: wake the originating agent or notify the user without model polling. |
 | [btw](../../plugins/btw/README.md) | 1.2.2 | /btw <question> — ask a side question answered in isolation by a fresh model call (Claude Code /btw analog: the answer lands as a notification and never enters the conversation). Drop this folder to remove. |
 | [callix](../../plugins/callix/README.md) | 1.3.4 | Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query. |

@@ -308,6 +308,6 @@
       "maxTokensPerTask": 60000,
       "requestTimeoutMs": 30000
     },
-    "taskSetSha256": "0f680ef79373efa5f60fc1333067d35190a816482c2ad2339f65ecacc2900988"
+    "taskSetSha256": "57f357d6340e6e8ff23d99165ad732aa967d815c4280a0dd1b6442ce2804d500"
   }
 }

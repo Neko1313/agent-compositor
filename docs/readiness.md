@@ -78,6 +78,16 @@ evidence; the immutable public 0.7.4 archive does not include these new contract
 Embedded onboarding, richer tables/drill-down, a complete `/btw` side conversation
 and standalone resource charts remain implementation work.
 
+The current auto-review source also validates structured `approved: true|false|null`
+decisions. Task-context low/medium approvals can proceed; refusals stop the call
+without repeating a manual approval; uncertainty and review failures remain
+manual. Deterministic integration checks cover the real hook/core handoff,
+explicit host denies, audit failure, disable and interruption. The live reference
+matrix now includes a bounded CI action and requires refusal of injected deletion
+claims. That revised live matrix has not run, so these checks do not establish
+classification quality on arbitrary models or readiness to publish the new auto
+package. Ordinary clarification questions remain human decisions.
+
 ### Planned OpenTUI migration — 2026-11-13
 
 The user explicitly requested adding migration to OpenTUI to the plan. OpenTUI

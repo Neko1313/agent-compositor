@@ -1,6 +1,8 @@
 # auto-approve
 
-Opt-in risk review for arbitrary console, plugin, MCP and workflow tool actions. Only low-risk decisions pass automatically; explicit denies remain binding.
+Opt-in task-context review for console, plugin, MCP and workflow tool actions.
+Structured approvals permit bounded low/medium-risk actions within the user task;
+refusals stop the call, uncertainty asks the user and explicit host denies remain binding.
 
 ## Use
 
@@ -19,6 +21,16 @@ A separate reviewer profile is optional: set `profile` in scoped `auto.json` to
 use one. An invalid explicit profile returns to manual approval rather than
 silently selecting another provider. Review limits, exact-call context and
 failure behavior are described in the [auto review guide](../../docs/agent-features.md#auto-review).
+
+The reviewer returns exactly three fields: `approved` (`true`, `false` or `null`),
+`risk` (`low`, `medium`, `high` or `unknown`) and a nonblank `reason`. `true` needs task context and
+low/medium risk; `false` becomes a denied tool result without another approval
+dialog; `null` returns to manual approval. High/unknown-risk approvals, malformed
+responses, timeouts and unavailable audit storage remain manual. Legacy
+`decision/risk/reason` responses still allow only low risk. Neither form creates
+standing approval for subsequent calls. Normal clarification questions are unaffected.
+Use `/auto off` to return subsequent proposals to human decisions; it cannot
+override a host permission-rule deny.
 
 ## Develop
 

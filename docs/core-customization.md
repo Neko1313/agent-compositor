@@ -71,6 +71,15 @@ Core embedders have equivalent `AgentCoreOptions.tools`, `controlTools`,
 the disk `SessionStore` are optional. `SessionJournal` is a structural interface;
 the selected streaming service may provide the model instead.
 
+`service.permission.review` runs only after ordinary policy requires approval.
+A valid `{deny:reason}` or `{value:{decision:"deny",reason}}` refuses the exact
+call without a human dialog. Legacy `{value:{decision:"allow",risk:"low",reason}}`
+can approve it; medium-risk approval additionally requires `policy:"task-context"`
+and actual task context. Other values/failures remain manual. Nonblank reasons
+are bounded to 1000 characters. Permission-rule denies run first and skip review;
+automatic verdicts never create session/project approval entries. See the
+[auto review protocol](agent-features.md#auto-review).
+
 `AgentCoreOptions.userCommands` supplies the currently loaded immediate user
 controls. `submit` and `steer` dispatch them outside the prompt queue;
 `invokeCommand` explicitly attempts this path and returns false if unregistered.

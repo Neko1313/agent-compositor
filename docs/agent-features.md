@@ -73,8 +73,17 @@ The plugin examines the exact arguments, descriptor, registered description and
 parameter schema, plus bounded task context. Every model-facing tool is eligible:
 arbitrary console commands, MCP, workflows and custom plugins are not excluded
 by name. Already permitted actions avoid a paid review; only ask decisions enter
-the reviewer. Only an allow + low assessment passes automatically. Unclear or
-higher-risk assessments, protected write paths, inputs above 24000 JSON
+the reviewer. The reviewer returns exactly three fields:
+
+```json
+{"approved":true,"risk":"medium","reason":"The user requested this bounded project CI check."}
+```
+
+`approved: true` permits a task-scoped low/medium-risk action. The host receives
+`{decision:"allow",risk,reason,policy:"task-context"}` for that exact call.
+`approved: false` returns a denied tool result with the review reason, without
+asking the same question again. `approved: null` means the user must decide.
+High/unknown-risk approvals, missing task context, protected write paths, inputs above 24000 JSON
 characters, exhausted budgets, errors, timeouts, and invalid JSON fall back to
 manual approval. The reviewer has no tools and receives action
 data as untrusted content. Explicit deny remains binding even if tool.check
@@ -425,14 +434,18 @@ provider switch.
 Ephemeral children inherit the parent's enabled mode and shared review budget;
 turning it off stops subsequent inherited approvals. Review responses may be a
 single JSON object or a single fenced JSON object, as some Anthropic profiles
-return. Invalid/mixed prose, failures and explicit denies retain manual fallback.
+return. Legacy `decision/risk/reason` JSON remains supported: `allow` still needs
+low risk; `deny` refuses the call and `ask` remains manual. Extra/mixed response
+fields, invalid JSON and dependency failures return to manual approval. Explicit
+permission-rule denies skip the reviewer and cannot be overridden.
 Unknown tool semantics require a cautious assessment; tool names are not an eligibility whitelist. Write/edit policy checks canonical paths rather than scanning
 code for words such as `token` or documentation URLs. Sensitive/external paths
 remain guarded; command effects are assessed by the reviewer regardless of executable name. Read-only
 `workflow_run list/status` can be audited automatically without a paid reviewer.
 Manual dialogs include the concrete review fallback reason. `/auto status`
-shows the review history; missing reviewer profiles and exhausted review budgets
-are configuration failures, not a reason to use the active expensive model.
+reports the mode/count without opening a pane; `/auto history` shows decisions.
+An omitted reviewer profile uses the active model, while an invalid explicit
+profile never switches providers silently. Exhausted review budgets remain manual.
 
 ## Read/search shell permissions and terminal rendering
 

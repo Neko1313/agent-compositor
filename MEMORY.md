@@ -1,5 +1,37 @@
 # Project memory
 
+## Report candidate fully audited; host publication awaiting ARM runner — 2026-11-13
+
+Previous goal turn made concrete progress: synchronized actor fix, native CI-byte
+proof, candidate audit and immutable host tag. This turn independently checked
+replacement plugin candidate 43249394887: completed SUCCESS at exact
+4358ed1517d5a0f697096ee2993c791d07332434. Downloaded all five artifacts into
+dist/test-reports-native-4358ed1. The adapted audit script
+dist/audit-test-reports-4358ed1.ts passed identity/schema/requirements/evidence
+hashes and all four archive/sidecar/release-metadata hashes. Receipt integrity.json
+records 14 source cases, five per platform, five certificates and 141 evidence
+references. All required 20-observation PTY reports passed; inspected Linux
+keyboard-close and macOS ARM narrow-diagnostic screenshots. No plugin tag yet.
+
+Node 22/26 CI 43249903533 passed at feb4034, whose only difference from 4358ed1
+is MEMORY.md. Earlier exact-4358ed1 ordinary CI 43249338789 was cancelled by that
+follow-up push; do not claim it passed. Exact-source plugin workflow passed.
+
+Tagged host workflow 43249760656 remains live at immutable 973012a. Verify,
+Linux x64, Linux ARM64 and macOS Intel jobs passed; macOS ARM64 was still QUEUED
+at the last direct run read. No failure/restart was observed; publication is
+pending that runner, not proven by the tag. Keep polling that existing handle.
+After success, run the prepared independent tagged audit and public host upgrade
+verifier. Only after actual host publication/upgrade proof create the independent
+plugin/test-reports/v0.1.1 tag at certified 4358ed1, following tag/release absence
+checks. Its tagged workflow must pass too. Prepared first-release public verifier
+dist/test-reports-public-011/verify.ts checks the five published certificates,
+four sidecars, actual public Linux bytes and the 13-case report/package oracle
+through the normal manager with a local verified-byte mirror. It has NOT run;
+pass its completed tagged workflow ID. No preceding public report release exists,
+so do not invent previous-version transitions. No paid calls or budget mutations.
+Broad original 1.0/model/self-development/trust requirements stay active.
+
 ## Host 0.7.4 tag and live certification handles — 2026-11-13
 
 Host candidate 43247332260 completed successfully at exact 973012a8ca3631c1e14910ab4944e974a097d6e7.

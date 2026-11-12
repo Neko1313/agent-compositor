@@ -109,7 +109,10 @@ export async function prepareReleases(root,{write=false,inputs=bundleInputs}={})
   writes.set(path,insertChangelog(previousNotes,version,notes));
   state.plugins[name]={version,commit:head};
   const entry=catalog.plugins.find(entry=>entry.name===name);
-  if(entry&&entry.source===`./plugins/${name}`)entry.version=version;
+  if(entry&&entry.source===`./plugins/${name}`){
+   entry.version=version;
+   if(typeof manifest.description==='string')entry.description=manifest.description;
+  }
   pending.push({name,previous:previous??null,version,level,commits:commits.map(c=>c.sha),paths});
  }
  if(hash(catalogContent(catalog))!==oldCatalog){

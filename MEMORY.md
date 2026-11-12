@@ -1,5 +1,25 @@
 # Project memory
 
+## Development marketplace descriptions follow prepared manifests — 2026-11-13
+
+Inspection of generated metadata PR9 found auto-approve's development catalog
+still advertising low-risk-only behavior despite the new task-context manifest.
+Release preparation updated only the version. It now copies a provided manifest
+description for affected relative development entries, preserving the entire
+published archive entry until explicit certified promotion. Added a real Git
+fixture regression: failed on stale description before the fix, all 15 release
+planner tests pass after it, including published metadata preservation and a
+no-op after the generated batch is committed. Canonical plugin release guide
+updated; docs check passes. Versions/changelogs/catalog remain bot-generated.
+
+Four-platform build-only run 43269140300 is for f21b50a (no publication); it was
+confirmed live at continuation start. Do not restart it because observation
+expired. Its final result and platform smoke evidence still need inspection.
+The last separately inspected metadata PR9 head was 40ab2feb on base f21b50a;
+this planner fix will refresh that head. Review the exact new generated diff
+and CI before merge. Live reviewer-quality certification remains open; no paid
+provider calls were made for this work.
+
 ## Installed structured-approval protocol gate — 2026-11-13
 
 Committed and pushed the contextual-review implementation as 76ce8c6. Added

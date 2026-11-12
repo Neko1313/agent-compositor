@@ -243,6 +243,10 @@ baseline. Generated version/changelog commits do not cause another release PR;
 new runtime changes accumulate until the open PR is refreshed or merged. The
 catalog metadata version advances once per changed batch. Published archive
 entries remain pinned until the separate certified catalog promotion below.
+For an affected relative development entry, preparation also copies the source
+manifest's description when provided, so marketplace search describes the same
+behavior as the prepared package. Published archive descriptions remain pinned
+with their released versions until catalog promotion.
 
 For local diagnosis, use a clean committed checkout:
 

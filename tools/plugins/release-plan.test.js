@@ -57,6 +57,20 @@ it('leaves published archive entries pinned while preparing a newer source versi
  const catalog=JSON.parse(await readFile(join(root,'.claude-plugin/marketplace.json'),'utf8'));
  expect(catalog.plugins[1].version).toBe('1.2.3');expect(catalog.metadata.version).toBe('2.0.0');
 });
+it('refreshes development descriptions from manifests while preserving published metadata',async()=>{
+ const root=await fixture(),path='.claude-plugin/marketplace.json';
+ const catalog=JSON.parse(await readFile(join(root,path),'utf8'));
+ for(const entry of catalog.plugins)entry.description='Previous published behavior';
+ await file(root,path,catalog);
+ for(const name of ['alpha','bravo'])await file(root,`plugins/${name}/plugin.json`,{name,version:'1.2.3',description:'Updated task-context behavior'});
+ commit(root,'fix: describe the current approval behavior');
+ await prepareReleases(root,{write:true,inputs});
+ const prepared=JSON.parse(await readFile(join(root,path),'utf8'));
+ expect(prepared.plugins[0]).toMatchObject({version:'1.2.4',description:'Updated task-context behavior'});
+ expect(prepared.plugins[1]).toEqual(catalog.plugins[1]);
+ commit(root,'chore(release): prepare plugin versions');
+ expect(await prepareReleases(root,{inputs})).toMatchObject({plugins:[],files:[]});
+});
 it('does not bump for documentation/tests or unrelated lockfile dependencies',async()=>{
  const root=await fixture();await file(root,'plugins/alpha/README.md','New guide');await file(root,'plugins/alpha/test/unit.test.ts','fixture');
  await file(root,'package-lock.json',{packages:{'node_modules/runtime':{version:'1.0.0'},'node_modules/documentation':{version:'2.0.0'}}});commit(root,'docs: improve site and examples');

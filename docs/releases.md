@@ -133,6 +133,9 @@ The raw response remains streaming until the first Ctrl+C, so the verifier waits
 for the observable interrupted state before the second Ctrl+C exits. Text output
 alone is not evidence that turn cleanup has completed. Each native job preserves
 its smoke JSON reports as `installed-runtime-PLATFORM`, including on failure.
+The PTY bridge reaps a finished child before group cleanup and propagates its
+actual exit status. The native gate requires a successful raw-process exit;
+printing `bye` or a bridge error cannot count as success.
 The report is `dist/release/plain-controls-smoke-PLATFORM.json`. This uses bounded
 loopback responses, not live-model quality or graphical TUI evidence. Python is
 a verification dependency; the installed application does not require it for

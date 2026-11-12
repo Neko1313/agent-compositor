@@ -80,7 +80,7 @@ export default{'command.invoke':async(e,$)=>{if(e.name!=='/native-control')retur
   assert.equal(await readFile(join(cwd,'native-approved.txt'),'utf8'),'APPROVED');assert.equal(requests,5);
   assert.doesNotMatch(raw.stdout,/\[steer\]|\[queued\]/,'The human answer must not be steered or queued as a task');
   send('\x03');await poll(()=>raw.stdout.includes('[interrupted]')||raw.exited,'raw stream interruption');assert.equal(raw.exited,false);
-  send('\x03');await poll(()=>raw.exited,'idle raw PTY exit');assert.match(raw.stdout,/bye/);assert.equal(requests,5);
+  send('\x03');await poll(()=>raw.exited,'idle raw PTY exit');assert.match(raw.stdout,/bye/);assert.equal(raw.code,0,JSON.stringify(raw));assert.equal(requests,5);
   const report={ok:errors.length===0,pastedCommand:true,eofWaitsForCommand:true,rawApprovalAnswerNotSubmitted:true,rawInterruptThenExit:true,oneShotResponse:answer.response,oneShotUsage:answer.usage,missingCapabilityExit:unavailable.code,requests,runs,errors,paidRequests:0};
   if(output){await writeFile(output,JSON.stringify(report,null,2)+'\n');reportWritten=true;}assert.ok(report.ok,JSON.stringify(report));return report;
  }catch(error){

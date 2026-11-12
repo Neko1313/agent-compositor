@@ -9,6 +9,7 @@ import signal
 import struct
 import sys
 import termios
+import time
 
 
 def resize(fd, cols, rows):
@@ -23,10 +24,6 @@ if pid == 0:
 
 
 def stop(*_):
-    try:
-        os.killpg(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
     raise SystemExit(0)
 
 
@@ -36,6 +33,34 @@ selector.register(master, selectors.EVENT_READ, "pty")
 selector.register(sys.stdin.fileno(), selectors.EVENT_READ, "input")
 pending = b""
 decoder = codecs.getincrementaldecoder("utf-8")("replace")
+natural_eof = False
+
+
+def reap(timeout):
+    deadline = time.monotonic() + timeout
+    while True:
+        child, status = os.waitpid(pid, os.WNOHANG)
+        if child:
+            return status
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(0.01)
+
+
+def terminate_owned(sig):
+    try:
+        os.killpg(pid, sig)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        # Some hosts reject addressing the group during terminal teardown.
+        # The unreaped child still belongs to us; never ignore a live-child failure.
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+
+
 try:
     while True:
         for key, _ in selector.select():
@@ -45,6 +70,7 @@ try:
                 except OSError:
                     chunk = b""
                 if not chunk:
+                    natural_eof = True
                     raise SystemExit(0)
                 print(json.dumps({"type": "data", "data": decoder.decode(chunk)}), flush=True)
             else:
@@ -61,11 +87,15 @@ try:
                         resize(master, max(16, min(240, int(message["cols"]))), max(12, min(100, int(message["rows"]))))
 finally:
     os.close(master)
-    try:
-        os.killpg(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        os.waitpid(pid, 0)
-    except ChildProcessError:
-        pass
+    # EOF can precede the waitable exit status. Reap before signalling a process
+    # group whose leader has already finished (notably on macOS).
+    status = reap(0.5 if natural_eof else 0)
+    if status is None:
+        terminate_owned(signal.SIGTERM)
+        status = reap(1)
+    if status is None:
+        terminate_owned(signal.SIGKILL)
+        _, status = os.waitpid(pid, 0)
+    if natural_eof:
+        code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else 128 + os.WTERMSIG(status)
+        raise SystemExit(code)

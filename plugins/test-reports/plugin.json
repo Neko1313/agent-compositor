@@ -1,6 +1,6 @@
 {
   "name": "test-reports",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read local Vitest/Jest JSON reports with complete counts and bounded failures",
   "trust": "trusted",
   "compositor": {

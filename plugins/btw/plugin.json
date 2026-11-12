@@ -1,6 +1,6 @@
 {
   "name": "btw",
-  "version": "1.2.2",
+  "version": "2.0.0",
   "description": "Open or restore an independent side-agent conversation while the main task continues. Use /btw --once for an isolated answer notification.",
   "trust": "trusted",
   "capabilities": [

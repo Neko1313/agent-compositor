@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+
+<!-- plugin-release:auto:start -->
+- require completed checks for coding changes ([fdd3d9b](https://github.com/Neko1313/agent-compositor/commit/fdd3d9be6847a6951ee8e10110924d70e6d4e303))
+- clarify discovery and read pagination recovery ([f14d3ce](https://github.com/Neko1313/agent-compositor/commit/f14d3ce41a59b89a4cd80d76714fda110348eb46))
+- reject edits that leave file text unchanged ([9cb714b](https://github.com/Neko1313/agent-compositor/commit/9cb714b10a15a8a8ac4d50264b38c33eca620d69))
+- recover from repeated finite query results ([a66fcc3](https://github.com/Neko1313/agent-compositor/commit/a66fcc38dc868ff1ef0879fdb0ff8a2992188978))
+<!-- plugin-release:auto:end -->
+
 ## 1.3.4
 
 <!-- plugin-release:auto:start -->

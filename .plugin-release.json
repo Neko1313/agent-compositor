@@ -4,24 +4,24 @@
   "repository": "Neko1313/agent-compositor",
   "plugins": {
     "auto-approve": {
-      "version": "1.3.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.4.0",
+      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
     },
     "background-jobs": {
       "version": "0.1.0",
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "btw": {
-      "version": "1.2.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "2.0.0",
+      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
     },
     "callix": {
-      "version": "1.3.4",
-      "commit": "49895976287ea6e1239daf639ab62089bd3dbbaf"
+      "version": "1.4.0",
+      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
     },
     "checkpoint-history": {
-      "version": "1.2.3",
-      "commit": "49895976287ea6e1239daf639ab62089bd3dbbaf"
+      "version": "1.3.0",
+      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
     },
     "checkpoints": {
       "version": "1.1.2",
@@ -52,8 +52,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "mcp": {
-      "version": "1.3.2",
-      "commit": "edfb677b08a5e3fd82b32447b8c4cdd21960f785"
+      "version": "1.4.0",
+      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
     },
     "memory": {
       "version": "1.1.2",
@@ -80,8 +80,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "plugin-author": {
-      "version": "1.3.2",
-      "commit": "edfb677b08a5e3fd82b32447b8c4cdd21960f785"
+      "version": "1.4.0",
+      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
     },
     "session-ctl": {
       "version": "1.1.2",
@@ -108,8 +108,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "workflows": {
-      "version": "1.5.0",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "1.6.0",
+      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
     },
     "git-review": {
       "version": "0.1.0",
@@ -126,10 +126,14 @@
     "test-reports": {
       "version": "0.1.1",
       "commit": "edfb677b08a5e3fd82b32447b8c4cdd21960f785"
+    },
+    "resources": {
+      "version": "0.1.0",
+      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
     }
   },
   "catalog": {
-    "version": "1.0.9",
-    "digest": "3d0e711445dee8c064b437b244de7b34a52966102e4278129c762a1a8bf8ff27"
+    "version": "1.0.10",
+    "digest": "dd8ba5c424b658936475ca45552a8e43f2135ae2e529300dc92f16890e332af5"
   }
 }

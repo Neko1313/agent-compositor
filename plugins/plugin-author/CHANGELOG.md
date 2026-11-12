@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0
+
+<!-- plugin-release:auto:start -->
+- add immediate commands and main conversation recovery ([4bc76d6](https://github.com/Neko1313/agent-compositor/commit/4bc76d67b8b609d0d161ea74d7ca1a0769c7d815))
+- add user-opened conversations and independent agent editors ([31616b7](https://github.com/Neko1313/agent-compositor/commit/31616b7ba177f2787b3adda370865f195c65e35d))
+- add semantic tables and a live expandable agent overview ([3d2bfb7](https://github.com/Neko1313/agent-compositor/commit/3d2bfb7ca489ddd18cc65ad017f644bd1517e231))
+- add semantic state tabs for agents and workflows ([4afc96e](https://github.com/Neko1313/agent-compositor/commit/4afc96e5bfdaeb37ba2f91d5aaa5e37e5db10997))
+- recover from repeated finite query results ([a66fcc3](https://github.com/Neko1313/agent-compositor/commit/a66fcc38dc868ff1ef0879fdb0ff8a2992188978))
+<!-- plugin-release:auto:end -->
+
 ## 1.3.2
 
 <!-- plugin-release:auto:start -->

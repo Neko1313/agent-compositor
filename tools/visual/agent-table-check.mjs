@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright';
+import {spawn} from 'node:child_process';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+import {createHash} from 'node:crypto';
+assert.ok(process.env.VISUAL_EXECUTABLE,'Select an extracted native application with VISUAL_EXECUTABLE');
+const output=resolve(process.env.VISUAL_OUTPUT??'dist/native-agent-table');await mkdir(output,{recursive:true});
+const report={ok:false,mode:'binary',checks:[],screenshots:[],errors:[]};let server,browser,page;
+try{
+ report.executable={path:resolve(process.env.VISUAL_EXECUTABLE),sha256:createHash('sha256').update(await readFile(process.env.VISUAL_EXECUTABLE)).digest('hex')};
+ server=spawn('bun',['tools/visual/server.mjs'],{env:{...process.env,VISUAL_HARNESS:'1',VISUAL_AGENT_TABLES:'1',VISUAL_OUTPUT:output},stdio:['ignore','pipe','inherit']});
+ const url=await new Promise((done,fail)=>{let text='';const timer=setTimeout(()=>fail(Error('Native agent bench startup timeout')),15000);server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);done(match[1]);}});server.once('exit',code=>{clearTimeout(timer);fail(Error('Bench exited '+code));});});
+ browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
+ page=await browser.newPage({viewport:{width:1400,height:1100}});page.on('pageerror',error=>report.errors.push(error.message));await page.goto(url);
+ const text=()=>page.evaluate(()=>visual.text());
+ const wait=value=>page.waitForFunction(value=>visual.text().includes(value),value,{timeout:15000});
+ const click=async value=>{await wait(value);const point=await page.evaluate(value=>{const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(value)),col=lines[row].indexOf(value)+1,rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};},value);await page.mouse.click(point.x,point.y);};
+ const command=async value=>{await page.keyboard.press('Alt+i');await page.keyboard.type(value);await wait('› '+value);await page.keyboard.press('Enter');};
+ const shot=async name=>{await page.screenshot({path:join(output,name+'.png')});report.screenshots.push(name+'.png');};
+ await wait('0/3 complete');await command('MAIN_TABLE_TASK');await wait('MAIN_TABLE_WORKING');
+ await command('/agents');await wait('View: All · 0/0');
+ assert.ok((await text()).includes('Working'));
+ await command('/agents create-shared Native');await wait('Y allow once');await page.keyboard.type('y');await wait('Reply: Type a follow-up');
+ await command('/agents');await wait('View: All · 1/1');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Agents'));await wait('Tokens used');
+ await click('+ Native');await wait('[ Open conversation ]');await shot('00-overview-main-held');
+ await click('[ Open conversation ]');await wait('Reply: Type a follow-up');await page.keyboard.type('SIDE_TABLE_TASK');await wait('Reply: SIDE_TABLE_TASK');await page.keyboard.press('Enter');await wait('SIDE_TABLE_DONE');
+ await command('/agents');await wait('Turn completed');assert.ok((await text()).includes('Working'));await shot('01-side-completed');
+ await click('View: All');await wait('View: Running');await wait('No agents match this view');await click('View: Running');await click('View: Needs attention');await wait('View: All');
+ for(let index=0;index<4;index++)await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>!visual.text().includes('[ Open conversation ]'));
+ await page.evaluate(()=>visual.terminal.resize(48,18));await wait('State: idle');await shot('02-narrow');
+ await page.evaluate(()=>visual.terminal.resize(100,30));await page.waitForFunction(()=>visual.text().split('\n').some(line=>line.includes('Agent')&&line.includes('State')&&line.includes('Tokens used')));
+ await click('+ Native');await click('[ Open conversation ]');await wait('SIDE_TABLE_DONE');
+ await page.keyboard.type('UNSENT_SIDE_DRAFT');await wait('UNSENT_SIDE_DRAFT');await page.keyboard.press('Alt+q');
+ await command('/agents');await wait('[ Open conversation ]');await click('[ Open conversation ]');await wait('UNSENT_SIDE_DRAFT');
+ await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');
+ const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(value=>visual.generation>value,generation);await wait('Describe your task');
+ await command('/agents');await wait('View: All · 1/1');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Agents'));await wait('+ Native');await click('+ Native');await click('[ Open conversation ]');await wait('SIDE_TABLE_DONE');await shot('03-restored');
+ report.transport=JSON.parse(await readFile(join(output,'workflow-transport.json'),'utf8'));assert.deepEqual([...report.transport.requests].sort(),['main','side']);assert.equal(report.transport.paidRequests,0);
+ report.checks.push('native.agents.immediate-held-main','native.agents.side-conversation','native.agents.filter','native.agents.keyboard','native.agents.narrow','native.agents.draft-reopen','native.agents.restart','native.agents.bounded-transport');
+ assert.deepEqual(report.errors,[]);report.ok=true;
+}catch(error){report.errors.push(String(error));await page?.screenshot({path:join(output,'failure.png')}).catch(()=>{});if(page)await writeFile(join(output,'failure.txt'),await page.evaluate(()=>visual.text()).catch(()=>''));}
+finally{await browser?.close();if(server&&server.exitCode===null){const ended=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await ended;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

@@ -1,5 +1,60 @@
 # Project memory
 
+## Native table checks exposed and repaired independent-command/focus gaps — 2026-11-13
+
+Native verification of cc98705 first confirmed the bundled workflow through six
+bounded loopback requests. Inspecting the independent-agent path then exposed
+two real gaps. Host `/agents` was absent from the core's immediate owner registry;
+the previous overview test ignored invokeCommand's false return and observed a
+view already opened by creation. New red tests explicitly check registration,
+the return value and opening during a held foreground model. The host command
+now uses command.invoke with shared legacy argument handling, normal tool
+permissions, active-owner discovery, disabled-host filtering and plugin override
+precedence. Command metadata includes the owner so explicit reopening can clear
+that owner's dismissed surfaces.
+
+The real native Open conversation action changed the input label but left an
+existing pane unfocused in fullscreen. AppUI now honors an explicit placement
+focus request for existing and reopened panes in their current workspace, without
+retiling/moving an existing window. Saved focus:false rules remain binding and
+ordinary background updates do not steal focus. A red unit test reproduced the
+existing-pane defect; the final test also covers closing/reopening placement.
+
+The maintained workflow bench can now run the compiled executable. It compiles
+only the small trigger/identity fixture into the isolated project; workflows
+must load from the executable's bundled directory, with matching runtime and
+inventory version. Native candidate overrides are rejected. The loopback service
+accepts only the bounded fixture prompts, records request categories, sends SSE
+heartbeats for held streams and retains a sixty-second deadline. No user model
+profile/key is used. The new native agent-table-check exercises public commands,
+manual creation approval, a held main stream, side reply, filters, keyboard,
+narrow fields, close/reopen draft and committed history after restart.
+
+Evidence: dist/native-tables/agents-shipping/report.json has eight native checks
+and exactly main/side requests. workflows-ready/report.json has twelve checks
+and exactly discovery/two workers/verify/parent completion/foreground requests.
+Both use the same extracted Linux x64 executable, and final screenshots were
+inspected. integrity.json independently matches that binary and workflow hooks
+against the retained full tarball, hashes the reports and records source-file
+digests; binary SHA256 starts 09711e9953f03bb7. Source PTY regression also passes
+under source-ready. The final full suite has 1248 passed/three optional skips in
+155 files; type checks, generated docs/site checks passed. No paid requests.
+
+Earlier failed native captures remain under agents-fixed/agents-visible/
+agents-focus/agents-ready. They exposed the defects above and two bench issues:
+waiting for an offscreen empty row, and measuring before fullscreen geometry
+arrived. The bench now waits on visible state/fresh fullscreen headings; no
+timeout or expected application behavior was weakened. The held-stream fixture
+also required heartbeat comments to avoid Bun's socket idle deadline.
+
+User/API/bench/readiness docs cover the changes. architecture.md needs no new
+contract: this completes the existing immediate-command registry and placement
+focus behavior. Other-platform table UI, live-model quality/development, tabs,
+resource charts, embedded CPU onboarding and OpenTUI remain open. This local
+development archive still reports 0.7.4; no immutable public tag/asset or user
+installation changed. Previous main CI 43290993307 for cc98705 was confirmed
+successful on both Node versions, not counted as this change's CI.
+
 ## Workflow tables and exact-candidate visual checks implemented — 2026-11-13
 
 The workflows plugin adopts semantic tables for a filtered run overview and a

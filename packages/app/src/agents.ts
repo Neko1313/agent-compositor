@@ -390,27 +390,9 @@ export async function agentManager(
       label: id ? find(id).name : undefined,
     });
   };
-  const plugin: CorePlugin = {
-    manifest: {
-      name: "agent-hub",
-      version: "1.0.0",
-      trust: "trusted",
-      hookTimeouts: { "session.start": 30000, 'ui.press':300000 },
-    },
-    hooks: {
-      "session.start": async (_e, $) => {
-        host = $;
-        for (const r of records.filter((r) => !r.archived)) {
-          try {
-            await paint(await load(r));
-          } catch (error) {
-            await $.ui.notify(`Agent ${r.name}: ${String(error)}`, "warn");
-          }
-        }
-      },
-      "prompt.submit": async (e, $) => {
-        host = $;
-        const [command, action, id, ...rest] = e.text.trim().split(/\s+/);
+  async function handleCommand(text:string,$:any){
+    host=$;
+        const [command, action, id, ...rest] = text.trim().split(/\s+/);
         if (command === "/agents") {
           if (action === "parent") {
             await select(undefined, $);
@@ -429,8 +411,32 @@ export async function agentManager(
             if (!r.ok)
               await $.ui.notify(r.error ?? "Agent operation failed", "error");
           }
-          return { drop: "agent-hub: handled" };
+          return true;
         }
+    return false;
+  }
+  const plugin: CorePlugin = {
+    manifest: {
+      name: "agent-hub",
+      version: "1.0.0",
+      trust: "trusted",
+      hookTimeouts: { "session.start": 30000, 'ui.press':300000 },
+    },
+    hooks: {
+      "command.invoke":async(e,$)=>{if(e.plugin==='agent-hub'&&e.name==='/agents')await handleCommand(e.text,$);},
+      "session.start": async (_e, $) => {
+        host = $;
+        for (const r of records.filter((r) => !r.archived)) {
+          try {
+            await paint(await load(r));
+          } catch (error) {
+            await $.ui.notify(`Agent ${r.name}: ${String(error)}`, "warn");
+          }
+        }
+      },
+      "prompt.submit": async (e, $) => {
+        host = $;
+        if(await handleCommand(e.text,$))return{drop:"agent-hub: handled"};
         if (target && !e.text.startsWith("/")) {
           const result = await $.agent.tool("agent_control", {
             action: "send",

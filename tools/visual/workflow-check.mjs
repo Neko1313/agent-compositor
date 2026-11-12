@@ -1,12 +1,14 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { resolve,join,dirname } from 'node:path';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-workflows');
 await mkdir(output,{recursive:true});
-let server,browser,page;const report={checks:[],screenshots:[],errors:[]};
+let server,browser,page;const report={mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[]};
 try{
+ if(process.env.VISUAL_EXECUTABLE)report.executable={path:resolve(process.env.VISUAL_EXECUTABLE),sha256:createHash('sha256').update(await readFile(process.env.VISUAL_EXECUTABLE)).digest('hex')};
  server=spawn('bun',['tools/visual/server.mjs'],{cwd:root,env:{...process.env,VISUAL_OUTPUT:output,VISUAL_HARNESS:'1',VISUAL_IDENTITY_PLUGIN:'workflows'},stdio:['ignore','pipe','inherit']});
  const url=await new Promise((resolve,reject)=>{let out='';const timer=setTimeout(()=>reject(Error('Bench startup timed out')),15000);server.stdout.on('data',chunk=>{out+=chunk;const m=out.match(/VISUAL_URL=(http\S+)/);if(m){clearTimeout(timer);resolve(m[1]);}});server.once('exit',code=>{clearTimeout(timer);reject(Error(`Bench exited ${code}`));});});
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{}),args:['--no-sandbox']});
@@ -19,7 +21,16 @@ try{
  const secret=async(value)=>{await page.keyboard.type(value);await wait('•'.repeat(value.length));};
  const shot=async(name)=>{await page.screenshot({path:resolve(output,name)});report.screenshots.push(name);};
  await wait('0/3 complete');await page.evaluate(()=>visual.terminal.resize(140,40));await page.waitForFunction(()=>visual.text().split('\n')[38]?.includes('[Settings]'));
- const loaded=JSON.parse(await readFile(resolve(output,'fixture-identity.json'),'utf8'));assert.equal(loaded.plugin,'workflows');if(process.env.VISUAL_PLUGIN_DIR)assert.equal(loaded.directory,resolve(process.env.VISUAL_PLUGIN_DIR));
+ let loaded;
+ if(process.env.VISUAL_EXECUTABLE){
+  const launch=JSON.parse(await readFile(join(output,'fixture-launch.json'),'utf8'));
+  loaded={...JSON.parse(await readFile(join(launch.cwd,'native-fixture-identity.json'),'utf8')),cwd:launch.cwd,state:launch.state};
+  assert.equal(loaded.directory,join(dirname(resolve(process.env.VISUAL_EXECUTABLE)),'plugins/workflows'));
+  const manifest=JSON.parse(await readFile(join(loaded.directory,'plugin.json'),'utf8'));assert.equal(loaded.version,manifest.version);
+  report.loaded={...loaded,hooksSha256:createHash('sha256').update(await readFile(join(loaded.directory,'hooks.js'))).digest('hex')};
+  await writeFile(join(output,'fixture-identity.json'),JSON.stringify(loaded,null,2));
+ }else loaded=JSON.parse(await readFile(resolve(output,'fixture-identity.json'),'utf8'));
+ assert.equal(loaded.plugin,'workflows');if(process.env.VISUAL_PLUGIN_DIR)assert.equal(loaded.directory,resolve(process.env.VISUAL_PLUGIN_DIR));
  const submit=async(command)=>{await click('Describe your task');await page.keyboard.type(command);await wait('› '+command);await page.keyboard.press('Enter');};
  const stageState=(title,state)=>page.waitForFunction(({title,state})=>visual.text().split('\n').some(line=>line.includes(title)&&line.includes(state)),{title,state});
  await submit('/workflow-proof');await wait('Dynamic workflows');await click('Workflows');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Workflows'));
@@ -41,6 +52,11 @@ try{
  await page.keyboard.press('Alt+s');
  await submit('Explain the current status');await wait('Main session remains responsive');await wait('ctx ');await page.waitForFunction(()=>visual.text().split('\n')[38]?.includes('Ready'));await shot('05-context.png');
  report.checks.push('Restart restores completed stages; foreground input remains usable and displays context occupancy');
+ if(process.env.VISUAL_EXECUTABLE){
+  report.transport=JSON.parse(await readFile(join(output,'workflow-transport.json'),'utf8'));
+  assert.deepEqual([...report.transport.requests].sort(),['discover','worker','worker','verify','completion','foreground'].sort());assert.equal(report.transport.paidRequests,0);
+  report.checks.push('native.workflow-bundle','native.bounded-transport');
+ }
  if(report.errors.length)throw Error(report.errors.join('\n'));report.ok=true;
 }catch(error){report.ok=false;report.errors.push(String(error));process.exitCode=1;await page?.screenshot({path:resolve(output,'failure.png')}).catch(()=>{});if(page)await writeFile(resolve(output,'failure.txt'),await page.evaluate(()=>visual.text()).catch(()=>''));}
 finally{await browser?.close();if(server&&server.exitCode===null){const stopped=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await stopped;}await writeFile(resolve(output,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));}

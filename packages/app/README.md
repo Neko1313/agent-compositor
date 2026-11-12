@@ -190,7 +190,9 @@ or Alt+s can also open a conversation view without submitting the message draft.
 Closing a conversation window leaves the running model, transcript and draft
 intact; when no conversation is visible, the footer shows the recovery shortcut.
 
-`/agents` opens a live expandable overview: Agent, State and Tokens used. Click
+`/agents` is an immediate user command: it opens a live expandable overview while
+the main model works, without entering its prompt queue. Subcommands keep the
+ordinary tool permissions. The overview shows Agent, State and Tokens used. Click
 a row or use Up/Down and Enter to inspect its workspace, limits, failures and
 the last twelve turn/tool activity events in this process. **View** cycles All,
 Running and Needs attention; **Open conversation** enters the agent's own Reply

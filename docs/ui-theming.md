@@ -94,6 +94,11 @@ views, preserving keyboard access to offscreen actions. Props also include
 title/status and plugin identity where applicable. `event.viewport` reports
 drawable content columns and rows, excluding window chrome.
 
+An explicit `placement: {focus: true}` on `$.ui.view` also focuses an existing or
+reopened pane in its current workspace. It does not retile an existing pane or
+undo a user's move/resize. Saved placement rules with `focus: false` remain
+binding. Ordinary updates without an explicit focus request keep current focus.
+
 Lines accept `text`, `tone`, `bold`, `selected`. Tones are `text`, `muted`,
 `accent`, `success`, `warning`, `danger`; selected rows use the selection
 background and foreground. Optional view `hint` supplies the focused-panel

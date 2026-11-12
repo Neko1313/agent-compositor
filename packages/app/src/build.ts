@@ -386,6 +386,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   };
   const hostEnabled = (name:string,source=plugins) => !disabled().includes(name) &&
     (!config.config.enabledPlugins || config.config.enabledPlugins.includes(name)) && !source.some(p=>p.manifest.name===name);
+  const hostAgentCommand=()=>!!hub&&hostEnabled('agent-hub')&&!plugins.some(plugin=>plugin.commands?.some(command=>command.name==='/agents'));
   const setupModel=async()=>{
     const saved=await storage.config('providers.json').catch(()=>({}));
     const selected=await readFile(path.join(storage.paths.state,'model.json'),'utf8').then(JSON.parse).catch(()=>undefined);
@@ -441,7 +442,10 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     const sessionApprovals = new ApprovalSession();
     sessionApprovals.restore(approvals.session.list());
     const coreOptions: ConstructorParameters<typeof AgentCore>[0] = {
-      userCommands:()=>[...new Map(plugins.flatMap(plugin=>(plugin.commands??[]).filter(command=>command.execution==='immediate').map(command=>[command.name,{name:command.name,plugin:plugin.manifest.name}] as const))).values()],
+      userCommands:()=>[...new Map([
+        ...(hostAgentCommand()?[['/agents',{name:'/agents',plugin:'agent-hub'}] as const]:[]),
+        ...plugins.flatMap(plugin=>(plugin.commands??[]).filter(command=>command.execution==='immediate').map(command=>[command.name,{name:command.name,plugin:plugin.manifest.name}] as const)),
+      ]).values()],
       cwd: options.cwd,
       homeDir:env.HOME??env.USERPROFILE,
       workspacePaths:[...(options.workspacePaths??[]),...(config.config.workspacePaths??[])],
@@ -648,13 +652,15 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               "/extensions list|install|update|enable|disable|remove [name] [ref]",
           },
         ] as const,
-        ...(hub
+        ...(hostAgentCommand()
           ? [
               [
                 "/agents",
                 {
                   name: "/agents",
+                  plugin:'agent-hub',
                   description: "Manage independent agents",
+                  execution:'immediate' as const,
                   usage:
                     "/agents [create|send|stop|archive|merge|parent] [id/name] [prompt]",
                 },
@@ -713,6 +719,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     ].filter(command=> {
       if(plugins.some(p=>p.commands?.some(c=>c.name===command.name)))return true;
       const owners:Record<string,string>={
+        '/agents':'agent-hub',
         '/setup':setup.plugin.manifest.name,
         '/workspace':'agent-harness','/tasks':'agent-harness','/continue':'agent-harness',
         '/settings':controls.manifest.name,'/providers':controls.manifest.name,'/models':controls.manifest.name,'/model':controls.manifest.name,

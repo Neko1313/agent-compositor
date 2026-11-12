@@ -418,6 +418,7 @@ try {
   await submit('/agents');
   await waitText('Independent agents');
   await page.keyboard.press('Alt+f');
+  await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Agents'));
   await waitText('Tokens used');
   await clickText('+ Visual');
   await waitText('Turn completed');

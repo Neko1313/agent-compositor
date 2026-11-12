@@ -137,6 +137,16 @@ describe("slash completions", () => {
 });
 
 describe("plugin placement integration", () => {
+  it('focuses an explicitly reopened existing view in its current workspace without relocating it',async()=>{
+    const {ui}=setup();
+    const publish=(focus:boolean)=>ui.core.host.emit('service.ui.view',{plugin:'agent-hub',id:'agent-proof',title:'Proof',view:{lines:[{text:'Saved conversation'}]},placement:{site:'sidebar',focus}});
+    await publish(false);ui.windows.focused='plugin-agent-hub-agent-proof';ui.windows.moveWorkspace(3);ui.windows.switchTo(1);
+    await publish(false);expect(ui.windows.workspace).toBe(1);
+    await publish(true);expect(ui.windows.workspace).toBe(3);expect(ui.windows.focused).toBe('plugin-agent-hub-agent-proof');
+    expect(ui.windows.workspaceOf('plugin-agent-hub-agent-proof')).toBe(3);
+    ui.windows.forget('plugin-agent-hub-agent-proof');ui.windows.focused='input';await publish(true);
+    expect(ui.windows.focused).toBe('plugin-agent-hub-agent-proof');ui.close();
+  });
   it("carries placement through the service and applies user overrides without disturbing updates", async () => {
     const { ui, messages } = setup(undefined, () => [], {
       rules: [{ match: { plugin: "cost", surface: "usage" }, site: "sidebar", workspace: 2, focus: false }],

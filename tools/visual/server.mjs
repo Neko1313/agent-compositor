@@ -111,6 +111,17 @@ if(process.env.VISUAL_ONBOARDING){
  await writeFile(join(output,'onboarding-identity.json'),JSON.stringify({cwd:paths.project,home:paths.home,state:paths.state}));
  await writeFile(join(output,'onboarding-transport.json'),JSON.stringify({requests:0}));
 }
+if(process.env.VISUAL_EXECUTABLE&&process.env.VISUAL_HARNESS){
+ if(process.env.VISUAL_PLUGIN_DIR)throw Error('Native workflow proof uses the bundled package; candidate overrides require the source-host scenario');
+ const directory=join(cwd,'plugins/harness-proof');await mkdir(directory,{recursive:true});
+ const built=await Bun.build({entrypoints:[join(import.meta.dir,'harness-plugin/hooks.ts')],target:'bun',format:'esm'});
+ if(!built.success||built.outputs.length!==1)throw Error('Cannot build the native workflow trigger fixture');
+ await writeFile(join(directory,'hooks.js'),Buffer.from(await built.outputs[0].arrayBuffer()));
+ const manifest=JSON.parse(await readFile(join(import.meta.dir,'harness-plugin/plugin.json'),'utf8'));manifest.main='hooks.js';await writeFile(join(directory,'plugin.json'),JSON.stringify(manifest));
+ const paths=storagePaths(cwd,{...process.env,HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
+ await writeFile(join(output,'fixture-launch.json'),JSON.stringify({cwd:paths.project,home:paths.home,state:paths.state,executable:resolve(process.env.VISUAL_EXECUTABLE)}));
+}
+const workflowRequests=[];
 let terminalSize={cols:100,rows:30};
 async function start(ws) {
   if(process.env.VISUAL_PERFORMANCE)appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'start',...terminalSize})+'\n');
@@ -118,7 +129,7 @@ async function start(ws) {
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
     : ['bun', join(import.meta.dir, 'fixture.ts'), cwd];
   const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), ...command],
-    { cwd: root, env:{...process.env,...(ciBin?{PATH:ciBin+':'+process.env.PATH}:{}),...((process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off"}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+    { cwd: root, env:{...process.env,...(ciBin?{PATH:ciBin+':'+process.env.PATH}:{}),...((process.env.VISUAL_HARNESS||process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off",...(process.env.VISUAL_HARNESS?{AGENT_API_KEY:''}:{})}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
   active = { ws, proc };
   const sendLines = async () => {
     let pending = '';
@@ -142,6 +153,36 @@ const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(process.env.PORT ?? 0),
   async fetch(request, server) {
     const url = new URL(request.url);
+    if(process.env.VISUAL_HARNESS&&url.pathname===`/model/${token}/v1/models`)return Response.json({data:[{id:'visual-fixture',context_window:32768}]});
+    if(process.env.VISUAL_HARNESS&&url.pathname===`/model/${token}/v1/chat/completions`){
+      const body=await request.json(),prompt=body.messages?.filter(message=>message.role==='user').at(-1)?.content??'';
+      const kind=typeof prompt!=='string'?'unknown':process.env.VISUAL_AGENT_TABLES&&prompt==='MAIN_TABLE_TASK'?'main':process.env.VISUAL_AGENT_TABLES&&prompt==='SIDE_TABLE_TASK'?'side':prompt.startsWith('PROOF_DISCOVER')?'discover':prompt.startsWith('PROOF_WORKER')?'worker':prompt.startsWith('PROOF_VERIFY')?'verify':prompt.startsWith('Automated workflow completion')?'completion':prompt==='Explain the current status'?'foreground':'unknown';
+      workflowRequests.push(kind);await writeFile(join(output,'workflow-transport.json'),JSON.stringify({requests:workflowRequests,paidRequests:0}));
+      if(kind==='unknown'||workflowRequests.length>12)return new Response('Unexpected workflow fixture request',{status:400});
+      const reply=kind==='discover'?JSON.stringify([{id:'a',title:'Inspect source',prompt:'PROOF_WORKER_A'},{id:'b',title:'Inspect tests',prompt:'PROOF_WORKER_B'}]):kind==='worker'?'Worker evidence verified':kind==='verify'?'Combined verification complete':kind==='completion'?'Workflow completion delivered to main agent':kind==='side'?'SIDE_TABLE_DONE':'Main session remains responsive';
+      const bytes=new TextEncoder().encode(`data: ${JSON.stringify({choices:[{delta:{content:reply},finish_reason:'stop'}],usage:{prompt_tokens:11,completion_tokens:7}})}\n\ndata: [DONE]\n\n`);
+      if(kind==='main'){
+        let cleanup=()=>{};
+        const stream=new ReadableStream({start(controller){
+          let closed=false;const close=()=>{if(closed)return;closed=true;clearTimeout(timer);clearInterval(heartbeat);request.signal.removeEventListener('abort',close);try{controller.close();}catch{}};
+          const heartbeat=setInterval(()=>{if(!closed)controller.enqueue(new TextEncoder().encode(': fixture waiting\n\n'));},2000);
+          const timer=setTimeout(()=>{controller.error(Error('Held main fixture deadline'));close();},60000);cleanup=close;
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({choices:[{delta:{content:'MAIN_TABLE_WORKING'},finish_reason:null}]})}\n\n`));
+          request.signal.addEventListener('abort',close,{once:true});if(request.signal.aborted)close();
+        },cancel(){cleanup();}});
+        return new Response(stream,{headers:{'content-type':'text/event-stream'}});
+      }
+      if(kind!=='worker')return new Response(bytes,{headers:{'content-type':'text/event-stream'}});
+      let cleanup=()=>{};
+      const stream=new ReadableStream({start(controller){
+        let closed=false,timer;const deadline=Date.now()+60000;
+        const close=()=>{if(closed)return;closed=true;clearTimeout(timer);clearInterval(heartbeat);request.signal.removeEventListener('abort',close);try{controller.close();}catch{}};cleanup=close;
+        const heartbeat=setInterval(()=>{if(!closed)controller.enqueue(new TextEncoder().encode(': fixture waiting\n\n'));},2000);
+        request.signal.addEventListener('abort',close,{once:true});
+        const poll=async()=>{if(closed)return;if(request.signal.aborted)return close();const ready=await readFile(join(cwd,'proof-release.txt')).then(()=>true,()=>false);if(closed)return;if(ready){controller.enqueue(bytes);close();}else if(Date.now()>deadline){controller.error(Error('Workflow fixture worker deadline'));close();}else timer=setTimeout(poll,25);};void poll();
+      },cancel(){cleanup();}});
+      return new Response(stream,{headers:{'content-type':'text/event-stream'}});
+    }
     if(process.env.VISUAL_ONBOARDING&&url.pathname===`/model/${token}/v1/models`)return Response.json({data:[{id:'onboarding-fixture',context_window:32768}]});
     if(process.env.VISUAL_ONBOARDING&&url.pathname===`/model/${token}/v1/chat/completions`){
       const body=await request.json();onboardingRequests++;

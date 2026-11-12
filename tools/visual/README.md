@@ -30,6 +30,22 @@ parent completion and restoration. `VISUAL_PLUGIN_DIR` selects an exact candidat
 package; the bench records and verifies its loaded identity. Workflow plugin
 certification runs this scenario as well as the legacy Python-journal UI scenario.
 
+For a compiled host, set `VISUAL_EXECUTABLE` to an executable in a complete,
+extracted archive and run `node tools/visual/workflow-check.mjs`. The native bench
+uses a bounded loopback provider and a separately compiled trigger fixture in the
+temporary project. It verifies the runtime workflow identity against the bundled
+directory/version and records executable/plugin hashes and the six protocol
+requests. Native mode rejects `VISUAL_PLUGIN_DIR` overrides so the shipping
+workflow package is exercised.
+
+With the same `VISUAL_EXECUTABLE`, `node tools/visual/agent-table-check.mjs` checks
+the compiled agent overview while a main stream is held: immediate management,
+manual create approval, side reply, filters, keyboard expansion, narrow fields,
+close/reopen draft and restart transcript. It expects exactly two loopback
+requests. Both scenarios use normal terminal input and isolated state, record
+binary mode/hash and fail unexpected model requests. Stream comments keep held
+fixture connections alive; a separate sixty-second deadline still bounds them.
+
 Run `CI=1 npm run visual:check` to exercise the same real PTY with inherited CI
 flags. The fixture preserves them: interactive output must appear before exit,
 just as it does outside CI. Renderer regressions separately check that piped

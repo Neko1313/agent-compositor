@@ -27,6 +27,36 @@ async function temp() {
 }
 const dirs = [join(process.cwd(), "plugins")];
 describe("independent agents, authentication and extensions", () => {
+  it('keeps plugin-owned agent commands authoritative and hides the disabled host command',async()=>{
+    const cwd=await temp(),directory=join(cwd,'override');await mkdir(directory);
+    await writeFile(join(directory,'plugin.json'),JSON.stringify({name:'agents-override',version:'1.0.0',main:'hooks.js',trust:'trusted',commands:[{name:'/agents',description:'Custom agent screen'}]}));
+    await writeFile(join(directory,'hooks.js'),"export default {'prompt.submit':event=>event.text==='/agents'?{drop:'custom agents'}:undefined};");
+    await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agents-override','agent-hub']}));
+    const provider=new ScriptedProvider([]),app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[directory]});
+    try{
+      const core=app.createCore(async()=>true);await core.start();
+      expect(app.pluginErrors).toEqual([]);
+      const command=app.commands().find(command=>command.name==='/agents');expect(command).toMatchObject({description:'Custom agent screen'});expect(command?.execution).toBeUndefined();
+      expect(core.hasImmediateCommand('/agents')).toBe(false);await core.submit('/agents');expect(provider.requests).toHaveLength(0);
+      expect((await core.invokeTool('agent_control',{action:'list'})).ok).toBe(true);
+    }finally{await app.close();}
+    const disabled=await buildApp({cwd,env:{HOME:cwd},provider,agentHub:false});
+    try{expect(disabled.commands().some(command=>command.name==='/agents')).toBe(false);expect(disabled.createCore(async()=>false).hasImmediateCommand('/agents')).toBe(false);}finally{await disabled.close();}
+  });
+  it('opens the agent overview independently of a held foreground model',async()=>{
+    const cwd=await temp(),provider=new ScriptedProvider([{text:'main working',hold:true}]);
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:dirs});
+    try{
+      const core=app.createCore(async()=>true);await core.start();let overview:any;
+      core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface'&&(event.input as any).id==='plugin-agent-hub-agents')overview=(event.input as any).view;});
+      const turn=core.submit('Main task');await vi.waitFor(()=>expect(provider.requests).toHaveLength(1));
+      expect(core.hasImmediateCommand('/agents')).toBe(true);
+      expect(await core.invokeCommand('/agents')).toBe(true);
+      expect(overview.table).toBeDefined();expect(core.getState()).toBe('running');
+      expect(core.getMessages().filter(message=>message.role==='user').map(message=>message.content)).toEqual(['Main task']);
+      expect(provider.requests).toHaveLength(1);core.interrupt();await turn;
+    }finally{await app.close();}
+  });
   it('updates the expandable agent overview while a side turn runs and keeps filters independent of the model',async()=>{
     const cwd=await temp(),provider=new ScriptedProvider([{toolCalls:[{name:'read',args:{path:'overview.txt'}}]},{text:'working',hold:true}]);
     await writeFile(join(cwd,'overview.txt'),'PRIVATE_FILE_BODY');
@@ -36,7 +66,7 @@ describe("independent agents, authentication and extensions", () => {
       core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface'&&(event.input as any).id==='plugin-agent-hub-agents'){view=(event.input as any).view;fallback=String((event.input as any).text);}});
       await core.start();
       const created=await core.invokeTool('agent_control',{action:'create',name:'Explorer',worktree:false});expect(created.ok).toBe(true);const id=(created.output as any).id;
-      await core.invokeCommand('/agents');expect(view.table.rows[0].cells).toEqual(['Explorer','idle','0']);
+      expect(await core.invokeCommand('/agents')).toBe(true);expect(view.table.rows[0].cells).toEqual(['Explorer','idle','0']);
       await core.host.emit('ui.press',{site:'plugin-agent-hub-agents',key:`expand:${id}`});
       expect(view.table.rows[0].expanded).toBe(true);expect(fallback).toContain('Workspace:');
       await core.invokeTool('agent_control',{action:'send',id,prompt:'Inspect'});

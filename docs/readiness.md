@@ -82,7 +82,12 @@ state filters and responsive stacked fields. This is an initial reusable table
 contract. The development workflows plugin adopts it for paginated run/stage
 views, expandable results and state filters, preserving pause/resume and legacy
 journals. Agent tabs and deeper historical drill-down remain open; native and
-real-model verification of these newer views is separate. The newer source adds `/btw` side conversations
+real-model verification of these newer views is separate. Local extracted Linux
+x64 archive checks now cover the agent overview with a held main model and the
+bundled workflow table through bounded loopback providers. They exposed and fixed
+host `/agents` immediate registration and explicit focus of existing/reopened
+panes. Other native platforms and actual terminal graphics remain separate gates.
+The newer source adds `/btw` side conversations
 through catalog 0.26: an independent persisted agent with its own Reply field,
 immediate opening/reopening, separate draft, focused-agent cancellation and
 restart history. Source integration and real PTY checks cover those paths with

@@ -132,6 +132,10 @@ and Needs attention (interrupted or failed). Agent lifecycle and tool events
 refresh the visible overview without submitting a prompt to the main model.
 Narrow panes stack labeled fields. Recent activity is limited to the last twelve
 turn/tool events in this process; open the saved conversation for earlier history.
+The host `/agents` command and subcommands dispatch independently of an active
+model turn. Tool effects retain their normal permission checks. Disabling
+agent-hub removes the host command; an active plugin's `/agents` declaration keeps
+its own command contract.
 
 With `btw` and `agent-hub` enabled, `/btw <question>` immediately opens a separate
 persisted agent conversation while the main model continues. The focused pane

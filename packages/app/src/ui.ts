@@ -684,6 +684,11 @@ export class AppUI {
           placement,
         });
         if (!this.windows.has(id)) this.windows.place(id, placement);
+        if((input.placement as Placement|undefined)?.focus===true&&resolvePlacement(this.placementConfig,plugin,surface,{...placement,focus:true}).focus!==false){
+          const workspace=this.windows.workspaceOf(id);
+          if(workspace!==undefined&&workspace!==this.windows.workspace)this.windows.switchTo(workspace);
+          this.windows.focused=id;
+        }
       }
       if (name === "tool.call") {
         const args = input.input as Record<string, unknown> | undefined;

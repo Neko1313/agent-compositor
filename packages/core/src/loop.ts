@@ -1,4 +1,5 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
+import {QueryProgress,queryObservation} from './query-progress.js';
 import {
   optionLabel, questionSchema, questionnaireSchema, validateQuestionnaireResult,
   type UserQuestionRequest, type UserQuestionAnswer,
@@ -113,6 +114,7 @@ export interface AgentCoreOptions {
   systemPrompt?: string;
   maxStepsPerTurn?: number;
   maxConsecutiveToolFailures?:number;
+  maxRepeatedQuerySteps?:number;
   /** replace the builtin toolset wholesale (tests, embedders) */
   tools?: ToolSpec<unknown, unknown>[];
   /** append model-facing tools (e.g. plugin-provided tools.ts) on top of the builtins */
@@ -184,6 +186,7 @@ export class AgentCore {
   private messages: ChatMessage[] = [];
   private baseInstructions = "";
   private turnToolRecords:Array<{name:string;args:unknown;ok:boolean;output?:unknown}>=[];
+  private queryObservations=new WeakMap<object,string>();
   private contextSource = "fallback";
   private contextWindow = 32768;
   private outputLimit?:number;
@@ -226,6 +229,7 @@ export class AgentCore {
       options.maxTokensPerSession,
       options.maxStepsPerTurn,
       options.maxConsecutiveToolFailures,
+      options.maxRepeatedQuerySteps,
     ])
       if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0))
         throw new Error("Agent budgets must be positive integers");
@@ -1141,7 +1145,8 @@ export class AgentCore {
     const names=new Set<string>();
     for (const tool of value) {
       if (!tool || typeof tool.name!=="string" || !tool.name || names.has(tool.name) || typeof tool.description!=="string" ||
-          !tool.parameters || typeof tool.parameters!=="object" || typeof tool.describe!=="function" || typeof tool.execute!=="function")
+          !tool.parameters || typeof tool.parameters!=="object" || typeof tool.describe!=="function" || typeof tool.execute!=="function" ||
+          (tool.loopGuard!==undefined&&tool.loopGuard!=='query'))
         throw new Error("Invalid or duplicate tool definition");
       names.add(tool.name);
     }
@@ -1177,10 +1182,13 @@ export class AgentCore {
     let failed: string | undefined;
 
     let recoveryAttempted=false, finishChecks=0;
+    const queryProgress=new QueryProgress();
+    let queryContext=this.messages;
     for (let step = 0; step < this.maxSteps; step++) {
       if (this.abort.signal.aborted) break;
       // steering lands at the natural step boundary
       while (this.steerQueue.length > 0) {
+        queryProgress.reset();
         const steerText = this.steerQueue.shift()!;
         this.messages.push({ role: "user", content: steerText });
       }
@@ -1188,6 +1196,7 @@ export class AgentCore {
       // steering landed at the natural step boundary; now check context
       // pressure before paying for another model request
       await this.maybeCompact();
+      if(this.messages!==queryContext){queryProgress.reset();queryContext=this.messages;}
       if (this.abort.signal.aborted) break;
 
       await this.emit("turn.step", { turnId });
@@ -1259,10 +1268,17 @@ export class AgentCore {
         });
         fullText = "";
         metadata = undefined;
+        const recordStart=this.turnToolRecords.length;
         await this.runToolBatch(turnId, batch);
         let failures=0;for(const r of [...this.turnToolRecords].reverse()){if(r.ok)break;failures++;}
         if(failures>=(this.options.maxConsecutiveToolFailures??6)){failed="Repeated tool failures without progress. Resolve the reported permission/configuration error before continuing; progress is saved.";break;}
         if(failures>=3)this.messages.push({role:"user",origin:"harness",content:"Harness recovery: repeated tool failures produced no progress. Inspect the errors and available tool schemas. Do not repeat denied actions or bypass policy. Use permitted read-only tools for authorized investigation, or report a concrete blocker."});
+        if(this.steerQueue.length||this.messages!==queryContext){queryProgress.reset();queryContext=this.messages;}
+        else {
+          const repeated=queryProgress.observe(this.turnToolRecords.slice(recordStart).map(record=>record.ok?this.queryObservations.get(record):undefined));
+          if(repeated>=(this.options.maxRepeatedQuerySteps??6)){failed='Repeated query results without new observations; progress saved. Change the query or report a concrete blocker before resuming.';break;}
+          if(repeated===3)this.messages.push({role:'user',origin:'harness',content:'Query recovery: these successful queries repeat observations already returned. Use the available evidence: open an exact discovered path, narrow or change the query, or perform the next authorized step. Do not repeat the same query without a concrete reason. If blocked, report the blocker. Polling tools remain available for genuinely running work.'});
+        }
         if (step === this.maxSteps - 1) {
           failed = `Step limit (${this.maxSteps}) reached; progress saved. Continue this session to resume.`;
           break;
@@ -1757,13 +1773,14 @@ export class AgentCore {
         result = interceptedResult;
       }
 
-      await this.finishToolCall(call,args,result,error,denied);
+      await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query');
       void turnId;
     }
   }
 
-  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean):Promise<void> {
-    this.executionRecords.push({name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result});
+  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false):Promise<void> {
+    const record={name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result};
+    this.executionRecords.push(record);
     await this.emit("tool.result", {
       callId: call.id,
       tool: call.name,
@@ -1772,11 +1789,13 @@ export class AgentCore {
       error,
       denied: denied || undefined,
     });
+    const text=error ? error + (denied ? "\nPermission denied: do not retry equivalent effects through another tool. Report the blocker or continue unrelated authorized work." : "") : this.toolResultText(result);
+    if(query&&record.ok)this.queryObservations.set(record,queryObservation(call.name,args,text));
     this.executionMessages.push({
       role: "tool",
       toolCallId: call.id,
       name: call.name,
-      content: error ? error + (denied ? "\nPermission denied: do not retry equivalent effects through another tool. Report the blocker or continue unrelated authorized work." : "") : this.toolResultText(result),
+      content: text,
     });
   }
 

@@ -16,6 +16,7 @@ export interface ReadOutcome {
 
 export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
   name: "read",
+  loopGuard: 'query',
   description: "Read UTF-8 text with a line range and a guarded edit anchor. Pass edit.path/expectedHash/range/strict to edit with exact oldText/newText. The anchor covers only the returned range. Files over 2 MiB require targeted search.",
   parameters: {
     type: "object",

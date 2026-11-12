@@ -134,6 +134,8 @@ describe("independent agents, authentication and extensions", () => {
       await core.invokeTool('agent_control',{action:'send',id,prompt:'Inspect'});
       await vi.waitFor(()=>expect(view.table.rows[0].cells[1]).toBe('running'));
       await vi.waitFor(()=>expect(view.table.rows[0].details.some((line:any)=>line.text==='Tool finished: read')).toBe(true));
+      // Stop only once the second model request is actually held, not between steps.
+      await vi.waitFor(()=>expect(provider.requests).toHaveLength(2),{timeout:3000});
       expect(JSON.stringify(view)).not.toContain('PRIVATE_FILE_BODY');
       expect(view.table.rows[0].details.some((line:any)=>line.text==='Turn started')).toBe(true);
       await core.host.emit('ui.press',{site:'plugin-agent-hub-agents',key:'filter'});expect(view.tabs.find((tab:any)=>tab.selected).id).toBe('running');expect(view.table.rows).toHaveLength(1);

@@ -1,5 +1,62 @@
 # Project memory
 
+## Bounded recovery for repeated successful finite queries — 2026-11-13
+
+ToolSpec now has optional loopGuard:'query' for finite read-only observations;
+built-in read and Callix glob/grep opt in. Polling/effect tools remain unannotated.
+It grants no permission and is omitted from model-facing schemas. The default
+loop hashes effective names/arguments plus visible result text, canonicalizing
+argument key order without rewriting paths. A 256-hash recent window detects
+repeated query-only model steps, including alternating previously seen queries.
+Three repeated steps produce one recovery reminder per streak; six stop with
+preserved progress. The first novel step does not count. New observations reset
+the streak; non-query/failure steps, turns, user steering and replaced contexts
+reset the window. Pending steering is honored before stopping. No result is
+cached/substituted and all permitted calls still execute. Positive integer
+agent.maxRepeatedQuerySteps / AgentCoreOptions.maxRepeatedQuerySteps sets the
+ceiling. Selected replacement run strategies retain ownership of their loop.
+
+Core/app regressions cover arbitrary extension tools, argument order, alternating
+queries, changed results, recovery, polling, batches, effects/turns/steering,
+bounded history, invalid metadata/budgets and actual Callix composition/config.
+A separate red/green context-replacement test prevents false repetition stops
+after compaction removes earlier evidence. Final coverage passes 1312 tests with
+three optional skips in 161 files; types, generation/docs checks and Callix plus
+plugin-author PR certification pass. Canonical core/plugin/agent/release guides,
+Callix README and installed authoring contract guidance describe the optional
+field. Event schemas, terminal controls and workspace permissions are unchanged.
+
+The new mandatory installed query probe uses actual read/grep and session
+journals: seven successful observations must stop before request 8 with one
+reminder and exit 1; changing to a new read after the reminder finishes normally.
+Three cases use 20 loopback completions, preserve source/draft and require no
+source injection or paid model. The previous Linux archive fails all three;
+the final complete archive passes all eight runtime probes. Final archive,
+extracted host, Callix code and installed guide hashes match. Evidence is in
+dist/query-loops-final; earlier prototype/negative evidence stays in
+dist/query-loops. Other native platforms still require the next CI run.
+
+Two known greeting attempts on the prototype score 0/2 with 17 admitted local
+requests. Neither reaches the query reminder threshold (replayed maximum 1);
+do not attribute fewer requests than the prior 21 to this guard. Three actual
+no-change edits are rejected in the first attempt. The second only proposes
+work; unchanged artifacts fail original checks and independent grading. The
+loaded prototype loop source is retained and hashed: its later context-reset
+repair was not in this model run, which disabled compaction. This is not final
+source/model verification or a quality gain. Other captured runtime/evaluator
+hashes match. CPU reports zero VRAM; owned group 580741 exited and was independently
+absent. Reports: dist/local-cpu-query-loops; receipt dist/query-loops/live-integrity.json.
+
+Prior 9cb714b release run 43324569275 failed in verification before native jobs:
+the agent-overview test stopped between read and its second request but expected
+two requests, and resources startup exceeded its artificial 1s wait. Tests now
+wait for the actually held second request and allow 3s for startup, preserving
+request-count, held-state, view and interruption assertions. Focused integration
+checks and the final full suite pass. No production UI change: the project's
+tui-visual-check scope permits package tests for this coordination-only work.
+No public release, paid request or budget change. Semantic novel-query loops,
+proposal-only completion, broad model quality and OpenTUI remain open.
+
 ## Reject edits that do not change actual file text — 2026-11-13
 
 The live greeting diagnostic exposed an edit with identical oldText/newText

@@ -89,6 +89,15 @@ response guidance, preserves project/user files, and uses six bounded
 loopback completions. The probe is required on every declared native platform;
 it establishes packaged tool behavior, not live model coding quality.
 
+`dist/release/query-smoke-PLATFORM.json` records installed query-loop recovery.
+Actual built-in reads and Callix searches must each receive a recovery reminder
+and stop after one novel plus six repeated query steps, with seven successful
+tool results verified in the session journal and exit code 1. A separate case
+uses a new read after the reminder and must finish normally. The three cases use
+at most 20 loopback completions, preserve source/user files, and are mandatory
+on every native platform. These controlled responses do not establish autonomous
+model recovery quality.
+
 
 The installed-runtime suite also runs a coding-preset completion probe with no
 saved task plan. An unchecked write must retain progress and fail after bounded

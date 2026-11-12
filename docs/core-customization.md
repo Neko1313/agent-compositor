@@ -338,6 +338,34 @@ The selected
 resumption; `ui.controllers` replaces its UI controllers. Their contracts and
 external-extension checks are documented in [ui-controllers.md](ui-controllers.md).
 
+### Repeated query recovery
+
+The default loop tracks tools explicitly declaring `loopGuard: "query"` on their
+`ToolSpec`. Built-in `read` and Callix `glob`/`grep` opt in. This declaration is for
+finite read-only observations; omit it for polling, streaming and effects. It
+does not grant permissions or enter the model's tool schema. Legacy unannotated
+tools and selected replacement run strategies retain their behavior.
+
+A model step containing only successful annotated queries is repeated when every
+effective tool/argument/result observation is already in the recent window. Object
+argument key order is ignored; paths are not rewritten. The window retains at most
+256 observation hashes and compares the text actually visible to the model. No
+result is cached or substituted: each permitted call still executes normally.
+After three repeated steps, the model receives one recovery reminder for that
+streak. Six repeated steps stop the turn with preserved progress and an error.
+The first novel observation does not count toward those six steps. A new result
+or query resets the repeated-step count; a non-query/failed step, new turn or user
+steering resets the window too. Context replacement, including compaction, resets
+it so a new context can reread prior evidence. Duplicate calls within one model batch count as
+one step. Alternating previously observed queries can still form a repeated streak.
+
+Configure the positive integer `agent.maxRepeatedQuerySteps`, or the equivalent
+`AgentCoreOptions.maxRepeatedQuerySteps`, to change the default six-step ceiling.
+Smaller ceilings may stop before the three-step reminder. Polling tools such as
+`exec_output` remain unannotated. An extension selecting its own tool definitions
+can omit the flag for a read used as a deliberate poll. This is bounded recovery
+for repeated observations, not a semantic proof of task progress or correctness.
+
 ### Coding completion checks
 
 With `agent.instructionsPreset: "coding"`, the default completion policy asks for

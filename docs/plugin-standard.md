@@ -31,6 +31,15 @@ explicit selection and must preserve policy, privacy, journal and budget behavio
 `dispose()` stops subprocesses, connections, timers and listeners; reload restores
 required state without depending on the previous module instance.
 
+## Finite query tools
+
+Tools may opt in to repeated-observation recovery with `loopGuard: "query"` on
+their `ToolSpec`. Use it only for finite read-only queries. Omit it for status
+polling, streams and effectful operations. It does not grant read permission or
+change the model-facing schema; ordinary descriptors and policy still apply.
+Legacy tools without this optional field keep their behavior. See the exact
+[recovery window and limits](core-customization.md#repeated-query-recovery).
+
 ## Immediate user commands
 
 Declare `"execution":"immediate"` on a command to handle an explicit user

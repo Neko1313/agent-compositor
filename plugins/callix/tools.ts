@@ -69,6 +69,7 @@ export default [
   },
   ...["glob", "grep"].map((action) => ({
     name: action,
+    loopGuard: 'query' as const,
     description:
       action === "glob"
         ? "Find project files by glob, respecting ignore rules."

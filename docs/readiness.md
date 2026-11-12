@@ -144,6 +144,26 @@ protocol fixture. The maintained release smoke now requires this check on every
 declared release platform. Other platforms have not yet run this new check;
 this does not close the live-model classification gate.
 
+### Finite-query repetition recovery — 2026-11-13
+
+The default loop now warns after three repeated query-only steps and stops after
+six, using optional `ToolSpec.loopGuard: "query"` metadata. Built-in read and
+Callix glob/grep opt in; polling remains unchanged. New observations, other
+operations, steering and context replacement permit fresh investigation. The
+recent window is bounded; see [exact rules](core-customization.md#repeated-query-recovery).
+
+1312 tests pass with three optional skips. The final Linux archive passes eight
+runtime probes, including real read/grep journal evidence for bounded refusal
+and recovery after a new observation. The prior archive fails the new probe.
+Other-platform evidence is pending. The previous `9cb714b` release run failed before
+native builds on two integration-test synchronization issues, now corrected.
+
+Two prototype CPU greeting attempts still score 0/2 with 17 admitted requests.
+Neither reaches the reminder threshold, so this is not a measured recovery or
+efficiency gain. The final context-replacement reset is covered by regressions
+and the rebuilt archive, not by that earlier compaction-disabled model run.
+Novel-but-unproductive queries and proposal-only responses remain separate gaps.
+
 ### No-change edit evidence — 2026-11-13
 
 The default file-edit resolver rejects a replacement whose actual resulting text

@@ -25,6 +25,13 @@ hooks, tools and app/controller types) from the installation used to create the
 plugin. Keep that installation while
 using its SDK links. You may add type imports without runtime dependencies.
 
+Finite read-only tools may declare `loopGuard: 'query'` on their ToolSpec to opt
+in to repeated-result recovery. Omit it for polling, streams and effects. This
+does not grant permissions or alter the model-facing schema. The default loop
+warns after three repeated query steps and stops after six, counting steps with
+no new observations rather than calls inside a batch. The host setting
+`agent.maxRepeatedQuerySteps` controls the ceiling; the recent window is bounded.
+
 For a command that opens UI, add `"ui":{"site":"main"}` to its command
 declaration and handle `ui.press` with
 `event.site === 'plugin-project-helper-main'` and

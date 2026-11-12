@@ -375,6 +375,15 @@ a recovery reminder appears after three. Configure
 permission denials and manual interruption remain binding. A stopped turn does
 not claim successful completion; `/continue` starts another bounded turn.
 
+Repeated successful queries have a separate guard. Built-in `read` and Callix
+`glob`/`grep` opt in through optional `ToolSpec.loopGuard: "query"` metadata.
+After three model steps containing only already-seen successful observations,
+the model receives a recovery reminder; six repeated steps stop with saved
+progress. Configure `agent.maxRepeatedQuerySteps` to change that ceiling. New
+observations, other operations and user steering permit renewed investigation.
+Unannotated polling tools retain their behavior. See the precise
+[window and reset rules](core-customization.md#repeated-query-recovery).
+
 `service.model.capabilities` resolves selected-model context/output limits.
 Explicit profile `contextWindow` wins. Ollama profiles support native `/api/show`
 and `/api/ps` metadata; the default local port 11434 and the Ollama UI preset

@@ -16,7 +16,7 @@ describe('resources monitor',()=>{
    await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['resources'],agent:{projectContext:false,skills:false}}));
    const provider=new ScriptedProvider([{text:'MAIN_RUNNING',hold:true}]);app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins/resources')]});expect(app.pluginErrors).toEqual([]);
    const core=app.createCore(async()=>true),views:UiTextView[]=[];core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface'&&(event.input as any).plugin==='resources')views.push((event.input as any).view);});
-   const turn=core.submit('Work');await vi.waitFor(()=>expect(provider.requests).toHaveLength(1));
+   const turn=core.submit('Work');await vi.waitFor(()=>{expect(core.failure).toBeUndefined();expect(provider.requests).toHaveLength(1);},{timeout:3000});
    const command=app.commands().find(command=>command.name==='/resources');expect(command?.ui?.site).toBe('plugin-resources-resources');await core.host.emit('ui.press',{site:command!.ui!.site,key:'command:/resources'});expect(views.at(-1)!.lines.some(line=>line.text.includes('Compositor process'))).toBe(true);expect(core.getState()).toBe('running');expect(provider.requests).toHaveLength(1);
    core.interrupt();await turn;
   }finally{await app?.close();await rm(cwd,{recursive:true,force:true});}

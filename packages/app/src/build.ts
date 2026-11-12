@@ -457,6 +457,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       uiControllers:config.config.ui?.controllers,
       maxStepsPerTurn: options.maxSteps ?? (typeof config.config.agent?.maxSteps === "number" ? config.config.agent.maxSteps : 64),
       maxConsecutiveToolFailures:typeof config.config.agent?.maxConsecutiveToolFailures==='number'?config.config.agent.maxConsecutiveToolFailures:6,
+      maxRepeatedQuerySteps:typeof config.config.agent?.maxRepeatedQuerySteps==='number'?config.config.agent.maxRepeatedQuerySteps:6,
       maxTokensPerTurn:
         options.maxTokensPerTurn ??
         (typeof config.config.agent?.maxTokensPerTurn === "number"

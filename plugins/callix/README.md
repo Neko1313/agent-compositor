@@ -130,6 +130,14 @@ It analyses a temporary TypeScript project and checks a resolved cross-file
 call. The regular suite tests cache invalidation, errors and provider replacement
 without requiring a local Callix installation.
 
+`glob` and `grep` declare `loopGuard: 'query'`: the default agent loop warns after
+three repeated model steps with no new query observations, then stops after six
+with saved progress. A changed query/result resets the streak. This metadata
+does not grant permissions, cache results or alter arguments. `code_query` is
+unannotated because its actions also include indexing/status operations. Polling
+tools remain outside this guard; configure `agent.maxRepeatedQuerySteps` when a
+different ceiling is needed.
+
 ## Precise navigation and guarded edits
 
 `code_query` now supports `outline`, `read_symbol` and bounded reverse `impact`

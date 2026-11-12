@@ -44,6 +44,8 @@ export interface ToolSpec<Args = unknown, Result = unknown> {
   description: string;
   /** On-demand guidance, not part of the repeated model schema. */
   usage?: import("./guidance.js").ToolUsage;
+  /** Opt in finite, read-only observations to repeated-result recovery. Omit for polling or effects. */
+  loopGuard?: 'query';
   /** JSON-schema-ish shape for the model; loose by design (renderers display it) */
   parameters: Record<string, unknown>;
   /** reduce a call to what permission rules match on */

@@ -2,6 +2,29 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.7.4 - 2026-11-12
+
+### Documentation
+- Record verified v0.7.3 publication and public upgrade ([8c2aad9](https://github.com/Neko1313/agent-compositor/commit/8c2aad9e2b133fb5ba62578bcda40bc1e9fd066f))
+- Record report panel evidence and release preparation ([e6d9443](https://github.com/Neko1313/agent-compositor/commit/e6d9443d708354e3f7f3d11a228a4a97ec51e483))
+
+
+### Features
+- Add bounded structured test feedback tool ([33fcdb7](https://github.com/Neko1313/agent-compositor/commit/33fcdb71e5a469f832a40e8eb744836a27777c03))
+- Add concurrent failure inspection panel ([4989597](https://github.com/Neko1313/agent-compositor/commit/49895976287ea6e1239daf639ab62089bd3dbbaf))
+
+
+### Fixes
+- Canonicalize custom tool paths before policy ([ef0c26b](https://github.com/Neko1313/agent-compositor/commit/ef0c26b6c08d3d316f515f7a761ff6cb43573df8))
+- Stop verification when plugin metadata fails ([e7869ac](https://github.com/Neko1313/agent-compositor/commit/e7869ac383298b1c4ffcef6515e1c6e0f145ce25))
+- Settle closed panels and page editable views ([365db5b](https://github.com/Neko1313/agent-compositor/commit/365db5b48594d16f7af157d77d4478e66857869d))
+
+
+### Other changes
+- Merge pull request #7 from Neko1313/automation/plugin-releases
+
+chore(release): prepare plugin versions ([cc982a3](https://github.com/Neko1313/agent-compositor/commit/cc982a371c08b97743144ccb4f69c5440d3e6c9a))
+
 ## v0.7.3 - 2026-11-12
 
 ### Fixes

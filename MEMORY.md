@@ -1,5 +1,34 @@
 # Project memory
 
+## Prepared host0.7.4 after closed-pane repairs — 2026-11-12
+
+Committed365db5b48594d16f7af157d77d4478e66857869d: host dismissal, explicit
+host/plugin page-key routing, and the final operation-counter redraw. Source
+suite1161pass/3optional skips, types/docs and full standard/report PTYs pass.
+Prepared root/app0.7.4 and matching root/app lock entries; git-cliff host-tag
+filter generated notes containing canonical custom-path policy ef0c26b and
+365db5b, and docs:gen updated CLI reference. Focused CLI/installer/changelog
+checks16pass and refreshed docs/build pass. No host tag/publication yet.
+
+Read-only preparation plan at365db5b requires mcp1.3.2, plugin-author1.3.2 and
+test-reports0.1.1, catalog1.0.9. The first two bundle changed catalog code; report
+hooks opt into the new UI field. Versions/changelogs remain owned by automatic
+preparation. Review/merge its refreshed generated PR and CI before a final host
+build/publication: native host archives include bundled plugins, so do not
+publish changed plugin runtime under stale prepared versions. Local draft builds
+are diagnostic only until the exact prepared native candidate passes all gates.
+
+Next: verify actual compiled/installed TUI close and narrow-page behavior, then
+complete the immutable0.7.4 host gates and public-upgrade proof. Existing
+VISUAL_EXECUTABLE bypasses fixture.ts (and its ScriptedProvider/fixture identity/
+pluginDirs). A compiled-CLI proof therefore needs an isolated local provider
+transport/configuration and the actual selected package installed in its fixture;
+source-AppUI/Bun PTY or a certificate alone is not that proof. Preserve maintained
+background/context/plain-startup smokes and original public0.7.3. Publish the
+independent report plugin only after the patched host; its minimum UI catalog
+is now0.24. Broader original1.0/model/development/trust objectives remain active.
+No new paid model request, credential change or budget mutation.
+
 ## Host panel dismissal, paging and settlement redraw — 2026-11-12
 
 Reproduced both open UI gaps through the actual PTY before changing production:

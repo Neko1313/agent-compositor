@@ -1,6 +1,6 @@
 {
   "name": "agent-compositor",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "private": true,
   "type": "module",
   "description": "Open runtime for LLM CLI agents: core, swappable renderers, plugin contracts.",

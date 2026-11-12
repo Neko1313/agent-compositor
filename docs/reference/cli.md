@@ -2,7 +2,7 @@
 
 > Generated from repository sources. Run `npm run docs:gen`; do not edit by hand.
 
-This reference describes the main branch. The host package version is **0.7.3**.
+This reference describes the main branch. The host package version is **0.7.4**.
 
 ```text
 Usage: compositor [options]

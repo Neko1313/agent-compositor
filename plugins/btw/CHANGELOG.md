@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0
+
+<!-- plugin-release:auto:start -->
+- prepare plugin versions ([b7c7cfc](https://github.com/Neko1313/agent-compositor/commit/b7c7cfcf665d40a1f842875616e56fe5ea772da7))
+- **BREAKING:** open persistent side-agent conversations ([2f1f5ae](https://github.com/Neko1313/agent-compositor/commit/2f1f5ae63036b8bd9f9ddc4e6d708a074a6191e6))
+  /btw now opens or restores an independent agent conversation and requires catalog 0.26 with agent-hub. Use /btw --once \<question\> for the previous isolated notification response.
+- keep controls and human dialog input independent ([e7a6bd1](https://github.com/Neko1313/agent-compositor/commit/e7a6bd14e0a6419d3df9c50729d056f3f1aac03f))
+<!-- plugin-release:auto:end -->
+
 ## 1.2.2
 
 <!-- plugin-release:auto:start -->

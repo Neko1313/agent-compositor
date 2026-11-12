@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Native compositor plugins plus explicitly portable Claude-format examples. See docs/marketplace.md for runtime compatibility.",
-    "version": "1.0.9"
+    "version": "1.0.10"
   },
   "plugins": [
     {
       "name": "auto-approve",
       "source": "./plugins/auto-approve",
-      "description": "Opt-in risk review for arbitrary console, plugin, MCP and workflow tool actions. Only low-risk decisions pass automatically; explicit denies remain binding.",
-      "version": "1.3.1",
+      "description": "Opt-in task-context review for console, plugin, MCP and workflow actions, with structured approval/refusal/uncertainty and binding host denies.",
+      "version": "1.4.0",
       "compositor": {
         "format": "native"
       }
@@ -29,8 +29,8 @@
     {
       "name": "btw",
       "source": "./plugins/btw",
-      "description": "/btw <question> — ask a side question answered in isolation by a fresh model call (Claude Code /btw analog: the answer lands as a notification and never enters the conversation). Drop this folder to remove.",
-      "version": "1.2.2",
+      "description": "Open or restore an independent side-agent conversation while the main task continues. Use /btw --once for an isolated answer notification.",
+      "version": "2.0.0",
       "compositor": {
         "format": "native"
       }
@@ -39,7 +39,7 @@
       "name": "callix",
       "source": "./plugins/callix",
       "description": "Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query.",
-      "version": "1.3.4",
+      "version": "1.4.0",
       "compositor": {
         "format": "native"
       }
@@ -48,7 +48,7 @@
       "name": "checkpoint-history",
       "source": "./plugins/checkpoint-history",
       "description": "Turn snapshots for code and conversation, with conflict-aware restore and review.",
-      "version": "1.2.3",
+      "version": "1.3.0",
       "compositor": {
         "format": "native"
       }
@@ -129,7 +129,7 @@
       "name": "mcp",
       "source": "./plugins/mcp",
       "description": "MCP client: expose stdio MCP servers' tools to the model through the mcp_call gateway. Servers come from AGENT_MCP_CONFIG (JSON, Claude-style mcpServers) or <cwd>/.agent-compositor/mcp.json.",
-      "version": "1.3.2",
+      "version": "1.4.0",
       "compositor": {
         "format": "native"
       }
@@ -192,7 +192,7 @@
       "name": "plugin-author",
       "source": "./plugins/plugin-author",
       "description": "Create and improve Compositor plugins from a request: bundled skill, current contracts, starter files and non-executing structure checks.",
-      "version": "1.3.2",
+      "version": "1.4.0",
       "compositor": {
         "format": "native"
       }
@@ -255,7 +255,7 @@
       "name": "workflows",
       "source": "./plugins/workflows",
       "description": "Replaceable dynamic background workflows with persistent dependency stages, bounded parallelism, expansion, conditional branches, pause/resume/retry and Python/Monty journal compatibility.",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "compositor": {
         "format": "native"
       }
@@ -296,7 +296,7 @@
     {
       "name": "resources",
       "source": "./plugins/resources",
-      "description": "Independent process CPU and memory charts with no model requests.",
+      "description": "Independent process CPU and memory charts; no agent tool or model request.",
       "version": "0.1.0",
       "compositor": {
         "format": "native"

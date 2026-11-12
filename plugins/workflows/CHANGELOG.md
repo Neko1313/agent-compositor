@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.0
+
+<!-- plugin-release:auto:start -->
+- add paginated run and stage table navigation ([cc98705](https://github.com/Neko1313/agent-compositor/commit/cc98705eb10b5e295f2755b251c22068d5eb93b7))
+- add semantic state tabs for agents and workflows ([4afc96e](https://github.com/Neko1313/agent-compositor/commit/4afc96e5bfdaeb37ba2f91d5aaa5e37e5db10997))
+<!-- plugin-release:auto:end -->
+
 ## 1.5.0
 
 <!-- plugin-release:auto:start -->

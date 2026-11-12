@@ -83,8 +83,9 @@ its configured home. The installer does not edit shell profiles or use sudo.
 
 `dist/release/discovery-smoke-PLATFORM.json` records the installed discovery/read
 probe: real empty text search, broad glob, rejected zero-based read pagination,
-valid ranged read and its guarded edit anchor. It checks the actual model-facing
-schema and response guidance, preserves project/user files, and uses five bounded
+valid ranged read and its guarded edit anchor, and rejection of an edit that
+leaves the actual file unchanged. It checks the actual model-facing schema and
+response guidance, preserves project/user files, and uses six bounded
 loopback completions. The probe is required on every declared native platform;
 it establishes packaged tool behavior, not live model coding quality.
 

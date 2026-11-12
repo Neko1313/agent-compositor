@@ -204,6 +204,11 @@ async function editFile(payload: unknown): Promise<unknown> {
   if (!p.oldText && !(p.expectedHash && p.range && p.range.start===p.range.end)) throw new Error("edit: oldText must be non-empty outside a guarded insertion");
   const content = await fs.readFile(p.path, "utf8");
 
+  const writeChanged=async(next:string)=>{
+    if(next===content)throw Error('edit: replacement leaves the file unchanged. Supply text that implements the intended change, or omit edit if the file is already correct.');
+    await fs.writeFile(p.path,next);
+  };
+
   if(p.expectedHash!==undefined){
     if(!/^[a-f0-9]{64}$/.test(p.expectedHash)||createHash('sha256').update(content).digest('hex')!==p.expectedHash)throw Error('edit: stale file snapshot; read the symbol/file again before editing');
   }
@@ -214,7 +219,7 @@ async function editFile(payload: unknown): Promise<unknown> {
     if(!count||(!p.replaceAll&&count!==1))throw Error('edit: text is missing or ambiguous inside the selected range');
     const changed=!p.oldText?p.newText:p.replaceAll?chunk.split(p.oldText).join(p.newText):chunk.replace(p.oldText,()=>p.newText);
     const next=content.slice(0,p.range.start)+changed+content.slice(p.range.end),hashAfter=createHash('sha256').update(next).digest('hex');
-    await fs.writeFile(p.path,next);
+    await writeChanged(next);
     return{path:p.path,replacements:p.replaceAll?count:1,match:'exact',hashAfter,undo:{oldText:changed,newText:chunk,range:{start:p.range.start,end:p.range.start+changed.length},expectedHash:hashAfter,strict:true}};
   }
   const exactCount = countOccurrences(content, p.oldText);
@@ -224,19 +229,19 @@ async function editFile(payload: unknown): Promise<unknown> {
       const normalized = normalizedReplace(content, p.oldText, p.newText, true);
       if (normalized.count === 0)
         throw new Error(`edit: no match for oldText in ${p.path}`);
-      await fs.writeFile(p.path, normalized.content);
+      await writeChanged(normalized.content);
       return {
         path: p.path,
         replacements: normalized.count,
         match: "normalized",
       };
     }
-    await fs.writeFile(p.path, content.split(p.oldText).join(p.newText));
+    await writeChanged(content.split(p.oldText).join(p.newText));
     return { path: p.path, replacements: exactCount, match: "exact" };
   }
 
   if (exactCount === 1) {
-    await fs.writeFile(p.path, content.replace(p.oldText, () => p.newText));
+    await writeChanged(content.replace(p.oldText, () => p.newText));
     return { path: p.path, replacements: 1, match: "exact" };
   }
   if (exactCount > 1)
@@ -247,7 +252,7 @@ async function editFile(payload: unknown): Promise<unknown> {
   if(p.strict||p.expectedHash)throw Error("edit: exact oldText not found");
   const normalized = normalizedReplace(content, p.oldText, p.newText, false);
   if (normalized.count === 1) {
-    await fs.writeFile(p.path, normalized.content);
+    await writeChanged(normalized.content);
     return { path: p.path, replacements: 1, match: "normalized" };
   }
   if (normalized.count > 1)

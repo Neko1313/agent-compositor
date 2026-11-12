@@ -1,5 +1,52 @@
 # Project memory
 
+## Reject edits that do not change actual file text — 2026-11-13
+
+The live greeting diagnostic exposed an edit with identical oldText/newText
+reported as a successful mutation. The default file-edit resolver now compares
+the computed result with its original text before every write path: guarded
+range/insertion, exact replacement and normalized fallback, with replaceAll or
+single matches. An unchanged result returns a clear error without rewriting the
+file or creating an undo record. This is an actual-text comparison, not a blanket
+ban on identical arguments: the existing useful whitespace-normalization case
+with identical patterns still succeeds when it changes file text. Stale hash,
+scope, ambiguity and permission behavior remain; replacement resolver hooks keep
+their existing ownership. Tool guidance and canonical agent/release docs reflect
+the default behavior. No event schema, UI layout or workspace permission changed.
+
+Five regression cases cover exact and normalized no-change replacements in both
+single/all modes and an empty guarded insertion through the default service.
+They check false/error results, preserved bytes/mtime and no undo entries. Existing
+normalized replacement, guarded editing and scope tests pass. Full coverage has
+1296 passed/three optional skips in159 files; types and docs checks pass. No UI
+layout/input change requires a new real-PTY scenario.
+
+The required installed discovery probe now uses six bounded loopback responses:
+search, discover, reject read offset0, read with a guarded anchor, reject an actual
+no-change edit, then finish. The old Linux archive accepts the no-change edit and
+fails this probe; the new complete archive passes it and all six other existing
+installed-runtime probes. Dist/noop-edit retains both reports, the full archive,
+extracted binary and hashes proving archive/host/Callix-hook equality. Cross-platform
+results for this newer probe still require CI. Prior c2fa4c4 main CI, documentation
+and plugin release preparation all passed. No public release or paid call.
+
+The same known greeting task was rerun twice with navigation tools, ordinary @.
+context, coding instructions and unchanged graders/limits. Both fail (0/2), with
+21 actual admitted requests:11 then10. The first makes a real but syntactically
+invalid guarded edit and repeatedly claims success after failing npm tests; the
+completion gate rejects it. The second only reads/searches and proposes future
+work; its core has no failure, but original checks and independent grading reject
+the unchanged artifact. Neither attempt invokes an actual no-change edit, so
+these model runs do not directly validate the new rejection or establish a quality
+gain. The known baseline was also0/2 (24 admitted); do not infer causal efficiency
+from this small changed-guidance comparison. Package fixture survives both.
+Dist/local-cpu-noop-edit contains reports, preflights and wire receipts. Runtime
+and evaluator source hashes match the captured working-tree inputs on c2fa4c4;
+CPU usage reports zero VRAM. Owned group550831 exited and was independently absent.
+Dist/noop-edit/live-integrity.json binds the evidence. No paid request or budget
+change. Repeated successful query loops, proposal-only completion and broader
+model quality remain open; OpenTUI is still planned.
+
 ## Ordinary directory-reference CPU diagnostics — 2026-11-13
 
 The evaluator can explicitly enable ordinary fileReferences. The local CPU CLI

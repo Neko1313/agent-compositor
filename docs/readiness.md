@@ -144,6 +144,25 @@ protocol fixture. The maintained release smoke now requires this check on every
 declared release platform. Other platforms have not yet run this new check;
 this does not close the live-model classification gate.
 
+### No-change edit evidence — 2026-11-13
+
+The default file-edit resolver rejects a replacement whose actual resulting text
+is unchanged, before writing or adding undo state. Useful whitespace normalization
+still works when identical arguments change the actual file. Five regression
+cases cover exact/normalized single/all replacements and an empty guarded
+insertion; 1296 tests pass with three optional skips. The installed Linux archive
+passes a six-response discovery/read/no-change-edit probe and the six other
+runtime probes; the prior archive fails the new no-change check. The expanded
+probe is required in the native matrix, with its new cross-platform results still
+pending. These establish tool behavior, not autonomous model correctness.
+
+Two subsequent known greeting diagnostics still score 0/2 with 21 admitted local
+requests. One guarded edit introduces invalid syntax and fails completion checks;
+the other returns a proposal without implementing it and fails independent
+grading. Neither invokes a no-change edit, so the model runs do not directly
+validate its new rejection or establish improved model quality. The native and
+unit regressions provide the rejection evidence.
+
 ### Ordinary directory-reference coding diagnostic — 2026-11-13
 
 The CPU evaluator can now exercise the existing `@.` directory-reference flow

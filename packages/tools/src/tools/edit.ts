@@ -28,7 +28,7 @@ export interface EditOutcome {
  */
 export const editTool: ToolSpec<EditArgs, EditOutcome> = {
   name: "edit",
-  description: "Replace exact text in a file. Preserve ALL edit anchor fields from read/read_symbol: path, expectedHash, range, strict. Do not discard range or hash. A stale snapshot requires re-reading. oldText must match uniquely inside the selected range unless replaceAll is set.",
+  description: "Replace exact text in a file. Replacements that leave the actual file text unchanged are rejected. Preserve ALL edit anchor fields from read/read_symbol: path, expectedHash, range, strict. Do not discard range or hash. A stale snapshot requires re-reading. oldText must match uniquely inside the selected range unless replaceAll is set.",
   parameters: {
     type: "object",
     properties: {

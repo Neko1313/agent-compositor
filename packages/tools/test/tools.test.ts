@@ -111,6 +111,24 @@ describe("read/write tools", () => {
 });
 
 describe("edit tool", () => {
+  it.each([false,true])('rejects exact replacements that leave actual text unchanged, replaceAll=%s',async replaceAll=>{
+    await fs.writeFile(path.join(cwd,'f.txt'),'unchanged');const before=await fs.stat(path.join(cwd,'f.txt'),{bigint:true}),ctx=makeCtx();
+    const result=await editTool.execute(ctx,{path:'f.txt',oldText:'unchanged',newText:'unchanged',replaceAll});
+    expect(result.ok).toBe(false);if(!result.ok)expect(result.error).toContain('unchanged');expect(ctx.undo.size).toBe(0);
+    expect(await fs.readFile(path.join(cwd,'f.txt'),'utf8')).toBe('unchanged');expect((await fs.stat(path.join(cwd,'f.txt'),{bigint:true})).mtimeNs).toBe(before.mtimeNs);
+  });
+  it.each([false,true])('rejects normalized replacements that leave actual text unchanged, replaceAll=%s',async replaceAll=>{
+    const original=replaceAll?'a  b;a  b':'a  b';await fs.writeFile(path.join(cwd,'f.txt'),original);
+    const before=await fs.stat(path.join(cwd,'f.txt'),{bigint:true}),ctx=makeCtx();
+    const result=await editTool.execute(ctx,{path:'f.txt',oldText:'a b',newText:'a  b',replaceAll});
+    expect(result.ok).toBe(false);if(!result.ok)expect(result.error).toContain('unchanged');
+    expect(await fs.readFile(path.join(cwd,'f.txt'),'utf8')).toBe(original);expect((await fs.stat(path.join(cwd,'f.txt'),{bigint:true})).mtimeNs).toBe(before.mtimeNs);expect(ctx.undo.size).toBe(0);
+  });
+  it('rejects an unchanged guarded insertion through the default service',async()=>{
+    await fs.writeFile(path.join(cwd,'f.txt'),'');const ctx=makeCtx(),read=await readTool.execute(ctx,{path:'f.txt'});if(!read.ok)throw Error(read.error);
+    await expect(ctx.request('service.file.edit',{...read.data.edit,oldText:'',newText:'',replaceAll:false})).rejects.toThrow('unchanged');
+    expect(ctx.undo.size).toBe(0);expect(await fs.readFile(path.join(cwd,'f.txt'),'utf8')).toBe('');
+  });
   it('explains a missing edit target without creating a replacement or undo record',async()=>{
     const ctx=makeCtx(),result=await editTool.execute(ctx,{path:'guessed-file.ts',oldText:'old',newText:'new'});
     expect(result.ok).toBe(false);if(!result.ok){expect(result.error).toContain('ENOENT');expect(result.error).toContain('Inspect actual project filenames');expect(result.error).toContain('Do not create a guessed replacement');}

@@ -503,6 +503,13 @@ edit errors preserve the underlying error and remind the model to discover actua
 project filenames before retrying, rather than creating a guessed replacement.
 The hint does not create files, relax guards or authorize a denied operation.
 
+The default edit resolver rejects a replacement whose resulting file text is
+unchanged, including guarded ranges, empty insertions and normalized matches.
+It does not write the file or return an undo operation. This compares actual
+before/after text: identical `oldText`/`newText` can still perform a real whitespace
+normalization when the file differs from both. A no-change error asks for the
+intended replacement, or to omit editing if the file is already correct.
+
 Auto review remains opt-in (`/auto on`). A dedicated profile in `auto.json` is
 optional; if absent, the active model/provider performs the review. Blank or
 invalid explicit profile settings return to manual approval without a fallback

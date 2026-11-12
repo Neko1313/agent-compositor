@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {scenarioContext,scenarioEvidence,finishScenario} from './scenario.js';
+import {withCandidate} from './candidate.js';
+import {verifyReportPackage} from './test-reports-contract.js';
+const ctx=await scenarioContext();
+const result=await withCandidate(ctx, directory=>verifyReportPackage(directory));
+const path=ctx.caseId+'.observations.json';
+await writeFile(join(ctx.output,path),JSON.stringify(result,null,2));
+assert.equal(result.ok,true,JSON.stringify(result));
+await finishScenario({id:ctx.caseId,kind:ctx.stage==='artifact'?'artifact':'deterministic',status:'passed',evidence:[await scenarioEvidence(path)]});

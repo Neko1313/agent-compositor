@@ -1,5 +1,50 @@
 # Project memory
 
+## Structured test-report tool and bounded initial authoring attempt — 2026-11-12
+
+Implemented test-reports0.1.0 as a useful first backend/tool slice: readonly
+Vitest/Jest JSON parsing, assertion-derived totals, max2MiB regular UTF-8 input,
+maxFailures1..50/default10, JSON byte limit1024..64000/default12000, sanitized
+failure text and original-path descriptors with canonical host policy. Bounded
+file-handle reads close in finally; nonblocking open rejects FIFOs; cancellation
+and missing host path guards fail closed. Runner/setup failures without a failed
+assertion never appear as passing summaries. No panel or slash command yet.
+New package source/catalog entry, README and initial changelog were added; no
+existing plugin/catalog version was hand-bumped. Package certification covers
+normal manager lifecycle/restart and thirteen independent domain observations.
+Additional tests cover Jest optional diagnostics, invalid UTF-8, missing guards,
+post-resolution cancellation, Unicode bytes, invalid arguments and FIFOs.
+
+Before implementation, an independent reference passed all twelve frozen
+checks and an empty package failed loading. A scripted ordinary-tools preflight
+wrote all three files, ran project_check and passed all twelve checks. Real Sol
+initial authoring used the same empty candidate, a task-specific minimal profile
+(read/write/project_check; no agent-harness), original saved proxy/provider and
+unchanged50USD atomic guard. Three admitted requests only read repository
+context; fourth request exceeded the declared22k serialized-body envelope before
+admission. No files were written, independent package oracle failed, all
+protected tracked files/config/draft survived. Retain this as envelope-curtailed,
+not autonomous delivery, a model-quality benchmark or a paid success. The manual
+implementation must not be attributed to the model. Frozen oracle was not changed
+during that run. Evidence dist/test-reports-authoring/{context,preflight-execution,
+live-execution,live-trajectory}.json; reference code never entered the model repo.
+
+Budget now49.871518 committed conservative USD bound,53.973398 recorded bound,
+426reported/two old pending; historical cache refinement unchanged4.10188.
+Standard estimate3.615988 covers260reported with166unavailable, not an invoice.
+No new budget/profile or forgiven reservations. Further paid authoring needs
+sufficient authorized headroom; useful local plugin/UI work can continue.
+Full local suite:1148pass/3optional skips, types and docs/build pass. Source PR
+certification passes lifecycle and thirteen domain checks. The first full-suite
+run exposed a stale explicit plugin inventory and collected the deliberately
+failing scratch runner fixture; inventory updated and the retained scratch
+source renamed outside test discovery, then the full suite passed. Original
+fixture run/report and first failed full-suite log are retained. No host UI or
+contract changed: new optional behavior belongs in its plugin README and generated
+inventory; existing architecture and UI guides need no new controls documented.
+Full initial composite-plugin delivery, concurrent report UI, broad model/task
+matrix, sustained sessions and broader1.0/trust gates remain open.
+
 ## Canonical permission paths for custom file tools — 2026-11-12
 
 Local structured-test-report authoring preflight exposed a host policy gap.

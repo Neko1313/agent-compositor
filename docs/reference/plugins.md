@@ -2,7 +2,7 @@
 
 > Generated from repository sources. Run `npm run docs:gen`; do not edit by hand.
 
-All 30 filesystem plugins start inactive. [Install and explicitly enable](../marketplace.md) a package in user or project scope before using it. Plugin versions are independent of the host.
+All 31 filesystem plugins start inactive. [Install and explicitly enable](../marketplace.md) a package in user or project scope before using it. Plugin versions are independent of the host.
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
@@ -31,6 +31,7 @@ All 30 filesystem plugins start inactive. [Install and explicitly enable](../mar
 | [project-checks](../../plugins/project-checks/README.md) | 0.1.1 | Discover and run guarded local npm script checks from a tool or panel. |
 | [session-ctl](../../plugins/session-ctl/README.md) | 1.1.2 | /compact — force context compaction now; /clear — drop the conversation, keep the system prompt (Claude Code /compact and /clear analogs). Both ride $.agent. Drop this folder to remove. |
 | [slash-commands](../../plugins/slash-commands/README.md) | 1.1.2 | /help, /status, /usage — command palette harvested from Claude Code / Gemini CLI slash-command UX. Drop this folder to remove. |
+| [test-reports](../../plugins/test-reports/README.md) | 0.1.0 | Read local Vitest/Jest JSON reports with complete counts and bounded failures |
 | [todos](../../plugins/todos/README.md) | 1.2.0 | Persistent task list window. Restores tasks on startup, updates after todo tool calls, and opens with /todos. Placement is controlled by the compositor. |
 | [turn-log](../../plugins/turn-log/README.md) | 1.1.2 | Append-only JSONL journal of every turn (prompt, outcome, error) at .agent-compositor/turn-log.jsonl — the /stats data source. Drop this folder to remove. |
 | [ui-theme](../../plugins/ui-theme/README.md) | 1.1.1 | Switch between slate, amber and mono themes. Demonstrates appearance and ui.render overrides. |

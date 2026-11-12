@@ -284,6 +284,7 @@ describe("default market: end-to-end through the assembled app", () => {
       "project-checks",
       "session-ctl",
       "slash-commands",
+      "test-reports",
       "todos",
       "turn-log",
       "ui-theme",

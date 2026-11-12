@@ -75,6 +75,22 @@ See [evaluation commands and limitations](evals.md),
 
 ## Current development focus
 
+The initial `test-reports` backend tool reads real local Vitest/Jest JSON,
+derives assertion totals and returns bounded failure records through normal
+canonical-path permissions. Its independent package checks include explicit
+activation/removal, malformed input, UTF-8 byte bounds, symlink denial and
+cancellation. This is a manually implemented tool slice, without a report panel.
+A fresh live Compositor authoring attempt used a minimal task-specific profile
+with ordinary read/write/check tools and no reference implementation in its
+workspace. Three admitted requests only read repository context; the fourth
+request exceeded its predeclared serialized-body envelope before admission.
+No candidate files were written, all protected files survived and the package
+oracle correctly failed. The attempt does not establish autonomous initial
+plugin delivery. Do not infer model quality from this bounded attempt, expand
+its budget retrospectively, or count the manually implemented package as
+agent-authored. Full plugin/UI authoring, sustained development and the wider
+model/task matrix remain open.
+
 A bounded Sol editing turn through Compositor added visible CI-panel busy
 feedback using one guarded edit and two model requests. The host supplied a real
 read snapshot; the agent had only the scoped edit tool and correctly stated that

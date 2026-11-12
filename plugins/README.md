@@ -38,6 +38,9 @@ versions, test plans, releases, updates and rollback. Nothing here is load-beari
 | `web` | Bounded `web_fetch` and Brave/SearXNG `web_search` through tool permissions | [Setup](../docs/agent-features.md#web-and-default-integrations) |
 
 
+The optional [`test-reports`](test-reports/README.md) tool reads saved Vitest/Jest
+JSON results with complete assertion counts and bounded failure details.
+
 ## Install
 
 Running from the repo, `./plugins` metadata is discovered automatically; executable

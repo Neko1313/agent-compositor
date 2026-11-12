@@ -606,7 +606,11 @@ export class AgentCore {
 
   getContextWindow(): number { return this.contextWindow; }
   get promptSource(){return this.inputSource;}
-  get isUserInvocation(){return this.invokingTool||(this.inPromptHook&&this.inputSource==="user");}
+  get isUserInvocation(){
+    const operation=this.userOperation.getStore();
+    if(operation)return !operation.signal.aborted&&(operation.command?this.commandOperations:this.userOperations).has(operation.id);
+    return this.invokingTool||(this.inPromptHook&&this.inputSource==="user");
+  }
   getToolNames():string[]{return this.toolSpecs.map(tool=>tool.name);}
 
   getState(): CoreState {

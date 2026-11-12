@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.25.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.26.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -102,6 +102,7 @@
 | `service.shell.execOutput` | 0.5.0 | 1 | Read a backgrounded shell's buffered output (BashOutput analog). | `deny`, `value` | — |
 | `service.shell.execKill` | 0.5.0 | 1 | Terminate a backgrounded shell by id (KillShell analog). | `deny`, `value` | — |
 | `service.agent.spawn` | 0.5.0 | 1 | Spawn a subagent: a fresh AgentCore (shared provider/permissions/plugins, isolated transcript) runs the prompt to completion and returns its final text. Core-resolved. | `deny`, `value` | — |
+| `service.agent.open` | 0.26.0 | 1 | Explicit user control: create a persisted shared-workspace side conversation, or reopen an existing agent by id, and focus its own message editor. The main turn is unaffected. | `deny`, `value` | — |
 | `service.workflow.run` | 0.11.0 | 1 | Replaceable persistent workflow lifecycle: start, inspect, pause, resume, retry or stop. Host permissions remain in each worker. | `deny`, `value` | — |
 | `service.todo.update` | 0.5.0 | 1 | Core todo tool: replace (or read) the process-scoped task list. | `deny`, `value` | — |
 | `service.file.read` | 0.5.0 | 1 | Core read tool: paginated file read with truncation note. | `deny`, `value` | — |
@@ -111,7 +112,7 @@
 
 ## Domains
 
-- **service**: `service.agent.batch`, `service.agent.clear`, `service.agent.compact`, `service.agent.run`, `service.agent.tools`, `service.auth.status`, `service.context.compact`, `service.context.manage`, `service.context.prepare`, `service.session.append`, `service.agent.enqueue`, `service.background.jobs`, `service.shell.jobs`, `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.questionnaire`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.extension.control`, `service.marketplace.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
+- **service**: `service.agent.batch`, `service.agent.clear`, `service.agent.compact`, `service.agent.run`, `service.agent.tools`, `service.auth.status`, `service.context.compact`, `service.context.manage`, `service.context.prepare`, `service.session.append`, `service.agent.enqueue`, `service.background.jobs`, `service.shell.jobs`, `service.model.capabilities`, `service.agent.instructions`, `service.agent.finish`, `service.ui.configure`, `service.storage.read`, `service.storage.write`, `service.storage.config`, `service.network.configure`, `service.ui.remove`, `service.ui.inputTarget`, `service.ui.view`, `service.agent.tool`, `service.ui.surface`, `service.fs.read`, `service.fs.write`, `service.exec.run`, `service.model.complete`, `service.auth.login`, `service.ui.ask`, `service.ui.questionnaire`, `service.ui.notify`, `service.telemetry.log`, `service.skills.load`, `service.project.query`, `service.sandbox.run`, `service.permission.review`, `service.context.control`, `service.usage.quota`, `service.checkpoint.control`, `service.agent.control`, `service.model.stream`, `service.session.control`, `service.extension.control`, `service.marketplace.control`, `service.session.store`, `service.shell.exec`, `service.shell.execOutput`, `service.shell.execKill`, `service.agent.spawn`, `service.agent.open`, `service.workflow.run`, `service.todo.update`, `service.file.read`, `service.file.readText`, `service.file.write`, `service.file.edit`
 - **workspace**: `workspace.changed`
 - **shell**: `shell.completed`
 - **session**: `session.start`, `session.reload`, `session.end`, `session.compact`

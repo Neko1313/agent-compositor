@@ -58,6 +58,10 @@ export async function agentManager(
   const entries = new Map<string, RuntimeEntry>();
   let host: any, channels: Channels | undefined;
   let writes = Promise.resolve();
+  const drafts=new Map<string,string>();
+  const draftIds=new Map<string,number>();
+  const sending=new Set<string>();
+  let listVisible=false;
   const save = () => {
     const operation = writes.then(async () => {
       await mkdir(stateDir, { recursive: true });
@@ -74,7 +78,7 @@ export async function agentManager(
     if (matches.length !== 1) throw new Error("Agent not found or ambiguous");
     return matches[0];
   };
-  async function paint(entry: RuntimeEntry) {
+  async function paint(entry: RuntimeEntry, focus=false) {
     if (!host) return;
     const r = entry.record;
     const messages = entry.core
@@ -85,6 +89,8 @@ export async function agentManager(
       `agent-${r.id}`,
       r.name,
       {
+        input:{id:`message-${draftIds.get(r.id)??0}`,label:'Reply',value:drafts.get(r.id)??'',placeholder:'Type a follow-up'},
+        hint:'Enter sends · Ctrl+C stops this agent · Alt+i, then /chat returns to the main conversation',
         lines: [
           {
             text: `${entry.core.getState()} · ${
@@ -104,7 +110,7 @@ export async function agentManager(
           ...(entry.delta ? [{ text: entry.delta.slice(-8000) }] : []),
         ],
       },
-      { site: "split", focus: false }
+      { site: "split", focus }
     );
   }
   async function load(record: RecordEntry) {
@@ -178,7 +184,9 @@ export async function agentManager(
     await core.start();
     return entry;
   }
-  async function show() {
+  async function show(reveal=false) {
+    if(reveal)listVisible=true;
+    if(!listVisible)return;
     if (!host) return;
     await host.ui.view(
       "agents",
@@ -206,7 +214,7 @@ export async function agentManager(
       { site: "inspector", focus: false }
     );
   }
-  async function control(args: any, provided: Channels) {
+  async function control(args: any, provided: Channels,reveal=true) {
     channels = provided;
     if (args.action === "list")
       return (args.id ? [find(args.id)] : records).map((r) => ({
@@ -266,7 +274,7 @@ export async function agentManager(
       await save();
       const entry = await load(record);
       await paint(entry);
-      await show();
+      await show(reveal);
       if (args.prompt)
         await control({ action: "send", id, prompt: args.prompt }, provided);
       return record;
@@ -356,7 +364,7 @@ export async function agentManager(
       name: "agent-hub",
       version: "1.0.0",
       trust: "trusted",
-      hookTimeouts: { "session.start": 30000 },
+      hookTimeouts: { "session.start": 30000, 'ui.press':300000 },
     },
     hooks: {
       "session.start": async (_e, $) => {
@@ -376,7 +384,7 @@ export async function agentManager(
           if (action === "parent") {
             await select(undefined, $);
             await $.ui.notify("Input target: main conversation");
-          } else if (!action) await show();
+          } else if (!action) await show(true);
           else {
             const r = await $.agent.tool("agent_control", {
               action: action === "create-shared" ? "create" : action,
@@ -413,11 +421,24 @@ export async function agentManager(
         if (id && entries.has(id)) {
           await select(id, $);
           await $.ui.notify(`Input target: ${entries.get(id)!.record.name}`);
-        } else if (e.site === "session") await select(undefined, $);
+        } else if (e.site === "session"||e.site==='input') await select(undefined, $);
       },
       "ui.press": async (e, $) => {
         host = $;
         if (!e.site.startsWith("plugin-agent-hub-")) return;
+        if(e.site==='plugin-agent-hub-agents'&&e.key==='close'){listVisible=false;return;}
+        const paneId=e.site.startsWith('plugin-agent-hub-agent-')?e.site.slice('plugin-agent-hub-agent-'.length):undefined;
+        if(paneId&&e.key==='close'){if(target===paneId)await select(undefined,$);return;}
+        if(paneId&&e.key==='enter'){
+          const draft=drafts.get(paneId),prompt=draft?.trim();if(!prompt||sending.has(paneId))return;
+          sending.add(paneId);
+          try{
+            const result=await $.agent.tool('agent_control',{action:'send',id:paneId,prompt});
+            if(result.ok){if(drafts.get(paneId)===draft){drafts.delete(paneId);draftIds.set(paneId,(draftIds.get(paneId)??0)+1);}await paint(await load(find(paneId)));}
+            else await $.ui.notify(result.error??'Agent message failed; your draft was kept','error');
+          }finally{sending.delete(paneId);}
+          return;
+        }
         const [action, id] = e.key.split(":");
         if (action === "parent") {
           await select(undefined, $);
@@ -447,6 +468,10 @@ export async function agentManager(
         const result = await $.agent.tool("agent_control", args);
         if (!result.ok)
           await $.ui.notify(result.error ?? "Agent operation failed", "error");
+      },
+      'ui.change':async(e)=>{
+        const prefix='plugin-agent-hub-agent-';if(!e.site.startsWith(prefix))return;
+        const id=e.site.slice(prefix.length);if(entries.has(id)&&e.id===`message-${draftIds.get(id)??0}`)drafts.set(id,e.value);
       },
     },
   };
@@ -492,6 +517,15 @@ export async function agentManager(
     plugin,
     tool,
     control,
+    open:async(args:{id?:string;prompt?:string;name?:string},provided:Channels)=>{
+      if(provided.inputSource?.()!=='user')throw Error('Opening a conversation requires explicit user invocation');
+      const record:RecordEntry=args.id?find(args.id):await control({action:'create',worktree:false,name:args.name??'Side conversation'},provided,false) as RecordEntry;
+      if(record.archived)throw Error('Agent is archived; start a new side conversation');
+      channels=provided;
+      if(args.prompt)await control({action:'send',id:record.id,prompt:args.prompt},provided);
+      if(host){await select(record.id,host);await paint(await load(record),true);}
+      return{id:record.id,sessionId:record.sessionId};
+    },
     bind: (value: Channels) => {
       channels = value;
     },

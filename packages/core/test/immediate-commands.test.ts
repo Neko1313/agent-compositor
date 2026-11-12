@@ -11,6 +11,22 @@ function fixture(handler:(event:any,$:any)=>unknown, options:any={}) {
       {manifest:{name:'other',version:'1.0.0',trust:'trusted'},hooks:{'command.invoke':()=>{otherCalls++;}}}],...options});
   return {core,provider,otherCalls:()=>otherCalls};
 }
+it('marks only the asynchronous user operation as user-originated while the main model remains separate',async()=>{
+ let entered=false,release=()=>{},inside=false;
+ const f=fixture(async()=>{entered=true;await new Promise<void>(done=>{release=done;});inside=f.core.isUserInvocation;});
+ try{
+  const main=f.core.submit('Main task');await wait(()=>f.provider.requests.length===1);
+  const command=f.core.invokeCommand('/control');await wait(()=>entered);
+  expect(f.core.isUserInvocation).toBe(false);release();await command;expect(inside).toBe(true);
+  expect(f.core.isUserInvocation).toBe(false);f.provider.release();await main;
+ }finally{release();f.provider.release();await f.core.close();}
+});
+it('revokes user provenance from asynchronous continuations after their command settles',async()=>{
+ let release=()=>{},later:Promise<boolean>|undefined;
+ const f=fixture(()=>{later=new Promise<void>(done=>{release=done;}).then(()=>f.core.isUserInvocation);});
+ try{await f.core.invokeCommand('/control');release();expect(await later).toBe(false);}
+ finally{release();await f.core.close();}
+});
 it('dispatches an owned command while the model and queued user task remain intact',async()=>{
   const calls:any[]=[];const f=fixture(event=>{calls.push(event);});
   try {

@@ -106,6 +106,7 @@ export const catalog: readonly EventDef[] = [
   coreServices.serviceShellExecOutput,
   coreServices.serviceShellExecKill,
   coreServices.serviceAgentSpawn,
+  coreServices.serviceAgentOpen,
   coreServices.serviceWorkflowRun,
   coreServices.serviceTodoUpdate,
   coreServices.serviceFileRead,

@@ -466,6 +466,10 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
         "service.skills.load": async ({ name }: { name: string }) => ({
           value: await skills().load(name),
         }),
+        'service.agent.open':async(args:any)=>{
+          if(!hub)return{deny:'Enable agent-hub to open a side conversation; /btw --once <question> works without it'};
+          return{value:await hub.open(args,{approve:onApproval,ask:onAsk,inputSource:()=>core.isUserInvocation?'user':'agent',resolveWorkspace:value=>core.workspace.resolve(value,{directory:true}),workspace:()=>core.workspace.list().filter(entry=>entry.path!==core.workspace.root)})};
+        },
         ...(hub
           ? {
               "service.agent.control": async (args: any) => ({

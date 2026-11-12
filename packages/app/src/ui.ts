@@ -510,6 +510,7 @@ export class AppUI {
     } else {
       const { input, event: name } = event;
       if (name === "ui.inputTarget") {
+        if(typeof input.surface==='string')this.closedPluginWindows.delete(input.surface);
         this.activeAgentPane =
           typeof input.surface === "string" &&
           input.surface.startsWith("plugin-agent-hub-agent-")

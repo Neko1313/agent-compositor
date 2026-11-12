@@ -305,6 +305,13 @@ export const serviceAgentSpawn = defineEvent({
   frozen: true,
 });
 
+export const serviceAgentOpen = defineEvent({
+  name:'service.agent.open',since:'0.26.0',version:1,
+  summary:'Explicit user control: create a persisted shared-workspace side conversation, or reopen an existing agent by id, and focus its own message editor. The main turn is unaffected.',
+  input:z.object({id:z.string().min(1).optional(),prompt:z.string().min(1).max(4000).optional(),name:z.string().min(1).max(100).optional()}),
+  responses:denyValue,frozen:true,
+});
+
 export const serviceTodoUpdate = defineEvent({
   name: "service.todo.update",
   since: "0.5.0",

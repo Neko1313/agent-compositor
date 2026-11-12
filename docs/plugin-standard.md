@@ -60,6 +60,15 @@ control; failures of registered controls are errors, never fallback prompts.
 Embedders supply loaded `{name,plugin}` registrations through `userCommands`.
 These additive contracts require catalog 0.25 or later.
 
+Catalog 0.26 adds `service.agent.open` for an explicit user control to open a
+persisted shared-workspace conversation, or reopen one by `id`. Optional `prompt`
+starts its independent turn; `name` labels a new agent. The result contains `id`
+and `sessionId`. Agent-hub must be enabled. The host verifies user provenance,
+retains ordinary workspace/permission/budget limits, and focuses the agent's
+own Reply field. It does not interrupt or append a prompt to the main turn.
+Models cannot use this service to change the user's focus. Existing agent and
+tool contracts are unchanged.
+
 ## Commands that open UI
 
 An optional command route, `"ui":{"site":"main"}`, sends a TUI command directly

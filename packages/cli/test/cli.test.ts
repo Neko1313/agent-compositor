@@ -11,6 +11,21 @@ const buffer = () => {
   return { out, get: () => text };
 };
 
+it.each([false,true])('starts plain-session hooks before input (prompt: %s)',async(withPrompt)=>{
+  const order:string[]=[],scripted=new ScriptedProvider([{text:'Ready.'}]);let core:AgentCore|undefined;
+  const provider={name:'plain-startup-fixture',async *complete(request:Parameters<ScriptedProvider['complete']>[0]){order.push('model');yield* scripted.complete(request);}};
+  const {runRepl}=await import('../src/repl.js');
+  try{
+    await runRepl({stdin:Readable.from(withPrompt?['hello\r']:[]) as never,stdout:buffer().out,createCore:onApproval=>{
+      core=new AgentCore({cwd:process.cwd(),provider,onApproval});
+      core.host.registerPlugin({name:'startup-fixture',version:'1.0.0',trust:'trusted'},{'session.start':async()=>{await Promise.resolve();order.push('start');}});
+      return core;
+    }});
+    expect(order).toEqual(withPrompt?['start','model']:['start']);
+    expect(scripted.requests).toHaveLength(withPrompt?1:0);
+  }finally{await core?.close();}
+});
+
 describe("decodeKeys", () => {
   it("idle: characters buffer, Enter submits and clears the line", () => {
     const state: DecoderState = { line: "", running: false };

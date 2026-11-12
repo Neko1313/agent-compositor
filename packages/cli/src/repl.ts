@@ -43,6 +43,8 @@ export async function runRepl(deps: ReplDeps): Promise<void> {
 
   deps.stdout.write("agent-compositor — Enter submit · Tab steer · Ctrl+C interrupt/exit\n");
 
+  await core.start();
+
   if (useRaw) deps.stdin.setRawMode?.(true);
 
   await new Promise<void>((resolve) => {

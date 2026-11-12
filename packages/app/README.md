@@ -102,6 +102,8 @@ for protocol support and configuration precedence.
 `--plain` forces the legacy line-oriented REPL; redirected input also uses
 that mode. It is retained for existing scripts and does not use the grid
 protocol. The interactive UI is the protocol-based product path.
+Session startup hooks run once before line input is processed, including an
+immediate EOF. An empty input stream does not submit a model prompt.
 
 ## App configuration
 

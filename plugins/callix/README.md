@@ -96,6 +96,15 @@ navigation reads the underlying JSON graph directly.
 `glob` and `grep` use lightweight project discovery/text search through the same
 `service.project.query` contract. They do not trigger graph analysis. Calls use
 argument arrays, bounded stdout/stderr, a timeout and agent cancellation.
+Use a project-relative file glob such as `**/*` to discover unknown filenames;
+`grep` searches literal source text by default, not semantic task descriptions or
+filenames. Its optional path filter should use an existing path. A complete empty
+first page returns recovery guidance; exhausted later pages and scan-limited
+searches keep their own pagination/limit meaning. Hints enter the ordinary result
+budget before formatting. They do not invent matches or issue another query.
+A missing search directory/filter retains ENOENT and explains using the default
+cwd or an existing attached project. It does not silently substitute a directory,
+retry the operation or grant new filesystem access.
 
 To replace the backend, install a plugin declaring
 `"provides":["service.project.query"]` and implementing that event. Set the

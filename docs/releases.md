@@ -81,6 +81,14 @@ its configured home. The installer does not edit shell profiles or use sudo.
 
 ## Build and smoke test
 
+`dist/release/discovery-smoke-PLATFORM.json` records the installed discovery/read
+probe: real empty text search, broad glob, rejected zero-based read pagination,
+valid ranged read and its guarded edit anchor. It checks the actual model-facing
+schema and response guidance, preserves project/user files, and uses five bounded
+loopback completions. The probe is required on every declared native platform;
+it establishes packaged tool behavior, not live model coding quality.
+
+
 The installed-runtime suite also runs a coding-preset completion probe with no
 saved task plan. An unchecked write must retain progress and fail after bounded
 feedback; a second case must execute a real project verification command before

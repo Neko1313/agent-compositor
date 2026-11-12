@@ -480,6 +480,13 @@ background test does not count as completion; inspect its finished output.
 See [coding completion checks](core-customization.md#coding-completion-checks)
 for opt-out, replacement policies and explicit limitations.
 
+`read.offset` uses 1-based integer lines (omit it or use 1 to start); `read.limit`
+is an integer from 1 to 10000. The model-facing schema matches these existing
+runtime bounds. Invalid pagination is rejected with a clear error before path
+access, without normalizing zero to one. Missing-file and directory errors retain
+the underlying error and explain how to discover a real file. No read failure
+creates a replacement file or changes workspace grants.
+
 A guarded `edit` must preserve the complete anchor returned by `read` or
 `code_query read_symbol`: `path`, `expectedHash`, `range` and `strict`. A missing
 hash is reported separately from invalid offsets, including for insertions;

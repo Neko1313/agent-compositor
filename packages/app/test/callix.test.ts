@@ -98,3 +98,9 @@ describe('semantic failure recovery guidance',()=>{
     expect(await tool.execute(ctx,{action:'outline',path:'source.ts'})).toEqual({ok:false,error:'Error: Graph schema is corrupt'});
   });
 });
+
+it('explains a missing search directory without retrying or changing scope',async()=>{
+ const tool=callixTools.find(tool=>tool.name==='grep')!;let attempts=0;
+ const ctx={cwd:'/project',resolvePath:async()=>{attempts++;throw Object.assign(Error('ENOENT: missing directory'),{code:'ENOENT'});}} as unknown as ToolContext;
+ const result=await tool.execute(ctx,{pattern:'x',cwd:'guessed-folder'});expect(result.ok).toBe(false);expect(attempts).toBe(1);expect(result.error).toContain('Keep the default cwd');expect(result.error).toContain('Do not invent');
+});

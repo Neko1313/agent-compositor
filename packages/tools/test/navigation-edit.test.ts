@@ -111,3 +111,13 @@ describe('bounded project search', () => {
         await expect(queryProject({ cwd, action: 'glob', pattern: '*' }, controller.signal)).rejects.toThrow();
     });
 });
+
+describe('empty discovery recovery',()=>{
+ it('keeps zero results factual and suggests broad discovery without inventing paths',async()=>{
+  const cwd=await temp();await writeFile(join(cwd,'actual.mjs'),'export const total=18;\n');
+  const text=await queryProject({cwd,action:'grep',pattern:'nonexistent long phrase'});expect(text.matches).toEqual([]);expect(text.hint).toContain('glob');expect(text.hint).toContain('shorter literal');
+  const files=await queryProject({cwd,action:'glob',pattern:'guessed-name.*'});expect(files.files).toEqual([]);expect(files.hint).toContain('**/*');
+  const found=await queryProject({cwd,action:'glob',pattern:'**/*'});expect(found.files).toContain('actual.mjs');expect(found).not.toHaveProperty('hint');
+  const exhausted=await queryProject({cwd,action:'grep',pattern:'total',offset:99});expect(exhausted.matches).toEqual([]);expect(exhausted).not.toHaveProperty('hint');
+ });
+});

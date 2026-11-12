@@ -1,3 +1,4 @@
+import {builtinTools} from '../../packages/tools/src/index.js';
 import {evaluationEnvironmentOverlay} from './environment.js';
 import {gradeProject} from './grading.js';
 import {estimateTokens} from "../../packages/context/src/index.js";
@@ -36,6 +37,7 @@ export async function runCase(
     instructionsPreset?: "general"|"coding";
   }
 ) {
+  const useCallix=!!(test.expect.grader||test.navigationMode||options.tools?.some(name=>['glob','grep','code_query'].includes(name)));
   const temp = await mkdtemp(join(tmpdir(), "compositor-eval-")),
     cwd = join(temp, "project"),
     home = join(temp, "home");
@@ -59,7 +61,7 @@ export async function runCase(
     await writeFile(
       join(cwd, "agent-compositor.json"),
       JSON.stringify({
-        enabledPlugins:['todos','guard-secrets','guard-scope','plan-mode','network-proxy',...(options.agentHarness?['agent-harness']:[]),...(test.expect.grader||test.navigationMode?['callix']:[])],
+        enabledPlugins:['todos','guard-secrets','guard-scope','plan-mode','network-proxy',...(options.agentHarness?['agent-harness']:[]),...(useCallix?['callix']:[])],
         permissions: {
           rules: [
             { tool: "write", path: cwd + "/**", decision: "allow" },
@@ -72,7 +74,7 @@ export async function runCase(
             })),
           ],
         },
-        ...((options.tools||options.instructionsPreset)?{agent:{...(options.tools?{tools:options.tools,builtinTools:options.tools,controlTools:[],skills:false,projectContext:false,fileReferences:false}:{}),instructionsPreset:options.instructionsPreset}}:{}),
+        ...((options.tools||options.instructionsPreset)?{agent:{...(options.tools?{tools:options.tools,builtinTools:options.tools.filter(name=>builtinTools.some(tool=>tool.name===name)),controlTools:[],skills:false,projectContext:false,fileReferences:false}:{}),instructionsPreset:options.instructionsPreset}}:{}),
         compaction: { enabled: false },
       })
     );
@@ -106,12 +108,13 @@ export async function runCase(
         "guard-scope",
         "plan-mode",
         "network-proxy",
-        ...(test.expect.grader||test.navigationMode?["callix"]:[]),
+        ...(useCallix?["callix"]:[]),
       ].map((p) => join(root, "plugins", p)),
     });
     if (app.pluginErrors.length) throw Error(JSON.stringify(app.pluginErrors));
     if(test.navigationMode==='text')for(const plugin of app.plugins)if(plugin.manifest.name==='callix')plugin.tools=plugin.tools?.filter(t=>t.name!=='code_query');
     const core = app.createCore(async () => false);
+    const missing=options.tools?.filter(name=>!core.getToolNames().includes(name));if(missing?.length)throw Error('Requested evaluation tools are unavailable: '+missing.join(', '));
     core.host.registerPlugin({name:"eval-measurement",version:"1.0.0",trust:"trusted"},{
       "service.model.stream":(e:any)=>{if(!schemaTokens)schemaTokens=estimateTokens(JSON.stringify(e.request.tools));},
       "service.shell.exec":(e,$)=>$.next({...e,env:{...e.env,...evaluationEnvironmentOverlay(home,temp)}}),

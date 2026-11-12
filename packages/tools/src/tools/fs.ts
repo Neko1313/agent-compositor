@@ -21,13 +21,15 @@ export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
     type: "object",
     properties: {
       path: { type: "string" },
-      offset: { type: "number", description: "1-based start line" },
-      limit: { type: "number", description: "max lines" },
+      offset: { type: "integer", minimum: 1, description: "1-based start line; omit or use 1 for the first line" },
+      limit: { type: "integer", minimum: 1, maximum: 10000, description: "Maximum lines to return (1..10000)" },
     },
     required: ["path"],
   },
   describe: (args) => ({ tool: "read", path: path.resolve(args.path) }),
   async execute(ctx, args): Promise<ToolResult<ReadOutcome>> {
+    if(args.offset!==undefined&&(!Number.isInteger(args.offset)||args.offset<1))return{ok:false,error:'read.offset must be a positive integer using 1-based lines; omit it or use 1 for the first line.'};
+    if(args.limit!==undefined&&(!Number.isInteger(args.limit)||args.limit<1||args.limit>10000))return{ok:false,error:'read.limit must be an integer from 1 to 10000 lines.'};
     try {
       const outcome = await ctx.request<ReadOutcome>("service.file.read", {
         path: ctx.resolvePath?await ctx.resolvePath(args.path):path.resolve(ctx.cwd,args.path),
@@ -36,7 +38,10 @@ export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
       });
       return { ok: true, data: outcome };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      const message=err instanceof Error?err.message:String(err);
+      const recovery=/\bENOENT\b/.test(message)?' Discover actual project filenames with available file-search tools before retrying; do not invent a path or create a file merely to satisfy this read.'
+        :/\bEISDIR\b/.test(message)?' read expects a file, not a directory. Discover existing files, then read an exact returned file path.':'';
+      return { ok: false, error: message+recovery };
     }
   },
 };

@@ -493,8 +493,11 @@ accept the scripted reference. The model does not receive the grader or referenc
 script. Fixtures and project-check environments remain isolated by `runCase`;
 this is environment hygiene, not an OS sandbox.
 
-The declared composition exposes read/write/edit/exec and enables the stock agent
-harness. `--preset coding` selects its existing coding instructions;
+The default `--composition focused` exposes read/write/edit/exec. Select
+`--composition navigation` to add the normal Callix glob/grep tools. Plugin tools
+are not incorrectly listed as built-ins; the evaluator loads their owner and
+refuses missing requested tools before a model call. Both compositions enable
+the stock agent harness. `--preset coding` selects its existing coding instructions;
 `--preset general` selects general instructions. Both retain ordinary permission
 checks. This focused composition is an explicit experimental configuration, not
 an estimate of the full default tool catalog's quality. Existing callers of
@@ -504,7 +507,8 @@ Limits are two CPU threads, seed 17, 16,384 configured context tokens, an estima
 context guard before transport, 1,536 output tokens/request, twelve admitted
 requests/case, five minutes/case and twenty minutes overall. `--repeat` permits
 1–5 repetitions. Reports retain source revision/dirty state and evaluator input
-hashes, model/cache/runtime identity, request/token counts, tool events, independent
+hashes, model/cache/runtime identity, request/token counts, actual wire tool names
+and serialized-body hashes per completion, tool events, independent
 checks and cleanup. Incomplete runs retain partial results with their error.
 A failed case exits nonzero. No paid provider/profile/credential is loaded.
 

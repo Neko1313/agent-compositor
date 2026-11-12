@@ -101,7 +101,7 @@ export async function queryProject(raw: unknown, signal?: AbortSignal): Promise<
     const files = all.filter(file => !scope || file === scope || file.startsWith(scope + '/'));
     if (args.action === 'glob') {
         const found = files.filter(file => glob(args.pattern).test(file));
-        return { files: found.slice(offset, offset + limit), total: found.length, offset, truncated: found.length > offset + limit };
+        return { files: found.slice(offset, offset + limit), total: found.length, offset, truncated: found.length > offset + limit,...(!found.length&&offset===0?{hint:"No files returned for this pattern/filter. Use glob pattern **/* from a known project directory to discover actual paths; do not invent a filename."}:{}) };
     }
     const matches: Array<{
         path: string;
@@ -157,7 +157,7 @@ export async function queryProject(raw: unknown, signal?: AbortSignal): Promise<
                     throw e;
             }
         }
-    return { matches: matches.slice(0, limit), offset, truncated: matches.length > limit, scannedFiles,scannedBytes,...(scanLimited?{scanLimited:true,hint:"Scan cap reached; narrow the path or pattern"}:{}) };
+    return { matches: matches.slice(0, limit), offset, truncated: matches.length > limit, scannedFiles,scannedBytes,...(scanLimited?{scanLimited:true,hint:"Scan cap reached; narrow the path or pattern"}:!matches.length&&offset===0?{hint:"No text matches returned. Try a shorter literal source fragment or use glob pattern **/* to discover filenames before reading; an empty text search does not identify a file to open."}:{}) };
 }
 /** Streaming rg prevents a small result limit from buffering the whole repository. */
 async function regexSearch(args: ProjectQuery, files: string[], matches: any[], max: number, signal?: AbortSignal,scan={skip:0},timeoutMs=10000): Promise<void> {

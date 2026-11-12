@@ -14,3 +14,16 @@ it('records a focused coding composition and injects its actual preset',async()=
  expect(result.ok).toBe(true);expect(result.composition).toEqual({tools:['read','edit'],agentHarness:true,instructionsPreset:'coding'});
  expect(provider.requests[0].messages[0].content).toBe(CODING_INSTRUCTIONS);expect(provider.requests[0].tools.map(tool=>tool.name).sort()).toEqual(['edit','read']);
 });
+it('advertises and executes navigation plugin tools in an explicitly selected composition',async()=>{
+ const {ScriptedProvider}=await import('../../packages/core/src/index.js');
+ const provider=new ScriptedProvider([{toolCalls:[{name:'glob',args:{pattern:'**/*.mjs'}}]},{toolCalls:[{name:'grep',args:{pattern:'SEARCH_EVIDENCE',path:'known.mjs'}}]},{text:'Found known.mjs with SEARCH_EVIDENCE.'}]);
+ const tools=['read','write','edit','exec','glob','grep'];
+ const result=await runCase({id:'navigation-composition',prompt:'Find the source file and its evidence.',files:{'known.mjs':'// SEARCH_EVIDENCE\nexport const value=1;\n'},expect:{responseIncludes:'SEARCH_EVIDENCE',tools:['glob','grep']}},{model:'scripted',provider,tools,agentHarness:true,instructionsPreset:'coding'});
+ expect(result.ok,result.error).toBe(true);expect(provider.requests[0].tools.map(tool=>tool.name).sort()).toEqual([...tools].sort());
+ expect(result.toolTraffic.calls.map(call=>call.tool)).toEqual(['glob','grep']);
+});
+it('refuses an unavailable requested tool before calling the model',async()=>{
+ const {ScriptedProvider}=await import('../../packages/core/src/index.js');const provider=new ScriptedProvider([{text:'unused'}]);
+ const result=await runCase({id:'missing-composition',prompt:'Work.',files:{},expect:{responseIncludes:'unused'}},{model:'scripted',provider,tools:['missing_composition_tool']});
+ expect(result.ok).toBe(false);expect(result.error).toContain('Requested evaluation tools are unavailable: missing_composition_tool');expect(provider.requests).toHaveLength(0);
+});

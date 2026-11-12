@@ -144,6 +144,25 @@ protocol fixture. The maintained release smoke now requires this check on every
 declared release platform. Other platforms have not yet run this new check;
 this does not close the live-model classification gate.
 
+### Navigation composition and discovery recovery diagnostic — 2026-11-13
+
+The local CPU evaluator can explicitly compose read/write/edit/exec with Callix
+glob/grep and records the tools actually transmitted to the model. The known
+multi-file coding diagnostic still scores 0/2 both before and after clearer
+discovery/read guidance; admitted calls increase from 14 to 24. This does not
+establish a model-quality improvement or readiness for autonomous development.
+The case, independent grader and request/context/output limits are unchanged.
+
+Read now exposes its integer, 1-based pagination limits and rejects invalid
+values with specific recovery guidance. Empty file/text searches and invalid
+directories explain how to discover actual paths without inventing them. The
+installed Linux archive passes a five-response loopback recovery probe and all
+six existing runtime probes. The new probe is mandatory in the native release
+matrix; its other-platform results remain pending. Coverage passes 1286 tests
+with three optional skips. These checks establish bounded tool behavior, not
+general model competence. See [evaluation guidance](evals.md) and
+[release verification](releases.md).
+
 ### Planned OpenTUI migration — 2026-11-13
 
 The user explicitly requested adding migration to OpenTUI to the plan. OpenTUI

@@ -71,6 +71,16 @@ describe("exec tool", () => {
 });
 
 describe("read/write tools", () => {
+  it.each([{offset:0},{offset:1.5},{limit:0},{limit:10001}])('rejects invalid read pagination before accessing a path: %j',async range=>{
+    let accesses=0;const ctx=makeCtx();ctx.resolvePath=async()=>{accesses++;throw Error('unexpected path access');};
+    const result=await readTool.execute(ctx,{path:'uninspected.txt',...range});expect(result.ok).toBe(false);if(!result.ok)expect(result.error).toContain('read.');expect(accesses).toBe(0);
+    expect((readTool.parameters as any).properties.offset).toMatchObject({type:'integer',minimum:1});expect((readTool.parameters as any).properties.limit).toMatchObject({type:'integer',minimum:1,maximum:10000});
+  });
+  it('explains missing files and directories without changing the read target',async()=>{
+    const missing=await readTool.execute(makeCtx(),{path:'missing.ts'});expect(missing.ok).toBe(false);if(!missing.ok){expect(missing.error).toContain('ENOENT');expect(missing.error).toContain('Discover actual project filenames');}
+    const directory=await readTool.execute(makeCtx(),{path:'.'});expect(directory.ok).toBe(false);if(!directory.ok)expect(directory.error).toContain('read expects a file, not a directory');
+    const denied=await readTool.execute(makeCtx(async()=>{throw Error('denied by policy');}),{path:'known.ts'});expect(denied).toEqual({ok:false,error:'denied by policy'});
+  });
   it("write then read roundtrip", async () => {
     const ctx = makeCtx();
     const w = await writeTool.execute(ctx, { path: "a/b.txt", content: "line1\nline2\nline3" });

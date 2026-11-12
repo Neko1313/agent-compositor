@@ -43,6 +43,7 @@ const execute =
       return{ok:true,data:{...data,cwd}};
     } catch (error) {
       const detail=String(error);
+      if(action&&/\bENOENT\b/.test(detail))return{ok:false,error:detail+' Keep the default cwd or use an existing attached project directory. Discover actual paths with glob before adding a path filter. Do not invent project directories from the task description.'};
       return {ok:false,error:/nothing to analy[sz]e/i.test(detail)
         ? detail+' No supported semantic sources were found. Continue with glob, grep or read; status/refresh cannot add language support. Retry semantic indexing only after supported sources or backend capabilities change.'
         : detail};
@@ -76,8 +77,8 @@ export default [
       type: "object",
       properties: {
         cwd:properties.cwd,
-        pattern: { type: "string" },
-        path: { type: "string" },
+        pattern: { type: "string", description: action==='glob'?'Project-relative file glob. Use **/* to discover real filenames when the path is unknown; do not invent an exact filename from a task description.':'Literal source text by default, not a filename or semantic question. Try a short identifier or source fragment; use glob to find filenames.' },
+        path: { type: "string", description:'Optional existing project-relative file/directory filter. Use paths returned by glob.' },
         regex: { type: "boolean" },
         limit: properties.limit,
         maxTokens:properties.maxTokens,

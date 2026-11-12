@@ -1,5 +1,41 @@
 # Project memory
 
+## Discovery recovery and explicit navigation diagnostics — 2026-11-13
+
+The CPU diagnostic now accepts --composition focused|navigation, preserving the
+four-tool default and explicitly adding Callix glob/grep in navigation mode.
+The evaluator loads requested plugin tools, distinguishes built-ins, and rejects
+missing tools before inference. Reports record actual wire tool names and body
+hashes without credentials or raw requests. Two known multi-file-bug attempts
+before guidance and two afterward all failed independent grading (0/2 each).
+All requests carried read/write/edit/exec/glob/grep. Calls increased from14 to24;
+this is not a quality or efficiency gain. Protected checker/package fixtures
+survived. Both owned CPU runtimes exited, with zero VRAM and no paid requests.
+Evidence: dist/local-cpu-navigation-{fdd3d9b,guidance}. These are working-tree
+diagnostics on fdd3d9b, not immutable-commit or unseen benchmark results.
+
+Read exposes integer, 1-based pagination and rejects invalid values before path
+access; existing service limits remain unchanged. Missing files/directories and
+empty first-page glob/grep results offer bounded discovery advice. No guessed
+path is substituted and no extra query, permission or retry is performed. Callix
+clarifies literal text versus file globs and reports invalid query directories.
+Tests preserve denial behavior, pagination, scope and scan-limit semantics.
+
+The previous installed binary fails the new discovery probe. The new full Linux
+archive passes it and all six existing installed-runtime probes. The discovery
+probe uses five bounded loopback responses to verify an empty text search,
+actual glob discovery, rejection of offset0, a valid read/edit anchor and preserved
+files. It is required on every native release platform; cross-platform success
+for this new probe still requires the next CI run. Prior fdd3d9b build-only CI
+completed all four platforms; all24 downloaded prior runtime reports pass.
+Evidence: dist/discovery-recovery and dist/first-run/discovery-*. Coverage passed
+1286 tests with three optional skips in159 files. Type checking, documentation
+checks and Callix PR certification pass. Canonical evals, agent features,
+Callix and release guides document the changes. General architecture, workspace
+permissions and terminal controls are unchanged; no UI layout change needs a
+new PTY scenario. OpenTUI remains a planned migration. No paid budget was changed
+and no public release was published by this work.
+
 ## Offline coding diagnostics and completion-policy repair — 2026-11-13
 
 New npm run eval:local-cpu uses the pinned existing qwen3:1.7b OCI cache, verifies

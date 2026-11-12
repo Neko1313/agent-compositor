@@ -126,6 +126,8 @@ export {
   type UiAppearance,
   uiTextViewSchema,
   type UiTextView,
+  uiTableSchema,
+  type UiTable,
   uiToneSchema,
 } from "./ui.js";
 

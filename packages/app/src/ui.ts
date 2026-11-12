@@ -1870,7 +1870,7 @@ export class AppUI {
     // Host-owned input has no ui.render override. In particular, do not stringify
     // the composer's full RGBA image into a cache key on every animation frame.
     if(surface==='input'){send(rows);return;}
-    const defaultView = uiTextViewSchema.safeParse({ raster: props.raster, lines: input.props.lines }).data;
+    const defaultView = uiTextViewSchema.safeParse({ raster: props.raster, table:props.table, lines: input.props.lines }).data;
     const key = JSON.stringify(input);
     let cached = this.viewCache.get(surface);
     if (cached?.key === key) {
@@ -2157,7 +2157,7 @@ export class AppUI {
         {
           title: pane?.title,
           status: this.status,
-          ...(pane?.view?{lines:pane.view.lines,scrollable:true,scrollOffset:offset,fieldRows,hostScrollKeys:(pane.view.scrollKeys??(pane.view.input?'plugin':'host'))==='host'}:{}),
+          ...(pane?.view?{lines:pane.view.lines,table:pane.view.table,scrollable:true,scrollOffset:offset,fieldRows,hostScrollKeys:(pane.view.scrollKeys??(pane.view.input?'plugin':'host'))==='host'}:{}),
           ...(pane?.view?.raster
             ? { raster: pane.view.raster, lines: pane.view.lines }
             : {}),

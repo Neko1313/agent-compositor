@@ -56,6 +56,10 @@ describe("event catalog", () => {
         expect(signature.input.properties.view.properties.scrollKeys).toEqual({type:'string',enum:['host','plugin']});
         expect(signature.input.properties.view.required??[]).not.toContain('scrollKeys');
         signature.input=structuredClone(signature.input);delete signature.input.properties.view.properties.scrollKeys;
+        // Reviewed additive 0.27: absent table preserves every old text view.
+        expect(signature.input.properties.view.required??[]).not.toContain('table');
+        expect(signature.input.properties.view.properties.table.type).toBe('object');
+        delete signature.input.properties.view.properties.table;
       }
       expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
         `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);

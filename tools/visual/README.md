@@ -19,6 +19,10 @@ installation may require `npx playwright install --with-deps chromium` on
 minimal Linux hosts. An existing compatible Chromium can be selected with
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/absolute/path/to/chrome`.
 
+The standard scenario also checks the semantic agent overview: expand by mouse
+and keyboard, cycle state filters, resize to stacked narrow fields and enter the
+selected agent's conversation. Screenshots include the expanded and narrow views.
+
 Run `CI=1 npm run visual:check` to exercise the same real PTY with inherited CI
 flags. The fixture preserves them: interactive output must appear before exit,
 just as it does outside CI. Renderer regressions separately check that piped

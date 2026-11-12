@@ -53,6 +53,29 @@ export const uiAppearanceSchema = z
   .strict();
 export type UiAppearance = z.infer<typeof uiAppearanceSchema>;
 
+const uiViewLineSchema = z.object({
+  text:z.string().max(10000),tone:uiToneSchema.optional(),bold:z.boolean().optional(),
+  selected:z.boolean().optional(),action:z.string().min(1).max(64).optional(),
+}).strict();
+
+/** Semantic table data; renderers choose columns or stacked narrow rows. */
+export const uiTableSchema=z.object({
+ columns:z.array(z.object({label:z.string().min(1).max(60),width:z.number().int().min(4).max(80).optional()}).strict()).min(1).max(8),
+ rows:z.array(z.object({
+  id:z.string().min(1).max(64),cells:z.array(z.string().max(500)).min(1).max(8),
+  action:z.string().min(1).max(64).optional(),expanded:z.boolean().optional(),
+  details:z.array(uiViewLineSchema).max(100).optional(),tone:uiToneSchema.optional(),
+ }).strict()).max(200),
+ empty:z.string().max(300).optional(),
+}).strict().superRefine((table,context)=>{
+ const ids=new Set<string>();
+ table.rows.forEach((row,index)=>{
+  if(ids.has(row.id))context.addIssue({code:'custom',message:'Table row IDs must be unique',path:['rows',index,'id']});ids.add(row.id);
+  if(row.cells.length!==table.columns.length)context.addIssue({code:'custom',message:'Cells must match table columns',path:['rows',index,'cells']});
+ });
+});
+export type UiTable=z.infer<typeof uiTableSchema>;
+
 /** Portable text view for ui.render overrides; terminal escapes are never interpreted. */
 export const uiTextViewSchema = z
   .object({
@@ -60,6 +83,7 @@ export const uiTextViewSchema = z
     attachment: z.object({site:z.literal("composer"),width:z.number().int().min(4).max(20),rows:z.number().int().min(1).max(8).optional(),label:z.string().max(60)}).strict().optional(),
     hint: z.string().max(200).optional(),
     input: z.object({label:z.string().max(60).optional(),id:z.string().min(1).max(64),value:z.string().max(4000),placeholder:z.string().max(200).optional()}).strict().optional(),
+    table:uiTableSchema.optional(),
     raster: z
       .object({
         width: z.number().int().min(1).max(512),
@@ -87,15 +111,7 @@ export const uiTextViewSchema = z
       .optional(),
     lines: z
       .array(
-        z
-          .object({
-            text: z.string().max(10000),
-            tone: uiToneSchema.optional(),
-            bold: z.boolean().optional(),
-            selected: z.boolean().optional(),
-            action: z.string().min(1).max(64).optional(),
-          })
-          .strict()
+        uiViewLineSchema
       )
       .max(2000),
   })

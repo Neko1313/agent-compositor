@@ -1,5 +1,48 @@
 # Project memory
 
+## Semantic agent overview implemented in source — 2026-11-13
+
+Catalog 0.27 adds optional UiTextView.table and exported UiTable/uiTableSchema.
+The existing text view stays unchanged when table is omitted. The frozen-contract
+test explicitly isolates that additive property before comparing the old hash;
+generated catalog/reference inputs are updated. Table rows have stable unique
+IDs, matching cells, actions and optional expanded detail lines. The host renders
+aligned columns when they fit and stacked labeled fields in narrow panes. Actions
+reuse the existing mouse/Up/Down/Enter path. Producers retain expansion/filter
+ownership; core surface text includes labeled cells and expanded details too.
+This provides a reusable renderer-independent foundation for workflows/OpenTUI,
+not a preformatted agent-specific table or arbitrary frontend execution channel.
+
+`/agents` focuses a live overview with Agent/State/Tokens used, expandable
+workspace/branch/limits/failure/recent activity, and Open conversation focusing
+the agent's Reply field. View cycles All/Running/Needs attention; this initial
+filter is not a tab strip. Tool/turn events refresh the open overview; streaming
+text alone does not republish it. Activity retains twelve metadata-only events
+per agent in this process, excluding tool arguments/file bodies. Earlier saved
+messages remain in the conversation. Agent tabs, workflow table adoption and
+historical tool drill-down remain open.
+
+Evidence: dist/first-run/table-tests.log has 1243 passed/three optional skips,
+155 files. The strengthened actual-read/held-turn test passes separately in
+table-activity-tests.log and checks that the file body stays out of the overview.
+Type checking, generated references and documentation/site checks passed. The
+full real PTY scenario in dist/agent-table/pty-ready passes mouse/keyboard expand,
+state filtering, narrow stacking, open-conversation focus and restart history.
+Expanded/narrow screenshots were inspected; the detector returned no findings.
+Two earlier scenario attempts are retained: an unbracketed action matched hint
+text, then fullscreen exit used stale geometry. The scenario now waits for the
+actual bracketed control and restored pane output before clicking. No timeout or
+application expectation was weakened. No paid model requests were made.
+
+Maintained UI/API/agent guides and architecture cover this additive contract.
+The historical 03-contracts proposal and component selection in core-customization
+need no rewrite: controller selection/permissions did not change. Native proof
+for the table is still open. The preceding build-only run 43286814363 (94a3076)
+completed successfully on four platforms, publish skipped; it predates the table.
+Downloaded and audited all twenty native smoke reports under
+dist/agent-table/native-94; native-94-audit.json records all ok and actual raw
+bridge exits0/no stderr on four platforms. This does not certify the new table.
+
 ## First-run guide exercised from an extracted Linux archive — 2026-11-13
 
 Built e60ce22 with the checksum-pinned official Callix archive, extracted the

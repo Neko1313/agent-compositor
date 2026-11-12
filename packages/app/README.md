@@ -190,6 +190,13 @@ or Alt+s can also open a conversation view without submitting the message draft.
 Closing a conversation window leaves the running model, transcript and draft
 intact; when no conversation is visible, the footer shows the recovery shortcut.
 
+`/agents` opens a live expandable overview: Agent, State and Tokens used. Click
+a row or use Up/Down and Enter to inspect its workspace, limits, failures and
+the last twelve turn/tool activity events in this process. **View** cycles All,
+Running and Needs attention; **Open conversation** enters the agent's own Reply
+field. Updates do not queue behind the main model. Narrow panes stack fields;
+use Alt+f for a full-width table. Earlier messages remain in the saved conversation.
+
 With `btw` and `agent-hub` enabled, `/btw <question>` opens an independent agent
 while the main turn continues. Type follow-ups in its Reply field; Enter sends
 and Ctrl+C in that pane stops only that agent. Alt+i returns to the main message

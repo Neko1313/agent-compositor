@@ -27,6 +27,7 @@ type RuntimeEntry = {
   run?: Promise<void>;
   unsubscribe: () => void;
   delta: string;
+  activity:string[];
   close: () => Promise<void>;
 };
 type Channels = {
@@ -62,6 +63,8 @@ export async function agentManager(
   const draftIds=new Map<string,number>();
   const sending=new Set<string>();
   let listVisible=false;
+  let listFilter:'all'|'running'|'attention'='all';
+  const expanded=new Set<string>();
   const save = () => {
     const operation = writes.then(async () => {
       await mkdir(stateDir, { recursive: true });
@@ -127,11 +130,13 @@ export async function agentManager(
       core,
       unsubscribe: () => {},
       delta: "",
+      activity:[],
       close: managed.close,
     };
     entries.set(record.id, entry);
-    let scheduled = false;
+    let scheduled = false,overviewDirty=false;
     entry.unsubscribe = core.subscribe((event) => {
+      if(event.kind==='catalog'&&['turn.start','turn.complete','turn.failed','turn.interrupted','tool.call','tool.result'].includes(event.event))overviewDirty=true;
       if (
         event.kind === "catalog" &&
         [
@@ -145,6 +150,14 @@ export async function agentManager(
         ].includes(event.event)
       ) {
         const input = event.input as Record<string, unknown>;
+        if(event.event!=='ui.reaction'){
+          const label=event.event==='tool.call'?`Tool started: ${String(input.tool??'tool')}`
+            :event.event==='tool.result'?`Tool ${input.ok===false?'failed':'finished'}: ${String(input.tool??'tool')}`
+            :event.event==='turn.start'?'Turn started'
+            :event.event==='turn.complete'?'Turn completed'
+            :event.event==='turn.failed'?'Turn failed':'Turn interrupted';
+          entry.activity.push(label);entry.activity=entry.activity.slice(-12);
+        }
         const data: Record<string, unknown> = {};
         for (const key of [
           "turnId",
@@ -177,23 +190,28 @@ export async function agentManager(
         scheduled = true;
         queueMicrotask(() => {
           scheduled = false;
-          void paint(entry).catch(() => {});
+          const updateOverview=overviewDirty;overviewDirty=false;
+          void paint(entry).then(()=>updateOverview?show():undefined).catch(() => {});
         });
       }
     });
     await core.start();
     return entry;
   }
-  async function show(reveal=false) {
+  async function show(reveal=false,focus=false) {
     if(reveal)listVisible=true;
     if(!listVisible)return;
     if (!host) return;
+    const active=records.filter(record=>!record.archived);
+    const state=(id:string)=>entries.get(id)?.core.getState()??'saved';
+    const visible=active.filter(record=>listFilter==='all'||(listFilter==='running'?state(record.id)==='running':state(record.id)==='interrupted'||!!entries.get(record.id)?.core.failure));
     await host.ui.view(
       "agents",
       "Agents",
       {
         lines: [
           { text: "Independent agents", bold: true },
+          {text:`[ View: ${listFilter==='all'?'All':listFilter==='running'?'Running':'Needs attention'} · ${visible.length}/${active.length} ]`,action:'filter',tone:'accent'},
           { text: "[ New worktree agent ]", action: "create", tone: "accent" },
           {
             text: "[ New shared-workspace agent ]",
@@ -201,17 +219,30 @@ export async function agentManager(
             tone: "accent",
           },
           { text: "[ Use main conversation ]", action: "parent" },
-          ...records
-            .filter((r) => !r.archived)
-            .map((r) => ({
-              text: `${r.name} · ${
-                entries.get(r.id)?.core.getState() ?? "saved"
-              } · ${r.id.slice(0, 8)}`,
-              action: `open:${r.id}`,
-            })),
         ],
+        hint:'Enter or click a row to expand; Open conversation enters its Reply field. View cycles filters.',
+        table:{
+          columns:[{label:'Agent',width:18},{label:'State',width:12},{label:'Tokens used',width:12}],
+          empty:active.length?'No agents match this view. Change View to see the others.':'No independent agents yet. Create one above or use /btw <question>.',
+          rows:visible.map(record=>{
+            const entry=entries.get(record.id),budget=entry?.core.getBudget();
+            return{id:record.id,cells:[record.name,state(record.id),String(budget?.spentTokens??0)],
+              action:`expand:${record.id}`,expanded:expanded.has(record.id),
+              tone:entry?.core.failure?'danger' as const:state(record.id)==='running'?'accent' as const:undefined,
+              details:[
+                {text:`Agent: ${record.name}`,bold:true},
+                {text:`ID: ${record.id}`},{text:`Workspace: ${record.cwd}`},
+                {text:`Branch: ${record.branch??'shared workspace'}`},
+                {text:`Limits: ${record.maxSteps} steps/turn · ${record.maxTokens} tokens/turn`},
+                ...(entry?.core.failure?[{text:entry.core.failure,tone:'danger' as const}]:[]),
+                {text:'Recent activity (this run)',bold:true},
+                ...(entry?.activity.length?entry.activity.map(text=>({text})):[{text:'No activity in this run. Open the conversation for saved messages.'}]),
+                {text:'[ Open conversation ]',action:`open:${record.id}`,tone:'accent' as const},
+              ]};
+          }),
+        },
       },
-      { site: "inspector", focus: false }
+      { site: "inspector", focus }
     );
   }
   async function control(args: any, provided: Channels,reveal=true) {
@@ -384,7 +415,7 @@ export async function agentManager(
           if (action === "parent") {
             await select(undefined, $);
             await $.ui.notify("Input target: main conversation");
-          } else if (!action) await show(true);
+          } else if (!action) await show(true,true);
           else {
             const r = await $.agent.tool("agent_control", {
               action: action === "create-shared" ? "create" : action,
@@ -427,6 +458,14 @@ export async function agentManager(
         host = $;
         if (!e.site.startsWith("plugin-agent-hub-")) return;
         if(e.site==='plugin-agent-hub-agents'&&e.key==='close'){listVisible=false;return;}
+        if(e.site==='plugin-agent-hub-agents'&&e.key==='filter'){
+          listFilter=listFilter==='all'?'running':listFilter==='running'?'attention':'all';await show();return;
+        }
+        if(e.site==='plugin-agent-hub-agents'&&e.key.startsWith('expand:')){
+          const id=e.key.slice('expand:'.length);find(id);
+          if(expanded.has(id))expanded.delete(id);else expanded.add(id);
+          await show();return;
+        }
         const paneId=e.site.startsWith('plugin-agent-hub-agent-')?e.site.slice('plugin-agent-hub-agent-'.length):undefined;
         if(paneId&&e.key==='close'){if(target===paneId)await select(undefined,$);return;}
         if(paneId&&e.key==='enter'){
@@ -447,7 +486,7 @@ export async function agentManager(
         }
         if (action === "open") {
           await select(id, $);
-          await paint(await load(find(id ?? "")));
+          await paint(await load(find(id ?? "")),true);
           return;
         }
         let args: any = { action, id };

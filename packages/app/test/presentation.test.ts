@@ -4,7 +4,7 @@ import { hello, type WireMessage } from "@agent-compositor/protocol";
 import { uiAppearanceSchema, uiTextViewSchema } from "@agent-compositor/events";
 import themeHooks from "../../../plugins/ui-theme/hooks.js";
 import { AppUI } from "../src/ui.js";
-import { appearanceFrom, clean, gridFrom, transcriptRows, wrap, textRows } from "../src/presentation.js";
+import { appearanceFrom, clean, gridFrom, transcriptRows, wrap, textRows, viewRows } from "../src/presentation.js";
 
 function setup(provider = new ScriptedProvider([])) {
   const ui = new AppUI(approve => new AgentCore({ cwd: process.cwd(), provider, onApproval: approve }));
@@ -135,4 +135,17 @@ it('keeps whole task words in narrow columns instead of preferring a half-width 
  const rows=textRows('[ ] Build interactive UI',20);expect(rows.map(r=>r.text)).toEqual(['[ ] Build','    interactive UI']);
  expect(rows.map(r=>r.text.trim()).join(' ')).toBe('[ ] Build interactive UI');
  expect(wrap('    identifierWithoutSpaces',12).every(line=>line.length<=12)).toBe(true);
+});
+
+it('renders semantic table columns, stacked narrow data and actionable expanded details',()=>{
+ const view=uiTextViewSchema.parse({lines:[],table:{columns:[{label:'Agent',width:12},{label:'State',width:8}],rows:[{id:'one',cells:['Long agent name','running'],action:'expand:one',expanded:true,details:[{text:'Complete detail retained across resize'},{text:'Open conversation',action:'open:one'}]}]}});
+ const wide=viewRows(view,40,20),narrow=viewRows(view,14,20);
+ expect(wide[0].text).toContain('State');expect(wide.map(row=>row.text).join('\n')).toContain('Long agent…');
+ expect(narrow.map(row=>row.text).join('\n')).toContain('State: running');
+ expect(narrow.filter(row=>row.action==='expand:one').map(row=>row.text).join(' ')).toContain('Long agent');
+ expect(wide.some(row=>row.action==='open:one')).toBe(true);expect(narrow.some(row=>row.action==='open:one')).toBe(true);
+ expect(narrow.every(row=>Array.from(row.text).length<=14)).toBe(true);
+ expect(viewRows({...view,table:{...view.table!,rows:[],empty:'No matching agents'}},40,20)[0].text).toBe('No matching agents');
+ expect(uiTextViewSchema.safeParse({lines:[],table:{...view.table,rows:[{id:'bad',cells:['only one']} ]}}).success).toBe(false);
+ expect(uiTextViewSchema.safeParse({lines:[],table:{...view.table,rows:[view.table!.rows[0],view.table!.rows[0]]}}).success).toBe(false);
 });

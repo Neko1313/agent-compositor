@@ -74,6 +74,10 @@ tool contracts are unchanged.
 
 ## Commands that open UI
 
+Catalog 0.27 adds optional semantic tables to `UiTextView`; omitted tables preserve
+the existing text-view contract. Columns, unique rows, expanded details and
+ordinary action IDs are renderer-independent. See [expandable tables](ui-theming.md#expandable-semantic-tables).
+
 An optional command route, `"ui":{"site":"main"}`, sends a TUI command directly
 to the existing `ui.press` chain. For plugin `project-helper`, the event is
 `{site:"plugin-project-helper-main",key:"command:/project-helper arguments"}`.

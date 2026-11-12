@@ -27,6 +27,30 @@ async function temp() {
 }
 const dirs = [join(process.cwd(), "plugins")];
 describe("independent agents, authentication and extensions", () => {
+  it('updates the expandable agent overview while a side turn runs and keeps filters independent of the model',async()=>{
+    const cwd=await temp(),provider=new ScriptedProvider([{toolCalls:[{name:'read',args:{path:'overview.txt'}}]},{text:'working',hold:true}]);
+    await writeFile(join(cwd,'overview.txt'),'PRIVATE_FILE_BODY');
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:dirs});
+    try{
+      const core=app.createCore(async()=>true);let view:any;let fallback='';
+      core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface'&&(event.input as any).id==='plugin-agent-hub-agents'){view=(event.input as any).view;fallback=String((event.input as any).text);}});
+      await core.start();
+      const created=await core.invokeTool('agent_control',{action:'create',name:'Explorer',worktree:false});expect(created.ok).toBe(true);const id=(created.output as any).id;
+      await core.invokeCommand('/agents');expect(view.table.rows[0].cells).toEqual(['Explorer','idle','0']);
+      await core.host.emit('ui.press',{site:'plugin-agent-hub-agents',key:`expand:${id}`});
+      expect(view.table.rows[0].expanded).toBe(true);expect(fallback).toContain('Workspace:');
+      await core.invokeTool('agent_control',{action:'send',id,prompt:'Inspect'});
+      await vi.waitFor(()=>expect(view.table.rows[0].cells[1]).toBe('running'));
+      await vi.waitFor(()=>expect(view.table.rows[0].details.some((line:any)=>line.text==='Tool finished: read')).toBe(true));
+      expect(JSON.stringify(view)).not.toContain('PRIVATE_FILE_BODY');
+      expect(view.table.rows[0].details.some((line:any)=>line.text==='Turn started')).toBe(true);
+      await core.host.emit('ui.press',{site:'plugin-agent-hub-agents',key:'filter'});expect(view.lines[1].text).toContain('Running');expect(view.table.rows).toHaveLength(1);
+      await core.invokeTool('agent_control',{action:'stop',id});await vi.waitFor(()=>expect(view.table.rows).toHaveLength(0));
+      await core.host.emit('ui.press',{site:'plugin-agent-hub-agents',key:'filter'});expect(view.table.rows).toHaveLength(1);expect(view.table.rows[0].cells[1]).toBe('interrupted');
+      expect(view.table.rows[0].details.some((line:any)=>line.text==='Turn interrupted')).toBe(true);
+      expect(provider.requests).toHaveLength(2);expect(core.getMessages().filter(message=>message.role==='user')).toHaveLength(0);
+    }finally{await app.close();}
+  });
   it("persists separate agent conversations and restores their windows after restart", async () => {
     const cwd = await temp(),
       provider = new ScriptedProvider([

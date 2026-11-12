@@ -376,7 +376,12 @@ export class AgentCore {
           event: "ui.surface",
           input: {
             ...input,
-            text: input.view.lines.map((row) => row.text).join("\n"),
+            text: [...input.view.lines.map(row=>row.text),
+              ...(input.view.table?input.view.table.rows.length?input.view.table.rows.flatMap(row=>[
+                row.cells.map((cell,index)=>`${input.view.table!.columns[index].label}: ${cell}`).join(' · '),
+                ...(row.expanded?row.details?.map(detail=>detail.text)??[]:[]),
+              ]):[input.view.table.empty??'No rows.']:[]),
+            ].join("\n"),
             surface: input.id,
             id: `plugin-${input.plugin ?? "custom"}-${input.id}`
               .replace(/[^A-Za-z0-9_-]/g, "_")

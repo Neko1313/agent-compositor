@@ -76,7 +76,11 @@ restart. Core checks cover owner dispatch, failure isolation, tool permissions,
 auxiliary usage, cancellation, unload and shutdown bounds. This is source-runtime
 evidence; the immutable public 0.7.4 archive does not include these new contracts.
 Embedded inference-assisted onboarding, richer tables/drill-down and standalone
-resource charts remain implementation work. The newer source adds `/btw` side conversations
+resource charts remain implementation work. The development agent overview now
+uses catalog 0.27 semantic tables with expandable workspace/limits/activity,
+state filters and responsive stacked fields. This is an initial reusable table
+contract; agent tabs, workflow adoption and deeper historical drill-down remain
+open. The newer source adds `/btw` side conversations
 through catalog 0.26: an independent persisted agent with its own Reply field,
 immediate opening/reopening, separate draft, focused-agent cancellation and
 restart history. Source integration and real PTY checks cover those paths with

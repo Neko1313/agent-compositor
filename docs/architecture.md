@@ -79,6 +79,12 @@ those rectangles. Editor, approval, question, form, placement and history
 controllers have selected implementations with input, rendering, state and
 teardown contracts.
 
+Portable plugin views may include a catalog 0.27 semantic table: labeled columns,
+stable rows, ordinary actions and expandable details. Producers own expansion and
+filter state and republish when data changes. AppUI chooses aligned or stacked
+rows for the viewport; the core retains a labeled text fallback. The contract
+does not depend on Ink or grant a plugin permission to execute frontend code.
+
 `AppUI` sends protocol frames to `renderer-ink`; input returns through that same
 protocol. The renderer draws and translates input. It does not own agent state
 or execute extension modules. [UI controller contracts](ui-controllers.md) and

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -2960,6 +2960,130 @@
                 "required": [
                   "id",
                   "value"
+                ],
+                "additionalProperties": false
+              },
+              "table": {
+                "type": "object",
+                "properties": {
+                  "columns": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": 4,
+                          "maximum": 80
+                        }
+                      },
+                      "required": [
+                        "label"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rows": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "cells": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "action": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "expanded": {
+                          "type": "boolean"
+                        },
+                        "details": {
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "text": {
+                                "type": "string",
+                                "maxLength": 10000
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "text",
+                                  "muted",
+                                  "accent",
+                                  "success",
+                                  "warning",
+                                  "danger"
+                                ]
+                              },
+                              "bold": {
+                                "type": "boolean"
+                              },
+                              "selected": {
+                                "type": "boolean"
+                              },
+                              "action": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              }
+                            },
+                            "required": [
+                              "text"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "tone": {
+                          "type": "string",
+                          "enum": [
+                            "text",
+                            "muted",
+                            "accent",
+                            "success",
+                            "warning",
+                            "danger"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "cells"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "empty": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "columns",
+                  "rows"
                 ],
                 "additionalProperties": false
               },

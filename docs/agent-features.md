@@ -124,6 +124,15 @@ Old snapshots are not deleted automatically.
 
 ## Independent agents and worktrees
 
+In current development builds, `/agents` focuses a live overview with Agent,
+State and Tokens used columns. Click a row or select it with Up/Down and Enter
+to expand its workspace, per-turn limits, failure and recent activity. **Open
+conversation** focuses that agent's Reply field. **View** cycles All, Running
+and Needs attention (interrupted or failed). Agent lifecycle and tool events
+refresh the visible overview without submitting a prompt to the main model.
+Narrow panes stack labeled fields. Recent activity is limited to the last twelve
+turn/tool events in this process; open the saved conversation for earlier history.
+
 With `btw` and `agent-hub` enabled, `/btw <question>` immediately opens a separate
 persisted agent conversation while the main model continues. The focused pane
 has its own message field: Enter sends a follow-up without queuing behind the

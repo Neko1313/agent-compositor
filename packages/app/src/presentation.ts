@@ -184,8 +184,8 @@ export function gridFrom(
 /** Allocate the same cell rectangle for graphics and the portable fallback. */
 export function rasterForView(view: UiTextView, columns: number, height: number): RenderMessage['raster'] {
   const image = view.raster;
-  const textRows = view.lines.flatMap(row => wrap(row.text, columns));
-  const available = Math.max(0, height - textRows.length);
+  const textCount = view.lines.flatMap(row => wrap(row.text, columns)).length+(view.table?tableRows(view.table,columns).length:0);
+  const available = Math.max(0, height - textCount);
   if (!image || !available || columns < 1) return;
   const scale = Math.min(columns / image.width, available * 2 / image.height, 1);
   const w = Math.max(1, Math.floor(image.width * scale));
@@ -194,15 +194,36 @@ export function rasterForView(view: UiTextView, columns: number, height: number)
 }
 
 /** Portable true-colour half-block raster rendering, shared by all plugins. */
+export function tableRows(table:NonNullable<UiTextView['table']>,columns:number):Row[]{
+  const result:Row[]=[];
+  const widths=table.columns.map(column=>column.width??16);
+  const stacked=columns<widths.reduce((sum,width)=>sum+width,2)+(widths.length-1)*3;
+  const fit=(text:string,width:number)=>{
+    const chars=Array.from(clean(text).replace(/\s+/g,' '));
+    return(chars.length>width?chars.slice(0,Math.max(0,width-1)).join('').trimEnd()+'…':chars.join('')).padEnd(width,' ');
+  };
+  if(!table.rows.length)return textRows(table.empty??'No rows.',columns,'muted');
+  if(!stacked)result.push({text:'  '+table.columns.map((column,index)=>fit(column.label,widths[index])).join('   '),bold:true,tone:'muted'});
+  for(const row of table.rows){
+    const marker=row.details?.length?(row.expanded?'- ':'+ '):'  ';
+    if(stacked){
+      result.push(...wrap(marker+row.cells[0],columns).map(text=>({text,bold:true,action:row.action,tone:row.tone})));
+      for(let index=1;index<row.cells.length;index++)result.push(...wrap(`${table.columns[index].label}: ${row.cells[index]}`,columns).map(text=>({text,action:row.action,tone:row.tone})));
+    }else result.push({text:marker+row.cells.map((cell,index)=>fit(cell,widths[index])).join('   '),action:row.action,tone:row.tone});
+    if(row.expanded)for(const detail of row.details??[]){const indent=' '.repeat(Math.min(2,Math.max(0,columns-1)));result.push(...wrap(detail.text,Math.max(1,columns-indent.length)).map(text=>({...detail,text:indent+text})));}
+  }
+  return result;
+}
+
 export function viewRows(
   view: UiTextView,
   columns: number,
   height: number,
   nativeRaster = false
 ): Row[] {
-  const text = view.lines.flatMap((row) =>
+  const text = [...view.lines.flatMap((row) =>
     wrap(row.text, columns).map((text) => ({ ...row, text }))
-  );
+  ),...(view.table?tableRows(view.table,columns):[])];
   const image = view.raster;
   const available = Math.max(0, height - text.length);
   if (!image || !available) return text;

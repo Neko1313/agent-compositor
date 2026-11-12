@@ -134,6 +134,42 @@ updates, placement persistence, plugin appearance/status override, theme
 restoration, narrow terminals, slash suggestions and multiline input.
 It does not verify a live model or every native terminal.
 
+## Expandable semantic tables
+
+Development catalog 0.27 adds optional `UiTextView.table`. Existing `lines` views
+are unchanged. Pass table data rather than padding column strings in a plugin:
+
+```ts
+await $.ui.view('runs', 'Runs', {
+  lines: [{text: 'Recent runs', bold: true}],
+  table: {
+    columns: [{label: 'Run', width: 18}, {label: 'State', width: 12}],
+    rows: [{
+      id: 'unit-tests', cells: ['Unit tests', 'passed'],
+      action: 'expand:unit-tests', expanded: true,
+      details: [
+        {text: 'All configured unit checks passed.'},
+        {text: '[ Open report ]', action: 'report:unit-tests'},
+      ],
+    }],
+    empty: 'No runs yet. Start a configured check to see results.',
+  },
+});
+```
+
+The host aligns columns when the viewport fits their preferred widths and stacks
+labeled fields in a narrow pane. Expanded details wrap without truncation. Click
+a row or use Up/Down and Enter; row actions and detail actions use ordinary
+`ui.press`. Expansion, filters and updates belong to the producer: handle the
+action, update state and publish a new view. A stable row ID is not an automatic
+command or a model prompt. Table rows require unique IDs and one cell per column.
+Tables support up to eight columns, 200 rows and 100 detail lines per row.
+
+`ui.render` receives semantic `props.table` alongside `props.lines`; a replacement
+view can preserve or replace the table. Plain surface text includes labeled rows
+and expanded details. No arbitrary frontend code is loaded. This table contract
+is independent of Ink; a future renderer can consume the same data directly.
+
 ## Animated plugin panes
 
 The optional default [mascot plugin](../plugins/mascot/README.md) demonstrates

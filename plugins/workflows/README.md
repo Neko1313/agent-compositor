@@ -15,6 +15,8 @@ invalidated and any already-submitted publication settles before close returns;
 background updates cannot reopen the view or replace a newer render. Reopen
 `/workflows` to inspect current state. Use the explicit Stop workflow action to
 cancel work.
+Navigation waits for a superseding refresh to finish publishing, so a completed
+view switch does not acknowledge an older frame.
 
 New runs default to `completion: "wake"`: completion or failure queues one
 follow-up in the agent session that started the run, after its current turn.

@@ -274,6 +274,12 @@ scenarios pass, as do 1313 tests, types, documentation checks and eight installe
 runtime probes. These are local controlled checks; refreshed release CI and
 publication remain required. They do not establish broad model quality or 1.0.
 
+Follow-up Node 22 CI found premature acknowledgement when a background refresh
+superseded a navigation render. The queue now covers loading and publication and
+navigation waits for the replacement frame. A deterministic regression fails on
+the prior implementation; the new source passes all 1314 tests and the real PTY
+workflow scenario. Compiled/native CI for this follow-up remains pending.
+
 ### Planned OpenTUI migration — 2026-11-13
 
 The user explicitly requested adding migration to OpenTUI to the plan. OpenTUI

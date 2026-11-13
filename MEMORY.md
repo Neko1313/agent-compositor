@@ -1,5 +1,22 @@
 # Project memory
 
+## Workflow navigation waits for replacement publications — 2026-11-13
+
+Node 22 CI on dff160d and generated PR10 exposed a second render race: switching
+to legacy journals could return while a superseding refresh still displayed the
+dynamic view. The close regression itself passed. A new deferred-frame test
+deterministically reproduces premature navigation acknowledgement on dff160d.
+The render queue now includes asynchronous loading and publication; navigation
+waits for the replacement queue to settle, while revisions still reject stale
+frames and close invalidates pending work. Eight focused workflow tests, the
+full 1314-test suite/three optional skips, types and docs checks pass. The real
+source PTY workflow scenario passes close/reopen, workers, pause/resume, details,
+narrow layout and restart; completed screenshot inspected. Evidence under
+dist/first-run/release-next-workflow-navigation-{red,green,pty}.log and
+dist/release-0.8.0-navigation-fix/source-pty. PR10 c4d9bb3 is superseded and must
+refresh before merge; its generated five-file batch had matched local generation
+but its Node 22 CI failed. Recheck the new head rather than merging old metadata.
+
 ## Live auto-review uncertainty diagnostic — 2026-11-13
 
 The declared Ollama service/reference gemma4:31b-cloud is available. A clean

@@ -78,6 +78,19 @@ it('settles an already-started workflow publication before close returns and dro
   hold=false;await press('command:/workflows');expect(views).toHaveLength(count+1);
  }finally{release();await Promise.allSettled([refreshing,closing]);controller.abort();await disposeWorkflowViews();}
 });
+it('does not acknowledge superseded navigation before its replacement view is published',async()=>{
+ const cwd=await temp(),state=new Map<string,unknown>(),controller=new AbortController();let firstStarted!:()=>void,secondStarted!:()=>void,releaseFirst!:()=>void,releaseSecond!:()=>void;
+ const firstEntry=new Promise<void>(done=>{firstStarted=done;}),secondEntry=new Promise<void>(done=>{secondStarted=done;}),firstGate=new Promise<void>(done=>{releaseFirst=done;}),secondGate=new Promise<void>(done=>{releaseSecond=done;});let publications=0;
+ const api:any={signal:controller.signal,session:{cwd,id:'navigation-'+cwd},storage:{paths:{state:cwd,project:cwd},config:async()=>({})},state:{get:(key:string)=>state.get(key),set:(key:string,value:unknown)=>state.set(key,value),delete:(key:string)=>state.delete(key)},background:()=>api,ui:{supports:()=>true,view:async()=>{publications++;if(publications===1){firstStarted();await firstGate;}else{secondStarted();await secondGate;}}}};
+ const press=()=>workflowHooks['ui.press']({site:'plugin-workflows-runs',key:'command:/workflows'},api);let first:Promise<unknown>|undefined,superseded:Promise<unknown>|undefined,replacement:Promise<unknown>|undefined;
+ try{
+  first=press();await firstEntry;
+  let acknowledged=false;superseded=press().then(()=>{acknowledged=true;});replacement=press();
+  await new Promise(done=>setImmediate(done));expect(acknowledged).toBe(false);
+  releaseFirst();await secondEntry;expect(acknowledged).toBe(false);
+  releaseSecond();await Promise.all([first,superseded,replacement]);expect(acknowledged).toBe(true);expect(publications).toBe(2);
+ }finally{releaseFirst();releaseSecond();await Promise.allSettled([first,superseded,replacement]);controller.abort();await disposeWorkflowViews();}
+});
 it('paginates all 500 stages and preserves large results in schema-valid expandable detail lines',()=>{
  const stages=Array.from({length:500},(_,index)=>({id:'stage-'+index,prompt:'p'.repeat(16000),status:'completed' as const,output:'o'.repeat(64000)}));
  const run:any={id:'one',title:'Large workflow',status:'completed',stages,concurrency:2};

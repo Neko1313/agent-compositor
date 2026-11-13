@@ -17,9 +17,7 @@ function renderState($:HooksApi):RenderState {
 const current=($:HooksApi,token:RenderToken)=>!$.signal.aborted&&$.state.get('open')!==false&&token.owner.revision===token.revision;
 async function publish($:HooksApi,token:RenderToken,view:UiTextView,placement:Parameters<HooksApi['ui']['view']>[3]){
   if(!current($,token))return;
-  const work=token.owner.tail.then(async()=>{if(current($,token))await $.ui.view('runs','Workflows',view,placement);});
-  token.owner.tail=work.catch(()=>{});
-  await work;
+  await $.ui.view('runs','Workflows',view,placement);
 }
 async function runs($: HooksApi): Promise<Run[]> {
   const root = join(
@@ -105,11 +103,19 @@ function updateView($:HooksApi,patch:Partial<WorkflowViewState>){$.state.set('ov
 async function show($:HooksApi,focus=false){
   if($.state.get('open')===false||$.signal.aborted)return;
   const owner=renderState($),token={owner,revision:++owner.revision};
-  const engine=engineFor(context($));await engine.load();
-  if(!current($,token))return;
-  if($.state.get('legacyView')||!engine.runs.size)return showLegacy($,token);
-  if(!$.ui.supports?.('table'))return showText($,token);
-  await publish($,token,workflowView([...engine.runs.values()].reverse(),viewState($),$.ui.supports?.('tabs')===true),{site:'inspector',size:.4,focus});
+  const work=owner.tail.then(async()=>{
+    if(!current($,token))return;
+    const engine=engineFor(context($));await engine.load();
+    if(!current($,token))return;
+    if($.state.get('legacyView')||!engine.runs.size)return showLegacy($,token);
+    if(!$.ui.supports?.('table'))return showText($,token);
+    await publish($,token,workflowView([...engine.runs.values()].reverse(),viewState($),$.ui.supports?.('tabs')===true),{site:'inspector',size:.4,focus});
+  });
+  owner.tail=work.catch(()=>{});
+  await work;
+  // A superseding refresh must finish before navigation acknowledges its frame.
+  let pending:Promise<void>;
+  do{pending=owner.tail;await pending;}while(pending!==owner.tail);
 }
 async function showText($:HooksApi,token:RenderToken){
   const engine=engineFor(context($));await engine.load();

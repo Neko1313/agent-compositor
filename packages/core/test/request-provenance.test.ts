@@ -43,6 +43,40 @@ it('reconstructs the original request from the existing journal events and retai
  const resumed=AgentCore.resume({cwd:process.cwd(),controlTools:[],tools:[f.tool],provider:new ScriptedProvider([]),permissionReview:f.review},events);cores.push(resumed);
  await resumed.invokeTool('ci_check',{});expect(f.reviews.at(-1).context.task).toBe(request);expect(f.effects()).toBe(0);
 });
+it('keeps a prompt rejected during preparation out of the next resumed model request', async () => {
+ const provider = new ScriptedProvider([{text:'Continued.'}]);
+ const f = fixture({provider, preparePrompt: async () => { throw new Error('Scoped project instructions exceed the limit'); }});
+ const rejected = 'Inspect @scoped/file.txt';
+ await f.core.submit(rejected);
+ expect(provider.requests).toHaveLength(0);
+ expect(f.journal.find(e => e.type === 'turn.failed')?.error).toContain('Scoped project instructions');
+ expect(f.core.getMessages().filter(m => m.role === 'user')).toEqual([]);
+
+ const resumed = AgentCore.resume({cwd:process.cwd(), tools:[], controlTools:[], provider}, JSON.parse(JSON.stringify(f.journal)));
+ cores.push(resumed);
+ await resumed.submit('Continue with the unrelated task.');
+ expect(provider.requests[0].messages.filter(m => m.role === 'user').map(m => m.content)).toEqual(['Continue with the unrelated task.']);
+});
+it('retains independent steers and accepted submissions in legacy, sparse and current journals', () => {
+ const events:SessionEvent[] = [
+  {type:'prompt.submit', text:'Legacy submission'},
+  {type:'turn.failed', turnId:'legacy'},
+  {type:'prompt.steer', turnId:'rejected', text:'First steer'},
+  {type:'prompt.submit', turnId:'rejected', text:'Rejected submission'},
+  {type:'prompt.steer', turnId:'rejected', text:'Second steer'},
+  {type:'turn.failed', turnId:'rejected'},
+  {type:'prompt.submit', turnId:'accepted', text:'Accepted submission'},
+  {type:'context.prepared', turnId:'accepted', text:'Prepared input'},
+  {type:'turn.failed', turnId:'accepted'},
+  {type:'prompt.submit', turnId:'started', text:'Started turn'},
+  {type:'turn.start', turnId:'started'},
+  {type:'turn.failed', turnId:'started'},
+  {type:'prompt.submit', turnId:'partial', text:'Partial journal tail'},
+ ];
+ expect(replayTranscript(events).map(m => m.content)).toEqual([
+  'Legacy submission','First steer','Second steer','Prepared input','Started turn','Partial journal tail',
+ ]);
+});
 it('supplies the complete parent task to delegated permission review',async()=>{
  const f=fixture({controlTools:['task'],provider:new ScriptedProvider([
   {toolCalls:[{name:'task',args:{prompt:'Inspect this child task'}}]},

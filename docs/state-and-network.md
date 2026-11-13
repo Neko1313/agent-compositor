@@ -49,11 +49,25 @@ reimporting stale state. Migration covers sessions, agents, Todos, layout/model,
 checkpoints, workflows, and legacy extension metadata. COMPOSITOR.md is copied to
 private memory.md. Old directories remain available for inspection or backup.
 
-Global AGENTS.md/CLAUDE.md/GEMINI.md in the user root, files in the project root,
-and its `.agent-compositor` directory contribute instructions. Skills support
-global and project directories. `# note` saves private project memory;
-`#global note` saves global memory owned by the memory plugin. Shared COMPOSITOR.md
-files remain in the project; new notes do not overwrite them.
+Skills support global and project directories. `# note` saves private project
+memory and `#global note` saves global memory owned by the memory plugin. Both
+commands preserve the existing shared COMPOSITOR.md file in the project.
+
+## Project instructions
+
+At startup, the standard loader looks for `AGENTS.md`, `CLAUDE.md` and
+`GEMINI.md` in the user root, the project root and the project's
+`.agent-compositor` directory. A [path reference](workspaces-and-web.md#attach-a-path)
+can also load instructions scoped to the selected paths.
+
+Each load must fit in **120,000 UTF-8 bytes**, including the generated file
+headings and separators. All startup instructions share one limit. Scoped
+instructions for all references in a submission share another. Instructions
+are included in full. If the total exceeds the limit or an applicable
+instruction file cannot be read as valid UTF-8 text, startup or reference
+preparation fails with an error. Fix the indicated file or shorten the
+combined instructions and retry. These bytes are accounted separately from
+the submitted text and reference previews.
 
 ## Reasoning effort
 

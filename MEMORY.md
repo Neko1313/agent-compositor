@@ -1,5 +1,21 @@
 # Project memory
 
+## Complete scoped instructions and bounded file previews — 2026-11-13
+
+The default attachment loader now shares a 16,000-byte UTF-8 preview budget
+among referenced files, listings and notices. A partial text preview includes
+arguments for a fresh permission-checked native read. Applicable instructions
+must fit in full within 120,000 bytes per startup or scoped load. A failed
+preparation stays out of a resumed model request when the journal identifies
+the failed turn. Reference count and raw image totals are bounded per submission.
+See the workspace, project storage and core customization guides for the limits.
+
+Local coverage passed 1,636 tests with three optional skips. Type checking and
+documentation checks passed. A scripted provider exercised the app submission
+and guarded read path with a changed file and both permission outcomes. Real
+model development quality, long sessions, autonomous plugin delivery, embedded
+CPU onboarding and the OpenTUI migration remain open.
+
 ## Complete submitted requests remain distinct from prepared context — 2026-11-13
 
 7b63ba5 passed CI 43419817306 on both Node versions, docs 43419817470 and

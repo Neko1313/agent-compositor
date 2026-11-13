@@ -137,6 +137,10 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const storage = new ProjectStorage(options.cwd, env);
   storage.inheritedSettings = options.inheritedSettings;
   await storage.init();
+  const instructions = config.config.agent?.projectContext===false ? "" : await projectInstructions(
+    options.cwd,
+    storage.paths.home
+  );
   const market = await marketplaces(
     options.cwd,
     env.HOME ?? env.USERPROFILE ?? options.cwd,
@@ -302,10 +306,6 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     }
   }
 
-  const instructions = config.config.agent?.projectContext===false ? "" : await projectInstructions(
-    options.cwd,
-    storage.paths.home
-  );
   const skills = () => new SkillRegistry({
     sources: [
       { name: "agents", dir: path.join(options.cwd, ".agents/skills") },

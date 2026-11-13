@@ -34,10 +34,10 @@ export function replayTranscript(
    * the next tool.call belongs to a NEW assistant message */
   let batchClosed = false;
   let submitted:ChatMessage|undefined;
-  const submittedTurns=new Map<string,ChatMessage>(),deferredSteers=new Map<string,ChatMessage[]>();
+  const unpreparedTurns=new Map<string,ChatMessage>(),deferredSteers=new Map<string,ChatMessage[]>();
   const recordedTurns=new Set(events.filter(e=>e.type==='prompt.submit'&&typeof e.turnId==='string').map(e=>e.turnId as string));
   const seenTurns=new Set<string>();
-  const resetPreparation=()=>{submitted=undefined;submittedTurns.clear();};
+  const resetPreparation=()=>{submitted=undefined;unpreparedTurns.clear();};
 
   const flushAssistant = () => {
     if (pendingText || pendingCalls.length > 0) {
@@ -71,11 +71,13 @@ export function replayTranscript(
         break;
       }
       case "context.prepared": {
-        const last = (typeof event.turnId==='string'?submittedTurns.get(event.turnId):undefined)??submitted??messages[messages.length - 1];
+        const last = (typeof event.turnId==='string'?unpreparedTurns.get(event.turnId):undefined)??submitted??messages[messages.length - 1];
         if (last?.role === "user" && typeof event.text === "string") {
           if(last.origin!=='harness'&&typeof last.userRequest!=='string'&&last.content!==event.text)last.userRequest=last.content;
           last.content = event.text;
           last.images = event.images as ChatMessage["images"];
+          if (typeof event.turnId === "string") unpreparedTurns.delete(event.turnId);
+          else unpreparedTurns.clear();
         }
         break;
       }
@@ -97,14 +99,21 @@ export function replayTranscript(
           // New host records correlate preparation without changing hook fields.
           if(turnId===undefined){for(const waiting of deferredSteers.values())messages.push(...waiting);deferredSteers.clear();}
           messages.push(message);submitted=message;
-          if(turnId!==undefined){seenTurns.add(turnId);submittedTurns.set(turnId,message);messages.push(...(deferredSteers.get(turnId)??[]));deferredSteers.delete(turnId);}
+          if(turnId!==undefined){seenTurns.add(turnId);unpreparedTurns.set(turnId,message);messages.push(...(deferredSteers.get(turnId)??[]));deferredSteers.delete(turnId);}
         }else if(turnId!==undefined&&recordedTurns.has(turnId)&&!seenTurns.has(turnId)){
           const waiting=deferredSteers.get(turnId)??[];waiting.push(message);deferredSteers.set(turnId,waiting);
         }else messages.push(message);
         break;
       }
+      case 'turn.start':
+        // A started turn accepted its submission even if a sparse log lacks context.prepared.
+        if (typeof event.turnId === "string") unpreparedTurns.delete(event.turnId);
+        break;
       case 'turn.complete':
       case 'turn.failed': {
+        // A preparation failure leaves an audit record but never adds a live user message.
+        const rejected = event.type === 'turn.failed' && typeof event.turnId === 'string' && unpreparedTurns.get(event.turnId);
+        if (rejected) messages.splice(messages.lastIndexOf(rejected), 1);
         flushAssistant();
         for(const waiting of deferredSteers.values())messages.push(...waiting);
         deferredSteers.clear();

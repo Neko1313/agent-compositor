@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, writeFile, rm, realpath } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, realpath, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { WorkspaceAccess } from "@agent-compositor/tools";
-import { activeReference, expandReferences, referenceFiles } from "../src/project-context.js";
+import { activeReference, expandReferences, projectInstructions, referenceFiles } from "../src/project-context.js";
 
 const temporary: string[] = [];
 afterEach(async () => { for (const root of temporary.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -16,6 +16,79 @@ async function fixture() {
 }
 
 describe("reference parsing and context limits", () => {
+  it('frames and marks bounded previews instead of silently cutting file blocks',async()=>{
+    const f=await fixture();await writeFile(join(f.primary,'one.txt'),'a'.repeat(80000));await writeFile(join(f.primary,'two.txt'),'b'.repeat(80000));
+    const prompt='Compare @one.txt with @two.txt',result=await expandReferences(f.primary,prompt,f.options);
+    expect(Buffer.byteLength(result.text.slice(prompt.length),'utf8')).toBeLessThanOrEqual(16000);
+    expect(result.text.match(/<file path=/g)).toHaveLength(2);expect(result.text.match(/<\/file>/g)).toHaveLength(2);
+    expect(result.text).toContain('Preview truncated');expect(result.text).toContain('Native read arguments');expect(result.text.startsWith(prompt)).toBe(true);
+  });
+  it('keeps preview Unicode intact under a smaller byte budget',async()=>{
+    const f=await fixture();await writeFile(join(f.primary,'unicode.txt'),'👻中'.repeat(10000));
+    const prompt='Inspect @unicode.txt',result=await expandReferences(f.primary,prompt,{...f.options,maxBytes:1024});
+    expect(Buffer.byteLength(result.text.slice(prompt.length),'utf8')).toBeLessThanOrEqual(1024);expect(Buffer.from(result.text).toString('utf8')).toBe(result.text);
+    expect(result.text).toContain('</file>');expect(result.text).toContain('Preview truncated');
+  });
+  it('rejects oversized combined instructions rather than dropping their tail',async()=>{
+    const f=await fixture();await writeFile(join(f.primary,'AGENTS.md'),'A'.repeat(70000));await writeFile(join(f.primary,'CLAUDE.md'),'B'.repeat(70000)+'\nDO_NOT_RUN_CI');
+    await expect(projectInstructions(f.primary)).rejects.toThrow(/instruction.*limit/i);
+  });
+  it.each([Buffer.from([0,1]),Buffer.from([0xff,0xfe])])('rejects invalid instruction text %j',async bytes=>{
+    const f=await fixture();await writeFile(join(f.primary,'AGENTS.md'),bytes);
+    await expect(projectInstructions(f.primary)).rejects.toThrow(/instruction.*UTF-8/i);
+  });
+  it("defers references after the 64th before granting access", async () => {
+    const f = await fixture();
+    const first = join(f.primary, "small.txt"), deferred = join(f.other, "separate.txt");
+    await writeFile(first, "one");
+    await writeFile(deferred, "outside");
+    const attach = vi.fn(f.options.attach);
+    const prompt = "@small.txt ".repeat(64) + "@" + JSON.stringify(deferred);
+    const result = await expandReferences(f.primary, prompt, { ...f.options, attach });
+    expect(attach).toHaveBeenCalledTimes(64);
+    expect(result.text).toContain("Only the first 64 references were processed");
+    expect(result.text).not.toContain("outside");
+    await expect(f.workspace.resolve(deferred)).rejects.toThrow();
+  });
+
+  it("bounds combined raw image bytes and still processes later text", async () => {
+    const f = await fixture();
+    await writeFile(join(f.primary, "image.png"), Buffer.alloc(9 * 1024 * 1024));
+    await writeFile(join(f.primary, "tail.txt"), "TEXT_AFTER_IMAGES");
+    const result = await expandReferences(f.primary, "@image.png ".repeat(4) + "@tail.txt", f.options);
+    expect(result.images).toHaveLength(3);
+    expect(result.text).toContain("Attached images exceed 32 MiB combined");
+    expect(result.text).toContain("TEXT_AFTER_IMAGES");
+  });
+
+  it("loads all applicable rules even for images and unpreviewed data", async () => {
+    const f = await fixture();
+    const parent = join(f.primary, "nested"), child = join(parent, "deeper");
+    await mkdir(child, { recursive: true });
+    const rules = "x".repeat(17_000) + "\nKEEP_THE_FINAL_RULE";
+    await writeFile(join(parent, "AGENTS.md"), rules);
+    await writeFile(join(child, "photo.png"), "image");
+    await writeFile(join(child, "large.txt"), "x".repeat(120_001));
+    for (const path of ["photo.png", "large.txt", "."]) {
+      const result = await expandReferences(f.primary, "@nested/deeper/" + path, f.options);
+      expect(result.text).toContain(rules);
+    }
+    await writeFile(join(child, "CLAUDE.md"), "y".repeat(105_000));
+    await expect(expandReferences(f.primary, "@nested/deeper/photo.png", f.options)).rejects.toThrow(/instruction.*limit/i);
+  });
+
+  it("stops preparation when scoped instructions disappear, escape or are denied", async () => {
+    const f = await fixture(), path = join(f.primary, "AGENTS.md");
+    await symlink(join(f.other, "rules.md"), path);
+    await expect(expandReferences(f.primary, "@.", f.options)).rejects.toThrow(/project instructions/i);
+    await writeFile(join(f.other, "rules.md"), "EXTERNAL_RULE");
+    await expect(expandReferences(f.primary, "@.", f.options)).rejects.toThrow(/escapes/i);
+    await rm(path);
+    await writeFile(path, "PRIVATE_RULE");
+    await expect(expandReferences(f.primary, "@.", { ...f.options, authorize: async target => {
+      if (target === path) throw new Error("denied");
+    } })).rejects.toThrow(/denied/);
+  });
   it("supports escaped quotes and single-quoted paths without reading neighboring instructions", async () => {
     const f = await fixture(), name = 'a "quoted" file.txt', file = join(f.other, name);
     await writeFile(file, "QUOTED_FILE_EVIDENCE");

@@ -95,7 +95,9 @@ back to their complete recorded content when no original request is available.
 The journal reconstructs the field from existing submit/prepared records, and
 new records add host-only turn correlation metadata. Steering that arrives while
 submission/preparation is pending keeps its own user message instead of being
-overwritten by the prepared body. Hook event input schemas are unchanged.
+overwritten by the prepared body. A correlated submission that fails during
+preparation stays in the audit journal. Replay excludes it from the model
+history, so restarting the session cannot deliver the rejected request.
 
 `AgentCoreOptions.userCommands` supplies the currently loaded immediate user
 controls. `submit` and `steer` dispatch them outside the prompt queue;

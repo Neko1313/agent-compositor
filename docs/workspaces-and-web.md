@@ -16,19 +16,32 @@ Read @/srv/project/README.md
 Compare @../shared/schema.json with @src/schema.json
 ```
 
-Double-quoted references accept JSON escapes; single quotes also support spaces.
-`@.` lists the primary project. A directory reference lists at most 200 files,
-following project ignore rules, and includes its bounded project instructions.
-A file reference supplies UTF-8 content or a supported image. Attachment text is
-bounded by the existing context limit; each image remains capped at 10 MB.
+Double-quoted references accept JSON escapes. Single quotes also support spaces.
+`@.` lists the primary project. A directory reference lists up to 200 files
+under the project's ignore rules and loads its applicable project instructions.
 The editor completes local, absolute and home paths. Tab accepts a suggestion;
 Enter submits a typed reference unless a suggestion was explicitly selected.
 Completing a directory lets you continue its path. Browsing completion suggestions
 alone does not attach a path to the agent.
 
-An explicit file reference grants access to that file. An explicit directory
-reference grants access to its descendants. Symlink targets are checked against
-the canonical scope; a link does not grant access to an unselected location.
+The host processes up to 64 explicit references per submission in the order they
+appear. Later references are deferred and grant no new access. To attach one,
+include it in a later submission. The original submitted text stays complete.
+When the submitted text itself reaches 120,000 UTF-16 code units, the host
+sends it verbatim and skips path expansion and grants for that submission.
+
+Text-file previews, directory listings and reference notices share **16,000
+UTF-8 bytes** per submission by default, including their labels and truncation
+markers. A partial text preview includes arguments for the native `read` tool.
+If a preview is omitted, use `read` with the referenced file path. Files over
+120,000 bytes also require a separate read. PNG, JPEG, WebP and GIF images have
+a separate limit of 10 MiB per image and 32 MiB per submission, measured before
+base64 encoding. The CLI provides no size or count overrides for references.
+See [project instruction loading](state-and-network.md#project-instructions)
+for its separate budget.
+
+Attaching a file grants access to that file. Attaching a directory grants access
+to its descendants. The host checks symlink targets against the canonical scope.
 Read permission denials still apply to attachments, and normal tool policy still
 applies to reads, edits, writes, shell commands and network calls. Attaching a
 project does not implicitly approve its mutations.

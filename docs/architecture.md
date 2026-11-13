@@ -79,6 +79,13 @@ those rectangles. Editor, approval, question, form, placement and history
 controllers have selected implementations with input, rendering, state and
 teardown contracts.
 
+The configured OpenTUI layout adapter supplies optional read-only split-target
+metadata from the same projected/canonical split selection as keyboard changes.
+Its copied geometry comes from the readable layout used for pointer hit testing;
+saved proportions remain separate. The renderer uses it for an Arrange cue and
+receives no mutable tree or persistence authority. Hidden targets carry a reason
+without a fabricated divider. This is an in-process frontend adapter capability.
+
 Portable plugin views may include a catalog 0.27 semantic table: labeled columns,
 stable rows, ordinary actions and expandable details. Producers own expansion and
 filter state and republish when data changes. AppUI chooses aligned or stacked

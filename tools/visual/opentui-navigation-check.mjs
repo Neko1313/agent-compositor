@@ -100,6 +100,48 @@ try{
   }
   async function noRequests(count){assert.equal((await completions()).length,count,'Window operations must not issue/settle model work');}
   async function noResult(tool){assert.equal((await events()).filter(event=>event.type==='tool.result'&&event.tool===tool).length,0);}
+  async function noDivider(){await page.waitForFunction(()=>!/[┃━]/u.test(visual.text()));}
+  async function targetCue(id,width,hidden=''){
+    const value=await observe(layout,value=>value.windows.focused===id,'Saved focus must match the selected split');
+    const split=splitFor(currentTree(value),id);assert.ok(split,'The selected pane must have a nearest logical split');
+    const child=leaves(split.children[0]).includes(id)?0:1,first=Math.round(split.ratio*100),columns=split.axis==='horizontal';
+    const side=columns?(child===0?'left':'right'):(child===0?(width>=88?'top':'up'):(width>=88?'bottom':'down'));
+    const label=width>=88?`Target: ${columns?'columns':'rows'} · saved ${first}/${100-first} · + grows ${side}`
+      :`Target: ${columns?'cols':'rows'} ${first}/${100-first} · +${side}`;
+    await wait(label+(hidden?' · '+hidden:''));return{split,child,label};
+  }
+  async function noTarget(width){
+    const value=await layout();assert.equal(splitFor(currentTree(value),value.windows.focused),undefined);
+    await wait((width>=88?'Next split: ':'Next: ')+(value.windows.axis==='vertical'?'rows':width>=88?'columns':'cols')+' · no resize target');await noDivider();
+  }
+  async function nativeFrame(label){
+    const marker=({'Main':'APP_QUESTION','Navigation controls':'Refresh inventory'})[label];assert.ok(marker,'The reference pane needs a unique visible fixture marker');
+    return(await page.waitForFunction(marker=>{
+      const lines=visual.text().split('\n');for(const[row,line]of lines.entries()){
+        const at=line.indexOf(marker);if(at<0)continue;const x=line.lastIndexOf('│',at),right=line.indexOf('│',at);if(x<0||right<0)continue;
+        const top=lines.findLastIndex((line,index)=>index<row&&line[x]==='┌'&&line[right]==='┐');
+        const bottom=lines.findIndex((line,index)=>index>row&&line[x]==='└'&&line[right]==='┘');
+        if(top>=0&&bottom>top)return{x,y:top,width:right-x+1,height:bottom-top+1};
+      }
+    },marker)).jsonValue();
+  }
+  async function selectedDivider(axis,referenceTitle){
+    const frame=await nativeFrame(referenceTitle),glyph=axis==='horizontal'?'┃':'━';
+    const expected=axis==='horizontal'?Array.from({length:frame.height},(_,index)=>({x:frame.x-1,y:frame.y+index}))
+      :Array.from({length:frame.width},(_,index)=>({x:frame.x+index,y:frame.y-1}));
+    const cells=await page.evaluate(()=>{
+      const result=[];for(let y=0;y<visual.terminal.rows;y++)for(let x=0;x<visual.terminal.cols;x++){
+        const cell=visual.terminal.buffer.active.getLine(y+visual.terminal.buffer.active.viewportY)?.getCell(x),char=cell?.getChars();
+        if(char==='┃'||char==='━')result.push({x,y,char,fg:cell.getFgColor(),bg:cell.getBgColor(),bold:Boolean(cell.isBold())});
+      }return result;
+    });
+    assert.deepEqual(cells.map(({x,y})=>({x,y})),expected,'Only the nearest nested divider may carry the target cue');
+    for(const cell of cells)assert.deepEqual({char:cell.char,fg:cell.fg,bg:cell.bg,bold:cell.bold},{char:glyph,fg:0xeac280,bg:0x171a20,bold:true});
+    return{frame,x:expected[Math.floor(expected.length/2)].x,y:expected[Math.floor(expected.length/2)].y};
+  }
+  async function mouseCells(x,y,phase){const point=await page.evaluate(({x,y})=>{
+    const rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(x+.5)*rect.width/visual.terminal.cols,y:rect.y+(y+.5)*rect.height/visual.terminal.rows};
+  },{x,y});await page.mouse.move(point.x,point.y);if(phase==='down')await page.mouse.down();if(phase==='up')await page.mouse.up();}
   const paneStrip=()=>page.evaluate(()=>{const lines=visual.text().split('\n'),body=lines.findIndex(line=>/┌[─ ]/.test(line));return body>0?lines[body-1]:'';});
   const workspaceLine=()=>page.evaluate(()=>visual.text().split('\n').find(line=>/^\s*WS\s/.test(line))??'');
   async function workspaceClick(id){const attempt=++pointerAttempt;
@@ -164,7 +206,11 @@ try{
   await main();await wait('NAV_PENDING_DRAFT_47');await pick('Navigation private form');assert.equal(await json(launch.navigation.formCalls),1);
   await type('X');await wait('F_XORMvalue');await capture('03-private-form-return');await key('Alt+Enter');
   const receipt=await observe(()=>json(launch.navigation.formReceipt),value=>value?.action==='save','Only explicit form submission may publish a receipt');assert.equal(receipt.values.name,'F_XORMvalue');
-  await main();await wait('NAV_PENDING_DRAFT_47');await click('Edit answer');await wait('[x] Production');await key('Alt+Enter');await wait('APP_ANSWER_RECEIVED: Production; model=app-start');
+  // The private form can still change Main's geometry after focus returns.
+  // Use the native mode key here; the earlier edit/selection path uses real mouse input.
+  await main();await wait('NAV_PENDING_DRAFT_47');await waitMain('Edit answer');await key('Alt+i');await wait('[x] Production');
+  await key('Alt+i');await wait('NAV_PENDING_DRAFT_47');await key('Alt+i');await wait('[x] Production');
+  await key('Alt+Enter');await wait('APP_ANSWER_RECEIVED: Production; model=app-start');
   await noRequests(2);assert.equal((await events()).filter(event=>event.type==='tool.result'&&event.tool==='ask_user').length,1);
   report.checks.push('An independent private form survives Arrange and Main navigation with its exact field cursor/value; only its explicit submit returns values, and only explicit Main submit answers the model');
 
@@ -190,24 +236,49 @@ try{
   await key('Enter');await absent(finderMarker);await wait('NAV_GENERATION_2');await noRequests(4);
   report.checks.push('Finder replaces an abandoned slow route with the newly selected owner, refuses a removed source, and follows fresh same-owner sources through an actual plugin reload without model requests');
 
-  await page.evaluate(()=>visual.terminal.resize(48,22));await arrange();await wait('i type');await wait('Esc exit');await capture('05-arrange-48-columns');await leave();
-  await page.evaluate(()=>visual.terminal.resize(38,20));await arrange();await wait('Esc exit');await wait('i type');await capture('06-arrange-38-columns');await leave();
+  const pane='plugin-navigation-probe-pane11';
+  await page.evaluate(()=>visual.terminal.resize(75,30));await arrange();await targetCue(pane,75,'small area');await noDivider();await capture('05-size-limited-split-target');await leave();
+  await page.evaluate(()=>visual.terminal.resize(48,22));await arrange();await targetCue(pane,48,'narrow');await noDivider();await wait('i type');await wait('Esc exit');await capture('05-arrange-48-columns');await leave();
+  await page.evaluate(()=>visual.terminal.resize(38,20));await arrange();await targetCue(pane,38,'narrow');await noDivider();await wait('Esc exit');await wait('i type');await capture('06-arrange-38-columns');await leave();
   const narrowTargets=(await workspaceLine()).match(/\b[1-9](?=[* ])/g);assert.deepEqual(narrowTargets,['1','2','3','4','5','6','7','8','9']);
   await workspaceClick(9);await observe(layout,value=>value.windows.workspace===9,'The ninth workspace mouse target must remain reachable at38 columns');
   await wait('No open windows · F2 Windows');await wait('Empty workspace');await capture('06-empty-workspace-nine-38-columns');
+  await arrange();await noTarget(38);await leave();
   await workspaceClick(2);await observe(layout,value=>value.windows.workspace===2,'The occupied second workspace mouse target must restore its panes');await wait('Nav pane 11 refreshed');
   await finder('Заметки');await wait('WS 3');await key('Escape');await absent(finderMarker);await page.evaluate(()=>visual.terminal.resize(180,50));
+  await pick('Заметки');await observe(layout,value=>value.windows.workspace===3,'Finder must activate the lone-window workspace');await arrange();await noTarget(180);
+  await key('v');await observe(layout,value=>value.windows.axis==='vertical','v must set the next split direction for a lone window');await noTarget(180);
+  const loneBefore=(await layout()).windows;await key('+');assert.deepEqual((await layout()).windows,loneBefore);await capture('06-lone-window-next-split');await key('b');await leave();await noDivider();
+  await pick('Fast route');await arrange();await key('q');await leave();
+  await page.evaluate(()=>visual.terminal.resize(172,50));
   await pick('Nav pane 11');await arrange();await key('Shift+Digit1');await key('1');
-  const pane='plugin-navigation-probe-pane11';await observe(layout,value=>location(value,pane)===1&&value.windows.workspace===1,'Shift+1 and1 must move/select workspace1');
+  await observe(layout,value=>location(value,pane)===1&&value.windows.workspace===1,'Shift+1 and1 must move/select workspace1');
   const beforeMove=JSON.stringify(currentTree(await layout()));await key('Shift+ArrowLeft');
-  await observe(layout,value=>JSON.stringify(currentTree(value))!==beforeMove&&value.windows.focused===pane,'Shift+direction must move the same pane in its nested tree');
-  await key('v');await observe(layout,value=>splitFor(currentTree(value),pane)?.axis==='vertical','v must set the nearest nested split to rows');
+  const movedTree=await observe(layout,value=>JSON.stringify(currentTree(value))!==beforeMove&&value.windows.focused===pane,'Shift+direction must move the same pane in its nested tree');
+  const partner=splitFor(currentTree(movedTree),pane).children[1].surface;assert.ok(partner&&partner!==pane,'The measured fixture target must have two direct pane children');
+  const partnerTitle=({'session':'Main','plugin-navigation-probe-control':'Navigation controls'})[partner];assert.ok(partnerTitle,'The sibling must be an actual named fixture window');
+  await key('v');await observe(layout,value=>splitFor(currentTree(value),pane)?.axis==='vertical','v must set the nearest nested split to rows');await targetCue(pane,172);await selectedDivider('vertical',partnerTitle);await capture('07-selected-rows-target');
   await key('b');const beforeResize=await observe(layout,value=>splitFor(currentTree(value),pane)?.axis==='horizontal','b must set the nearest nested split to columns');
-  const oldRatio=splitFor(currentTree(beforeResize),pane).ratio;await key('+');
+  const oldRatio=splitFor(currentTree(beforeResize),pane).ratio,child=leaves(splitFor(currentTree(beforeResize),pane).children[0]).includes(pane)?0:1;await key('+');
   const resized=await observe(layout,value=>splitFor(currentTree(value),pane)?.ratio!==oldRatio,'+ must persist a custom nearest-split ratio');
-  const customRatio=splitFor(currentTree(resized),pane).ratio;await leave();
-  await pick('Fast route');await arrange();await key('q');await leave();await main();await setZoom(true);
+  const customRatio=splitFor(currentTree(resized),pane).ratio;assert.ok(Math.abs(customRatio-oldRatio-(child===0?.05:-.05))<1e-9,'+ must grow the focused logical side');
+  const {split}=await targetCue(pane,172);assert.deepEqual(split.children.map(leaves),[[pane],[partner]]);
+  const divider=await selectedDivider('horizontal',partnerTitle);await capture('07-selected-columns-target');
+  const anchor=await page.evaluate(({x,y})=>visual.text().split('\n')[y].lastIndexOf('┌',x),{x:divider.x,y:divider.frame.y});assert.ok(anchor>=0,'The selected parent must retain its visible outer border');
+  const parentWidth=divider.frame.x+divider.frame.width-anchor,restoreX=anchor+parentWidth*customRatio;assert.ok(Number.isInteger(restoreX),'The measured fixture divider must permit exact ratio restoration');
+  await mouseCells(divider.x,divider.y,'down');await wait('Mouse resize · Esc cancel');await absent('Target:');await noDivider();
+  const heldReference=await nativeFrame(partnerTitle);assert.deepEqual(heldReference,divider.frame,'Starting resize must retain the viewport geometry');
+  await mouseCells(divider.x+3,divider.y);await capture('07-active-mouse-resize');await mouseCells(divider.x+3,divider.y,'up');
+  await observe(layout,value=>splitFor(currentTree(value),pane)?.ratio!==customRatio,'Dragging the painted divider must commit a real ratio change');await targetCue(pane,172);
+  const moved=await selectedDivider('horizontal',partnerTitle);await mouseCells(moved.x,moved.y,'down');await wait('Mouse resize · Esc cancel');await mouseCells(restoreX,moved.y,'up');
+  await observe(layout,value=>Math.abs(splitFor(currentTree(value),pane).ratio-customRatio)<1e-9,'A real drag must restore the exact customized ratio');await targetCue(pane,172);await selectedDivider('horizontal',partnerTitle);
+  await leave();await noDivider();await pick(partnerTitle);await arrange();
+  const other=await targetCue(partner,172);assert.equal(other.child,1);await key('+');
+  await observe(layout,value=>Math.abs(splitFor(currentTree(value),partner).ratio-(customRatio-.05))<1e-9,'+ on the opposite child must decrease the first-child saved ratio');await targetCue(partner,172);await selectedDivider('horizontal',partnerTitle);
+  await key('-');await observe(layout,value=>Math.abs(splitFor(currentTree(value),partner).ratio-customRatio)<1e-9,'- must restore the original saved ratio from the opposite side');await leave();await noDivider();
+  await page.evaluate(()=>visual.terminal.resize(180,50));await main();await setZoom(true);await arrange();await targetCue('session',180,'hidden by zoom');await noDivider();await capture('07-zoomed-split-target');await leave();
   const zoomContext=(await layout()).windows;await finder('Nav pane 11');await key('Escape');await absent(finderMarker);
+  await noDivider();
   assert.deepEqual((await layout()).windows,zoomContext);await setZoom(false);
   const beforeRestart=await observe(layout,value=>!value.windows.fullscreen,'Restart reference must leave fullscreen');await writeFile(join(output,'before-restart-layout.json'),JSON.stringify(beforeRestart,null,2));
   assert.ok(JSON.stringify(beforeRestart.windows).includes(String(customRatio)),'Nested custom ratio must remain before restart');
@@ -222,7 +293,8 @@ try{
   const modelBodies=JSON.stringify((await traces()).map(row=>row.body)),sessionText=await journal();for(const value of privateValues){assert.ok(!modelBodies.includes(value));assert.ok(!sessionText.includes(value));}
   assert.ok(!/MaxListenersExceededWarning|Possible EventEmitter memory leak detected/.test(await readFile(join(output,'terminal.ansi'),'utf8')));
   report.customRatio=customRatio;report.sessionId=originalJournal[0].slice(0,-6);report.privacy={finderAndFormAbsentFromModel:true,finderAndFormAbsentFromJournal:true,inputLogExcluded:'Raw input records synthetic test queries and form values'};
-  report.checks.push('Arrange exits remain visible at48/38 columns; actual nested geometry, custom ratio, closed window and original journal survive restart with private Finder/form text absent from model requests and session history');
+  report.splitTarget={siblings:[pane,partner],ratio:customRatio,visibleAxes:['rows','columns'],hidden:['size-limited','compact','zoomed'],noTarget:['empty','lone'],mouseResize:true};
+  report.checks.push('Arrange identifies the nearest nested split, grows either focused side and accepts a real painted-divider drag; hidden/no-target states and narrow exits remain honest, and exact geometry, closed windows and the original journal survive restart without private Finder/form text entering model requests or history');
   await main();await key('Control+c');await observe(async()=>ptyExit,value=>value===0,'Actual CLI must exit cleanly');report.ptyExitCode=ptyExit;assert.deepEqual(report.errors,[]);report.ok=true;
 }catch(error){report.errors.push(error instanceof Error?error.stack:String(error));if(page){await writeFile(join(output,'failure.txt'),await page.evaluate(()=>window.visual?.text()??'').catch(()=>''));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
   if(launch)await readFile(join(launch.state,'layout.json')).then(data=>writeFile(join(output,'failure-layout.json'),data)).catch(()=>{});

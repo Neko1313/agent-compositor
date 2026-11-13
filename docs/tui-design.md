@@ -33,7 +33,13 @@ fixed-width workspace targets remain available at 38 columns. The strip contains
 only open windows on the current workspace, including collapsed tiles; the finder
 retains the complete inventory. Empty-workspace guidance points to F2. Arrange
 names the selected window and zoom state, with exit, typing
-and Windows access readable at narrow widths. Its modal input ownership protects
+and Windows access readable at narrow widths. A warm heavy divider and a separate
+target line identify the same nearest split that keyboard actions change. Saved
+proportions stay distinct from minimum-size-clamped cell geometry; hidden targets
+explain zoom, narrow view or size limits instead of highlighting a different
+ancestor. The line uses an existing border cell, preserves child titles and adds
+no mouse hit target. Finder and pointer gestures suppress the keyboard cue.
+Its modal input ownership protects
 resident editors and pending questions/approvals. The native finder searches only
 titles and public command names; its query is bounded to 512 UTF-16 units. Queries
 and private form values stay outside model messages and journals. Route activation

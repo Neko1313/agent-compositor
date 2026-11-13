@@ -18,6 +18,11 @@ export interface Frame {
   width: number;
   height: number;
 }
+interface SplitGeometry {
+  bounds: {x: number; y: number; width: number; height: number};
+  divider: {x: number; y: number; width: number; height: number};
+}
+type VisibleSplit = ResizeHandle & {divider: SplitGeometry['divider']};
 export const leaves = (node?: Tree): string[] =>
   !node
     ? []
@@ -292,9 +297,9 @@ export class WindowManager {
   }
   /** Project the saved tree without changing ratios, placement or workspace state. */
   private layout(width: number, height: number, readable = true): {
-    frames: Frame[]; handles: ResizeHandle[];
+    frames: Frame[]; handles: VisibleSplit[];
   } {
-    const frames: Frame[] = [], handles: ResizeHandle[] = [];
+    const frames: Frame[] = [], handles: VisibleSplit[] = [];
     if (!this.tree || width <= 0 || height <= 0) return { frames, handles };
     const focus = this.contentFocus();
     if (readable && this.fullscreen) {
@@ -315,7 +320,9 @@ export class WindowManager {
         walk(node.children[index], x, y, w, h, [...path, index]);
         return;
       }
-      handles.push({ node, path, x, y, width: w, height: h, original: node.ratio });
+      const divider = horizontal ? {x: x + n - 1, y, width: 2, height: h}
+        : {x, y: y + n - 1, width: w, height: 2};
+      handles.push({ node, path, x, y, width: w, height: h, original: node.ratio, divider });
       walk(node.children[0], x, y, horizontal ? n : w, horizontal ? h : n, [...path, 0]);
       walk(node.children[1], horizontal ? x + n : x, horizontal ? y : y + n,
         horizontal ? w - n : w, horizontal ? h : h - n, [...path, 1]);
@@ -326,16 +333,20 @@ export class WindowManager {
   frames(width: number, height: number): Frame[] {
     return this.layout(width, height).frames;
   }
+  /** A copied description of an actually visible split, using the readable layout. */
+  splitGeometry(node: Exclude<Tree, {surface: string}>, width: number, height: number): SplitGeometry | undefined {
+    const handle = this.layout(width, height).handles.find(handle => handle.node === node);
+    if (!handle) return;
+    return {bounds: {x: handle.x, y: handle.y, width: handle.width, height: handle.height}, divider: {...handle.divider}};
+  }
   /** Only projected, visible splits can capture the pointer. */
   separator(col: number, row: number, width: number, height: number): ResizeHandle | undefined {
     return this.layout(width, height).handles.reverse().find(handle => {
-      if (col < handle.x || col >= handle.x + handle.width || row < handle.y || row >= handle.y + handle.height) return false;
-      const horizontal = handle.node.axis === "horizontal";
-      const minimum = horizontal ? 24 : 6;
-      const size = horizontal ? handle.width : handle.height;
-      const n = Math.max(minimum, Math.min(size - minimum, Math.floor(size * handle.node.ratio)));
-      const coordinate = horizontal ? col - handle.x : row - handle.y;
-      return coordinate === n - 1 || coordinate === n;
+      const divider = handle.divider;
+      const coordinate = handle.node.axis === 'horizontal' ? col : row;
+      const start = handle.node.axis === 'horizontal' ? divider.x : divider.y;
+      return (coordinate === start || coordinate === start + 1)
+        && col >= divider.x && col < divider.x + divider.width && row >= divider.y && row < divider.y + divider.height;
     });
   }
   private resizeNode(

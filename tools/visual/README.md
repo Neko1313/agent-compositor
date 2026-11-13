@@ -57,7 +57,11 @@ stable Arrange mode, private native finder, protected Main questions/approvals,
 resident form/editor state and route lifetime. The scenario verifies current
 workspace window strips and cross-workspace restoration through F2, all nine
 workspace mouse targets at 38 columns, and exact saved split-tree/ratio restoration
-after restart. The separate deterministic preview retains its development keymap.
+after restart. Arrange checks identify the actual nested keyboard split and its
+painted divider, distinguish saved proportions from cell allocation, exercise both
+focused-child resize directions, and explain hidden or absent targets. Pointer
+resizing still uses the real terminal path. The separate deterministic preview
+retains its development keymap.
 Artifacts default to `dist/visual-opentui-navigation/`; `VISUAL_EXECUTABLE` selects
 a complete extracted native candidate rather than a source override.
 

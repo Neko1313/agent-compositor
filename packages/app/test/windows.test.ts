@@ -172,4 +172,19 @@ describe("tiling compositor", () => {
     expect(wm.frames(100, 30)).toEqual(tall);
   });
 
+  it.each(['horizontal', 'vertical'] as const)('copies %s split geometry from the same clamped readable divider used for pointer capture', axis => {
+    const wm = new WindowManager();wm.setSplitAxis(axis);
+    const node = wm.tree!;if ('surface' in node)throw Error('Expected split fixture');node.ratio = .05;
+    const before = wm.snapshot(), geometry = wm.splitGeometry(node, 80, 24)!;
+    const divider = axis === 'horizontal' ? {x: 23, y: 0, width: 2, height: 24} : {x: 0, y: 5, width: 80, height: 2};
+    expect(geometry).toEqual({bounds: {x: 0, y: 0, width: 80, height: 24}, divider});
+    expect(wm.separator(divider.x, divider.y, 80, 24)?.node).toBe(node);
+    expect(wm.separator(divider.x + (axis === 'horizontal' ? 1 : 0), divider.y + (axis === 'vertical' ? 1 : 0), 80, 24)?.node).toBe(node);
+    expect(wm.separator(divider.x + (axis === 'horizontal' ? .5 : 0), divider.y + (axis === 'vertical' ? .5 : 0), 80, 24)).toBeUndefined();
+    geometry.bounds.x = 999;geometry.divider.width = 999;
+    expect(wm.splitGeometry(node, 80, 24)).toEqual({bounds: {x: 0, y: 0, width: 80, height: 24}, divider});
+    expect(wm.snapshot()).toEqual(before);
+    wm.fullscreen = true;expect(wm.splitGeometry(node, 80, 24)).toBeUndefined();
+    wm.fullscreen = false;expect(wm.splitGeometry(node, 16, 5)).toBeUndefined();
+  });
 });

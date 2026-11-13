@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import { MouseButton, RGBA, TextAttributes, type BoxRenderable, type KeyBinding, type MouseEvent, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
+import { MouseButton, RGBA, TextAttributes, type BoxRenderable, type KeyBinding, type MouseEvent, type OptimizedBuffer, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
 import { flushSync, useKeyboard, useRenderer, useTerminalDimensions } from '@opentui/react';
 import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { color } from './colors.js';
@@ -13,10 +13,13 @@ import {SurfaceView} from './surface-view.js';
 import type {UiSurfaceRegistry,UiSurfaceSource} from './surface.js';
 import type {WindowNavigationSource,WindowNavigationSnapshot} from './navigation.js';
 import {WindowFinder} from './navigation-view.js';
+import {splitTargetLabel} from './split-target.js';
 
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
 const composerForeground = RGBA.defaultForeground();
+const targetForeground = RGBA.fromHex(color.running);
+const targetBackground = RGBA.fromHex(color.background);
 
 const editorKeys: KeyBinding[] = [
   { name: 'return', action: 'submit' },
@@ -327,6 +330,29 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     if (this.width > 0 && this.height > 0) windowLayout.resize(this.width, this.height);
   }, [windowLayout]);
   useLayoutEffect(() => {
+    if (!navigation) return;
+    const paintSplit = (buffer: OptimizedBuffer) => {
+      const current = windowLayout.snapshot(), bounds = viewport.current;
+      const target = current.splitTarget, divider = target?.divider;
+      if (navigation.snapshot().mode !== 'arrange' || current.gesture || !bounds
+        || target?.visibility !== 'visible' || !divider) return;
+      const x = Math.max(0, divider.x), y = Math.max(0, divider.y);
+      // The final frame pass follows all native child composition. Reuse an
+      // existing border cell, preserving titles and native mouse hit testing.
+      if (target.axis === 'horizontal' && x < bounds.width) {
+        const end = Math.min(bounds.height, divider.y + divider.height);
+        for (let row = y; row < end; row++)
+          buffer.drawText('┃', bounds.x + x, bounds.y + row, targetForeground, targetBackground, TextAttributes.BOLD);
+      } else if (target.axis === 'vertical' && y < bounds.height) {
+        const length = Math.min(bounds.width, divider.x + divider.width) - x;
+        if (length > 0) buffer.drawText('━'.repeat(length), bounds.x + x, bounds.y + y, targetForeground, targetBackground, TextAttributes.BOLD);
+      }
+    };
+    renderer.addPostProcessFn(paintSplit);
+    renderer.requestRender();
+    return () => renderer.removePostProcessFn(paintSplit);
+  }, [renderer, windowLayout, navigation]);
+  useLayoutEffect(() => {
     const bounds = viewport.current;
     if (bounds && bounds.width > 0 && bounds.height > 0) windowLayout.resize(bounds.width, bounds.height);
   }, [windowLayout, width, height]);
@@ -457,6 +483,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     {navigation?<box flexDirection="column" paddingX={1} flexShrink={0}>
       {navigationState.mode==='arrange'?<>
         <text fg={color.accent} attributes={TextAttributes.BOLD} truncate>{'WINDOW MODE · '+(layout.fullscreen?'Zoomed':'Tiled')+' · '+(navigationState.focusedLabel??'Empty workspace')}</text>
+        <text fg={color.running} truncate>{layout.gesture
+          ? (layout.gesture === 'resize' ? 'Mouse resize · Esc cancel' : 'Move window · Esc cancel')
+          : splitTargetLabel(layout, width)}</text>
         <text fg={color.text} truncate>{width>=88?'h/j/k/l focus · Shift move · b columns · v rows · +/− resize · f zoom · q close · 1–9 workspace · w windows · i type · Esc exit':width>=48?'h/j/k/l focus · Shift move · b/v split · +/− size · w windows · i type · Esc exit':'Esc exit · i type · w windows'}</text>
       </>:<text fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':width>=88?'Alt+W Arrange · F2 Windows · Alt+0 Main · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'Alt+W Arrange · F2 Windows · Alt+0 Main'}</text>}
     </box>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>

@@ -1,6 +1,6 @@
 import {WindowManager, leaves, type Frame, type ResizeHandle, type Tree, type DropEdge} from './windows.js';
 import type {BuiltApp} from './build.js';
-import type {WindowLayoutAction, WindowLayoutSnapshot, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
+import type {WindowLayoutAction, WindowLayoutSnapshot, WindowLayoutSource, WindowSplitTarget} from '@agent-compositor/renderer-opentui';
 
 export interface WindowPane {id: string; label: string; transient?: boolean}
 export type WindowPlacement = Parameters<WindowManager['place']>[1];
@@ -141,6 +141,29 @@ export async function connectWindowLayout(storage: Storage, options: {
     };
     return walk(wm.tree, []);
   }
+  function selectedSplit(view: WindowManager) {
+    const nearest = (node?: Tree): Exclude<Tree, {surface: string}> | undefined => {
+      if (!node || 'surface' in node) return;
+      const child = node.children.find(child => leaves(child).includes(view.focused));
+      return child ? nearest(child) ?? node : undefined;
+    };
+    const projected = nearest(view.tree);
+    const canonical = projected && canonicalSplit(projected)?.node;
+    return projected && canonical ? {projected, canonical} : undefined;
+  }
+  function splitTarget(view: WindowManager): WindowSplitTarget | undefined {
+    const selected = selectedSplit(view);
+    if (!selected) return;
+    const children: [string[], string[]] = [leaves(selected.projected.children[0]), leaves(selected.projected.children[1])];
+    const visibility: WindowSplitTarget['visibility'] = width <= 0 || height <= 0 ? 'unmeasured'
+      : wm.fullscreen ? 'zoomed' : compact() ? 'compact' : 'size-limited';
+    const geometry = visibility === 'size-limited' ? view.splitGeometry(selected.projected, width, height) : undefined;
+    return {
+      axis: selected.canonical.axis, ratio: selected.canonical.ratio,
+      focusedChild: children[0].includes(view.focused) ? 0 : 1, children,
+      visibility: geometry ? 'visible' : visibility, ...geometry,
+    };
+  }
   const separator = (x: number, y: number): ResizeHandle | undefined => {
     const handle = compact() ? undefined : projection().separator(x, y, width, height);
     if (!handle) return;
@@ -153,6 +176,7 @@ export async function connectWindowLayout(storage: Storage, options: {
     revision, width, height, frames: frames(view), focused: view.focused, workspace: wm.workspace,
     workspaces: [1, 2, 3, 4, 5, 6, 7, 8, 9], locations: locations(), axis: wm.axis,
     fullscreen: wm.fullscreen, compact: compact(), saving: pendingWrites > 0, error, pointer, drop,
+    splitTarget: splitTarget(view),
     gesture: gesture?.kind,
     dragging: gesture?.kind === 'move' ? gesture.surface : undefined,
     };
@@ -195,13 +219,7 @@ export async function connectWindowLayout(storage: Storage, options: {
   }
   function changeSplit(action: {type: 'orient' | 'swap'} | Extract<WindowLayoutAction, {type: 'axis' | 'resize'}>) {
     const view = projection();
-    const nearest = (node?: Tree): Exclude<Tree, {surface: string}> | undefined => {
-      if (!node || 'surface' in node) return;
-      const child = node.children.find(child => leaves(child).includes(view.focused));
-      return child ? nearest(child) ?? node : undefined;
-    };
-    const split = nearest(view.tree);
-    const canonical = split && canonicalSplit(split)?.node;
+    const selected = selectedSplit(view), split = selected?.projected, canonical = selected?.canonical;
     if (action.type === 'orient' || action.type === 'axis') {
       if (action.type === 'axis') view.setSplitAxis(action.axis);
       else view.orient();

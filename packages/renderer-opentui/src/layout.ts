@@ -9,6 +9,17 @@ export interface WindowFrame {
 export type WindowDirection = 'left' | 'right' | 'up' | 'down';
 export type WindowDropEdge = 'left' | 'right' | 'top' | 'bottom' | 'center';
 
+/** The keyboard target; saved proportions can differ from readable cell geometry. */
+export interface WindowSplitTarget {
+  axis: 'horizontal' | 'vertical';
+  ratio: number;
+  focusedChild: 0 | 1;
+  children: readonly [readonly string[], readonly string[]];
+  visibility: 'visible' | 'size-limited' | 'compact' | 'zoomed' | 'unmeasured';
+  bounds?: {x: number; y: number; width: number; height: number};
+  divider?: {x: number; y: number; width: number; height: number};
+}
+
 export interface WindowLayoutSnapshot {
   revision: number;
   width: number;
@@ -21,6 +32,7 @@ export interface WindowLayoutSnapshot {
   axis: 'horizontal' | 'vertical';
   fullscreen: boolean;
   compact: boolean;
+  splitTarget?: WindowSplitTarget;
   pointer: 'default' | 'grab' | 'grabbing' | 'ew-resize' | 'ns-resize';
   drop?: {surface: string; edge: WindowDropEdge};
   dragging?: string;

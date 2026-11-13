@@ -1,5 +1,71 @@
 # Project memory
 
+## Visible OpenTUI split targets — 2026-11-14
+
+Arrange now identifies the exact nearest keyboard split, its rounded saved
+first/second proportions and which side + grows. A warm heavy line marks one
+existing divider border cell. Zoom, narrow view and minimum-size collapse name
+the hidden target without highlighting a different ancestor. Lone/empty spaces
+show the next split direction and no resize target. Finder and pointer gestures
+suppress the keyboard cue; a fixed-height Mouse resize/Move window status keeps
+viewport geometry stable while a gesture owns input. Ink remains the default.
+
+WindowLayoutSnapshot.splitTarget is additive in-process metadata. Snapshot and
+keyboard changes share selectedSplit(), including the existing canonical mapping
+for detached owners. WindowManager.splitGeometry() returns copied rectangles
+from the same readable layout as pointer hit testing; saved ratios remain
+separate from cell allocation. No mutable Tree reaches the renderer. Existing
+placement, compact-under-70 policy, key maps and persistence semantics remain.
+
+The renderer owns one public post-process callback with exact cleanup. It reads
+live layout/navigation/viewport state after native scene composition, paints
+static border glyphs only and adds no mouse hit node. A viewport renderAfter
+hook was observed executing with correct metadata but its glyphs were overwritten
+in the actual app; the final-frame pass fixed the real PTY failure. Temporary
+scalar tracing was removed and verified absent from the archive.
+
+Validation: full standalone coverage passed 1883 tests, three optional skips,
+211 files. Focused shared-window/navigation suites passed 54 tests and label
+semantics four. Full typecheck, generation and documentation checks passed.
+Source PTY six flows passed under CI=1; a fresh independent finish review
+inspected nine changed-state captures and returned ship for this cue. Evidence:
+dist/opentui-split-target-source-complete. Actual checks cover exact row/column
+glyph coordinates, RGB/bold, hidden/no-target states, both focused-child resize
+directions, real mouse capture with stable viewport, two drags restoring .55,
+protected Main/form state, private data and exact restart restoration.
+
+The relocated Linux archive passed all 20 OpenTUI cases under CI=1, plus seven
+Ink window-control cases and the complete release smoke. Critical PNGs were
+inspected. Evidence: dist/opentui-split-target-native-{app,managers,navigation,cancellation}
+and dist/ink-split-target-native-current. The earlier Ink folder without -current
+records only a missing default Playwright browser preflight, before app flows;
+the passing run used the already-installed compatible Chromium override.
+No paid/live-model service was used.
+
+Executable SHA-256:
+2f9488b3cd8e1fc347e4a88d2165741730c9ec4f8b11a46d4dc6a84c975ca39c.
+Renderer SHA-256:
+3d5370e209ca97b06839a4786b1724eabaa01b01f01d303aa72f4eee19e7189f.
+The local PATH selects the complete immutable main-20261114-6fb220b8b099-linux-x64
+bundle; b9e27 and earlier installations remain. Artifact/install reports are
+dist/opentui-split-target-{artifact,local-install}.json. It reports 0.8.0 and is
+a local main build, not a new public host release.
+
+Prior 3945487 main CI (Node 22.19.0/26), docs and release preparation passed.
+Its native run 43499942048 passed both Linux jobs and macOS Intel, but macOS arm64
+navigation failed after two checks: Edit answer moved from row 42 to row 41
+between native frames while the sampled mouse packet still targeted row 42.
+PNG/ANSI/input prove the stale-coordinate click; no failed-session journal was
+exported. The harness now uses the actual Alt+I mode key after the private-form
+return, retains exact Production/Draft assertions and earlier mouse coverage.
+New-head remote checks are required; the old four-platform run remains failed.
+
+Keep the full 1.0 goal active. Independent UI-tool approval/question inboxes are
+the next large frontend gate, alongside selected controllers, appearance/render
+and wire parity and legacy conversation copies. Embedded CPU onboarding and
+broad real-model/self-development quality remain open. Further WM topics include
+readable tiling below 70 columns and passive-publication focus policy.
+
 ## Workspace-led OpenTUI shell and exact command cancellation — 2026-11-14
 
 The user reiterated that the UI should feel like an i3-style window manager.

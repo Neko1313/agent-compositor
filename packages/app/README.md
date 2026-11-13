@@ -196,6 +196,8 @@ declared plugin UI routes; it stays outside model messages and journals.
 The leading workspace bar marks occupied spaces with `*`; the window strip shows
 only open windows on the current workspace. F2 also restores closed windows and
 finds windows on other workspaces.
+Arrange names and highlights the selected split, with its saved proportions and
+the side `+` grows. Hidden targets retain an explanatory status.
 Ctrl+C in an immediate-command window cancels that command and its foreground
 tools or auxiliary model call, preserving Main and neighboring command windows.
 Explicit background work keeps its own lifetime; closing a window hides it.

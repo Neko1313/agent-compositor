@@ -188,9 +188,11 @@ it('sets the opening axis on a lone or empty projected workspace without mutatin
   const layout = await connectWindowLayout(storage, {panes: [panes[0], {id: 'plugin-detached-pane', label: 'Reloading'}]});
   layout.resize(120, 40);
   layout.detach('plugin-detached-pane');
+  expect(layout.snapshot().splitTarget).toBeUndefined();
   layout.act({type: 'axis', axis: 'vertical'});
   expect(layout.snapshot()).toMatchObject({axis: 'vertical', focused: 'session'});
   layout.act({type: 'workspace', id: 3});
+  expect(layout.snapshot().splitTarget).toBeUndefined();
   layout.act({type: 'axis', axis: 'horizontal'});
   expect(layout.snapshot()).toMatchObject({axis: 'horizontal', workspace: 3, frames: []});
   layout.register({id: 'new-a', label: 'New A'}, {focus: true});
@@ -198,6 +200,133 @@ it('sets the opening axis on a lone or empty projected workspace without mutatin
   await layout.disconnect();
   expect(storage.saved.at(-1).windows.spaces.find((space: any) => space.id === 1).tree).toEqual(hidden);
   expect(storage.saved.at(-1).windows.spaces.find((space: any) => space.id === 3).tree.axis).toBe('horizontal');
+});
+
+it('describes the exact nested keyboard and pointer resize target, independently of the next opening axis', async () => {
+  const tree = split('horizontal', .6, leaf('session'), split('vertical', .35, leaf('tools'), leaf('inspector')));
+  const storage = memory({windows: state(tree, 'inspector')});
+  const layout = await connectWindowLayout(storage, {panes: [...panes, {id: 'inspector', label: 'Inspector'}]});
+  layout.resize(160, 40);
+  expect(layout.snapshot()).toMatchObject({axis: 'horizontal', focused: 'inspector', splitTarget: {
+    axis: 'vertical', ratio: .35, focusedChild: 1, children: [['tools'], ['inspector']], visibility: 'visible',
+    bounds: {x: 96, y: 0, width: 64, height: 40}, divider: {x: 96, y: 13, width: 64, height: 2},
+  }});
+  layout.act({type: 'resize', delta: .05});
+  expect(layout.snapshot().splitTarget?.ratio).toBeCloseTo(.3);
+  expect(layout.snapshot().splitTarget?.divider).toEqual({x: 96, y: 11, width: 64, height: 2});
+  layout.act({type: 'axis', axis: 'horizontal'});
+  expect(layout.snapshot().splitTarget).toMatchObject({axis: 'horizontal', focusedChild: 1,
+    divider: {x: 119, y: 0, width: 2, height: 40}});
+  const divider = layout.snapshot().splitTarget!.divider!;
+  layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: divider.x, y: 10});
+  expect(layout.snapshot().gesture).toBe('resize');
+  layout.act({type: 'pointer', phase: 'move', x: 128, y: 10});
+  layout.act({type: 'pointer', phase: 'up', x: 128, y: 10});
+  expect(layout.snapshot().splitTarget?.ratio).toBe(.5);
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(
+    split('horizontal', .6, leaf('session'), split('horizontal', .5, leaf('tools'), leaf('inspector'))));
+});
+
+it('lifts the described target past a detached neighbor and mutates only its mapped canonical split', async () => {
+  const hidden = split('horizontal', .4, leaf('session'), leaf('late'));
+  const inner = split('vertical', .35, leaf('tools'), leaf('inspector'));
+  const storage = memory({windows: state(split('horizontal', .7, hidden, inner), 'inspector')});
+  const layout = await connectWindowLayout(storage, {panes: [...panes, {id: 'late', label: 'Late'}, {id: 'inspector', label: 'Inspector'}]});
+  layout.resize(140, 50);layout.detach('late');
+  expect(layout.snapshot().splitTarget).toMatchObject({focusedChild: 1, children: [['tools'], ['inspector']], ratio: .35});
+  layout.act({type: 'resize', delta: .05});
+  layout.act({type: 'focus', id: 'session'});
+  expect(layout.snapshot().splitTarget).toMatchObject({axis: 'horizontal', ratio: .7, focusedChild: 0,
+    children: [['session'], ['tools', 'inspector']], visibility: 'visible'});
+  layout.act({type: 'axis', axis: 'vertical'});layout.act({type: 'resize', delta: .05});
+  layout.register({id: 'late', label: 'Reloaded'});
+  expect(layout.snapshot()).toMatchObject({axis: 'vertical', splitTarget: {
+    axis: 'horizontal', ratio: .4, children: [['session'], ['late']], focusedChild: 0,
+  }});
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(
+    split('vertical', .75, hidden, split('vertical', .3, leaf('tools'), leaf('inspector'))));
+});
+
+it('keeps a size-limited nearest target distinct from its visible ancestor until that target fits', async () => {
+  const tree = split('horizontal', .6, leaf('session'), split('horizontal', .5, leaf('tools'), leaf('inspector')));
+  const storage = memory({windows: state(tree, 'inspector')});
+  const layout = await connectWindowLayout(storage, {panes: [...panes, {id: 'inspector', label: 'Inspector'}]});
+  layout.resize(80, 24);
+  expect(layout.snapshot().frames).toEqual([
+    {surface: 'session', x: 0, y: 0, width: 48, height: 24},
+    {surface: 'inspector', x: 48, y: 0, width: 32, height: 24},
+  ]);
+  expect(layout.snapshot().splitTarget).toEqual({axis: 'horizontal', ratio: .5, focusedChild: 1,
+    children: [['tools'], ['inspector']], visibility: 'size-limited'});
+  layout.act({type: 'resize', delta: .05});
+  expect(layout.snapshot().splitTarget?.ratio).toBe(.45);
+  layout.act({type: 'axis', axis: 'vertical'});
+  expect(layout.snapshot().splitTarget).toEqual({axis: 'vertical', ratio: .45, focusedChild: 1,
+    children: [['tools'], ['inspector']], visibility: 'visible',
+    bounds: {x: 48, y: 0, width: 32, height: 24}, divider: {x: 48, y: 9, width: 32, height: 2}});
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(
+    split('horizontal', .6, leaf('session'), split('vertical', .45, leaf('tools'), leaf('inspector'))));
+});
+
+it('grows the focused second side when its first side contains a detached canonical subtree', async () => {
+  const hidden = split('horizontal', .4, leaf('session'), leaf('late'));
+  const storage = memory({windows: state(split('horizontal', .7, hidden, leaf('tools')), 'tools')});
+  const layout = await connectWindowLayout(storage, {panes: [...panes, {id: 'late', label: 'Late'}]});
+  layout.resize(120, 40);layout.detach('late');
+  expect(layout.snapshot().splitTarget).toMatchObject({focusedChild: 1, ratio: .7, children: [['session'], ['tools']]});
+  layout.act({type: 'resize', delta: .05});layout.act({type: 'axis', axis: 'vertical'});
+  expect(layout.snapshot().splitTarget?.ratio).toBeCloseTo(.65);
+  layout.register({id: 'late', label: 'Reloaded'});
+  expect(layout.snapshot().splitTarget).toMatchObject({focusedChild: 1, axis: 'vertical', children: [['session', 'late'], ['tools']]});
+  await layout.disconnect();
+  const saved = storage.saved.at(-1).windows.spaces[0].tree;
+  expect(saved.axis).toBe('vertical');expect(saved.ratio).toBeCloseTo(.65);
+  expect(saved.children).toEqual([hidden, leaf('tools')]);
+});
+
+it('reports unmeasured, zoomed and compact targets without inventing visible divider geometry', async () => {
+  const layout = await connectWindowLayout(memory({windows: state(split('horizontal', .7, leaf('session'), leaf('tools')))}), {panes});
+  const hidden = (visibility: string) => {
+    expect(layout.snapshot().splitTarget).toEqual({axis: 'horizontal', ratio: .7, focusedChild: 0,
+      children: [['session'], ['tools']], visibility});
+  };
+  hidden('unmeasured');layout.act({type: 'zoom'});hidden('unmeasured');
+  layout.resize(48, 18);hidden('zoomed');expect(layout.snapshot().frames).toHaveLength(1);
+  layout.act({type: 'zoom'});hidden('compact');expect(layout.snapshot().frames).toHaveLength(1);
+  layout.resize(120, 0);hidden('unmeasured');expect(layout.snapshot().frames).toEqual([]);
+  layout.resize(120, 30);expect(layout.snapshot().splitTarget?.visibility).toBe('visible');
+  layout.act({type: 'zoom'});hidden('zoomed');
+  layout.act({type: 'zoom'});expect(layout.snapshot().splitTarget).toMatchObject({visibility: 'visible',
+    bounds: {x: 0, y: 0, width: 120, height: 30}, divider: {x: 83, y: 0, width: 2, height: 30}});
+  await layout.disconnect();
+});
+
+it.each([[.05, 24], [.95, 56]])('retains saved ratio %s while reporting its actual minimum-clamped divider', async (ratio, firstWidth) => {
+  const storage = memory({windows: state(split('horizontal', ratio, leaf('session'), leaf('tools')))});
+  const layout = await connectWindowLayout(storage, {panes});layout.resize(80, 24);
+  expect(layout.snapshot().splitTarget).toEqual({axis: 'horizontal', ratio, focusedChild: 0,
+    children: [['session'], ['tools']], visibility: 'visible', bounds: {x: 0, y: 0, width: 80, height: 24},
+    divider: {x: firstWidth - 1, y: 0, width: 2, height: 24}});
+  expect(layout.snapshot().frames[0].width).toBe(firstWidth);expect(storage.saved).toEqual([]);
+  await layout.disconnect();expect(storage.saved).toEqual([]);
+});
+
+it('does not persist snapshot reads or expose live canonical children and geometry through split metadata', async () => {
+  const initial = {windows: state(split('vertical', .3, leaf('session'), leaf('tools')))};
+  const storage = memory(initial), layout = await connectWindowLayout(storage, {panes});layout.resize(120, 40);
+  const original = structuredClone(layout.snapshot());
+  for (let i = 0; i < 4; i++)expect(layout.snapshot()).toEqual(original);
+  expect(storage.saved).toEqual([]);expect(await storage.loadLayout()).toEqual(initial);
+  const target = layout.snapshot().splitTarget!;
+  (target.children[0] as string[])[0] = 'mutated';target.bounds!.x = 999;target.divider!.width = 999;
+  layout.resize(121, 40);
+  expect(layout.snapshot().splitTarget).toEqual({axis: 'vertical', ratio: .3, focusedChild: 0,
+    children: [['session'], ['tools']], visibility: 'visible', bounds: {x: 0, y: 0, width: 121, height: 40},
+    divider: {x: 0, y: 11, width: 121, height: 2}});
+  expect(storage.saved).toEqual([]);await layout.disconnect();expect(await storage.loadLayout()).toEqual(initial);
 });
 
 it('maps native resize handles to retained tree paths and preserves late owner placement after pointer resizing', async () => {

@@ -1,5 +1,42 @@
 # Project memory
 
+## Denial-recovery wording hypothesis rejected — 2026-11-13
+
+Investigated the two-family 0.8.0 coding baseline (6/8) without changing its
+original tasks, graders, permission rules, 24-step/80000-token bounds or 180s
+deadline. Supplemental general system guidance scored 7/8. It was appended to
+the unchanged default instructions, not an exact integrated policy replacement.
+A proposed longer core denial footer then scored 8/8 with no supplemental prompt,
+but the successful Gemma greeting runs had zero denials: that result cannot show
+that changed denial feedback helped recovery.
+
+Added a separately declared exploratory fault probe under ignored
+dist/verification-recovery/controlled.mjs. After a successful real model edit and
+before successful verification, the provider wrapper emits one synthetic assistant
+exec proposal for node scratch-check.mjs; the real core denies it with the actual
+headless policy. All solving/recovery calls remain live through existing Ollama.
+The two conditions differ only in the model-facing denial footer; old text is
+loaded from immutable v0.8.0. Original artifact/check graders remain unchanged,
+with extra recovery criteria requiring the controlled denial, no further
+denials/questions and successful terminal completion. Two repeats each on Gemma
+and DeepSeek score prior 2/4 versus candidate 1/4. This is a small controlled
+diagnostic, not an ordinary autonomous or unseen benchmark, statistical proof
+of regression, or broad adversarial assurance. Candidate failures still repeat
+unapproved commands; one prior Gemma attempt also reaches its token bound.
+
+Withdrew the proposed runtime/docs changes rather than promoting an unproven
+improvement. The original loop and canonical behavior guides are restored
+byte-for-byte. Full candidate tests/types/docs had passed (1315 tests/three skips),
+but passing deterministic checks and the favorable ordinary rerun did not close
+the recovery gap. Frozen result directories remain unmodified. Reconstructed
+proposed-loop.txt matches the source SHA captured during the live trial;
+decision.json records source/report hashes and rejection. No OpenAI request or
+guard mutation; Ollama billing is unavailable. Published v0.8.0 is unchanged.
+Next investigate discoverable existing checks/task context (project-context
+currently loads instruction files, not a workspace inventory), including existing
+directory references and check-tool composition, before changing defaults.
+Broader stable 1.0 scope remains active.
+
 ## Public v0.8.0 delivery verified; two-family diagnostic remains incomplete — 2026-11-13
 
 Tagged workflow 43346528810 completed source verification, all four native

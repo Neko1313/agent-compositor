@@ -168,6 +168,21 @@ No OpenAI profile/request or spending-guard change was used; Ollama monetary
 billing is unavailable. Denial recovery, efficient completion and broader real
 project/self-development coverage remain open.
 
+Follow-up recovery experiments did not establish a fix. A supplemental general
+instruction scored 7/8. A longer model-facing denial footer scored 8/8 in the
+ordinary suite, but its successful Gemma greeting runs never encountered a
+denial. A separately declared controlled probe inserted one real denied command
+after a successful live edit and before verification, then used live models for
+the remaining work. Across two repeats per family, the prior footer scored 2/4
+and the candidate 1/4 under the stricter recovery criteria (one controlled denial,
+no further denials/questions and successful original project oracles). These
+small exploratory results do not establish a general performance difference;
+they did not justify promotion. The candidate footer was withdrawn. Original
+tasks, graders, permissions and budgets were not weakened. Evidence and the
+withdrawn source hash are retained in `dist/verification-recovery/decision.json`.
+The next investigation is existing check discovery and task context rather than
+another unverified instruction-only change.
+
 ### Finite-query repetition recovery — 2026-11-13
 
 The default loop now warns after three repeated query-only steps and stops after

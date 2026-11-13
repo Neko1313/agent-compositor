@@ -49,6 +49,7 @@ All notable changes are generated from Conventional Commits with git-cliff.
 - Synchronize raw interruption and retain native evidence ([173f5f1](https://github.com/Neko1313/agent-compositor/commit/173f5f1c23eb5dda1f6ac1b3cadd95a1ad3ab688))
 - Verify first-run setup with compiled archives ([94a3076](https://github.com/Neko1313/agent-compositor/commit/94a307669cfaade7c2b8b7dc09189ebfe71736ac))
 - Cancel the owning side-command operation ([3be9906](https://github.com/Neko1313/agent-compositor/commit/3be990640051f3b3eccbab0a582b721bff705afa))
+- Synchronize background completion and CLI watchdogs ([bf5aa09](https://github.com/Neko1313/agent-compositor/commit/bf5aa09ea67e85d51c75b8489170e4453a369ea9))
 
 ## v0.7.4 - 2026-11-12
 

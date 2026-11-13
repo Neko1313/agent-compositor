@@ -440,7 +440,12 @@ so a temporary low ceiling does not persist after switching providers. An
 explicit denial from the capacity service stops generation before a model call.
 
 Automatic compaction runs before model requests. Hard pressure bypasses the
-cooldown. Summary requests are split into bounded segments and preserve goals,
+cooldown. A bounded host record preserves tool-reported read offsets, changed
+paths and command outcomes independently of model-written summaries. It survives
+restart and remains hidden from the conversation UI; historical observations do
+not count as fresh verification or completed work. See
+[context compaction](core-customization.md#context-compaction) for bounds and
+embedding details. Summary requests are split into bounded segments and preserve goals,
 constraints, decisions, paths, verification and next actions. Segment packing
 uses the same Unicode-aware token estimate as context pressure and reserves
 space for instructions. Summaries and merge requests ask for concise progress

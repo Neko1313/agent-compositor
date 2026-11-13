@@ -3,6 +3,8 @@ import { AgentCore, ScriptedProvider } from "@agent-compositor/core";
 import { hello, wireMessage, type WireMessage } from "@agent-compositor/protocol";
 import type { PlacementConfig } from "../src/placement.js";
 import { AppUI } from "../src/ui.js";
+import {compactionEvidence} from '../../core/src/compaction-evidence.js';
+import type {ChatMessage} from '@agent-compositor/core';
 
 function setup(provider = new ScriptedProvider([{ text: "Hello from agent" }]), commands = () => [] as { name: string; description: string; usage?: string }[], placement: PlacementConfig = {}, panelOptions: ConstructorParameters<typeof AppUI>[5] = {}) {
   const ui = new AppUI(approve => new AgentCore({ cwd: process.cwd(), provider, onApproval: approve }), undefined, [], commands, placement, panelOptions);
@@ -19,6 +21,22 @@ function rendered(messages: WireMessage[]): string {
   return messages.filter(m => m.type === "render").map(m => m.grid?.map(row => row.map(c => c.ch).join("")).join("\n")).join("\n");
 }
 describe("app wire UI", () => {
+  it('hides internal compaction receipts on load, context restore and session switch without hiding quoted user text',async()=>{
+    const receipt=compactionEvidence([{role:'assistant',content:'',toolCalls:[{id:'read',name:'read',args:{path:'INTERNALPROOF'}}]},{role:'tool',name:'read',toolCallId:'read',content:JSON.stringify({content:'Read source',truncated:false}),metadata:{compositorToolResult:{ok:true}}}],1024)!;
+    const messages:ChatMessage[]=[receipt,{...receipt,origin:undefined,content:receipt.content.replace('INTERNALPROOF','USERPROOF')},{role:'assistant',content:'Visible answer'}];
+    const created:AgentCore[]=[];
+    const create=()=>{const core=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},[{type:'context.compacted',messages,summary:'Saved summary',foldedCount:2,tokensBefore:1000,tokensAfter:500}]);created.push(core);return core;};
+    const ui=new AppUI(create,undefined,[],()=>[],{},{resume:async()=>create()}),wire:WireMessage[]=[];
+    try{
+      ui.connect(message=>wire.push(message));ui.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Layout'],encodings:['jsonl']}));ui.resize(120,50);
+      expect(rendered(wire)).toContain('USERPROOF');expect(rendered(wire)).toContain('Visible answer');expect(rendered(wire)).not.toContain('INTERNALPROOF');
+      wire.length=0;await ui.core.host.emit('service.context.control',{action:'restore',messages});
+      expect(rendered(wire)).toContain('USERPROOF');expect(rendered(wire)).not.toContain('INTERNALPROOF');
+      wire.length=0;await ui.core.host.emit('service.session.control',{action:'resume',id:'saved'});
+      expect(rendered(wire)).toContain('Visible answer');expect(rendered(wire)).not.toContain('INTERNALPROOF');
+      expect(ui.core.getMessages()).toContainEqual(receipt);
+    }finally{ui.close();await ui.settled();for(const core of created)await core.close();}
+  });
   it("negotiates, edits input, submits and streams model output through valid wire messages", async () => {
     const { ui, messages, text, key, provider } = setup();
     text("hellx"); key("backspace"); text("o"); key("enter");

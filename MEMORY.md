@@ -1,5 +1,69 @@
 # Project memory
 
+## Preserve tool observations independently of compaction summaries — 2026-11-13
+
+Added an internal bounded compaction record of tool-reported read paths/offsets,
+returned character counts/truncation, successful edit/write paths and exec exit
+codes/job starts. It is separate host-origin quoted data, not a model summary
+or a fresh verification/completion/permission claim. No source body, stdout,
+edit text or model conclusions are retained. At most 32 recent distinct entries
+and min(1024, available transcript target/8) estimated tokens; eviction is marked.
+If no entry fits, omit the record. Inclusive post-compaction tokens must shrink;
+failure preserves the original messages. Later passes use structured receipts,
+not natural-language claims. User task provenance, source/tool replay and clear
+remain intact. Successful tool-result metadata is set from the host's actual ok
+flag and reconstructed from tool.result on replay, preventing JSON-shaped errors
+from becoming successful observations. No event schema or catalog version change.
+
+Exported isCompactionEvidence for embedders. Standard AppUI excludes these records
+on initial load, context restore and session switch while keeping normal user
+quotes visible and preserving the model context. Core tests cover false summaries,
+two successive compactions, persisted replay/resume, clear, limits, failed or
+unpaired calls/previews and failure to shrink after adding overhead. A wire UI
+regression covers the three history paths. The real PTY standard scenario passes
+17 checks; inspected 01-start.png and 19-independent-restored.png under
+dist/visual-evidence-receipts-existing-browser. That bench is general regression
+evidence; receipt-specific history behavior is exercised by the wire test. First
+bench launch failed before interaction because Playwright expected absent browser
+revision 1254. Retained its report separately, then used installed Chromium 1248
+through the documented override, without installation or changing the scenario.
+
+Same known historical f1557fb Todo repair and frozen acceptance files: new
+DeepSeek attempt has 99 requests, six compactions retaining exactly one receipt
+each, 69 reads, no edits and a 60-step failure. Independent oracle remains 6F/1P.
+Gemma attempt has 75 requests, four compactions, 13 successful edits across four
+source files, but fails at 60 steps with 5F/2P and type errors. Its initial patch uses
+nonexistent ctx.root, changes Todo canon incorrectly and insufficiently isolates
+state; it is not accepted into main. Continued its saved session through app.resume
+with a separate 60-step/1.2m-token bound and an explicit continuation request,
+preserving the first failure. That continuation has 74 requests, four compactions,
+six successful edits, 13 rejected no-op edits, and still 5F/2P plus failing types.
+No episode is reclassified as success; differences between model families and the
+new prompt/budget segment do not establish a causal quality gain. No reference
+solution or operator repair was supplied to the model. Runtime hashes/source copies,
+trajectories, patches, starting patch for resume and comparisons are retained in
+dist/self-host-task-state/attempt-evidence-receipts*, evidence-receipts-comparison.json
+and evidence-receipts-isolation-audit.json. All 807 tracked fixture files audited:
+only four allowed source paths differ; frozen tests, config, Git HEAD, workspace
+aliases and dependency isolation remain intact. Keep the failed partial checkout.
+
+Prior 4be145d CI 43372884100, docs 43372883932 and release preparation 43372883995
+all passed. No OpenAI call or spending guard mutation; Ollama monetary billing
+unavailable. Canonical agent-features/core-customization/readiness updated;
+architecture layering and public app controls remain unchanged, so architecture
+and app README need no new user workflow. Stable 1.0, sustained self-development,
+model quality, onboarding and OpenTUI remain incomplete. Next investigate repeated
+non-progressing edit attempts despite explicit unchanged-file feedback and reads.
+All 13 continuation no-op calls have literally identical oldText/newText (six
+distinct argument sets), recorded in the continuation's no-op-analysis.json.
+This points to argument recovery rather than missing source text; do not credit
+the existing no-op rejection with repairing the model's task.
+
+Final validation: full coverage suite passes 1386 tests/three optional skips in
+169 files, all typecheck projects and docs:check/site build pass; docs:gen has no
+derived changes. Logs are /tmp/compositor-evidence-*.log. The maintained PTY bench
+was run with its documented browser override, not a recreated terminal UI.
+
 ## Bounded read pages and summary-merge recovery — 2026-11-13
 
 Ran real Compositor against an isolated historical f1557fb repository snapshot,

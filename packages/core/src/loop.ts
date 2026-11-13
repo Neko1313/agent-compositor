@@ -1,6 +1,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {QueryProgress,queryObservation} from './query-progress.js';
 import {modelToolText} from './tool-text.js';
+import {compactionEvidence,isCompactionEvidence} from './compaction-evidence.js';
 import {
   optionLabel, questionSchema, questionnaireSchema, validateQuestionnaireResult,
   type UserQuestionRequest, type UserQuestionAnswer,
@@ -1378,27 +1379,38 @@ export class AgentCore {
     if (!compaction) return;
     await this.emit("context.compacting", { sessionId: this.sessionId });
     const target=Math.max(64,compaction.budget.usable-estimateTokens(this.baseInstructions)-estimateTokens(JSON.stringify(this.request().tools)));
-    let tail=0,tailTokens=0;for(let i=this.messages.length-1;i>=0&&tail<6;i--){const n=estimateMessageTokens(this.messages[i]);if(tail>0&&tailTokens+n>target/2)break;tail++;tailTokens+=n;}
+    const evidence=compactionEvidence(this.messages,Math.min(1024,Math.floor(target/8)));
+    const source=this.messages.filter(message=>!isCompactionEvidence(message));
+    const tokensBefore=this.messages.reduce((sum,message)=>sum+estimateMessageTokens(message),0);
+    let tail=0,tailTokens=0;for(let i=source.length-1;i>=0&&tail<6;i--){const n=estimateMessageTokens(source[i]);if(tail>0&&tailTokens+n>target/2)break;tail++;tailTokens+=n;}
     const result = await compactTranscript(
-      this.messages,
+      source,
       compaction.summarize,
       {
         signal: this.abort.signal,
         keepTail:Math.max(1,tail),
-        maxTailTokens:target/2,
+        maxTailTokens:(target-(evidence?estimateMessageTokens(evidence):0))/2,
         preserveLastUser:true,
       }
     );
     if (result.failure) throw Error(result.failure);
     if (result.foldedCount === 0) return;
-    this.messages = [...(result.messages as ChatMessage[])];
+    const compacted = [...(result.messages as ChatMessage[])];
+    if(evidence){
+      // Keep the original user request last when there is no retained working tail.
+      const user=compacted.findIndex(message=>message.role==='user'&&message.origin!=='harness');
+      compacted.splice(user<0?compacted.length:user,0,evidence);
+    }
+    const tokensAfter=compacted.reduce((sum,message)=>sum+estimateMessageTokens(message),0);
+    if(tokensAfter>=tokensBefore)throw Error('Compaction evidence leaves no context reduction; original transcript retained');
+    this.messages=compacted;
     this.messagesSinceCompaction = this.messages.length;
     compaction.budget.setMessages([...this.messages,...(this.baseInstructions?[{role:"system",content:this.baseInstructions}]:[])]);
     await this.emit("context.pressure",{...compaction.budget.breakdown(),contextWindow:this.contextWindow,source:this.contextSource,model:this.options.model?.()});
     await this.emit("context.compacted", {
       foldedCount: result.foldedCount,
-      tokensBefore: result.tokensBefore,
-      tokensAfter: result.tokensAfter,
+      tokensBefore,
+      tokensAfter,
       summary: result.summary,
       messages: this.messages,
     });
@@ -1851,6 +1863,7 @@ export class AgentCore {
       toolCallId: call.id,
       name: call.name,
       content: text,
+      ...(['read','write','edit','exec'].includes(call.name)?{metadata:{compositorToolResult:{ok:error===undefined}}}:{}),
     });
   }
 

@@ -362,6 +362,21 @@ actual source edits and verification on the unchanged task. Evidence is in
 No OpenAI request or spending-guard change occurred; Ollama monetary billing is
 unavailable. Stable 1.0 and sustained self-hosted development remain open.
 
+A follow-up adds bounded host tool observations that survive independently of
+the natural-language summary and stay hidden from the chat UI. Deterministic
+checks cover false summaries, repeated compaction, replay/resume, output bounds,
+failed calls and history restoration. A live DeepSeek run retained one record
+through each of six compactions, but still reached 60 steps without edits.
+Gemma made four-file changes in a separate 60-step run, with five acceptance
+failures and failing types. A separately bounded continuation through saved-session
+resume also failed those checks, including repeated rejected no-op edits.
+Neither episode is a completed repair or a quality gain attributed to the new
+record. Tests/configuration and dependency isolation remained intact, and no
+model-authored patch was applied to the main checkout. Evidence is retained in
+`dist/self-host-task-state/evidence-receipts-comparison.json`; both model families
+and the failed initial/continuation results remain visible. Next investigate
+repeated failed edits and preservation of useful implementation progress.
+
 ### Offline CPU coding diagnostic — 2026-11-13
 
 The maintained local CPU evaluator verifies an existing pinned Qwen cache, owns

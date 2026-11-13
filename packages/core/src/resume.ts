@@ -108,6 +108,7 @@ export function replayTranscript(
         const ok = event.ok === true;
         messages.push({
           role: "tool",
+          ...(['read','write','edit','exec'].includes(String(event.tool))?{metadata:{compositorToolResult:{ok}}}:{}),
           toolCallId:
             typeof event.callId === "string"
               ? event.callId

@@ -214,6 +214,29 @@ tool batch; compaction never re-executes its effects. Embedders using
 `compactTranscript` can opt into this selection with `maxTailTokens` and
 `preserveLastUser`; omitting them retains its original tail-selection behavior.
 Failed, empty or non-shrinking summaries leave the original messages intact.
+After successful default compaction, `AgentCore` retains a separate bounded
+record of tool-reported observations alongside the model's summary. It includes
+successful `read` paths, offsets, returned character counts and truncation;
+successful `write`/`edit` paths; and reported `exec` exit codes or job starts.
+Tool errors and incomplete output previews cannot become success records.
+Nonzero process exit codes are retained with their actual values.
+The record excludes source bodies, stdout, edit contents and model conclusions.
+It retains at most 32 recent distinct observations, using at most 1024 estimated
+tokens or one eighth of the available transcript budget, whichever is smaller.
+Older entries are evicted with an omission marker; if none fits, no record is
+added. Total post-compaction size, including this record, must still shrink.
+
+This is historical evidence, not proof of current file contents, fresh checks,
+authorization or completed work. Verification gates still inspect actual tool
+execution; the record does not grant permissions or prevent legitimate rereads.
+It is host-origin feedback, not a new user task, and survives replay through the
+existing `context.compacted.messages` snapshot. Later compactions reconstruct it
+from structured records rather than trusting the natural-language summary.
+Clearing the conversation removes it. The standard UI omits it on load, context
+restore and session switching while preserving it for the model. Embedders can
+use the core's `isCompactionEvidence(message)` helper to recognize these internal
+messages without hiding ordinary user text that quotes their contents.
+
 `summarizeChunks` permits one correction round for a non-shrinking merge before
 failing, with explicit length feedback and a shorter target. This adds at most
 one merge round per compaction, through the same caller-supplied callback;

@@ -1,4 +1,5 @@
 import { activeReference } from "./project-context.js";
+import {isCompactionEvidence} from '@agent-compositor/core';
 import { ControllerDialog } from "./controller-dialog.js";
 import { type UiControllerFactory, UiControllerLease, type UiControllerInput, type UiControllerView, type UiEditorState, type UiEditorIntent } from "@agent-compositor/hooks";
 import { ApprovalDialog } from "./approval.js";
@@ -213,7 +214,7 @@ export class AppUI {
     );
     this.transcript = this.core
       .getMessages()
-      .filter((m) => m.role === "user" || m.role === "assistant")
+      .filter((m) => (m.role === "user" || m.role === "assistant")&&!isCompactionEvidence(m))
       .map((m) => ({
         kind: m.role === "user" ? "user" : "assistant",
         text: m.content,
@@ -535,7 +536,7 @@ export class AppUI {
       if (name === "context.pressure") this.contextIndicator = ` · ctx ${Math.round(Number(input.pressure)*100)}%/${Math.round(Number(input.contextWindow)/1024)}k${input.source==='fallback'?' ~':''}`;
       if (name === "context.restored" && Array.isArray(input.messages))
         this.transcript = input.messages
-          .filter((m: any) => m.role === "user" || m.role === "assistant")
+          .filter((m: any) => (m.role === "user" || m.role === "assistant")&&!isCompactionEvidence(m))
           .map((m: any) => ({
             kind: m.role === "user" ? "user" : "assistant",
             text: m.content,
@@ -1392,7 +1393,7 @@ export class AppUI {
         this.installResume();
         this.transcript = next
           .getMessages()
-          .filter((m) => m.role === "user" || m.role === "assistant")
+          .filter((m) => (m.role === "user" || m.role === "assistant")&&!isCompactionEvidence(m))
           .map((m) => ({
             kind: m.role === "user" ? "user" : "assistant",
             text: m.content,

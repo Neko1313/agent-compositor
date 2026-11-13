@@ -1,6 +1,6 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {randomUUID} from 'node:crypto';
-import type {AgentCore, LoopEvent} from '@agent-compositor/core';
+import type {AgentCore, AgentCoreOptions, LoopEvent} from '@agent-compositor/core';
 import {uiTextViewSchema, surfacePlacementSchema, type SurfacePlacement, type UiTextView} from '@agent-compositor/events';
 import type {ComposerMedia, ConversationSession, UiSurfaceRegistry, UiSurfaceSnapshot, UiSurfaceSource, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {BuiltApp} from './build.js';
@@ -35,7 +35,7 @@ type Operation = {
   core: AgentCore;
   controller: AbortController;
   active: boolean;
-  kind: 'action' | 'change';
+  kind: 'action' | 'change' | 'request';
   open?: boolean;
   opened: Set<string>;
   published?: Surface;
@@ -47,6 +47,17 @@ type Operation = {
   inbox?: ReturnType<typeof createInteractionInbox>;
   off?: () => void;
 };
+type Inbox = ReturnType<typeof createInteractionInbox>;
+type ApprovalRequest = Parameters<NonNullable<AgentCoreOptions['onApproval']>>[0];
+type QuestionRequest = Parameters<NonNullable<AgentCoreOptions['onAsk']>>[0];
+type Channels = {
+  inbox: Inbox;
+  generation: AbortController;
+  core?: AgentCore;
+  approve(request: ApprovalRequest): Promise<boolean>;
+  ask(request: QuestionRequest): ReturnType<Inbox['askQuestion']>;
+};
+class ExpiredRequest extends Error {}
 
 function immutable<T>(value: T): T {
   if (value && typeof value === 'object') {
@@ -100,13 +111,15 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
   const changes = new Map<Surface, {field: string; value: string}>();
   let active = true, started = false, switching = false, pendingReload = false, reloading = false;
   let reloadPromise: Promise<boolean> | undefined;
-  let reloadFailed = false;
+  let reloadFailed: false | 'reload' | 'startup' = false;
   let localNotice: string | undefined;
   let core: AgentCore;
+  let channels: Channels | undefined;
   let inbox: ReturnType<typeof createInteractionInbox>;
   let conversation: ReturnType<typeof connectConversation>;
   let sessionState: ReturnType<ConversationSession['snapshot']>;
   let offCore: (() => void) | undefined, offConversation: (() => void) | undefined, offForm: (() => void) | undefined;
+  let offOrigin: (() => void) | undefined;
   let offLayout: (() => void) | undefined;
   const pending = new Set<Promise<unknown>>();
   const changed = () => {
@@ -196,6 +209,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     return task;
   }
   function notice(value: string) {localNotice = value; changed();}
+  const retryMessage = () => reloadFailed === 'startup'
+    ? 'Session startup did not finish. Retry /reload before continuing.'
+    : 'Plugin reload did not finish. Retry /reload before continuing.';
   const native = (owner: AgentCore) => {
     for (const kind of ['editor', 'approval', 'question', 'form', 'history', 'placement'] as const)
       if (owner.host.controllers.selectedOwner(kind) !== '@host')
@@ -208,13 +224,13 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
         id, snapshot: () => surface.state,
         subscribe(fn) {surface.listeners.add(fn); return () => {surface.listeners.delete(fn);};},
         press(action, revision) {
-          if (reloadFailed) {if (active) notice('Plugin reload did not finish. Retry /reload before using this action.'); return;}
+          if (reloadFailed) {if (active) notice(retryMessage()); return;}
           if (reloading) {if (active) notice('Plugin reload is applying. Try the action again when it finishes.'); return;}
           if (!admitted(surface, revision) || !surface.state.view || !actions(surface.state.view).has(action)) return;
           press(surface, action);
         },
         change(field, value, revision) {
-          if (reloadFailed) {if (active) notice('Plugin reload did not finish. Retry /reload before editing this field.'); return;}
+          if (reloadFailed) {if (active) notice(retryMessage()); return;}
           if (reloading) {if (active) notice('Plugin reload is applying. Retry this input after it finishes.'); return;}
           if (!admitted(surface, revision) || surface.state.view?.input?.id !== field
             || typeof value !== 'string' || value.length > 4000) return;
@@ -275,7 +291,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
   }
   function runOperation(owner: string, site: string, run: (op: Operation) => Promise<unknown>, source?: Surface, kind: Operation['kind'] = 'action', open = false, navigationSignal?: AbortSignal): Operation | undefined {
     if (!active || owner !== '@host' && !core.host.hasPlugin(owner)) return;
-    if (reloadFailed) {notice('Plugin reload did not finish. Retry /reload before using this action.'); return;}
+    if (reloadFailed) {notice(retryMessage()); return;}
     if (reloading) {notice('Plugin reload is applying. Try the action again when it finishes.'); return;}
     if (operations.size >= 4) {notice('Four interface operations are already active'); return;}
     if (navigationSignal?.aborted) return;
@@ -314,28 +330,98 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     op.destination ??= id;
     for (const fn of op.destinations) fn();
   }
-  function ownForm(op: Operation) {
+  function createChannels(): Channels {
+    const binding: Channels = {
+      inbox: createInteractionInbox(), generation: new AbortController(),
+      async approve(request) {
+        try {return await routeRequest(binding, request.signal,
+          (target, signal, requester) => target.ask({...request, signal}, requester));}
+        catch {return false;}
+      },
+      ask(request) {
+        return routeRequest(binding, request.signal,
+          (target, signal, requester) => target.askQuestion({...request, signal}, requester));
+      },
+    };
+    return binding;
+  }
+  async function routeRequest<T>(binding: Channels, signal: AbortSignal | undefined,
+    run: (target: Inbox, signal: AbortSignal, requester?: string) => Promise<T>, formPlugin?: string): Promise<T> {
+    const owner = binding.core;
+    if (!active || !owner || owner !== core || channels !== binding || binding.generation.signal.aborted)
+      throw new ExpiredRequest('The request belongs to an expired application session');
+    const scope = owner.host.currentServiceScope;
+    if (scope && (scope.lifetime.aborted || scope.signal.aborted || !owner.host.hasPlugin(scope.plugin)
+      || formPlugin && scope.plugin !== formPlugin))
+      throw new ExpiredRequest('The requesting plugin is no longer active');
+    const effective = AbortSignal.any([binding.generation.signal, ...(signal ? [signal] : []),
+      ...(scope ? [scope.signal, scope.lifetime] : [])]);
+    if (effective.aborted) throw new ExpiredRequest('The request was cancelled');
+    if (scope?.background) {
+      let result!: T, failure: unknown, failed = false;
+      const request = runOperation(scope.plugin, 'request:' + randomUUID(), async op => {
+        try {result = await run(ownRequests(op), AbortSignal.any([effective, op.controller.signal]), scope.plugin);}
+        catch (error) {failed = true; failure = error;}
+      }, undefined, 'request');
+      if (!request) throw Error('A request window is unavailable; finish an active interface operation or retry after reload');
+      await request.done;
+      if (failed) throw failure;
+      return result;
+    }
+    // A captured capability takes precedence over ambient async context. In
+    // particular, a stale UI origin must never fall through into Main.
+    const origin = scope ? scope.origin : context.getStore();
+    if (origin !== undefined) {
+      const op = origin as Operation;
+      if (!op || typeof op !== 'object' || !live(op))
+        throw new ExpiredRequest('The requesting interface operation has finished');
+      return run(ownRequests(op), AbortSignal.any([effective, op.controller.signal]), scope?.plugin ?? formPlugin ?? op.owner);
+    }
+    return run(binding.inbox, effective, scope?.plugin ?? formPlugin);
+  }
+  function ownRequests(op: Operation) {
     if (op.inbox) return op.inbox;
-    const forms = createInteractionInbox();
-    const id = 'ui-form-' + op.id;
+    const requests = createInteractionInbox();
+    requests.bind(op.core, {forms: false});
+    const id = 'ui-request-' + op.id;
     const surface = createSurface(id, op.owner, 'Settings');
-    op.inbox = forms; op.surface = surface;
-    surface.source.answerForm = (requestId, value) => {if (live(op)) forms.answerInteraction(requestId, value);};
-    surface.source.cancelForm = requestId => {if (live(op)) forms.cancelInteraction(requestId);};
+    op.inbox = requests; op.surface = surface;
+    const current = () => live(op) && surface.active && surfaceMap.get(id) === surface;
+    surface.source.answerApproval = (requestId, allow) => {
+      if (current() && surface.state.approval?.id === requestId) requests.answer(requestId, allow === true);
+    };
+    surface.source.answerInteraction = (requestId, value) => {
+      if (current() && surface.state.interaction?.id === requestId) requests.answerInteraction(requestId, value);
+    };
+    surface.source.cancelInteraction = requestId => {
+      if (current() && surface.state.interaction?.id === requestId) requests.cancelInteraction(requestId);
+    };
+    surface.source.answerForm = (requestId, value) => {
+      if (current() && surface.state.form?.id === requestId) requests.answerInteraction(requestId, value);
+    };
+    surface.source.cancelForm = requestId => {
+      if (current() && surface.state.form?.id === requestId) requests.cancelInteraction(requestId);
+    };
     let shown: string | undefined;
-    op.off = forms.subscribe(() => {
-      const interaction = forms.interactionSnapshot();
+    op.off = requests.subscribe(() => {
+      if (!live(op)) return;
+      const approval = requests.snapshot(), interaction = requests.interactionSnapshot();
       const form = interaction?.kind === 'form' ? interaction : undefined;
-      publish(surface, {title: form?.request.title ?? surface.state.title, form, busy: !form});
-      if (form && form.id !== shown) {
-        shown = form.id;
-        layout.register({id, label: form.request.title, transient: true}, {site: 'split', focus: true});
-        layout.act({type: 'open', id});
+      const requester = requests.requesterSnapshot() ?? op.owner;
+      const title = approval ? 'Approval · ' + requester : interaction?.kind === 'question' ? 'Questions · ' + requester
+        : form?.request.title ?? surface.state.title;
+      publish(surface, {title, approval, interaction, form, busy: !approval && !interaction});
+      const requestId = approval?.id ?? interaction?.id;
+      if (requestId && requestId !== shown) {
+        shown = requestId;
+        const focus = op.kind !== 'request';
+        layout.register({id, label: title, transient: true}, {site: 'split', focus});
+        if (focus) layout.act({type: 'open', id});
         destination(op, id);
       }
     });
     registryChanged();
-    return forms;
+    return requests;
   }
   async function arrange(op: Operation) {
     let selected: string | undefined, draft: SurfacePlacement | undefined, message: string | undefined;
@@ -347,7 +433,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
         ?? windows.find(surface => surface.source.id === layout.snapshot().focused) ?? windows[0];
       const value = draft ?? {...current.placement, workspace: layout.snapshot().locations[current.source.id] ?? current.placement?.workspace ?? layout.snapshot().workspace};
       const label = (surface: Surface) => (surface.state.title + ' · ' + surface.owner).slice(0, 200);
-      const result = await ownForm(op).form('@host', {
+      const result = await ownRequests(op).form('@host', {
         title: 'Arrange plugin windows', description: message ?? 'Apply for this run, or save a project rule. Closing this window keeps the operation pending; Cancel ends it.',
         fields: [
           {id: 'window', label: 'Plugin window', type: 'select', value: current.source.id, options: windows.map(surface => ({value: surface.source.id, label: label(surface)}))},
@@ -390,7 +476,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
         reportVisible(id, owner, false, false, 0, 0); composerViews.delete(id);
       }
       mediaChanged();
-      for (const op of operations.values()) if (op.owner === owner || op.surface?.state.form?.plugin === owner) op.controller.abort();
+      for (const op of operations.values()) if (op.owner === owner) op.controller.abort();
       for (const surface of [...surfaceMap.values()]) if (surface.owner === owner) invalidate(surface);
       if (!reloading) for (const [id, plugin] of placementAdmissions) if (plugin === owner) {
         layout.forget(id); placementAdmissions.delete(id); reloadDetached.delete(id);
@@ -458,18 +544,18 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     }
     if (['turn.complete', 'turn.failed', 'turn.interrupted'].includes(event.event)) void reloadIfReady();
   }
-  function bind(next: AgentCore, nextInbox: ReturnType<typeof createInteractionInbox>) {
+  function bind(next: AgentCore, nextChannels: Channels) {
     native(next);
+    channels = nextChannels;
+    nextChannels.core = next;
+    const nextInbox = nextChannels.inbox;
     core = next; inbox = nextInbox;
     inbox.bind(next);
-    offForm = next.host.setFormHandler((plugin, request, signal) => {
-      const op = context.getStore();
-      if (op) {
-        if (!live(op)) return Promise.resolve(null);
-        if (next.host.controllers.selectedOwner('form') !== '@host') return Promise.reject(Error('Selected form controllers are not supported by OpenTUI'));
-        return ownForm(op).form(plugin, request, AbortSignal.any([signal, op.controller.signal]));
-      }
-      return inbox.form(plugin, request, signal);
+    offOrigin = next.host.setInvocationOriginProvider(() => context.getStore());
+    offForm = next.host.setFormHandler(async (plugin, request, signal) => {
+      try {return await routeRequest(nextChannels, signal,
+        (target, effective, requester) => target.form(requester ?? plugin, request, effective), plugin);}
+      catch (error) {if (error instanceof ExpiredRequest) return null; throw error;}
     });
     conversation = connectConversation(next, 'Main', inbox, submit);
     sessionState = conversation.snapshot();
@@ -481,28 +567,36 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
       const current = context.getStore();
       if (!next.controlsReady || switching || reloading || [...operations.values()].some(op => op !== current)) return {deny: 'Wait until current operations finish'};
       switching = true;
-      const replacementInbox = createInteractionInbox();
+      const replacementChannels = createChannels();
       let replacement: AgentCore | undefined;
       try {
-        replacement = await app.resume(args.id ?? next.sessionId, replacementInbox.ask, replacementInbox.askQuestion);
+        replacement = await app.resume(args.id ?? next.sessionId, replacementChannels.approve, replacementChannels.ask);
         native(replacement);
         unbind();
         for (const surface of [...surfaceMap.values()]) remove(surface);
         composerViews.clear(); visibility.clear(); mediaChanged();
-        bind(replacement, replacementInbox);
+        bind(replacement, replacementChannels);
         await next.close();
         await context.exit(() => replacement!.start());
         layout.act({type: 'open', id: 'session'});
         changed();
         return {value: true};
       } catch {
+        if (replacement === core) {
+          // The new session is already committed. Keep its input channels live
+          // and require explicit initialization recovery rather than poisoning them.
+          reloadFailed = 'startup'; notice(retryMessage());
+          return {deny: 'Session opened, but startup failed. Retry /reload before continuing.'};
+        }
         if (replacement && replacement !== core) await replacement.close();
-        replacementInbox.close(); return {deny: 'Could not resume this session'};
+        replacementChannels.generation.abort(); replacementChannels.inbox.close(); return {deny: 'Could not resume this session'};
       }
       finally {switching = false;}
     });
   }
   function unbind() {
+    channels?.generation.abort(Error('Application input channel replaced'));
+    offOrigin?.(); offOrigin = undefined;
     offForm?.(); offForm = undefined;
     offCore?.(); offCore = undefined;
     offConversation?.(); offConversation = undefined;
@@ -516,7 +610,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     const owner = core;
     const work = context.exit(async () => {
       try {
-        const result = await app.reloadPlugins(owner);
+        const result = await owner.host.withoutServiceScope(() => app.reloadPlugins(owner));
         if (result.startsWith('Wait until')) {if (active) notice(result); return false;}
         for (const [id, plugin] of reloadDetached) {
           if (!owner.host.hasPlugin(plugin) && (!surfaceMap.has(id) || surfaceMap.get(id)?.owner === plugin)) {
@@ -530,7 +624,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
         navigation?.refresh();
         if (active) notice(result);
         return true;
-      } catch {reloadFailed = true; if (active) notice('Could not reload plugins. Retry /reload before sending a new request.'); return false;}
+      } catch {reloadFailed = 'reload'; if (active) notice('Could not reload plugins. Retry /reload before sending a new request.'); return false;}
       finally {reloading = false;}
     });
     reloadPromise = work;
@@ -570,7 +664,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
       workspace: locations.session, state: locations.session === undefined ? 'closed' : 'open', version: core.sessionId}]]);
     for (const [id, surface] of surfaceMap) if (surface.active) entries.set(id, {
       id, title: surface.state.title, workspace: locations[id], state: locations[id] === undefined ? 'closed' : 'open',
-      command: routes.get(id)?.command, version: surface.generation + ':' + (surface.state.form?.id ?? ''),
+      command: routes.get(id)?.command, version: surface.generation + ':'
+        + (surface.state.approval?.id ?? surface.state.interaction?.id ?? surface.state.form?.id ?? ''),
     });
     for (const [id, record] of windowTitles) if (!entries.has(id) && core.host.hasPlugin(record.owner)) entries.set(id, {
       id, title: record.title, state: routes.has(id) ? 'available' : 'unavailable', command: routes.get(id)?.command,
@@ -630,7 +725,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
       if (!active || name === '/reload') return;
       if (!completed) throw Error('Plugin reload did not finish. Retry /reload before sending this request.');
     }
-    if (reloadFailed && name !== '/reload') throw Error('Plugin reload did not finish. Retry /reload before sending this request.');
+    if (reloadFailed && name !== '/reload') throw Error(retryMessage());
     if (name === '/chat') {layout.act({type: 'open', id: 'session'}); return;}
     if (name === '/windows') {navigation?.openFinder(); return;}
     if (name === '/placement') {runOperation('@host', 'host:placement', arrange); return;}
@@ -644,10 +739,10 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     try {await core.submit(text);}
     finally {await reloadIfReady();}
   }
-  const initialInbox = createInteractionInbox();
-  const initialCore = app.createCore(initialInbox.ask, initialInbox.askQuestion);
-  try {bind(initialCore, initialInbox);}
-  catch (error) {initialInbox.close(); void initialCore.close(); throw error;}
+  const initialChannels = createChannels();
+  const initialCore = app.createCore(initialChannels.approve, initialChannels.ask);
+  try {bind(initialCore, initialChannels);}
+  catch (error) {initialChannels.generation.abort(); initialChannels.inbox.close(); void initialCore.close(); throw error;}
   layout.register({id: 'session', label: 'Main'});
   navigation = createWindowNavigation(layout, {windows: inventory, open: openNavigationWindow});
   let lastFocus: string | undefined;

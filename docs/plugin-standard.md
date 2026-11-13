@@ -96,6 +96,14 @@ invoking a handler, for input dispatchers that preserve setup ordering while
 keeping controls independent of the model queue.
 These additive contracts require catalog 0.25 or later.
 
+In the configured OpenTUI frontend, a command or UI action that needs manual
+tool approval, a question or a private form receives an independent request
+window without declaring a `ui` component. Normal policy and automatic review
+run first. Retained background requests have their own lifetime and bounded
+owner; they never queue behind Main merely because Main is awaiting an answer.
+See [request windows](02-ui.md#experimental-opentui-application-frontend) for
+focus, cancellation, privacy and concurrency limits.
+
 Catalog 0.26 adds `service.agent.open` for an explicit user control to open a
 persisted shared-workspace conversation, or reopen one by `id`. Optional `prompt`
 starts its independent turn; `name` labels a new agent. The result contains `id`

@@ -47,6 +47,14 @@ requires a fresh view from the current owner; cancellation or a new selection
 invalidates an older opening. Navigation preserves the saved window tree, ratios
 and closed-window state. The deterministic preview retains its separate key map.
 
+Private request windows name the actual requesting plugin. Each UI operation
+keeps its own FIFO and resident native question/form state; background input
+opens passively with a separate lifetime. Shared approval cards retain exact
+literal action details and explicit once-only decisions. Only the current
+source/request and focused window admit an answer. Closing preserves the
+request; validation does not reopen a hidden window. Main's selected answer and
+draft remain separate, and private form values stay outside Finder/model/journal.
+
 ## Shared plugin contract
 
 Catalog 0.17 adds optional `colors.selectionText`, `UiTextView.hint` and

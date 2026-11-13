@@ -8,11 +8,11 @@ import type {ConversationApproval, ConversationInteraction} from '@agent-composi
 import {createApprovalInbox} from './opentui-approvals.js';
 
 type ApprovalRequest = Parameters<NonNullable<AgentCoreOptions['onApproval']>>[0];
-type Entry = {
+type Entry = {requester?: string} & ({
   kind: 'approval'; view: ConversationApproval; approve(allow: boolean): void; cancel(): void;
 } | {
   kind: 'interaction'; view: ConversationInteraction; answer(value: unknown): void; cancel(): void;
-};
+});
 
 function immutable<T>(value: T): T {
   if (value && typeof value === 'object') {
@@ -59,8 +59,9 @@ export function createInteractionInbox() {
   const inbox = {
     snapshot: () => !closed && queue[0]?.kind === 'approval' ? queue[0].view : undefined,
     interactionSnapshot: () => !closed && queue[0]?.kind === 'interaction' ? queue[0].view : undefined,
+    requesterSnapshot: () => !closed ? queue[0]?.requester : undefined,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    ask(request: ApprovalRequest): Promise<boolean> {
+    ask(request: ApprovalRequest, requester?: string): Promise<boolean> {
       if (closed || request.signal?.aborted) return Promise.resolve(false);
       try { nativeController('approval'); }
       catch { return Promise.resolve(false); }
@@ -68,12 +69,12 @@ export function createInteractionInbox() {
       const result = approval.ask({...request});
       const view = approval.snapshot();
       if (!view) { approval.close(); return result; }
-      const entry: Entry = {kind: 'approval', view: immutable(structuredClone(view)),
+      const entry: Entry = {kind: 'approval', requester, view: immutable(structuredClone(view)),
         approve: allow => approval.answer(view.id, allow), cancel: () => approval.close()};
       push(entry);
       return result.finally(() => { remove(entry); approval.close(); });
     },
-    async askQuestion(request: UserQuestionRequest): Promise<UserQuestionAnswer> {
+    async askQuestion(request: UserQuestionRequest, requester?: string): Promise<UserQuestionAnswer> {
       const signal = request.signal;
       if (closed || signal?.aborted) throw Error('Question cancelled');
       let form: Questionnaire, single: boolean;
@@ -93,7 +94,7 @@ export function createInteractionInbox() {
           else resolve(answer);
         };
         const abort = () => finish();
-        const entry: Entry = {kind: 'interaction', view,
+        const entry: Entry = {kind: 'interaction', requester, view,
           cancel: abort,
           answer(value) {
             try {
@@ -129,7 +130,7 @@ export function createInteractionInbox() {
           resolve(result);
         };
         const abort = () => finish(null);
-        const entry: Entry = {kind: 'interaction', view, cancel: abort,
+        const entry: Entry = {kind: 'interaction', requester: plugin, view, cancel: abort,
           answer(value) {
             try { finish(validateUiFormResult(parsed, value)); }
             catch {
@@ -154,11 +155,12 @@ export function createInteractionInbox() {
       const first = queue[0];
       if (!closed && first?.kind === 'interaction' && first.view.id === id) first.cancel();
     },
-    bind(owner: AgentCore) {
+    bind(owner: AgentCore, options: {forms?: boolean} = {}) {
       if (closed || (core && core !== owner)) throw Error('Interaction inbox already bound or closed');
       if (core) return;
       core = owner;
-      unbindForm = owner.host.setFormHandler((plugin, request, signal) => inbox.form(plugin, request, signal));
+      if (options.forms !== false)
+        unbindForm = owner.host.setFormHandler((plugin, request, signal) => inbox.form(plugin, request, signal));
     },
     close() {
       if (closed) return;

@@ -7,10 +7,12 @@ import { Ghost, type ComposerMedia } from './ghost.js';
 import { Interaction } from './interaction.js';
 import { isWindowGestureCancelKey, windowActionForKey, type WindowFrame, type WindowLayoutAction, type WindowLayoutSource } from './layout.js';
 import { Plugins, type PluginManagerSource } from './plugins.js';
-import type { ConversationApproval, ConversationSession } from './session.js';
+import type { ConversationSession } from './session.js';
+import {ApprovalCard} from './approval-card.js';
 import { PluginTable, type PluginTableSource } from './table.js';
 import {SurfaceView} from './surface-view.js';
 import type {UiSurfaceRegistry,UiSurfaceSource} from './surface.js';
+import {surfaceRequestStatus} from './surface.js';
 import type {WindowNavigationSource,WindowNavigationSnapshot} from './navigation.js';
 import {WindowFinder} from './navigation-view.js';
 import {splitTargetLabel} from './split-target.js';
@@ -68,61 +70,6 @@ function SessionTab({ session, ...tab }: Omit<TabProps, 'label'> & { session: Co
     return approval ? ' · Approval' : interaction ? interaction.kind === 'form' ? ' · Form' + (running ? ' · Running' : '') : ' · Question' : running ? ' · Running' : '';
   });
   return <Tab {...tab} label={session.label + status} />;
-}
-
-// Keep control and bidirectional formatting characters visible in the action being reviewed.
-function approvalText(value: string) {
-  return value.replace(/[\p{Cc}\p{Bidi_Control}\p{Zl}\p{Zp}]/gu, char =>
-    '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'));
-}
-
-const approvalActions = [
-  { key: 'y', label: 'Alt+Y Allow once', allow: true },
-  { key: 'n', label: 'Alt+N Deny', allow: false },
-] as const;
-
-function ApprovalCard({ request, session, height, isActive }: {
-  request: ConversationApproval;
-  session: ConversationSession;
-  height: number;
-  isActive(): boolean;
-}) {
-  const scroller = useRef<ScrollBoxRenderable>(null);
-  useKeyboard(key => {
-    if (key.defaultPrevented || !isActive()) return;
-    if (key.name === 'pageup' || key.name === 'pagedown') {
-      key.preventDefault();
-      scroller.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
-      return;
-    }
-    if (!key.meta || key.ctrl || key.shift || key.super || key.hyper) return;
-    const action = approvalActions.find(action => action.key === key.name);
-    if (!action || !session.answerApproval) return;
-    key.preventDefault();
-    if (!key.repeated) session.answerApproval(request.id, action.allow);
-  });
-  return (
-    <box flexDirection="column" flexShrink={0} paddingX={1} border borderColor={color.running}
-      backgroundColor={color.panel} title=" Approval required " titleColor={color.running}>
-      <scrollbox ref={scroller} maxHeight={Math.max(1, Math.min(12, Math.floor(height / 3)))}
-        focusable={false} scrollX={false} scrollY contentOptions={{ minHeight: 0 }}>
-        <text wrapMode="word" fg={color.text} attributes={TextAttributes.BOLD}>{`Tool: ${approvalText(request.tool)}`}</text>
-        {request.reason && <text wrapMode="word" fg={color.text}>{`Reason: ${approvalText(request.reason)}`}</text>}
-        {request.details.map(({ label, value }, index) =>
-          <text key={index} wrapMode="word" fg={color.text}>{`${approvalText(label)}: ${approvalText(value)}`}</text>
-        )}
-      </scrollbox>
-      <box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>
-        {session.answerApproval ? approvalActions.map(action => (
-          <box key={action.key} height={1} paddingX={1} backgroundColor={color.rule} onMouseDown={event => {
-            if (event.button === MouseButton.LEFT && isActive()) session.answerApproval?.(request.id, action.allow);
-          }}>
-            <text selectable={false} fg={color.text} attributes={TextAttributes.BOLD}>{action.label}</text>
-          </box>
-        )) : <text fg={color.muted}>Waiting for host decision</text>}
-      </box>
-    </box>
-  );
 }
 
 function Conversation({ selected, animations, composerMedia, focused, width, height, isActive }: {
@@ -208,8 +155,9 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
       {state.interaction && <Interaction key={state.interaction.id} interaction={state.interaction}
         session={selected} editing={editing} focused={focused} width={width} height={height} isActive={isActive} setEditing={setEditing} />}
       {!focused && state.approval && <text fg={color.running}>Approval pending</text>}
-      {focused && state.approval && <ApprovalCard key={`${selected.id}:${state.approval.id}`}
-        request={state.approval} session={selected} height={height} isActive={isActive} />}
+      {state.approval&&<box visible={focused} flexShrink={0}>
+        <ApprovalCard key={`${selected.id}:${state.approval.id}`} request={state.approval} session={selected} height={height} isActive={isActive}/>
+      </box>}
       <box visible={!editing} border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
         title={` ${selected.label} · ${state.approval ? 'Draft' : state.running ? 'Running' : 'Ready'} `}
         backgroundColor={composerBackground} flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
@@ -274,7 +222,8 @@ const emptyNavigation:Pick<WindowNavigationSource,'snapshot'|'subscribe'>={snaps
 
 function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSource}){
   const state=useSyncExternalStore(source.subscribe,source.snapshot);
-  return <Tab {...tab} label={state.title+(state.form?' · Form':state.busy?' · Working':'')} />;
+  const status=surfaceRequestStatus(state);
+  return <Tab {...tab} label={state.title+(status?' · '+status:'')} />;
 }
 
 export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation }: {

@@ -5,9 +5,10 @@ import {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from '
 import type {UiTextView} from '@agent-compositor/events';
 import {color} from './colors.js';
 import {Interaction} from './interaction.js';
-import type {ConversationSession} from './session.js';
+import {ApprovalCard} from './approval-card.js';
 import {surfaceActions} from './surface-actions.js';
 import type {UiSurfaceSource} from './surface.js';
+import {createSurfaceRequestSession,hasSurfaceRequest,surfaceInteraction} from './surface.js';
 import {SurfaceRaster} from './surface-raster.js';
 
 const toneColor={text:color.text,muted:color.muted,accent:color.accent,success:color.accent,warning:color.running,danger:color.error};
@@ -36,11 +37,9 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     if(row.expanded)row.details?.forEach((line,index)=>locate(line.action,'detail-'+row.id+'-'+index));
   });
   const narrow=width<60;
-  const formSession=useMemo<ConversationSession>(()=>({
-    id:source.id,label:'Settings',snapshot:()=>({messages:[],running:false,interaction:source.snapshot().form}),
-    subscribe:source.subscribe,submit:()=>{},
-    answerInteraction:(id,value)=>source.answerForm?.(id,value),cancelInteraction:id=>source.cancelForm?.(id),
-  }),[source]);
+  const activeRequest=useRef(isActive);activeRequest.current=isActive;
+  const requestSession=useMemo(()=>createSurfaceRequestSession(source,()=>activeRequest.current()),[source]);
+  const interaction=surfaceInteraction(state);
   useLayoutEffect(()=>{
     const id=action?locations.get(action):undefined;
     if(id)scroller.current?.scrollChildIntoView(id);
@@ -55,10 +54,10 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
   },[focused,searching,state.busy,view?.input?.id,view?.input?.value]);
 
   const press=(key:string)=>{
-    if(isVisible()&&!source.snapshot().form)source.press(key,state.revision);
+    if(isVisible()&&!hasSurfaceRequest(source.snapshot()))source.press(key,state.revision);
   };
   useKeyboard(key=>{
-    if(key.defaultPrevented||!isActive()||source.snapshot().form)return;
+    if(key.defaultPrevented||!isActive()||hasSurfaceRequest(source.snapshot()))return;
     if(key.name==='escape'&&!key.meta&&!key.ctrl&&searching){key.preventDefault();flushSync(()=>setSearching(false));return;}
     if(key.name==='tab'&&!key.ctrl&&!key.meta){
       key.preventDefault();
@@ -82,9 +81,14 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     }
   });
 
-  if(state.form)return <box flexGrow={1} flexDirection="column" minHeight={0}>
-    <Interaction key={state.form.id} interaction={state.form} session={formSession} editing focused={focused}
-      width={width} height={height} isActive={isActive} setEditing={()=>{}} draftToggle={false}/>
+  if(hasSurfaceRequest(state))return <box flexGrow={1} flexDirection="column" minHeight={0}>
+    {state.approval&&<ApprovalCard key={'approval:'+state.approval.id} request={state.approval}
+      session={requestSession} height={height} isActive={isActive}/>}
+    {interaction&&<box visible={!state.approval} flexGrow={1} flexDirection="column" minHeight={0}>
+      <Interaction key={interaction.kind+':'+interaction.id} interaction={interaction} session={requestSession}
+        editing focused={focused&&!state.approval} width={width} height={height}
+        isActive={()=>isActive()&&!source.snapshot().approval} setEditing={()=>{}} draftToggle={false}/>
+    </box>}
   </box>;
 
   function line(line:UiTextView['lines'][number],key:string){
@@ -110,17 +114,17 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
         }}><text selectable={false} fg={tab.disabled?color.muted:tab.selected?color.background:color.text}>{literal(tab.label)}</text></box>)}
     </box>}
     {view?.input&&<box height={1} flexShrink={0} flexDirection="row" onMouseDown={event=>{
-      if(event.button===MouseButton.LEFT&&isVisible())flushSync(()=>setSearching(true));
+      if(event.button===MouseButton.LEFT&&isVisible()&&!hasSurfaceRequest(source.snapshot()))flushSync(()=>setSearching(true));
     }}>
       <text fg={color.muted}>{literal(view.input.label??'Search')+': '}</text>
       <input key={view.input.id} ref={input} flexGrow={1} minWidth={1} maxLength={4000}
         focused={focused&&searching} placeholder={view.input.placeholder} backgroundColor={color.panel} focusedBackgroundColor={color.panel}
         textColor={color.text} focusedTextColor={color.text} placeholderColor={color.muted}
-        onKeyDown={key=>{if(!isActive()||!searching)key.preventDefault();}}
-        onPaste={event=>{if(!isActive()||!searching)event.preventDefault();}}
+        onKeyDown={key=>{if(!isActive()||!searching||hasSurfaceRequest(source.snapshot()))key.preventDefault();}}
+        onPaste={event=>{if(!isActive()||!searching||hasSurfaceRequest(source.snapshot()))event.preventDefault();}}
         onInput={value=>{
           const current=source.snapshot();
-          if(!syncingInput.current&&isActive()&&searching&&current.view?.input?.id===view.input!.id)source.change(view.input!.id,value,current.revision);
+          if(!syncingInput.current&&isActive()&&searching&&!hasSurfaceRequest(current)&&current.view?.input?.id===view.input!.id)source.change(view.input!.id,value,current.revision);
         }} />
     </box>}
     <scrollbox ref={scroller} flexGrow={1} flexBasis={0} minHeight={1} focusable={false} scrollY scrollX={false}>

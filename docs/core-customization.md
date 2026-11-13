@@ -375,6 +375,16 @@ cannot call `next()` to continue an expired hook; render-only and sandboxed hook
 cannot acquire it. This is an explicit lifetime choice, not a separate process or
 a bypass of service interception and permission checks.
 
+Retained `ui.ask`, `ui.questionnaire` and private `ui.form` keep that lifetime too.
+They do not borrow Main's abort signal or a settled launching command's ledger.
+An ordinary API constructed by a background service interceptor retains that
+work's input origin; an ordinary handle captured from a foreground operation
+keeps its original origin when later called inside another service. The host
+captures the actual plugin instance and effective signal with the capability,
+independently of plugin-writable event fields. Core-owned user-tool operations
+retain their own accounting even when invoked through a background handle.
+See the configured frontend's [request windows and limits](02-ui.md#experimental-opentui-application-frontend).
+
 ### Truncated model responses
 
 When a provider finishes with `length`, the default turn strategy discards every

@@ -1,5 +1,72 @@
 # Project memory
 
+## Independent OpenTUI request windows — 2026-11-14
+
+Ordinary UI operations now own a private FIFO for manual approvals, questions,
+questionnaires and forms. Immediate commands need no declared UI component.
+Main keeps its selected answer and draft; separate same-owner operations do not
+share input. Explicit retained/background input has a separate bounded request
+owner even before its launcher ends, opens without taking focus, and survives
+launcher cancellation and Main interruption. Four UI operations/request owners
+share the existing limit. Refused background input never falls back into Main.
+
+Hooks captures trusted capability origin, actual plugin-instance lifetime and
+effective signal outside writable event payloads. Captured ordinary capabilities
+retain their original origin inside another ambient service; revoked or settled
+origins cannot become Main input. Explicit detached handles and inherited
+background lineage remain distinct for Core operation accounting. Reload leaves
+expired service scope before constructing fresh capabilities. Core-generation
+channels reject old callbacks; a committed resumed session whose startup fails
+keeps its channels and requires an explicit /reload before new work.
+
+Private native panes reuse the shared approval/interaction widgets with current
+source/request and focus admission, stable request keys and once-only approval.
+Closing hides input; F2 restores native selection, field cursor and validation.
+Ctrl+C leaves navigation first, then denies/cancels only the focused request or
+cancels the selected work operation. Private form values stay outside model
+messages/journals; UI-tool questions keep their own operation audit, outside
+Main transcript/replay. Finder never searches request bodies or answers.
+Same-plugin concurrent questions currently have identical safe window titles;
+opening a window reveals its content. Exact delegated-child attribution remains
+a separate gate.
+
+Validation: standalone coverage passed 1923 tests, three optional skips, 214
+files. Actual host integration passed 38 tests; full typecheck, generation,
+documentation examples and the 106-page documentation build passed. Source PTY
+six request flows passed. The relocated Linux archive passed 26 OpenTUI cases:
+requests six, app six, managers five, navigation six and cancellation three,
+all with errors:[] and PTY exit 0. Evidence:
+dist/opentui-requests-native-{requests,app,managers,navigation,cancellation}.
+The shipping Ink window suite passed seven cases in
+dist/ink-requests-native-current, and the full release smoke passed. Eight new
+native request PNGs and representative regression captures were inspected.
+A fresh independent Impeccable finish review returned ship for this bounded
+slice; request captures use wide zoomed surfaces, not a new narrow-layout matrix.
+No live-model service or paid budget was used.
+
+Executable SHA-256:
+b390800c25c8e98d77288960f73f2603990d1b788ec046c132943012d7879228.
+Renderer SHA-256:
+1bd72269b98d4067c4fdf5c5cd34a566826da42bb92f51687dfe5a2e2ce13224.
+PATH now selects the complete immutable main-20261114-fe25546843d3-linux-x64
+bundle; previous installations remain. Reports:
+dist/opentui-requests-{artifact,local-install,verification}.json. This is a local
+main build reporting 0.8.0, not a new public release. Ink remains the default;
+use compositor --renderer opentui for the configured native frontend.
+
+Prior f6dcddd remote main CI (Node 22.19.0/26), docs and release preparation all
+passed. Build-only native run 43507203520 also passed verification and all four
+Linux/macOS x64/arm64 jobs; blank-tag publishing was correctly skipped. This
+supersedes, without relabeling, the failed 3945487 macOS-arm64 navigation run.
+Current new-head remote checks must still be observed after push.
+
+Keep the complete 1.0 objective active. The user's window-manager feedback next
+targets readable tiling below 70 columns: remove the blanket single-pane rule
+while keeping the existing 24x6 readable projection, honest collapse and saved
+tree semantics. Passive first-publication focus, selected private controllers,
+appearance/render and wire parity, legacy conversation copies, embedded CPU
+onboarding and broader real-model/self-development quality remain open.
+
 ## Visible OpenTUI split targets — 2026-11-14
 
 Arrange now identifies the exact nearest keyboard split, its rounded saved

@@ -433,8 +433,11 @@ replacement and narrow terminal geometry, not only host parser tests.
 
 Remaining frontend gates include selected replacement controllers,
 full appearance/render overrides, legacy
-conversation copies, complete wire-protocol parity and independent request
-windows for UI-tool approvals/questions that currently share Main's inbox.
+conversation copies, complete wire-protocol parity and exact delegated-child
+request attribution. Ordinary UI operations and retained plugin services now
+receive independent approval/question/questionnaire/form windows. Verification
+keeps Main pending while real guarded tools, separate same-owner questions,
+native field editing and before/after-launcher background input complete.
 Immediate-command window cancellation now propagates to its exact foreground
 internal tool or auxiliary model call. Verification includes real worker PIDs,
 same-owner neighboring commands, held Main input, normal permissions and a reload

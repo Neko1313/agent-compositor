@@ -86,6 +86,17 @@ saved proportions remain separate. The renderer uses it for an Arrange cue and
 receives no mutable tree or persistence authority. Hidden targets carry a reason
 without a fabricated divider. This is an in-process frontend adapter capability.
 
+OpenTUI input callbacks are bound to a specific Core generation and captured
+capability origin. Each UI operation has one private request FIFO; retained
+background input gets an independent bounded owner. Shared native components
+render approvals, questions, questionnaires and forms while the host admits
+responses against the current source generation and request ID. Trusted service
+scope carries actual plugin-instance lifetime and effective signal outside
+plugin-writable payloads. Unscoped input keeps Main's FIFO; stale scoped input
+cannot fall through to Main. Private inbox binding does not replace the Core's
+global form router. Lifecycle reload emissions explicitly leave expired service
+scope before constructing fresh plugin capabilities.
+
 Portable plugin views may include a catalog 0.27 semantic table: labeled columns,
 stable rows, ordinary actions and expandable details. Producers own expansion and
 filter state and republish when data changes. AppUI chooses aligned or stacked

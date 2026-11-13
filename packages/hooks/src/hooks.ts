@@ -28,6 +28,15 @@ import type {
 /** User-facing hook: (event, $) — mods-style. */
 export type UserHookFn = (event: any, $: HooksApi) => unknown;
 
+/** Trusted capability provenance; never accepted from a service payload. */
+export interface HooksServiceScope {
+  readonly origin: unknown;
+  readonly background: boolean;
+  readonly plugin: string;
+  readonly lifetime: AbortSignal;
+  readonly signal: AbortSignal;
+}
+
 /** The plugin-facing $ object. Services use the event chain; local forms and private settings use guarded host callbacks. */
 export interface HooksApi {
   /** Trusted plugin lifetime, independent of a foreground turn; revoked on unload. */
@@ -147,8 +156,30 @@ export class HooksHost {
   private readonly userInteraction = new AsyncLocalStorage<boolean>();
   private readonly serviceSignal = new AsyncLocalStorage<AbortSignal>();
   private readonly backgroundService = new AsyncLocalStorage<boolean>();
+  private readonly serviceScope = new AsyncLocalStorage<HooksServiceScope>();
+  private invocationOriginProvider?: () => unknown;
+  private invocationOriginBinding?: object;
   get currentSignal():AbortSignal|undefined{return this.serviceSignal.getStore();}
+  get currentServiceScope():HooksServiceScope|undefined{return this.serviceScope.getStore();}
+  // Core uses explicit detachment to leave a launching operation's ledger.
+  // Background lineage also includes normal APIs created by its interceptors.
   get isBackgroundService():boolean{return this.backgroundService.getStore()===true;}
+  /** A Core-owned operation keeps retained lineage but owns its own ledger. */
+  withOperationScope<T>(run: () => T): T {return this.backgroundService.run(false, run);}
+  /** Host lifecycle work admits fresh capabilities outside a completed caller. */
+  withoutServiceScope<T>(run: () => T): T {
+    return this.serviceScope.exit(() => this.serviceSignal.exit(() => this.backgroundService.exit(run)));
+  }
+  setInvocationOriginProvider(provider: () => unknown): () => void {
+    const binding = {};
+    this.invocationOriginBinding = binding;
+    this.invocationOriginProvider = provider;
+    return () => {
+      if (this.invocationOriginBinding !== binding) return;
+      this.invocationOriginBinding = undefined;
+      this.invocationOriginProvider = undefined;
+    };
+  }
   private readonly workspaceRoot: string;
 
   /** The workspace the $ API confines fs/exec to. */
@@ -227,7 +258,11 @@ export class HooksHost {
     input: unknown,
     signal?: AbortSignal
   ): Promise<{ value: unknown; faults: unknown[] }> {
-    if(signal)return this.serviceSignal.run(signal,()=>this.emit(event,input));
+    if(signal){
+      const run=()=>this.serviceSignal.run(signal,()=>this.emit(event,input));
+      const inherited=this.serviceScope.getStore();
+      return inherited?this.serviceScope.run(Object.freeze({...inherited,signal}),run):run();
+    }
     const gen = this.runtime.emit(event, input);
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -240,9 +275,18 @@ export class HooksHost {
 
   private buildApi(plugin: string, ctx: HookContext, detached=false): HooksApi {
     const host = this;
+    const inherited = this.serviceScope.getStore();
+    const origin = detached ? Object.freeze({}) : inherited ? inherited.origin : this.invocationOriginProvider?.();
+    const background = detached || inherited?.background === true;
+    const lifetime = this.pluginLifetimes.get(plugin)!.signal;
     // Explicit user controls and interface actions outlive the foreground model turn.
     const operation=this.serviceSignal.getStore()??(this.userInteraction.getStore()?undefined:this.config.signal?.());
-    const signal=detached?this.pluginLifetimes.get(plugin)!.signal:AbortSignal.any([ctx.signal,this.pluginLifetimes.get(plugin)!.signal,...(operation?[operation]:[])]);
+    const signal=detached?lifetime:AbortSignal.any([ctx.signal,lifetime,...(operation?[operation]:[])]);
+    const runScoped = <T>(run: () => T, effectiveSignal=signal): T => {
+      const scope: HooksServiceScope = Object.freeze({origin, background, plugin, lifetime, signal: effectiveSignal});
+      return host.serviceScope.run(scope, () => host.backgroundService.run(detached,
+        () => host.serviceSignal.run(effectiveSignal, run)));
+    };
     const stateGuard = (op: string) => {
       signal.throwIfAborted();
       if (host.rendering.getStore() !== undefined) {
@@ -284,8 +328,7 @@ export class HooksHost {
         ].includes(event)
       )
         stateGuard(event);
-      const emit = () => host.emit(event, { plugin, ...input },operationSignal);
-      const res = await host.backgroundService.run(detached,emit);
+      const res = await runScoped(() => host.emit(event, { plugin, ...input },operationSignal), operationSignal);
       const v = res.value as Record<string, unknown> | undefined;
       if (
         v &&
@@ -386,7 +429,7 @@ export class HooksHost {
           stateGuard("ui.form");
           if (this.pluginTrust.get(plugin) !== "trusted") throw new Error("Only trusted plugins may request local forms");
           if (!this.formHandler) throw new Error("Forms require an interactive UI");
-          return this.formHandler(plugin, uiFormSchema.parse(request), signal);
+          return runScoped(() => this.formHandler!(plugin, uiFormSchema.parse(request), signal));
         },
         supports:feature=>feature==='table'||feature==='tabs',
         view: async (id, title, view, placement) => {
@@ -461,7 +504,7 @@ export class HooksHost {
           ].includes(event)
         )
           stateGuard(event);
-        return (await host.emit(event, input,signal)).value;
+        return (await runScoped(() => host.emit(event, input,signal))).value;
       },
     };
   }

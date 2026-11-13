@@ -12,7 +12,7 @@ import type {PlacementConfig} from '../src/placement.js';
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {for (const close of cleanup.splice(0).reverse()) await close();});
 
-async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny'; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]}[]} = {}) {
+async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny' | 'ask'; questionnaires?: boolean; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]; hookTimeouts?: Record<string, number>}[]} = {}) {
   const root = await mkdtemp(join(tmpdir(), 'opentui-real-host-'));
   cleanup.push(() => rm(root, {recursive: true, force: true}));
   const cwd = join(root, 'project'), home = join(root, 'home');
@@ -21,7 +21,7 @@ async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny'; 
     const directory = join(cwd, 'plugins', plugin.name);
     await mkdir(directory, {recursive: true});
     await writeFile(join(directory, 'plugin.json'), JSON.stringify({name: plugin.name, version: '1.0.0', trust: 'trusted', main: 'hooks.js',
-      commands: plugin.commands, compositor: {standard: 1, apiVersion: 1}}));
+      commands: plugin.commands, hookTimeouts: plugin.hookTimeouts, compositor: {standard: 1, apiVersion: 1}}));
     await writeFile(join(directory, 'hooks.js'), plugin.source);
   }
   const requests: {model: string; authorization?: string; body: any}[] = [];
@@ -46,7 +46,7 @@ async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny'; 
   const env = {HOME: home, AGENT_HOME: join(home, '.agent-compositor'), AGENT_BASE_URL: endpoint, AGENT_MODEL: 'initial-model', AGENT_API_KEY: ''};
   await writeFile(join(cwd, 'agent-compositor.json'), JSON.stringify({
     enabledPlugins: ['model-selector', 'provider-auth', 'session-manager', ...(options.enabledPlugins ?? []), ...(options.plugins ?? []).map(plugin => plugin.name)],
-    agent: {tools: ['ask_user', ...(options.exec ? ['exec'] : [])], builtinTools: options.exec ? ['exec'] : [], controlTools: ['ask_user'], skills: false, projectContext: false, fileReferences: false, verifyCompletion: false},
+    agent: {tools: ['ask_user', ...(options.questionnaires ? ['ask_questions'] : []), ...(options.exec ? ['exec'] : [])], builtinTools: options.exec ? ['exec'] : [], controlTools: ['ask_user', ...(options.questionnaires ? ['ask_questions'] : [])], skills: false, projectContext: false, fileReferences: false, verifyCompletion: false},
     ...(options.exec ? {permissions: {rules: [{tool: 'exec', decision: options.exec}]}} : {}),
     compaction: {enabled: false},
     ...(options.ui ? {ui: options.ui} : {}),
@@ -99,6 +99,265 @@ function processAlive(pid: number) {
   try {process.kill(pid, 0); return true;}
   catch (error) {if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false; throw error;}
 }
+
+it('owns a real builtin exec approval separately from Main and executes only after its exact Allow', async () => {
+  const f = await fixture({exec: 'ask', plugins: [{name: 'manual-worker',
+    commands: [{name: '/manual-worker', description: 'Run an explicitly reviewed worker', execution: 'immediate'}],
+    hookTimeouts: {'command.invoke': 15000}, source: `export default {'command.invoke': async (event, $) => {
+      const name = event.args.trim(); if (!['allow', 'deny'].includes(name)) throw Error('Unknown test worker');
+      const result = await $.agent.tool('exec', {command: '/bin/sh ./manual.sh ' + name});
+      await $.storage.set('result-' + name, result, 'project');
+    }};`}]});
+  await writeFile(join(f.cwd, 'manual.sh'), 'printf "once" >> "effect-$1"\n');
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const question = f.host.session.snapshot().interaction!, transcript = structuredClone(f.host.core.getMessages());
+  const approval = () => f.host.surfaces.snapshot().find(source => source.snapshot().approval);
+  const result = (name: string) => f.app.storage.read('manual-worker', 'result-' + name, 'project', f.host.core.sessionId);
+  await f.host.submit('/manual-worker allow');
+  await expect.poll(() => approval()?.snapshot().title).toBe('Approval · manual-worker');
+  const source = approval()!, request = source.snapshot().approval!;
+  expect(request.tool).toBe('exec');
+  expect(request.details.some(detail => detail.value.includes('/bin/sh ./manual.sh allow'))).toBe(true);
+  await expect(readFile(join(f.cwd, 'effect-allow'))).rejects.toMatchObject({code: 'ENOENT'});
+  f.host.session.answerApproval!(request.id, true);
+  source.answerApproval!(question.id, true);
+  source.answerInteraction!(request.id, {answers: [{id: 'answer', selected: ['Local']}]});
+  expect(source.snapshot().approval?.id).toBe(request.id);
+  f.layout.act({type: 'open', id: source.id}); f.layout.act({type: 'close'});
+  expect(source.snapshot().approval?.id).toBe(request.id);
+  f.host.navigation.openFinder();
+  f.host.navigation.changeQuery('Approval · manual-worker', f.host.navigation.snapshot().revision);
+  f.host.navigation.choose(source.id, f.host.navigation.snapshot().revision);
+  expect(f.layout.snapshot().focused).toBe(source.id);
+  source.answerApproval!(request.id, true); source.answerApproval!(request.id, true);
+  await expect.poll(() => result('allow')).toMatchObject({ok: true});
+  expect(await readFile(join(f.cwd, 'effect-allow'), 'utf8')).toBe('once');
+  await expect.poll(() => approval()).toBeUndefined();
+  expect(f.host.session.snapshot().interaction?.id).toBe(question.id);
+  expect(f.host.core.getMessages()).toEqual(transcript); expect(f.requests).toHaveLength(1);
+  await f.host.submit('/manual-worker deny');
+  await expect.poll(() => approval()?.snapshot().approval?.tool).toBe('exec');
+  const denied = approval()!; denied.answerApproval!(denied.snapshot().approval!.id, false);
+  await expect.poll(() => result('deny')).toMatchObject({ok: false});
+  await expect(readFile(join(f.cwd, 'effect-deny'))).rejects.toMatchObject({code: 'ENOENT'});
+  await expect.poll(() => f.host.core.getOperations()).toEqual([]);
+  expect(f.host.session.snapshot().interaction?.id).toBe(question.id);
+  f.host.session.answerInteraction!(question.id, {answers: [{id: 'answer', selected: ['Local']}]}); await main;
+  expect(f.requests).toHaveLength(2); expect(JSON.stringify(f.requests[1].body)).not.toContain('manual.sh');
+});
+
+it('keeps concurrent same-owner questions and a questionnaire private while Main waits', async () => {
+  const f = await fixture({questionnaires: true, plugins: [{name: 'manual-questions',
+    commands: [{name: '/manual-question', description: 'Ask in the caller window', execution: 'immediate'}],
+    hookTimeouts: {'command.invoke': 15000}, source: `export default {'command.invoke': async (event, $) => {
+      const name = event.args.trim();
+      try {
+        const result = name === 'many' ? await $.agent.tool('ask_questions', {title:'PRIVATE_MULTI',questions:[
+          {id:'checks',question:'Private checks',multi:true,options:['Unit','Visual'],allowOther:false},
+          {id:'owner',question:'Private owner'},
+        ]}) : await $.ui.ask({question:'PRIVATE_' + name,options:['Left','Right'],allowOther:false});
+        await $.storage.set('result-' + name,result,'project');
+      } catch {await $.storage.set('result-' + name,{cancelled:true},'project');}
+    }};`}]});
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const mainQuestion = f.host.session.snapshot().interaction!, transcript = structuredClone(f.host.core.getMessages());
+  const question = (text: string) => f.host.surfaces.snapshot().find(source => {
+    const request = source.snapshot().interaction;
+    return request?.kind === 'question' && request.request.questions[0]?.question === text;
+  });
+  const result = (name: string) => f.app.storage.read('manual-questions', 'result-' + name, 'project', f.host.core.sessionId);
+  await f.host.submit('/manual-question a'); await f.host.submit('/manual-question b');
+  await expect.poll(() => !!question('PRIVATE_a') && !!question('PRIVATE_b')).toBe(true);
+  const a = question('PRIVATE_a')!, b = question('PRIVATE_b')!;
+  const aid = a.snapshot().interaction!.id, bid = b.snapshot().interaction!.id;
+  expect(a.id).not.toBe(b.id); expect(a.snapshot().title).toBe('Questions · manual-questions');
+  a.answerInteraction!(bid, {answers: [{id: 'answer', selected: ['Right']}]});
+  a.cancelInteraction!(bid); f.host.session.answerInteraction!(aid, {answers: [{id: 'answer', selected: ['Right']}]});
+  expect(a.snapshot().interaction?.id).toBe(aid); expect(b.snapshot().interaction?.id).toBe(bid);
+  f.layout.act({type: 'open', id: b.id}); f.layout.act({type: 'close'});
+  a.answerInteraction!(aid, {answers: [{id: 'answer', selected: ['Right']}]});
+  await expect.poll(() => result('a')).toBe('Right');
+  b.answerInteraction!(bid, {answers: [{id: 'answer', selected: ['Forbidden']}]});
+  expect(b.snapshot().interaction).toMatchObject({id: bid, error: 'Complete each question with an allowed answer'});
+  expect(f.layout.snapshot().locations[b.id]).toBeUndefined();
+  await f.host.submit('/manual-question many');
+  await expect.poll(() => question('Private checks')?.snapshot().interaction?.kind).toBe('question');
+  const many = question('Private checks')!, manyId = many.snapshot().interaction!.id;
+  many.answerInteraction!(manyId, {answers: [{id: 'checks', selected: ['Unit', 'Visual']}, {id: 'owner', selected: [], text: 'PRIVATE_OWNER'}]});
+  await expect.poll(() => result('many')).toMatchObject({ok: true});
+  a.answerInteraction!(bid, {answers: [{id: 'answer', selected: ['Left']}]});
+  expect(b.snapshot().interaction?.id).toBe(bid);
+  b.cancelInteraction!(bid); await expect.poll(() => result('b')).toEqual({cancelled: true});
+  await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().interaction)).toBe(false);
+  expect(f.host.session.snapshot().interaction?.id).toBe(mainQuestion.id);
+  expect(f.host.core.getMessages()).toEqual(transcript); expect(f.requests).toHaveLength(1);
+  f.host.session.answerInteraction!(mainQuestion.id, {answers: [{id: 'answer', selected: ['Remote']}]}); await main;
+  expect(f.requests).toHaveLength(2);
+  expect(JSON.stringify(f.requests[1].body)).not.toMatch(/PRIVATE_(?:a|b|MULTI|OWNER)/);
+});
+
+it('keeps a passive background request alive through launcher cancellation and Main interruption', async () => {
+  const f = await fixture();
+  let background: Promise<unknown> | undefined;
+  f.host.core.host.registerPlugin({name: 'background-request', version: '1.0.0', trust: 'trusted'}, {
+    'ui.press': async (_event, $) => {
+      background = $.background().ui.ask({question: 'Independent request', options: ['Continue'], allowOther: false});
+      await new Promise<void>(done => {if ($.signal.aborted) done(); else $.signal.addEventListener('abort', () => done(), {once: true});});
+    },
+  });
+  await f.host.core.host.emit('service.ui.view', {plugin: 'background-request', id: 'work', title: 'Launcher',
+    view: {lines: [{text: 'Start', action: 'start'}]}, placement: {focus: false}});
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const mainId = f.host.session.snapshot().interaction!.id;
+  f.layout.act({type: 'open', id: 'session'});
+  const launcher = f.find('plugin-background-request-work')!;
+  launcher.press('start', launcher.snapshot().revision);
+  const request = () => f.host.surfaces.snapshot().find(source => source.snapshot().interaction?.kind === 'question');
+  await expect.poll(() => request()?.snapshot().title).toBe('Questions · background-request');
+  const source = request()!, id = source.snapshot().interaction!.id;
+  expect(f.layout.snapshot().focused).toBe('session');
+  expect(f.host.cancelOperation(launcher.id)).toBe(true);
+  await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  expect(source.snapshot().interaction?.id).toBe(id);
+  expect(f.host.session.snapshot().interaction?.id).toBe(mainId);
+  f.host.session.interrupt!(); await main;
+  expect(source.snapshot().interaction?.id).toBe(id);
+  expect(f.requests).toHaveLength(1);
+  source.answerInteraction!(id, {answers: [{id: 'answer', selected: ['Continue']}]});
+  expect(await background).toBe('Continue');
+  await expect.poll(() => request()).toBeUndefined();
+  expect(f.host.core.getOperations()).toEqual([]);
+});
+
+it.each(['ordinary', 'background'] as const)('attributes an interceptor form to its actual plugin in %s work', async mode => {
+  const f = await fixture();
+  let work: Promise<unknown> | undefined, callerAlive = false;
+  f.host.core.host.registerPlugin({name: 'scope-a', version: '1.0.0', trust: 'trusted'}, {
+    'ui.press': async (_event, $) => {
+      const capability = mode === 'background' ? $.background() : $;
+      work = (async () => {
+        const result = await capability.fs.read('scope-trigger');
+        callerAlive = !capability.signal.aborted;
+        await capability.ui.view('main', 'Caller A', {lines: [{text: 'CALLER_A_CONTINUED'}]}, {focus: false});
+        return result;
+      })();
+      if (mode === 'ordinary') await work;
+    },
+  });
+  f.host.core.host.registerPlugin({name: 'scope-b', version: '1.0.0', trust: 'trusted'}, {
+    'service.fs.read': async (event, $) => {
+      if (event.path !== 'scope-trigger') return $.next();
+      const result = await $.ui.form({title: 'Interceptor B form', fields: [{id: 'value', label: 'Value', type: 'text'}], actions: [{id: 'save', label: 'Save'}]});
+      return {value: result ? 'answered' : 'cancelled'};
+    },
+  });
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const mainId = f.host.session.snapshot().interaction!.id;
+  await f.host.core.host.emit('service.ui.view', {plugin: 'scope-a', id: 'main', title: 'Caller A',
+    view: {lines: [{text: 'Start', action: 'start'}]}});
+  const caller = f.find('plugin-scope-a-main')!;
+  caller.press('start', caller.snapshot().revision);
+  const form = await f.waitForm('Interceptor B form'), requestId = form.snapshot().form!.id;
+  expect(form.snapshot().form?.plugin).toBe('scope-b');
+  expect(f.host.session.snapshot().interaction?.id).toBe(mainId);
+  f.host.core.host.unregisterPlugin('scope-b');
+  expect(await work).toBe('cancelled'); expect(callerAlive).toBe(true);
+  await expect.poll(() => caller.snapshot().busy).toBe(false);
+  expect(caller.snapshot().view?.lines[0].text).toBe('CALLER_A_CONTINUED');
+  await expect.poll(() => f.host.surfaces.snapshot().includes(form)).toBe(false);
+  form.answerForm!(requestId, {action: 'save', values: {value: 'stale'}});
+  expect(f.host.core.host.hasPlugin('scope-a')).toBe(true);
+  expect(f.host.session.snapshot().interaction?.id).toBe(mainId); expect(f.requests).toHaveLength(1);
+  f.host.session.interrupt!(); await main;
+});
+
+it.each(['unload', 'close'] as const)('cleans a background request on owner %s and ignores its old source callbacks', async stop => {
+  const f = await fixture();
+  let background: Promise<unknown> | undefined;
+  f.host.core.host.registerPlugin({name: 'request-lifetime', version: '1.0.0', trust: 'trusted'}, {
+    'ui.press': (_event, $) => {background = $.background().ui.ask({question: 'Lifetime request', options: ['Continue']})
+      .then(value => ({ok: true, value}), () => ({ok: false}));},
+  });
+  await f.host.core.host.emit('service.ui.view', {plugin: 'request-lifetime', id: 'work', title: 'Lifetime',
+    view: {lines: [{text: 'Start', action: 'start'}]}});
+  const launcher = f.find('plugin-request-lifetime-work')!;
+  launcher.press('start', launcher.snapshot().revision);
+  const request = () => f.host.surfaces.snapshot().find(source => source.snapshot().interaction);
+  await expect.poll(() => request()?.snapshot().interaction?.kind).toBe('question');
+  const source = request()!, id = source.snapshot().interaction!.id;
+  await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  if (stop === 'unload') f.host.core.host.unregisterPlugin('request-lifetime'); else await f.host.close();
+  expect(await background).toEqual({ok: false});
+  await expect.poll(() => f.host.surfaces.snapshot().includes(source)).toBe(false);
+  source.answerInteraction!(id, {answers: [{id: 'answer', selected: ['Continue']}]});
+  expect(f.host.session.snapshot().interaction).toBeUndefined(); expect(f.requests).toHaveLength(0);
+});
+
+it('counts independent requests in the four-operation limit without falling back to Main', async () => {
+  const f = await fixture();
+  let retained: any;
+  f.host.core.host.registerPlugin({name: 'request-capacity', version: '1.0.0', trust: 'trusted', hookTimeouts: {'ui.press': 15000}}, {
+    'ui.press': async (event, $) => {
+      if (event.key === 'capture') {retained = $.background(); return;}
+      await $.ui.ask({question: 'Capacity ' + event.site, options: ['Continue']});
+    },
+  });
+  await f.host.core.host.emit('ui.press', {site: 'capture', key: 'capture'});
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const mainId = f.host.session.snapshot().interaction!.id;
+  const launchers: UiSurfaceSource[] = [];
+  for (let index = 0; index < 4; index++) {
+    await f.host.core.host.emit('service.ui.view', {plugin: 'request-capacity', id: 'pane' + index, title: 'Capacity ' + index,
+      view: {lines: [{text: 'Ask', action: 'ask'}]}});
+    const source = f.find('plugin-request-capacity-pane' + index)!; launchers.push(source);
+    source.press('ask', source.snapshot().revision);
+  }
+  const requests = () => f.host.surfaces.snapshot().filter(source => source.snapshot().interaction);
+  await expect.poll(() => requests().length).toBe(4);
+  await expect(retained.ui.ask({question: 'Fifth request', options: ['Continue']})).rejects.toThrow('A request window is unavailable');
+  expect(requests()).toHaveLength(4); expect(f.host.session.snapshot().notice).toContain('Four interface operations');
+  expect(f.host.session.snapshot().interaction?.id).toBe(mainId); expect(f.requests).toHaveLength(1);
+  const released = requests()[0]; released.cancelInteraction!(released.snapshot().interaction!.id);
+  await expect.poll(() => requests().length).toBe(3);
+  const fifth = retained.ui.ask({question: 'Fifth request', options: ['Continue']});
+  await expect.poll(() => requests().length).toBe(4);
+  const source = requests().find(source => {
+    const interaction = source.snapshot().interaction;
+    return interaction?.kind === 'question' && interaction.request.questions[0].question === 'Fifth request';
+  })!;
+  source.answerInteraction!(source.snapshot().interaction!.id, {answers: [{id: 'answer', selected: ['Continue']}]});
+  expect(await fifth).toBe('Continue');
+  for (const source of requests()) source.cancelInteraction!(source.snapshot().interaction!.id);
+  await expect.poll(() => launchers.every(source => !source.snapshot().busy)).toBe(true);
+  f.host.session.interrupt!(); await main;
+});
+
+it('keeps a committed resumed session recoverable when its startup fails', async () => {
+  const f = await fixture(), previous = f.host.core;
+  const resume = f.app.resume;
+  f.app.resume = async (...args) => {
+    const replacement = await resume(...args);
+    replacement.start = async () => {throw Error('Controlled startup failure');};
+    return replacement;
+  };
+  const result = await previous.host.emit('service.session.control', {action: 'resume', id: previous.sessionId});
+  expect(result.value).toMatchObject({deny: expect.stringContaining('startup failed')});
+  expect(f.host.core).not.toBe(previous);
+  await expect(f.host.submit('Blocked until explicit recovery')).rejects.toThrow('Session startup did not finish');
+  expect(f.requests).toHaveLength(0);
+  f.app.resume = resume;
+  await f.host.submit('/reload');
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const question = f.host.session.snapshot().interaction!;
+  f.host.session.answerInteraction!(question.id, {answers: [{id: 'answer', selected: ['Local']}]}); await main;
+  expect(f.requests).toHaveLength(2); expect(f.host.session.snapshot().interaction).toBeUndefined();
+});
 
 it('cancels one command window and its real builtin exec while preserving its neighbor and Main', async () => {
   const f = await fixture({exec: 'allow', plugins: [commandWorker()]});
@@ -429,7 +688,7 @@ it('fails closed at construction for unsupported selected private controller own
   }
 });
 
-it('revokes deferred UI-origin forms after their admitted operation has settled', async () => {
+it('gives an explicitly retained form a passive independent request owner after its launcher settles', async () => {
   const f = await fixture();
   let release!: () => void;
   const gate = new Promise<void>(resolve => {release = resolve;});
@@ -447,10 +706,35 @@ it('revokes deferred UI-origin forms after their admitted operation has settled'
   const source = f.find('plugin-deferred-proof-main')!;
   source.press('schedule', source.snapshot().revision);
   await expect.poll(() => source.snapshot().busy).toBe(false);
+  f.layout.act({type: 'open', id: 'session'});
   release();
-  await expect.poll(() => result).toBeNull();
-  expect(f.form()).toBeUndefined();
+  const form = await f.waitForm('Late form');
+  expect(f.layout.snapshot().focused).toBe('session');
   expect(f.host.session.snapshot().interaction).toBeUndefined();
+  form.answerForm!(form.snapshot().form!.id, {action: 'save', values: {token: 'PRIVATE_RETAINED_TOKEN'}});
+  await expect.poll(() => result).toEqual({action: 'save', values: {token: 'PRIVATE_RETAINED_TOKEN'}});
+  await expect.poll(() => f.form()).toBeUndefined();
+  expect(f.host.session.snapshot().interaction).toBeUndefined();
+  expect(f.requests).toHaveLength(0);
+  expect(JSON.stringify(f.events)).not.toContain('PRIVATE_RETAINED_TOKEN');
+});
+
+it('rejects ordinary stale UI capabilities instead of delivering their form into Main', async () => {
+  const f = await fixture();
+  let release = () => {}, result: unknown = 'pending';
+  const gate = new Promise<void>(done => {release = done;});
+  f.host.core.host.registerPlugin({name: 'ordinary-stale', version: '1.0.0', trust: 'trusted'}, {
+    'ui.press': (_event, $) => {void gate.then(async () => {
+      try {result = await $.ui.form({title: 'Expired ordinary form', fields: [{id: 'value', type: 'text', label: 'Value'}], actions: [{id: 'save', label: 'Save'}]});}
+      catch {result = 'revoked';}
+    });},
+  });
+  await f.host.core.host.emit('service.ui.view', {plugin: 'ordinary-stale', id: 'main', title: 'Ordinary stale', view: {lines: [{text: 'Schedule', action: 'schedule'}]}});
+  const source = f.find('plugin-ordinary-stale-main')!;
+  source.press('schedule', source.snapshot().revision);
+  await expect.poll(() => source.snapshot().busy).toBe(false);
+  release(); await expect.poll(() => result).toBe('revoked');
+  expect(f.form()).toBeUndefined(); expect(f.host.session.snapshot().interaction).toBeUndefined();
   expect(f.requests).toHaveLength(0);
 });
 

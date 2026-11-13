@@ -225,6 +225,12 @@ export class AgentCore {
     const operation=this.userOperation.getStore();
     return operation&&(operation.command?this.commandOperations:this.userOperations).get(operation.id)===operation?operation:undefined;
   }
+  private humanRequestSignal(caller: unknown): AbortSignal | undefined {
+    const signals = [this.host.currentSignal, this.activeUserOperation()?.signal,
+      ...(caller instanceof AbortSignal ? [caller] : [])].filter((signal): signal is AbortSignal => signal !== undefined);
+    if (!signals.length && !this.host.currentServiceScope?.background && this.state === 'running') signals.push(this.abort.signal);
+    return signals.length ? AbortSignal.any(signals) : undefined;
+  }
   private activeOperations(){return [...this.userOperations.values(),...this.commandOperations.values()];}
   private readonly journalSignal=new AbortController().signal;
   get hasActiveOperations():boolean{return this.userOperations.size>0||this.commandOperations.size>0;}
@@ -576,13 +582,17 @@ export class AgentCore {
         }
       }
     );
-    this.runtime.setResolver("service.ui.ask", async (payload: unknown) => {
+    const manualScope = <T>(run: () => Promise<T>) =>
+      this.host.isBackgroundService || (this.host.currentServiceScope?.background && !this.activeUserOperation())
+        ? this.userOperation.exit(run) : run();
+    this.runtime.setResolver("service.ui.ask", (payload: unknown) => manualScope(async () => {
       const onAsk = this.options.onAsk;
       if (!onAsk) return { deny: "headless: no user channel for questions" };
       const parsed=questionSchema.safeParse({...(payload as object),id:"answer"});
       if(!parsed.success)return {deny:"ask: invalid question or options"};
       const args=parsed.data;
-      const callerSignal=(payload as any).signal;
+      const signal=this.humanRequestSignal((payload as any).signal);
+      signal?.throwIfAborted();
       const reaction = {
         source: "questions",
         kind: "question",
@@ -591,8 +601,9 @@ export class AgentCore {
       await this.emit("ui.reaction", { ...reaction, active: true });
       let answer: Awaited<ReturnType<typeof onAsk>>;
       try {
+        signal?.throwIfAborted();
         answer = await onAsk({
-          signal: callerSignal instanceof AbortSignal ? AbortSignal.any([callerSignal,...(this.userOperation.getStore()?[this.userOperation.getStore()!.signal]:this.state==="running"?[this.abort.signal]:[])]) : this.userOperation.getStore()?.signal??(this.state === "running" ? this.abort.signal : undefined),
+          signal,
           question: args.question,
           options:args.options?.map(optionLabel),
           ...(args.options?.some(o=>typeof o!=="string")?{optionDetails:args.options.map(o=>typeof o==="string"?{label:o}:o)}:{}),
@@ -604,28 +615,27 @@ export class AgentCore {
       }
       if(typeof answer!=="string"&&!Array.isArray(answer))throw Error("Single question requires a text/choice answer");
       return { value: { answer } };
-    });
+    }));
 
-    this.runtime.setResolver("service.ui.questionnaire", async (payload: any) => {
+    this.runtime.setResolver("service.ui.questionnaire", (payload: any) => manualScope(async () => {
       if (!this.options.onAsk) return { deny: "headless: no user channel for questions" };
       const form = questionnaireSchema.parse(payload);
       const reaction = { source: "questions", kind: "question", id: randomUUID() };
-      const signals = [
-        ...(this.userOperation.getStore()?[this.userOperation.getStore()!.signal]:this.state === "running" ? [this.abort.signal] : []),
-        ...(payload.signal instanceof AbortSignal ? [payload.signal] : []),
-      ];
+      const signal = this.humanRequestSignal(payload.signal);
+      signal?.throwIfAborted();
       await this.emit("ui.reaction", { ...reaction, active: true });
       try {
+        signal?.throwIfAborted();
         const result = await this.options.onAsk({
           question: form.title ?? "Questionnaire",
           questions: form.questions,
-          ...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
+          ...(signal ? { signal } : {}),
         });
         return { value: validateQuestionnaireResult(form, result) };
       } finally {
         await this.emit("ui.reaction", { ...reaction, active: false });
       }
-    });
+    }));
 
     for (const plugin of options.plugins ?? []) {
       this.host.registerPlugin(plugin.manifest, plugin.hooks, plugin.tier, plugin.events,plugin.controllers);
@@ -775,7 +785,7 @@ export class AgentCore {
     const operation:UserToolOperation={id:randomUUID(),callId:randomUUID(),tool:name,owner:options.owner,controller,signal,tools:[],messages:[],records:[],tokens:0,usage:{inputTokens:0,outputTokens:0},promise:Promise.resolve()};
     this.userOperations.set(operation.id,operation);
     const timer=setTimeout(()=>controller.abort(Error('User tool operation timed out after five minutes')),300000);timer.unref();
-    const work=Promise.resolve().then(()=>this.userOperation.run(operation,async()=>{
+    const work=Promise.resolve().then(()=>this.host.withOperationScope(()=>this.userOperation.run(operation,async()=>{
       let outcome:{ok:boolean;output?:unknown;error?:string}={ok:false,error:'Tool produced no result'};
       const unsubscribe=this.subscribe(event=>{if(event.kind==='catalog'&&event.event==='tool.result'&&event.input.callId===operation.callId)outcome={ok:event.input.ok===true,output:event.input.output,error:event.input.error as string|undefined};});
       try{
@@ -788,7 +798,7 @@ export class AgentCore {
       finally{unsubscribe();}
       await this.emit('tool.operation',{operationId:operation.id,callId:operation.callId,tool:name,owner:options.owner,phase:'completed',ok:outcome.ok,error:outcome.error});
       return outcome;
-    })).catch(error=>({ok:false,error:String(error)})).finally(()=>{clearTimeout(timer);this.userOperations.delete(operation.id);});
+    }))).catch(error=>({ok:false,error:String(error)})).finally(()=>{clearTimeout(timer);this.userOperations.delete(operation.id);});
     operation.promise=work;return work;
   }
 

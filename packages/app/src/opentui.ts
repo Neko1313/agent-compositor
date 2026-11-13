@@ -40,7 +40,10 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
         if(current.navigation.handle({kind:'key',key:'c',modifiers:['ctrl']}))return 'handled';
         const focused=windows.snapshot().focused;
         const surface=current.surfaces.snapshot().find(source=>source.id===focused);
-        const form=surface?.snapshot().form;
+        const request=surface?.snapshot();
+        if(request?.approval){surface?.answerApproval?.(request.approval.id,false);return 'handled';}
+        if(request?.interaction){surface?.cancelInteraction?.(request.interaction.id);return 'handled';}
+        const form=request?.form;
         if(form){surface?.cancelForm?.(form.id);return 'handled';}
         if(current.cancelOperation(focused))return 'handled';
         if(current.core.getState()==='running'){current.core.interrupt();return 'handled';}

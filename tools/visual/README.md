@@ -77,6 +77,20 @@ The provider is bounded loopback HTTP; no paid model or user credentials are use
 Artifacts default to `dist/visual-opentui-cancellation/`. Set `VISUAL_EXECUTABLE`
 to the executable inside a complete extracted archive for the same native check.
 
+`npm run visual:opentui-requests` checks the configured CLI's independent manual
+input windows with a bounded loopback model. Main retains its pending selected
+answer and draft while real builtin exec receives exact normal Allow once/Deny
+decisions, same-owner direct/builtin questions coexist, a questionnaire returns
+its structured answers, and a private form preserves its native cursor and
+masked token through validation and hide/reopen. Public commands/actions gate
+retained requests before and after actual launcher settlement; Main interruption
+and cancellation of one request preserve the others. SDK receipts, exact tool
+IDs, file effects and a real reload establish settlement. The private token must
+remain absent from terminal output, HTTP bodies and saved journals; raw test
+keyboard logs are deliberately excluded. No user credentials or paid provider
+are used. Artifacts default to `dist/visual-opentui-requests/`; `VISUAL_EXECUTABLE`
+selects the executable inside a complete extracted archive for the same proof.
+
 `npm run visual:windows` checks the shipping Ink window controls through the
 actual PTY: finder search and cancellation, draft/cursor retention, nearest-split
 orientation and resize, directional movement, workspace transfer, fullscreen,

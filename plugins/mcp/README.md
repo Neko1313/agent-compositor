@@ -10,6 +10,16 @@ up to five minutes, including the human approval wait.
 
 MCP client: expose stdio MCP servers' tools to the model through the mcp_call gateway. Servers come from AGENT_MCP_CONFIG (JSON, Claude-style mcpServers) or <cwd>/.agent-compositor/mcp.json.
 
+Connections are started on first use and cached by project, server name and
+configuration. Normal process exit and plugin disposal stop cached server
+processes synchronously, including servers with background work that would
+survive stdin closing. An already cancelled operation reads no configuration
+and starts no server. Cancellation during initialization or a tool operation
+stops the connection; a subsequent operation can reconnect. Cancelling discovery
+stops the operation instead of reporting a successful partial server list or
+starting further servers. Ordinary per-server discovery failures still appear
+inline without hiding other servers.
+
 ## Use
 
 This plugin is available through the default `agent-compositor` marketplace.

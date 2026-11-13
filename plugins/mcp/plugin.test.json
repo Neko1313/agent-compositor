@@ -6,7 +6,8 @@
       "layer": "integration",
       "files": [
         "packages/app/test/composite-plugin.test.ts",
-        "packages/app/test/storage-network.test.ts"
+        "packages/app/test/storage-network.test.ts",
+        "packages/app/test/mcp-lifecycle.test.ts"
       ]
     }
   ],

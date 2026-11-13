@@ -166,7 +166,7 @@ class McpClient {
 }
 
 /** process-lifetime connection cache */
-const clients = new Map<string, Promise<McpClient>>();
+const clients = new Map<string, McpClient>();
 let configCache:
   | { cwd: string; config?: McpConfig; error?: string }
   | undefined;
@@ -219,22 +219,18 @@ async function getClient(
 ): Promise<McpClient> {
   const key = JSON.stringify([cwd, server, servers[server]]);
   let cached = clients.get(key);
-  if (cached && (await cached).dead) {
+  if (cached?.dead) {
+    cached.stop(cached.dead);
     clients.delete(key);
     cached = undefined;
   }
   if (!cached) {
-    cached = Promise.resolve()
-      .then(() => {
-        const cfg = servers[server];
-        if (!cfg || typeof cfg.command !== "string")
-          throw new Error(`unknown mcp server: ${server}`);
-        return new McpClient(cfg, cwd);
-      })
-      .catch((err) => {
-        clients.delete(key); // don't cache a failed connection
-        throw err;
-      });
+    const cfg = servers[server];
+    if (!cfg || typeof cfg.command !== "string")
+      throw new Error(`unknown mcp server: ${server}`);
+    // Keep live handles synchronously available to the process exit handler;
+    // promise callbacks cannot be relied on once the event loop is exiting.
+    cached = new McpClient(cfg, cwd);
     clients.set(key, cached);
   }
   return cached;
@@ -242,8 +238,7 @@ async function getClient(
 
 /** test/exit hook: kill spawned servers */
 export function __mcpShutdown(): void {
-  for (const p of clients.values())
-    p.then((c) => c.stop()).catch(() => undefined);
+  for (const client of clients.values()) client.stop();
   clients.clear();
 }
 export function dispose(): void {
@@ -257,7 +252,10 @@ async function withAbort<T>(
   signal: AbortSignal | undefined,
   operation: () => Promise<T>
 ): Promise<T> {
-  signal?.throwIfAborted();
+  if (signal?.aborted) {
+    client.stop("MCP operation cancelled");
+    signal.throwIfAborted();
+  }
   const abort = () => client.stop("MCP operation cancelled");
   signal?.addEventListener("abort", abort, { once: true });
   try {
@@ -311,7 +309,9 @@ export const mcpCallTool = {
     };
     const action = args.action ?? "list";
     try {
+      ctx.signal?.throwIfAborted();
       const loaded = await loadConfig(ctx.cwd, ctx);
+      ctx.signal?.throwIfAborted();
       if (loaded.error || !loaded.config)
         return { ok: false, error: `mcp: ${loaded.error ?? "no config"}` };
       const servers = Object.fromEntries(
@@ -328,6 +328,7 @@ export const mcpCallTool = {
           error?: string;
         }[] = [];
         for (const name of Object.keys(servers)) {
+          ctx.signal?.throwIfAborted();
           try {
             const client = await getClient(name, servers, ctx.cwd);
             listed.push({
@@ -337,6 +338,7 @@ export const mcpCallTool = {
               ),
             });
           } catch (err) {
+            ctx.signal?.throwIfAborted();
             listed.push({
               name,
               error: err instanceof Error ? err.message : String(err),

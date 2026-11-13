@@ -1,5 +1,55 @@
 # Project memory
 
+## MCP process-exit cleanup and cancellation before launch — 2026-11-13
+
+97a848a passed CI 43410223549 on both Node versions, docs 43410223577 and
+release preparation 43410223640. Earlier 9db2855 CI 43409632398 ended cancelled
+after being superseded; its Node 22 MCP timeout remains a recorded observation,
+not a proven consequence of the lifecycle defects below. The preceding goal
+turn made concrete progress in indexed Todo feedback and state retention.
+
+Reproduced two independent MCP defects locally without any model call. A real
+detached MCP server with an active background timer survived its owner's explicit
+process.exit(0), because the exit handler deferred stop() through cached promise
+callbacks. A server with only readline would exit on stdin EOF and hide this
+leak, so the regression deliberately keeps background work alive. An already
+aborted discovery with no configured servers also returned ok:true and read
+configuration unnecessarily. The final negative reproduction failed both tests.
+
+The MCP cache now holds live clients synchronously; process exit/disposal can
+stop every cached handle immediately. Dead entries are stopped before eviction.
+Signal checks run before/after configuration and between discovery entries;
+cancelled discovery fails rather than returning a successful partial list. If
+cancellation lands after connection creation but before withAbort registration,
+the new connection is stopped before throwing. Active cancellation still stops
+the cached connection, and later calls reconnect normally. No timeout increases,
+protocol-version changes or public event/schema changes.
+
+Five real/local lifecycle regressions cover persistent-server process exit,
+pre-aborted configuration avoidance, cancellation while settings load, and
+stalled initialization/reconnect for both call and list. The suite distinguishes
+an orphan zombie from a running Linux process and cleans up recorded process
+groups even on failure. It publishes the fixture PID only after consuming its
+one-time stall marker to avoid an artificial reconnect race. Added the suite to
+the MCP plugin's declared integration files and updated its README. No UI changes;
+the visual skill is unnecessary for this backend-only change. No hand-bumped
+plugin/catalog metadata or changelog changes.
+
+Verification: full coverage 1536 passed, three optional skips, 182 files;
+typecheck, gen, docs:gen and docs:check passed. The final declared MCP plugin
+matrix passes 10 tests. One first full run exposed only an over-specific new
+test assertion (native AbortError says aborted rather than cancelled); corrected
+the assertion and reran coverage successfully. The final fixture ordering tweak
+was subsequently verified by the plugin matrix. No live model, transcript
+egress or OpenAI budget use; the prior explicit cloud replay approval is still
+pending. Stable 1.0, real-model self-development, onboarding and OpenTUI remain
+incomplete, so the broad goal stays active.
+
+Further observed MCP quality gaps need investigation: listTools currently drops
+the server's inputSchema, outputSchema and pagination cursor; onData parses
+unvalidated JSON values and decodes each raw byte chunk independently. These
+were source observations, not implemented fixes or claims about the CI timeout.
+
 ## Indexed Todo validation and state retention — 2026-11-13
 
 Continued local work while the explicit cloud-transcript replay approval remains

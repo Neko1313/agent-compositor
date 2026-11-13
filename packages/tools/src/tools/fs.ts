@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import type { ToolContext, ToolResult, ToolSpec } from "../types.js";
+import {encodeEditAnchor} from '../edit-ref.js';
 
 export interface ReadArgs {
   path: string;
@@ -11,6 +12,7 @@ export interface ReadOutcome {
   content: string;
   totalLines: number;
   edit?:{path:string;expectedHash:string;range:{start:number;end:number};strict:boolean};
+  editRef?:string;
   truncated: boolean;
   nextOffset?:number;
 }
@@ -18,7 +20,7 @@ export interface ReadOutcome {
 export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
   name: "read",
   loopGuard: 'query',
-  description: "Read UTF-8 text, default 200 lines, with a guarded edit anchor. Use offset/limit for targeted ranges; nextOffset continues a truncated page. Pass edit.path/expectedHash/range/strict to edit with exact oldText/newText. The anchor covers only the returned range. Files over 2 MiB require targeted search.",
+  description: "Read UTF-8 text, default 200 lines, with a guarded edit anchor. Use offset/limit for targeted ranges; nextOffset continues a truncated page. Prefer copying editRef verbatim to edit with path and exact oldText/newText, without calculating offsets. Explicit edit.path/expectedHash/range/strict remains supported. The anchor covers only the returned range. Files over 2 MiB require targeted search.",
   parameters: {
     type: "object",
     properties: {
@@ -33,11 +35,13 @@ export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
     if(args.offset!==undefined&&(!Number.isInteger(args.offset)||args.offset<1))return{ok:false,error:'read.offset must be a positive integer using 1-based lines; omit it or use 1 for the first line.'};
     if(args.limit!==undefined&&(!Number.isInteger(args.limit)||args.limit<1||args.limit>10000))return{ok:false,error:'read.limit must be an integer from 1 to 10000 lines.'};
     try {
-      const outcome = await ctx.request<ReadOutcome>("service.file.read", {
+      const raw = await ctx.request<ReadOutcome>("service.file.read", {
         path: ctx.resolvePath?await ctx.resolvePath(args.path):path.resolve(ctx.cwd,args.path),
         offset: args.offset,
         limit: args.limit,
       });
+      const editRef=encodeEditAnchor(raw?.edit);
+      const outcome=editRef===undefined?raw:{...raw,editRef};
       const content=outcome?.content;
       // Preserve raw line breaks for model edits, while keeping terminal controls
       // in the existing JSON-escaped representation.

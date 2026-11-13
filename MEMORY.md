@@ -1,5 +1,67 @@
 # Project memory
 
+## Portable snapshot edit references — 2026-11-13
+
+Previous 0feafc3 passed CI 43393831652 on both Node versions, docs 43393831723 and
+release preparation 43393831614. Its initial/continued historical repair remains
+6P/1F with incomplete general input validation, not successful self-development.
+
+Repeated invented ranges motivate additive editRef support. Builtin read derives
+a versioned string from a complete strict absolute-path/hash/UTF-16-range anchor;
+the original explicit anchor remains available. edit takes path/editRef plus
+literal oldText/newText, resolves the same guards and checks the resolved path
+matches the reference before the existing service.file.edit call. Malformed
+references, conflicting explicit guards and certain no-ops fail admission/preview
+before review. References never fall back to unguarded matching. No permission
+grant, authenticated capability, session cache, TTL, hash replacement or range
+widening. They are portable selectors; fresh hash, exact match, workspace, policy,
+service interception and guarded undo remain authoritative. Serialized read
+references survive journal replay/resume. Cross-project/path reuse does not grant
+access, including identical-content files.
+
+SDK exports encodeEditAnchor/EditAnchor. Encoder returns undefined for incomplete,
+non-strict, non-absolute or oversized selectors. The model input bound is 16384
+characters with strict encoding/version/hash/range validation. Callix read_symbol
+adds references when the host SDK encoder exists, retains legacy explicit anchors
+otherwise, and deletes references alongside source/anchors when budgeting omits
+content. Its namespace optional feature check avoids a missing named-export load
+failure on older hosts. Tool descriptions and on-demand examples prefer copying
+references without inventing offsets; original explicit arguments still work.
+
+28 new tests cover literal paged Unicode/CRLF, selected duplicates, stale edits,
+guarded undo, malformed selectors, conflicting guards, fresh contexts, journal
+resume, policy denial, rewritten paths, workspace isolation, Callix budgeting and
+legacy SDK fallback. Initial 14 reference cases fail on the old implementation.
+Full coverage: 1475 passed, three optional skips, 178 files. Explicit real-native
+Callix run with CALLIX_TEST_BIN=plugins/callix/bin/callix: all 21 pass, including
+reference editing and legacy permission checks (not skipped). Typecheck/gen/
+docs:gen/docs:check pass. Canonical core-customization, agent-features and Callix
+README updated. Architecture, workspace selection and app terminal controls are
+flagged by impact mapping but unchanged. Existing file-service schemas and event
+catalog stay unchanged; this is an additive tool/SDK surface. No manual versions.
+
+Fresh historical snapshot /tmp/compositor-selfhost-edZOAz: negative 6F/1P,
+reference 7P; supporting edit-ref.ts copied only into reference to satisfy current
+edit.ts imports, never into model target. Zero-model preflight passes. Live Gemma:
+35 requests/27 steps, two compactions, one length recovery, then a second length
+finish stops the turn. Only Todos hooks changed; independent acceptance 6F/1P,
+types fail on missing join import. All three edit calls copied actual issued
+references and supplied no numeric ranges: two succeed, one rejects a stale
+snapshot. This establishes use of the mechanism, not task-quality improvement.
+Separate exact-field audit: target 0P/10F, manual reference 10P. All 807 hashes,
+frozen acceptance/config, unchanged HEAD and 21 local aliases audited; only
+untracked file is operator-created agent-compositor.json. Artifacts, source hashes,
+partial patch, comparison and audits remain under dist/self-host-edit-ref.
+
+The matched historical diagnostic explicitly uses a 4096 output ceiling in both
+provider and compaction configuration. Verified TokenBudget at a 32768 window
+defaults to 8192 output reserve before provider clipping/overrides. Do not confuse
+the diagnostic ceiling with the standard budget. Next evaluate a separately
+labeled standard-reserve condition under unchanged total-token/task constraints,
+preserving this failed run. No OpenAI request or spending-guard change; Ollama
+billing unavailable. Self-development, broad quality, onboarding, OpenTUI and 1.0
+remain incomplete.
+
 ## Guarded-edit argument admission and actionable match errors — 2026-11-13
 
 Previous dc3d191 passed CI 43391493933 on both Node versions, documentation

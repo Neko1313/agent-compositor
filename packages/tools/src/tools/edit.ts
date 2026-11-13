@@ -1,11 +1,13 @@
 import * as path from "node:path";
 import type { ToolContext, ToolResult, ToolSpec } from "../types.js";
+import {decodeEditRef,resolveEditRef} from '../edit-ref.js';
 
 export interface EditArgs {
   path: string;
   oldText: string;
   newText: string;
   replaceAll?: boolean;
+  editRef?:string;
   expectedHash?:string;
   range?:{start:number;end:number};
   strict?:boolean;
@@ -27,6 +29,7 @@ export function editArgumentError(args:EditArgs):string|undefined {
   if(!args||typeof args.path!=='string'||args.path.length===0)return'edit.path must be a non-empty string.';
   if(typeof args.oldText!=='string')return'edit.oldText must be a string containing the current source text.';
   if(typeof args.newText!=='string')return'edit.newText must be a string containing the intended replacement.';
+  try{args=resolveEditRef(args);}catch(error){return error instanceof Error?error.message:String(error);}
   if(args.oldText===args.newText&&(args.strict===true||args.expectedHash!==undefined||args.range!==undefined))
     return'edit.newText is identical to edit.oldText. This exact edit would leave text unchanged. Supply replacement text that implements the intended change; do not repeat identical arguments. No file was read or changed.';
   if(args.range!==undefined){
@@ -45,11 +48,12 @@ export function editArgumentError(args:EditArgs):string|undefined {
  */
 export const editTool: ToolSpec<EditArgs, EditOutcome> = {
   name: "edit",
-  description: "Replace exact text in a file. Replacements that leave the actual file text unchanged are rejected. Preserve ALL edit anchor fields from read/read_symbol: path, expectedHash, range, strict. Do not discard range or hash. A stale snapshot requires re-reading. oldText must match uniquely inside the selected range unless replaceAll is set.",
+  description: "Replace exact text in a file. Prefer path + editRef copied verbatim from read/read_symbol + exact oldText/newText; do not calculate offsets. Alternatively preserve ALL explicit anchor fields: path, expectedHash, range, strict. Replacements that leave text unchanged are rejected. A stale snapshot requires re-reading. oldText must match uniquely inside the selected range unless replaceAll is set. References do not grant permission.",
   parameters: {
     type: "object",
     properties: {
       path: { type: "string" },
+      editRef:{type:'string',maxLength:16384,description:'Snapshot/range reference from read/read_symbol. Copy it verbatim with the same path and exact oldText/newText. Replaces manual expectedHash/range/strict fields; conflicting explicit guards are rejected.'},
       oldText: { type: "string", description: "Current source text to replace, copied exactly from the selected read range." },
       newText: { type: "string", description: "Replacement implementing the intended change. With hash, range or strict matching it must differ from oldText; do not echo the old text unchanged." },
       replaceAll: { type: "boolean" },
@@ -64,7 +68,13 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
   async execute(ctx, args): Promise<ToolResult<EditOutcome>> {
     const invalid=editArgumentError(args);if(invalid)return{ok:false,error:invalid};
     try {
+      args=resolveEditRef(args);
       const target = ctx.resolvePath?await ctx.resolvePath(args.path):path.resolve(ctx.cwd,args.path);
+      if(args.editRef!==undefined){
+        const anchor=decodeEditRef(args.editRef);
+        const selected=ctx.resolvePath?await ctx.resolvePath(anchor.path):path.resolve(anchor.path);
+        if(target!==selected)throw Error('edit.path does not match editRef. Use the path returned with the reference, or read the intended file again.');
+      }
       const outcome = await ctx.request<EditOutcome>("service.file.edit", {
         path: target,
         oldText: args.oldText,

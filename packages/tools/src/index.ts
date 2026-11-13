@@ -6,6 +6,7 @@ import { todoTool, type TodoArgs, type TodoItem, type TodoOutcome } from "./tool
 import { UndoStore, type ToolContext, type ToolResult, type ToolSpec } from "./types.js";
 
 export { editTool } from "./tools/edit.js";
+export {encodeEditAnchor,type EditAnchor} from './edit-ref.js';
 export {
   execTool,
   execOutputTool,

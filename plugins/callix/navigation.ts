@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { confinedPath } from '@agent-compositor/tools';
+import * as toolsSdk from '@agent-compositor/tools';
 import { estimateTokens } from '@agent-compositor/context';
 import type { Graph, GraphNode, GraphRelation, Query } from './adapter.js';
 const indexes = new WeakMap<Graph, ReturnType<typeof makeIndex>>();
+const {confinedPath}=toolsSdk;
 export function filePath(cwd: string, path: string) { const p = isAbsolute(path) ? relative(resolve(cwd), path) : path; const normalized = p.replaceAll('\\', '/').replace(/^\.\//, ''); return normalized === '..' || normalized.startsWith('../') ? undefined : normalized; }
 function makeIndex(graph: Graph) {
     const ids = new Map<string, GraphNode>(), names = new Map<string, GraphNode[]>(), qualified = new Map<string, GraphNode[]>(), files = new Map<string, GraphNode[]>(), incoming = new Map<string, GraphRelation[]>(), outgoing = new Map<string, GraphRelation[]>();
@@ -89,7 +90,8 @@ export async function readSymbol(graph: Graph, args: Query) {
     // Never advertise a complete edit anchor alongside a truncated body.
     if (estimateTokens(slice.content) > (args.maxTokens ?? 2000) - 256)
         return { symbol: compactNode(node), path, range: slice.range, expectedHash, sourceTooLarge: true, hint: 'Increase maxTokens or read a smaller located symbol. No edit anchor was issued.', metadata: quality(graph) };
-    return { symbol: compactNode(node), path, content: slice.content, location: { startLine: node.span[0], endLine: node.span[2], startByte: slice.startByte, endByte: slice.endByte }, edit: { path, expectedHash, range: slice.range, strict: true }, metadata: quality(graph) };
+    const editRef=typeof toolsSdk.encodeEditAnchor==='function'?toolsSdk.encodeEditAnchor({path:file,expectedHash,range:slice.range,strict:true}):undefined;
+    return { symbol: compactNode(node), path, content: slice.content, location: { startLine: node.span[0], endLine: node.span[2], startByte: slice.startByte, endByte: slice.endByte }, edit: { path, expectedHash, range: slice.range, strict: true }, ...(editRef?{editRef}:{}), metadata: quality(graph) };
 }
 /** Budget the actual JSON result, including metrics. No hidden raw graph payload. */
 export function budgetResult(value: any, maxTokens = 2000, reserveTokens = 0) {
@@ -123,6 +125,7 @@ export function budgetResult(value: any, maxTokens = 2000, reserveTokens = 0) {
         if (result.content !== undefined) {
             delete result.content;
             delete result.edit;
+            delete result.editRef;
             result.sourceTooLarge = true;
             result.hint = 'Increase maxTokens or read a smaller symbol; no edit anchor was issued.';
             refresh();

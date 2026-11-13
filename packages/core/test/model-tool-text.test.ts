@@ -20,7 +20,8 @@ async function fixture(source:string){
 it.each(['\n','\r\n'])('presents literal source with its unchanged anchor, line ending %j',async newline=>{
  const source=['export const separator="\\n";','// 😀 Unicode and tabs','export function value(){','\treturn 1;','}',''].join(newline);
  const f=await fixture(source),output=f.result.output as any;
- expect(f.sent).toBe('Read metadata (JSON):\n'+JSON.stringify({edit:output.edit,totalLines:output.totalLines,truncated:output.truncated})+'\n\nFile content (verbatim):\n'+source);
+ expect(output.editRef).toEqual(expect.any(String));
+ expect(f.sent).toBe('Read metadata (JSON):\n'+JSON.stringify({edit:output.edit,totalLines:output.totalLines,truncated:output.truncated,editRef:output.editRef})+'\n\nFile content (verbatim):\n'+source);
  expect(output.content).toBe(source);expect(output.edit.expectedHash).toBe(createHash('sha256').update(source).digest('hex'));expect(output.edit.range).toEqual({start:0,end:source.length});expect(output.edit.strict).toBe(true);
  const oldText=['export function value(){','\treturn 1;','}'].join(newline),newText=oldText.replace('return 1;','return 2;');
  expect(await f.core.invokeTool('edit',{...output.edit,oldText,newText})).toMatchObject({ok:true});

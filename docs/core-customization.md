@@ -157,6 +157,45 @@ range. Rejections neither write nor create an undo entry; they do not widen the
 range, drop guards or select a replacement automatically. A successful edit
 invalidates the earlier snapshot hash, so later edits may require a fresh read.
 
+### Snapshot edit references
+
+Builtin `read` adds optional `editRef` to its structured result and model-facing
+metadata when it has a complete strict edit anchor. Callix `read_symbol` supplies
+the same field on hosts with the reference encoder. Prefer an edit such as:
+
+```json
+{"path":"src/total.ts","editRef":"<copy the returned editRef verbatim>","oldText":"a - b","newText":"a + b"}
+```
+
+The reference carries the original absolute path, full-file SHA-256 and exact
+UTF-16 slice; strict matching is mandatory. Treat its versioned encoding as opaque
+and copy it rather than calculating offsets. `path`, `oldText` and `newText` remain
+required. The resolved target must match the reference's file, even if another
+file has identical contents. Explicit `expectedHash`/`range`/`strict` fields remain
+supported without a reference; when supplied with one they must agree exactly.
+Conflicting guards, malformed/unsupported references and certain no-op edits fail
+admission and `tool_help` preview before permission review or file access. An
+invalid present reference never silently falls back to unguarded editing.
+
+References are portable snapshot selectors, not authenticated capabilities or
+authorization tokens. They have no session cache or expiration timer and survive
+journal replay/resume; the file's current hash must still match. Workspace/path
+resolution, ordinary permissions, service interception, exact matching and guarded
+undo remain in force. `replaceAll` affects only the selected range. Edits do not
+expand that range, substitute a current hash or use whitespace fallback. A stale
+reference requires a fresh read. The resolved guards cross the existing
+`service.file.edit` seam; that event's schema is unchanged.
+
+SDK extensions may import `encodeEditAnchor` and `EditAnchor` from
+`@agent-compositor/tools`. The pure encoder accepts a complete strict anchor with
+an absolute path, lowercase 64-character SHA-256 and non-negative safe integer
+range with `end >= start`; it returns a string or `undefined` for unsupported
+anchors/references longer than 16384 characters. It neither reads a file nor
+grants permission. The built-in `read` tool derives its reference from the
+service's anchor without changing the `service.file.read` result contract.
+Callix keeps explicit anchors on older SDKs lacking the encoder, and removes both
+the anchor and reference when result budgeting removes source content.
+
 ### Permission previews
 
 `tool_help` accepts `name` plus optional `preview` containing proposed arguments:

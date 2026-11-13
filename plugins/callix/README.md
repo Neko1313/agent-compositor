@@ -151,10 +151,13 @@ A typical semantic edit uses these tools:
 
 1. Find a definition or file outline, then select its symbol ID.
 2. `code_query {"action":"read_symbol","pattern":"<id>"}` returns the source
-   syntax-node slice and an `edit` object with path, expectedHash, range and strict.
-3. Pass **all** anchor fields to the normal `edit` tool, adding exact oldText and
-   newText. For a local expression, use the returned symbol range to disambiguate
-   identical expressions elsewhere in the file.
+   syntax-node slice, `editRef` and an `edit` object with path, expectedHash, range
+   and strict. Older host SDKs without reference support retain the explicit anchor.
+3. Prefer copying `path` and `editRef` verbatim to the normal `edit` tool, adding
+   exact oldText and newText. Do not calculate offsets from line numbers. Without
+   a reference, pass **all** explicit anchor fields. The selected symbol range
+   disambiguates identical expressions elsewhere in the file; the reference does
+   not authorize an edit or permit dropping guards.
 4. Re-read on a stale-snapshot error, then run relevant checks.
 
 Callix spans use one-based UTF-8 byte columns and an exclusive end; model edit
@@ -162,7 +165,7 @@ ranges use UTF-16 offsets. The adapter validates/converts them against the actua
 UTF-8 snapshot, including non-ASCII prefixes and CRLF. Modifiers outside the
 syntax-node span, such as `export`, are retained. A missing/ambiguous/unlocated
 symbol returns candidates or an error. A source body that cannot fit its budget
-has **no edit anchor**; increase the budget or select a smaller symbol.
+has **no edit anchor or editRef**; increase the budget or select a smaller symbol.
 
 Ordinary `read` also returns an anchor for its returned line range, so known-path
 literal edits can use grep + ranged read without building a graph. Hash checks

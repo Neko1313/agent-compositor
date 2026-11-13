@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { indexProject, query, queryGraph, type Graph } from '../../../plugins/callix/adapter.js';
-import { symbolSlice, budgetResult } from '../../../plugins/callix/navigation.js';
+import { symbolSlice, budgetResult,readSymbol } from '../../../plugins/callix/navigation.js';
 import { estimateTokens } from '@agent-compositor/context';
 import { buildApp } from '../src/build.js';
 import { ScriptedProvider } from '@agent-compositor/core';
@@ -16,6 +16,17 @@ const node = (id: string, name: string, path = 'a.ts', line = 1) => ({ id, name,
 function graph(nodes: any[]): Graph { return { schema_version: 1, nodes, relations: [], metadata: { resolver_status: 'degraded' } }; }
 async function fake(root: string, g: Graph, delay = 0, release?: string) { await mkdir(join(root, '.agent-compositor'), { recursive: true }); const exe = join(root, '.agent-compositor', `fake-${Math.random()}.mjs`); await writeFile(exe, `#!/usr/bin/env node\nimport{appendFileSync,existsSync}from'node:fs';appendFileSync('.agent-compositor/calls','1\\n');const output=()=>console.log(${JSON.stringify(JSON.stringify(g))});const release=${JSON.stringify(release)};if(release){const timer=setInterval(()=>{if(existsSync(release)){clearInterval(timer);output();}},5);}else setTimeout(output,${delay});`, { mode: 0o700 }); return exe; }
 describe('graph query precision and result budgets', () => {
+    it('edits a selected symbol through a reference and removes it if budgeting omits source',async()=>{
+        const cwd=await temp(),first='function selected(){ return 1; }',text=first+'\nfunction other(){ return 1; }\n';await writeFile(join(cwd,'a.ts'),text);
+        const selected={...node('selected','selected'),span:[1,1,1,Buffer.byteLength(first)+1]};
+        const source=await readSymbol(graph([selected]),{cwd,action:'read_symbol',pattern:'selected',maxTokens:4096});if(!('content' in source)||!('editRef' in source)||typeof source.editRef!=='string')throw Error('Missing source reference');
+        const app=await buildApp({cwd,env:{HOME:cwd},provider:new ScriptedProvider([])});try{
+            const core=app.createCore(async()=>true);
+            expect(await core.invokeTool('edit',{path:source.path,editRef:source.editRef,oldText:'return 1',newText:'return 2'})).toMatchObject({ok:true});
+            expect(await readFile(join(cwd,'a.ts'),'utf8')).toBe(first.replace('return 1','return 2')+'\nfunction other(){ return 1; }\n');
+        }finally{await app.close();}
+        const bounded=budgetResult({...source,content:'x'.repeat(10000)},512);expect(bounded.sourceTooLarge).toBe(true);expect(bounded).not.toHaveProperty('edit');expect(bounded).not.toHaveProperty('editRef');
+    });
     it('disambiguates identical names using exact paths/IDs and indexes reverse impact with cycle bounds', () => {
         const g = graph([node('a', 'work', 'a.ts'), node('b', 'work', 'nested/a.ts'), node('c', 'caller', 'caller.ts')]);
         g.relations = [{ source_id: 'c', target_id: 'a', kind: 'calls' }, { source_id: 'a', target_id: 'c', kind: 'calls' }];
@@ -66,6 +77,7 @@ describe('graph query precision and result budgets', () => {
         const large = await query({ cwd, action: 'read_symbol', pattern: 'a', settings: { executable }, maxTokens: 512 });
         expect(large.sourceTooLarge).toBe(true);
         expect(large.edit).toBeUndefined();
+        expect(large.editRef).toBeUndefined();
         const full = await query({ cwd, action: 'read_symbol', pattern: 'a', settings: { executable }, maxTokens: 4096 });
         expect(full.edit.expectedHash).toBe(createHash('sha256').update('x'.repeat(5000)).digest('hex'));
         expect(full.content).toHaveLength(5000);
@@ -235,11 +247,12 @@ describe.skipIf(!native)('real Callix navigation and guarded editing', () => {
         expect(calls.metadata.resolver_status).toBe('ok');
         const source = await query({ cwd, action: 'read_symbol', pattern: id, ...opts });
         expect(source.content).toBe('function price(n:number){ return n * 2; }');
+        expect(source.editRef).toEqual(expect.any(String));
         const app = await buildApp({ cwd, env: { HOME: cwd }, provider: new ScriptedProvider([]) }), core = app.createCore(async () => true);
-        const edited = await core.invokeTool('edit', { ...source.edit, oldText: 'n * 2', newText: 'n * 3' });
+        const edited = await core.invokeTool('edit', { path:source.path,editRef:source.editRef, oldText: 'n * 2', newText: 'n * 3' });
         expect(edited.ok).toBe(true);
         expect(await readFile(join(cwd, 'price.ts'), 'utf8')).toContain('function unrelated(n:number){ return n * 2; }');
-        const stale = await core.invokeTool('edit', { ...source.edit, oldText: 'n * 3', newText: 'n * 4' });
+        const stale = await core.invokeTool('edit', { path:source.path,editRef:source.editRef, oldText: 'n * 3', newText: 'n * 4' });
         expect(stale.ok).toBe(false);
         expect(stale.error).toContain('stale');
         const fresh = await query({ cwd, action: 'read_symbol', pattern: id, ...opts });

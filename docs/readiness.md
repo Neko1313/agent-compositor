@@ -383,6 +383,29 @@ the frozen seven-test diagnostic score. Complete repair must satisfy the actual
 input-validation requirement, not only those seven examples. Repeated invented
 edit ranges and incomplete/generalized repairs remain next investigation targets.
 
+Portable snapshot-reference follow-up: builtin `read` and supported Callix
+`read_symbol` results now provide `editRef`, copying the exact existing guards as
+one string. Explicit anchors remain supported, references grant no permissions,
+and malformed/conflicting/stale or wrong-path references are rejected. Session
+replay, workspace isolation, policy and native Callix tests pass. The full suite
+has 1475 passing tests plus three optional skips; an explicitly enabled real
+Callix navigation run passes all 21 cases.
+
+A fresh historical Gemma condition copies issued references in all three edit
+calls (two applied, one stale rejection, no invented numeric ranges). Nevertheless
+it fails after 35 requests/27 steps on a second length finish: 6F/1P on the original
+acceptance, failing types, 0P/10F on the separate exact-field audit. The manual
+reference passes 7/7 and 10/10 respectively. Audits cover 807 tracked files, frozen
+inputs/configuration, unchanged Git HEAD and 21 local workspace aliases; artifacts
+are under `dist/self-host-edit-ref/`. This is mechanism evidence, not improved
+repair quality or stable self-development.
+
+These matched diagnostics explicitly cap output at 4096 tokens. The standard
+`TokenBudget` reserve at the same 32768-token window is 8192 before provider
+ceilings or explicit overrides. Next evaluate that separately labeled default
+reserve condition without raising the cumulative task allowance or rewriting the
+failed diagnostic's result. Stable 1.0 and the broader remaining scope stay open.
+
 Compositor was asked to repair the actual Todo scope/status defects in an isolated
 f1557fb source snapshot, with the two immutable acceptance files from the later
 manual repair. Workspace dependency aliases point into that snapshot, preventing

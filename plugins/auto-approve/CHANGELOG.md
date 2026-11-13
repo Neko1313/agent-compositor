@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1
+
+<!-- plugin-release:auto:start -->
+- distinguish uncertainty from concrete refusal ([710e54f](https://github.com/Neko1313/agent-compositor/commit/710e54fbbe8516d71979d65a259e59fb0e1d9277))
+<!-- plugin-release:auto:end -->
+
 ## 1.4.0
 
 <!-- plugin-release:auto:start -->

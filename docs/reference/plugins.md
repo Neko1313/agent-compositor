@@ -6,7 +6,7 @@ All 32 filesystem plugins start inactive. [Install and explicitly enable](../mar
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
-| [auto-approve](../../plugins/auto-approve/README.md) | 1.4.0 | Opt-in task-context review for console, plugin, MCP and workflow actions, with structured approval/refusal/uncertainty and binding host denies. |
+| [auto-approve](../../plugins/auto-approve/README.md) | 1.4.1 | Opt-in task-context review for console, plugin, MCP and workflow actions, with structured approval/refusal/uncertainty and binding host denies. |
 | [background-jobs](../../plugins/background-jobs/README.md) | 0.1.0 | Event-driven completion subscriptions for background exec shells: wake the originating agent or notify the user without model polling. |
 | [btw](../../plugins/btw/README.md) | 2.0.0 | Open or restore an independent side-agent conversation while the main task continues. Use /btw --once for an isolated answer notification. |
 | [callix](../../plugins/callix/README.md) | 1.4.0 | Native Callix navigation with bounded graph/source results, guarded symbol edit anchors, fresh shared indexing and token-size estimates; replace through service.project.query. |
@@ -37,6 +37,6 @@ All 32 filesystem plugins start inactive. [Install and explicitly enable](../mar
 | [turn-log](../../plugins/turn-log/README.md) | 1.1.2 | Append-only JSONL journal of every turn (prompt, outcome, error) at .agent-compositor/turn-log.jsonl — the /stats data source. Drop this folder to remove. |
 | [ui-theme](../../plugins/ui-theme/README.md) | 1.1.1 | Switch between slate, amber and mono themes. Demonstrates appearance and ui.render overrides. |
 | [web](../../plugins/web/README.md) | 1.2.1 | Bounded web reading and keyless DuckDuckGo or configurable Brave/SearXNG search through normal tool permissions. |
-| [workflows](../../plugins/workflows/README.md) | 1.6.0 | Replaceable dynamic background workflows with persistent dependency stages, bounded parallelism, expansion, conditional branches, pause/resume/retry and Python/Monty journal compatibility. |
+| [workflows](../../plugins/workflows/README.md) | 1.6.1 | Replaceable dynamic background workflows with persistent dependency stages, bounded parallelism, expansion, conditional branches, pause/resume/retry and Python/Monty journal compatibility. |
 
 Each plugin page links to its own changelog. Bundled source availability does not imply an independently published plugin archive.

@@ -86,6 +86,35 @@ controls. `submit` and `steer` dispatch them outside the prompt queue;
 Owner cancellation, auxiliary usage accounting and teardown remain independent
 of the active turn. See the [command contract](plugin-standard.md#immediate-user-commands).
 
+### Repeated approval refusals
+
+Within a model turn, a completed approval refusal is remembered for an identical
+effective tool name, argument values and preflight descriptor. Object key order
+does not matter; different arguments (including cwd/options) or descriptors are
+different proposals. If fresh rules/approvals and `tool.check` still require
+review, the repeated proposal receives a denied result without another review or
+human dialog. The result identifies reuse of the original refusal. This is not
+semantic matching of differently written commands and does not grant authority.
+
+Identical parallel proposals wait for the first review, then repeat preflight and
+policy/guard checks. Only refusals are shared: an allow-once verdict does not
+authorize a second execution. Waiting can be cancelled independently. A fresh
+session/project grant or an explicit changed guard decision takes effect through
+normal checks. Refusals are discarded when a turn ends or new user steering is
+consumed; an old held model response retains its original context until that
+boundary. Direct interactive calls and independent user operations are separate
+explicit requests. Refusal memory is not persisted or inherited by child agents.
+Question answers/model narration do not clear it or replace authorization.
+Hosts/reviewer plugins call `service.permission.invalidate` with `{}` (catalog
+0.30) after an explicit review-policy change. It clears only this negative memory,
+returns `{value:true}` and grants no authority. An old in-flight refusal cannot
+populate the replacement memory. Auto mode controls call this service when the
+mode changes, including during an active turn; ordinary audit/status views do not.
+
+Each refused proposal remains a separate failed tool result and counts toward
+existing recovery limits. This suppresses duplicate approval work; it does not
+make a model select an authorized alternative or finish an unverified task.
+
 ### Permission previews
 
 `tool_help` accepts `name` plus optional `preview` containing proposed arguments:
@@ -109,6 +138,7 @@ when needed. `ask` means further review, which can be automatic; a questionnaire
 answer cannot substitute for execution approval. Revoked approvals or later
 policy/guard changes still block a previously allowed proposal. Preview an
 independently authorized alternative rather than retrying refused effects.
+Turn-local refusal memory is not part of this static snapshot.
 
 The helper respects the effective tool composition, including independent user
 operations. Embedders using `createToolHelp` outside AgentCore must explicitly

@@ -66,6 +66,7 @@ describe("HooksHost / $ API", () => {
     await host.emit("session.start",{sessionId:"s",cwd:dir,plugins:[]});
     host.unregisterPlugin("replaceable");host.registerPlugin(manifest("replaceable"),{});
     await expect(retained!.fs.write("old","late")).rejects.toThrow("unloaded");
+    await expect(retained!.emit('service.permission.invalidate',{})).rejects.toThrow('unloaded');
     expect(retained!.signal.aborted).toBe(true);expect(writes).toBe(0);
   });
 
@@ -73,11 +74,11 @@ describe("HooksHost / $ API", () => {
     let writes=0,clears=0;
     runtime.setResolver("service.fs.write",()=>{writes++;return{value:true};});
     runtime.setResolver("service.agent.clear",()=>{clears++;return{value:true};});
-    for(const [name,operation] of Object.entries({file:($:HooksApi)=>$.fs.write("blocked","x"),clear:($:HooksApi)=>$.agent.clear(),emit:($:HooksApi)=>$.emit("service.agent.clear",{})})) {
+    for(const [name,operation] of Object.entries({file:($:HooksApi)=>$.fs.write("blocked","x"),clear:($:HooksApi)=>$.agent.clear(),emit:($:HooksApi)=>$.emit("service.agent.clear",{}),permission:($:HooksApi)=>$.emit('service.permission.invalidate',{})})) {
       host.registerPlugin(manifest(name,"render-only"),{"ui.render":async(_e,$)=>{await operation($);}});
     }
     const result=await host.emit("ui.render",{site:"s",surface:"terminal",props:{}});
-    expect(result.faults).toHaveLength(3);expect(writes).toBe(0);expect(clears).toBe(0);
+    expect(result.faults).toHaveLength(4);expect(writes).toBe(0);expect(clears).toBe(0);
   });
 
   it("routes agent controls and awaited authentication status through interceptable services",async()=>{
@@ -100,6 +101,7 @@ describe("HooksHost / $ API", () => {
     host.registerPlugin({...manifest("late"),hookTimeouts:{"tool.call":10}}, {"tool.call":async(_e,$)=>{retained=$;await new Promise(()=>{});}});
     await host.emit("tool.call",{tool:"read",input:{},callId:"c"});
     await expect(retained!.fs.write("late","x")).rejects.toBeDefined();expect(writes).toBe(0);
+    await expect(retained!.emit('service.permission.invalidate',{})).rejects.toBeDefined();
   });
 
   it("hooks receive (event, $); $.next continues the chain; $.plugin identifies the caller", async () => {

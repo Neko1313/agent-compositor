@@ -10,6 +10,32 @@ afterEach(async () => { for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true }); });
 async function temp() { const p = await mkdtemp(join(tmpdir(), 'auto-any-')); roots.push(p); return p; }
 const allowed = { decision: 'allow', risk: 'low', reason: 'Bounded read consistent with the task' };
+it.each(['command','button'])('clears an earlier refusal when auto review is enabled by %s during a model turn',async control=>{
+    const cwd=await temp();let executed=0,asked=0;
+    const provider=new ScriptedProvider([
+        {toolCalls:[{name:'ci_check',args:{script:'test'}}]},
+        {hold:true,toolCalls:[{name:'ci_check',args:{script:'test'}}]},
+        {text:JSON.stringify({approved:true,risk:'medium',reason:'The user requested this configured project check'})},
+        {text:'Configured check passed'},
+    ]);
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins')]});
+    app.plugins.push({manifest:{name:'ci-fixture',version:'1.0.0',trust:'trusted'},hooks:{},tools:[{
+        name:'ci_check',description:'Run the configured project check',parameters:{type:'object'},describe:()=>({tool:'ci_check'}),execute:async()=>{executed++;return{ok:true,data:'checked'};},
+    }]} as any);
+    const core=app.createCore(async()=>{asked++;return false;});
+    const turn=core.submit('Run the configured project check');
+    try{
+        await expect.poll(()=>provider.requests.length).toBe(2);
+        if(control==='command')await core.submit('/auto on');
+        else await core.host.emit('ui.press',{site:'plugin-auto-approve-approvals',key:'on'});
+        provider.release();await turn;
+        expect(core.failure).toBeUndefined();expect(asked).toBe(1);expect(executed).toBe(1);expect(provider.requests).toHaveLength(4);
+    }finally{provider.release();await turn;await app.close();}
+});
+it('keeps auto mode controls usable on older hosts without refusal memory',async()=>{
+    const state=new Map<string,unknown>(),$={state:{get:(key:string)=>state.get(key),set:(key:string,value:unknown)=>state.set(key,value)},emit:async()=>{throw Error('unknown event "service.permission.invalidate"');},ui:{notify:async()=>{}}};
+    await review['command.invoke']({name:'/auto',args:'on'},$);expect(state.get('enabled')).toBe(true);
+});
 async function fixture(config: any = {}, answer: any = allowed) {
     const state = new Map<string, any>([['enabled', true]]), calls: any[] = [];
     const cwd = await temp();

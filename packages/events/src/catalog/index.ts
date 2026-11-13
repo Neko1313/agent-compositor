@@ -89,6 +89,7 @@ export const catalog: readonly EventDef[] = [
   coreServices.serviceProjectQuery,
   coreServices.serviceSandboxRun,
   coreServices.servicePermissionReview,
+  coreServices.servicePermissionInvalidate,
   coreServices.serviceContextControl,
   coreServices.modelUsage,
   coreServices.serviceUsageQuota,

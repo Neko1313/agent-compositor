@@ -1,5 +1,63 @@
 # Project memory
 
+## Remember identical model-turn approval refusals without caching allows — 2026-11-13
+
+Core now remembers completed approval-path refusals within one model turn, keyed
+by the effective tool, JSON argument values and preflight descriptor. JSON key
+order is normalized; cwd/options and different arguments remain distinct. Fresh
+preflight, rules/session approvals and tool.check still run before reuse. A
+repeated ask receives its own denied result identifying the original refusal,
+without another reviewer invocation or renderer approval callback. Rule denies,
+preflight failures and execution failures retain their existing paths.
+
+Identical concurrent proposals serialize the review boundary, then recheck current
+policy/guards. Never share allows: an allow-once verdict still authorizes exactly
+one execution. Pending waits support independent cancellation. Explicit user tools
+and interactive invocations do not inherit the model's refusal memory. New turns
+and consumed user steering reset it; compaction/model narration/question answers
+do not. Memory is discarded at turn settlement and not inherited by children.
+Existing failure/recovery bounds and completion verification remain in force.
+
+Added service.permission.invalidate ({}, returns {value:true}) in additive catalog
+0.30 so hosts/plugins can signal an explicit review-policy change. Auto on/off,
+through immediate commands or mode buttons, uses it; status/history does not.
+An old in-flight refusal cannot repopulate a replacement memory. SDK lifetime,
+deadline and render guards cover this stateful service. Older hosts without it
+keep working: auto ignores only the specific unknown-event error. No hand-bumped
+plugin/catalog distribution versions or changelog; release preparation owns them.
+
+New real-core regressions fail on the prior implementation (duplicate human,
+automatic and concurrent refusals) and pass after the change. Coverage includes
+fresh approvals/guards, once-only human/automatic grants, consumed steering,
+independent user controls, parallel guard updates, wait cancellation and policy
+invalidation during an old review. Actual app tests toggle auto by command/button
+while a model response is held, then confirm a fresh review executes the authorized
+check without another human prompt. Plugin package/lifecycle tests pass.
+Full suite: 1357 passed/three optional skips, 165 files. Types/docs pass; latest
+focused SDK/core/app rerun includes rendering/unload/deadline checks. Frozen
+deterministic smoke remains 5/5; permission-preview suite remains 2/2 scripted.
+
+Unchanged coding prompts with enabled coding harness score 5/8 on two repeats
+each of Gemma and DeepSeek for the refusal-memory mechanism. Gemma is 1/4,
+DeepSeek 4/4. Four repeated proposals demonstrably skip both review and approval
+callbacks while each retains tool.check; audit has zero invariant violations.
+This is duplicate-approval suppression, not proof of fewer model retries or better
+task quality. Gemma still repeats refused proposals and has verification/behavior
+failures; two attempts reach the existing 80000-token admission bound. Preserve
+failed grades and all traces. Evidence: dist/check-discovery/refusal-memory-audit.json
+and refusal-memory-decision.json. Final core differs from the live-tested mechanism
+only by the explicit invalidation resolver; removing that line reproduces its
+exact SHA. The invalidation service/mode integration is separately covered by
+real app/core tests. No OpenAI request or guard mutation; Ollama billing unknown.
+
+Previous push 8432088529f24e3d0a31fdbe02ab717b730d3cfa has successful GitHub CI
+43358965662, documentation 43358965571 and release preparation 43358965658.
+Current changes require their own committed CI. Canonical core/capability/plugin
+guides and generated event references updated; UI layout, command syntax and
+workspace authority are unchanged. Public 0.8.0 is unchanged. Stable 1.0, robust
+verification discovery/model quality, self-development, onboarding and OpenTUI
+remain incomplete; generated plugin release/certification is not yet a publication.
+
 ## Non-executing permission previews; automatic hint rejected — 2026-11-13
 
 Added optional tool_help {name,preview:{...proposed arguments}} in AgentCore.

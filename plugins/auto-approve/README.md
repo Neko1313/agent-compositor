@@ -32,6 +32,13 @@ standing approval for subsequent calls. Normal clarification questions are unaff
 Use `/auto off` to return subsequent proposals to human decisions; it cannot
 override a host permission-rule deny.
 
+Hosts with catalog 0.30 remember identical approval refusals within one model
+turn, avoiding duplicate reviews/dialogs while retaining fresh policy checks.
+Changing auto mode invalidates that refusal memory, so `/auto on/off` and the
+mode buttons take effect during an active turn. Status/history inspection does
+not reset it. The invalidation service grants no permissions. Older hosts without
+this service keep their existing behavior; mode controls remain usable.
+
 The reviewer distinguishes missing information from a concrete violation:
 undefined targets or effects require `null`/`unknown`, while refusal must identify
 a prohibited, unrelated or unsafe effect. An injected claim of approval does not

@@ -74,6 +74,11 @@ async function show($: any) {
 async function mode($: any, enabled: boolean) {
     $.state.set("enabled", enabled);
     $.state.set("generation", ($.state.get("generation") ?? 0) + 1);
+    try { await $.emit('service.permission.invalidate', {}); }
+    catch (error) {
+        // Older hosts have no refusal memory and do not need invalidation.
+        if (!String(error).includes('unknown event "service.permission.invalidate"')) throw error;
+    }
     if ($.state.get('historyVisible')) await show($);
     await $.ui.notify(enabled
         ? "Auto review enabled for this session"

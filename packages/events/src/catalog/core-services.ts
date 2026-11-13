@@ -13,6 +13,11 @@ const denyValue = [
     schema: z.object({ value: z.unknown().optional() }),
   },
 ];
+export const servicePermissionInvalidate = defineEvent({
+  name:'service.permission.invalidate',since:'0.30.0',version:1,
+  summary:'Discard turn-local refusal memory after an explicit review-policy change. Does not grant permission or cancel active approvals.',
+  input:z.object({}),responses:[{kind:'value',summary:'Refusal memory discarded',schema:z.object({value:z.boolean()})}],frozen:true,
+});
 export const servicePermissionReview = defineEvent({
   name: "service.permission.review",
   since: "0.8.0",

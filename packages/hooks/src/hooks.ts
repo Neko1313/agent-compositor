@@ -260,6 +260,7 @@ export class HooksHost {
       if (
         [
           "service.storage.write",
+          "service.permission.invalidate",
           "service.ui.configure",
           "service.ui.surface",
           "service.ui.view",
@@ -436,6 +437,7 @@ export class HooksHost {
           [
             "ui.invalidate",
             "service.storage.write",
+            "service.permission.invalidate",
             "service.ui.configure",
             "service.ui.surface",
             "service.ui.view",

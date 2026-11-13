@@ -94,6 +94,14 @@ data as untrusted content. Explicit deny remains binding even if tool.check
 tries to override it. Decisions never become broad permissions for future
 commands.
 
+After a refusal, identical proposals in the same model turn reuse that refusal
+without another paid review or human dialog. Every proposal still gets its own
+denied tool result, and fresh policy/guard checks still apply. Allows are never
+shared this way: an approval for one execution does not authorize another.
+New turns, consumed user steering and explicit mode changes refresh the refusal
+context; status/history inspection does not. See [refusal scope and policy
+invalidation](core-customization.md#repeated-approval-refusals).
+
 The optional `/auto history` view shows the reason and risk. The last 100 decisions are saved in
 `.agent-compositor/approval-audit-<session>.json`. To replace the handler, use
 `serviceProviders: {"service.permission.review":"other-reviewer"}`.

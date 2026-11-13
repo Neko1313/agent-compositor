@@ -187,6 +187,8 @@ export class AgentCore {
   private baseInstructions = "";
   private turnToolRecords:Array<{name:string;args:unknown;ok:boolean;output?:unknown;denied?:boolean}>=[];
   private queryObservations=new WeakMap<object,string>();
+  private refusalMemory={refused:new Map<string,string>(),pending:new Map<string,Promise<void>>()};
+  private resetRefusals(){this.refusalMemory={refused:new Map(),pending:new Map()};}
   private contextSource = "fallback";
   private contextWindow = 32768;
   private outputLimit?:number;
@@ -475,6 +477,7 @@ export class AgentCore {
     this.runtime.setResolver("service.session.append", async ({event,data}) => { await this.persistDefault(event,data); return {value:true}; });
     this.runtime.setResolver("service.permission.review", async (input:Record<string,unknown>) =>
       options.permissionReview ? await options.permissionReview(input) : {value:{decision:"ask"}});
+    this.runtime.setResolver('service.permission.invalidate',()=>{this.resetRefusals();return{value:true};});
     this.runtime.setResolver(
       "service.context.control",
       async (input: {
@@ -1065,7 +1068,7 @@ export class AgentCore {
         const failure={turnId:this.currentTurnId??randomUUID(),error:this.lastTurnError};
         try { await this.emit('turn.failed',failure); }
         catch { this.broadcast({kind:'catalog',event:'turn.failed',input:failure}); }
-      } finally {this.state=this.interruptedByUser?'interrupted':'idle';this.currentTurnId=undefined;}
+      } finally {this.state=this.interruptedByUser?'interrupted':'idle';this.currentTurnId=undefined;this.resetRefusals();}
     })();
     this.activeTurn=run;
     return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
@@ -1074,6 +1077,7 @@ export class AgentCore {
     if(this.journalFailure)throw this.journalFailure;
     const turnId = randomUUID();
     this.currentTurnId = turnId;
+    this.resetRefusals();
     this.lastTurnError = undefined;
     this.turnTokens = 0;
     this.turnUsage = {inputTokens:0,outputTokens:0};
@@ -1210,6 +1214,7 @@ export class AgentCore {
       // steering lands at the natural step boundary
       while (this.steerQueue.length > 0) {
         queryProgress.reset();
+        this.resetRefusals();
         const steerText = this.steerQueue.shift()!;
         this.messages.push({ role: "user", content: steerText });
       }
@@ -1649,14 +1654,15 @@ export class AgentCore {
           call={...call,name:replacement.name,args:intercepted.input};
           args=intercepted.input ?? {};
         }
-        // 2) permissions via tool.check (chain may override with {decision})
+        // 2) Recheck policy after waiting for an identical in-flight review.
+        while(true){
         let descriptor: ToolCallDescriptor;
         try {
           descriptor = await this.toolDescriptor(spec,args);
         } catch (caught) {
           signal.throwIfAborted();
-          await this.finishToolCall(call,args,undefined,`denied: tool preflight failed: ${String(caught)}`,true);
-          continue;
+          denied=true;error=`denied: tool preflight failed: ${String(caught)}`;
+          break;
         }
         let decision = evaluate(descriptor, this.compiledRules, this.approvals);
         let overrideReason: string | undefined;
@@ -1691,6 +1697,27 @@ export class AgentCore {
               : ""
           }`;
         } else if (decision.decision === "ask") {
+          // Only model turns share refusals. Interactive/user operations are
+          // explicit fresh requests and must not inherit this negative cache.
+          const memory=turnId===this.currentTurnId&&!this.userOperation.getStore()?this.refusalMemory:undefined;
+          let key:string|undefined;
+          if(memory)try{key=queryObservation(call.name,{args,descriptor},'');}catch{/* Inputs that cannot be fingerprinted do not share refusals. */}
+          const pending=key?memory?.pending.get(key):undefined;
+          if(pending){
+            await new Promise<void>((resolve,reject)=>{
+              const abort=()=>reject(signal.reason??Error('Permission wait aborted'));
+              signal.addEventListener('abort',abort,{once:true});
+              pending.then(()=>{signal.removeEventListener('abort',abort);resolve();});
+              if(signal.aborted){signal.removeEventListener('abort',abort);abort();}
+            });
+            signal.throwIfAborted();continue;
+          }
+          const prior=key?memory?.refused.get(key):undefined;
+          if(prior){denied=true;error=`denied: already refused in this turn; no new review or approval requested. Original refusal: ${prior}`;break;}
+          let release:(()=>void)|undefined;
+          const reviewing=key?new Promise<void>(done=>{release=done;}):undefined;
+          if(key&&reviewing)memory!.pending.set(key,reviewing);
+          try{
           let automatic = false;
           let refused = false;
           let reviewReason: string | undefined;
@@ -1767,6 +1794,15 @@ export class AgentCore {
             denied = true;
             error = refused?`denied by automatic review: ${reviewReason}`:"denied: no approval (headless or user declined)";
           }
+          }finally{
+            if(key&&memory){
+              if(denied&&error&&memory===this.refusalMemory)memory.refused.set(key,error);
+              if(memory.pending.get(key)===reviewing)memory.pending.delete(key);
+            }
+            release?.();
+          }
+        }
+        break;
         }
 
         // 3) execute through the $ service chain

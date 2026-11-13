@@ -2,7 +2,7 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
-## v0.8.0 - 2026-11-12
+## v0.8.0 - 2026-11-13
 
 ### Documentation
 - Record native candidate audits and live release handles ([feb4034](https://github.com/Neko1313/agent-compositor/commit/feb403456ee84f65021f5a52812eba615119144f))
@@ -38,6 +38,9 @@ All notable changes are generated from Conventional Commits with git-cliff.
 - Clarify discovery and read pagination recovery ([f14d3ce](https://github.com/Neko1313/agent-compositor/commit/f14d3ce41a59b89a4cd80d76714fda110348eb46))
 - Require current passing results for attempted checks ([7139daa](https://github.com/Neko1313/agent-compositor/commit/7139daa4ed90702867be4eea77b2265c35eb5d1d))
 - Reject edits that leave file text unchanged ([9cb714b](https://github.com/Neko1313/agent-compositor/commit/9cb714b10a15a8a8ac4d50264b38c33eca620d69))
+- Settle pending renders when closing views ([dff160d](https://github.com/Neko1313/agent-compositor/commit/dff160de00d8961f0c23bd249e521857d5f20cc2))
+- Distinguish uncertainty from concrete refusal ([710e54f](https://github.com/Neko1313/agent-compositor/commit/710e54fbbe8516d71979d65a259e59fb0e1d9277))
+- Await superseding navigation renders ([703f87d](https://github.com/Neko1313/agent-compositor/commit/703f87ddac6c6acd0a432904741d871932d7e5c9))
 
 
 ### Tests
@@ -45,6 +48,7 @@ All notable changes are generated from Conventional Commits with git-cliff.
 - Verify installed structured approval decisions ([f21b50a](https://github.com/Neko1313/agent-compositor/commit/f21b50a0010620f2b744687f713f366ef0c4aca4))
 - Synchronize raw interruption and retain native evidence ([173f5f1](https://github.com/Neko1313/agent-compositor/commit/173f5f1c23eb5dda1f6ac1b3cadd95a1ad3ab688))
 - Verify first-run setup with compiled archives ([94a3076](https://github.com/Neko1313/agent-compositor/commit/94a307669cfaade7c2b8b7dc09189ebfe71736ac))
+- Cancel the owning side-command operation ([3be9906](https://github.com/Neko1313/agent-compositor/commit/3be990640051f3b3eccbab0a582b721bff705afa))
 
 ## v0.7.4 - 2026-11-12
 

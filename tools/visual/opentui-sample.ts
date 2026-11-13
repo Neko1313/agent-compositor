@@ -7,6 +7,8 @@ import {AgentCore, type ModelProvider, type ProviderEvent} from '@agent-composit
 import {createApprovalInbox} from './opentui-approvals.js';
 import {connectConversation, connectPluginTable} from './opentui-host.js';
 import {ghostMedia} from './opentui-mascot.js';
+import {seedOpenTuiPlugin} from './opentui-plugin-fixture.js';
+import {connectPluginManager} from './opentui-plugins.js';
 import {runConversationPrototype} from '@agent-compositor/renderer-opentui';
 
 function localProvider(label: string): ModelProvider {
@@ -53,10 +55,11 @@ try {
 }
 
 async function runPreview() {
+  const fixture = await seedOpenTuiPlugin(cwd, home);
   const mainApp = await buildApp({
     cwd, env: {HOME: home, AGENT_HOME: join(home, '.agent-compositor')},
     fixedConfig: {
-      permissions: {rules: [{tool: 'workflow_run', decision: 'allow'}, {tool: 'write', decision: 'ask', reason: 'Write the requested preview note'}]}, enabledPlugins: ['workflows'],
+      permissions: {rules: [{tool: 'workflow_run', decision: 'allow'}, {tool: 'write', decision: 'ask', reason: 'Write the requested preview note'}]}, enabledPlugins: ['workflows', 'preview-notes'],
       agent: {builtinTools: ['write'], controlTools: [], tools: ['workflow_run', 'write'], skills: false, projectContext: false, fileReferences: false},
       compaction: {enabled: false},
     },
@@ -70,23 +73,33 @@ async function runPreview() {
     rules: [{tool: 'write', decision: 'ask', reason: 'Write the requested preview note'}],
   });
   const agents = [main, side];
-  const sessions = agents.map((core, index) => connectConversation(core, labels[index], inboxes[index]));
   const workflowTable = connectPluginTable(main, 'workflows', 'plugin-workflows-runs', 'Workflows');
+  let pluginManager: Awaited<ReturnType<typeof connectPluginManager>> | undefined;
+  let sessions: ReturnType<typeof connectConversation>[] = [];
   try {
     await Promise.all(agents.map(core => core.start()));
+    const registered = await main.host.emit('service.marketplace.control', {
+      action: 'add', source: fixture.catalogRoot, scope: 'project',
+    });
+    if (registered.faults.length || (registered.value as {deny?: string} | undefined)?.deny)
+      throw new Error('Cannot register the local preview marketplace');
     const started = await main.invokeTool('workflow_run', {
       action: 'start', title: 'Preview workflow', completion: 'none',
       stages: [{id: 'preview', title: 'Check conversation', prompt: 'Confirm the local conversation preview.'}],
     });
     if (!started.ok) throw new Error(started.error);
     await main.submit('/workflows');
+    pluginManager = await connectPluginManager(mainApp, main);
+    sessions = agents.map((core, index) => connectConversation(core, labels[index], inboxes[index],
+      index === 0 ? text => pluginManager!.submit(text) : undefined));
     await runConversationPrototype(sessions, {
-      workflowTable, composerMedia: ghostMedia,
+      workflowTable, pluginManager, composerMedia: ghostMedia,
       animations: process.env.AGENT_GRAPHICS !== 'off' && !process.env.NO_COLOR && process.env.AGENT_REDUCED_MOTION !== '1',
     });
   } finally {
     workflowTable.disconnect();
     for (const session of sessions) session.disconnect();
+    await pluginManager?.disconnect();
     await Promise.allSettled([mainApp.close(), side.close()]);
   }
 }

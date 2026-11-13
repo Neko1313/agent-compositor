@@ -420,7 +420,9 @@ held in this app session so its loaded package files stay unchanged. Choose
 **plugins pending**, and application waits for the current turn and queued
 prompts to finish. Reload errors are reported; retry after resolving them.
 Closing the app discards unapplied deferred file operations. Saved installation
-and activation choices survive restart. Ordinary model prompts still queue;
+and activation choices survive restart. A cancelled management caller also
+discards its own unapplied deferred file operations; replacing a queued action
+makes the latest caller its owner. Ordinary model prompts still queue;
 plugin slash commands with an explicit UI route open immediately. Git review,
 Usage, Todos, MCP, Workflows and Proxy provide these routes. Explicit immediate
 commands such as `/auto on|off|status` also run while the agent works, without

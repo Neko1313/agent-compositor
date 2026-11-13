@@ -14,19 +14,26 @@ function conversation(messages: readonly ChatMessage[]): Message[] {
   return visible;
 }
 
-export function connectConversation(core: AgentCore, label: string, inbox?: ReturnType<typeof createApprovalInbox>): ConversationSession & {disconnect(): void} {
+export function connectConversation(core: AgentCore, label: string, inbox?: ReturnType<typeof createApprovalInbox>,
+  submit: (text: string) => Promise<void> = text => core.submit(text)): ConversationSession & {disconnect(): void} {
   const listeners = new Set<() => void>();
   let state: ConversationSnapshot = {messages: conversation(core.getMessages()), running: core.getState() === 'running', approval: inbox?.snapshot()};
   let committed = state.messages;
   let streaming = '';
+  let notice: string | undefined;
   let disconnected = false;
   function update(next: ConversationSnapshot) {
     if (disconnected) return;
-    state = {...next, approval: inbox?.snapshot()};
+    state = {...next, notice, approval: inbox?.snapshot()};
     for (const listener of listeners) listener();
   }
   const offInbox = inbox?.subscribe(() => update(state));
   const unsubscribe = core.subscribe(event => {
+    if (event.kind === 'catalog' && event.event === 'ui.notification') {
+      notice = String(event.input.message);
+      update(state);
+      return;
+    }
     if (event.kind === 'text') {
       streaming += event.delta;
       update({messages: [...committed, {role: 'assistant', text: streaming}], running: true});
@@ -35,6 +42,12 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Retu
     if (event.input.operationId) return;
     switch (event.event) {
       case 'turn.start':
+        notice = undefined;
+        // Refresh the submitted user message and reset any previous stream.
+        committed = conversation(core.getMessages());
+        streaming = '';
+        update({messages: committed, running: true});
+        break;
       case 'turn.step':
         committed = conversation(core.getMessages());
         streaming = '';
@@ -55,7 +68,7 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Retu
     snapshot: () => state,
     submit(text) {
       if (disconnected || !text.trim()) return;
-      void core.submit(text).catch(error => update({...state, running: core.getState() === 'running', error: String(error)}));
+      void submit(text).catch(error => update({...state, running: core.getState() === 'running', error: String(error)}));
     },
     disconnect() { disconnected = true; offInbox?.(); unsubscribe(); listeners.clear(); inbox?.close(); },
   };

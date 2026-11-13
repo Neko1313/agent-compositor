@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { installDuringApproval, manageLoadedPlugin } from './opentui-plugin-scenario.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const output = resolve(process.env.VISUAL_OUTPUT ?? 'dist/visual-opentui');
@@ -52,7 +53,8 @@ try {
   page.setDefaultTimeout(timeout);
   page.on('pageerror', error => report.errors.push(error.message));
   const [socket] = await Promise.all([page.waitForEvent('websocket'), page.goto(url)]);
-  const wait = value => page.waitForFunction(value => window.visual?.text().includes(value), value);
+  const wait = value => page.waitForFunction(value => window.visual?.text().includes(value), value)
+    .catch(error => { throw new Error('Terminal did not display ' + JSON.stringify(value), {cause: error}); });
   const screen = () => page.evaluate(() => visual.text());
   async function type(value) {
     await page.keyboard.type(value);
@@ -91,6 +93,53 @@ try {
   await wait('F2 Main');
   await wait('F3 Side');
   await wait('Message Main…');
+  await wait('Message Side…');
+  await type('Main layout draft');
+  await page.keyboard.press('F6');
+  await type('Side layout draft');
+  // The focused pane reserves an extra footer row. The column positions distinguish side-by-side editors.
+  async function draftGeometry(order) {
+    return (await page.waitForFunction(order => {
+      const lines = visual.text().split('\n');
+      const locate = draft => {
+        const y = lines.findIndex(line => line.includes(draft));
+        return {x: y < 0 ? -1 : lines[y].indexOf(draft), y};
+      };
+      const main = locate('Main layout draft'), side = locate('Side layout draft');
+      if (main.x < 0 || side.x < 0) return;
+      if (order === 'columns' && main.x < side.x && Math.abs(main.y - side.y) <= 1 ||
+          order === 'rows' && main.x === side.x && main.y < side.y ||
+          order === 'swapped rows' && main.x === side.x && main.y > side.y) return {main, side};
+    }, order)).jsonValue();
+  }
+  const columns = await draftGeometry('columns');
+  await page.keyboard.press('Alt+ArrowLeft');
+  await page.waitForFunction(before => visual.text().split('\n').some(line => {
+    const x = line.indexOf('Side layout draft');
+    return x >= 0 && x < before;
+  }), columns.side.x);
+  await capture('layout-resized-columns.png');
+  await page.keyboard.press('Alt+ArrowRight');
+  await page.waitForFunction(before => visual.text().split('\n').some(line =>
+    line.indexOf('Side layout draft') === before), columns.side.x);
+  await page.keyboard.press('F7');
+  await draftGeometry('rows');
+  await page.keyboard.press('F8');
+  await draftGeometry('swapped rows');
+  await capture('layout-swapped-rows.png');
+  await page.keyboard.press('F8');
+  await draftGeometry('rows');
+  await page.keyboard.press('F7');
+  await draftGeometry('columns');
+  await page.keyboard.press('Control+u');
+  await wait('Message Side…');
+  await wait('Main layout draft');
+  await page.keyboard.press('F2');
+  await page.keyboard.press('Control+u');
+  await wait('Message Main…');
+  await page.keyboard.press('F9');
+  await page.waitForFunction(() => !visual.text().includes('Message Side…'));
+  report.checks.push('F6 moves input to the second editor. Alt+Left/Right resize their columns, F7 stacks them, F8 swaps their row order and F9 zooms Main; terminal cell positions and independent drafts verify each transition');
   // Sample only the image placement on the transparent Kitty protocol canvas.
   // OpenTUI may transmit different frames under the same image ID.
   await waitForArtwork();
@@ -116,6 +165,8 @@ try {
   await capture('01-main-ready.png');
 
   const { cwd } = JSON.parse(await readFile(join(output, 'fixture-launch.json'), 'utf8'));
+  const fixture = JSON.parse(await readFile(join(cwd, 'opentui-fixture.json'), 'utf8'));
+  const pluginBench = {page, wait, click, capture, report, fixture};
   const mainFile = join(cwd, 'main-note.txt'), sideFile = join(cwd, 'side-note.txt');
   const absent = file => assert.rejects(readFile(file), {code: 'ENOENT'});
   const beforeDecision = async () => { await absent(mainFile); await absent(sideFile); };
@@ -136,6 +187,10 @@ try {
   await type(' kept');
   await wait('yn kept');
   await capture('approval-main-pending.png');
+  await installDuringApproval(pluginBench);
+  await wait(mainFile);
+  await wait('yn kept');
+  await beforeDecision();
   await page.keyboard.press('F3');
   await wait('Message Side…');
   assert.ok(!(await screen()).includes('Approval required'));
@@ -167,13 +222,23 @@ try {
   await wait(mainFile);
   assert.ok(!(await screen()).includes('Side approval draft'));
   assert.ok(!(await screen()).includes(sideFile));
-  await page.keyboard.press('Alt+n');
+  await page.keyboard.press('F3');
+  await wait('Side approval draft');
+  await page.keyboard.press('F9');
+  await page.waitForFunction(() => ['yn kept', 'Side approval draft'].every(value => visual.text().includes(value)));
+  await page.keyboard.press('F2');
+  await wait('Approval pending');
+  await wait('Approval required');
+  await capture('approval-split-pending.png');
+  await click('Alt+N Deny');
   await wait('Write denied');
   await wait('Main · Ready');
   await wait('yn kept');
   await wait('Side · Approval');
   await beforeDecision();
-  report.checks.push('Alt+N denies only the visible Main request, preserves its draft and leaves both target files absent');
+  await page.keyboard.press('F9');
+  await page.waitForFunction(() => !visual.text().includes('Side approval draft'));
+  report.checks.push('Clicking Deny while both reviews are pending targets the focused Main card, preserves its draft and leaves the Side request pending and both files absent');
 
   await click('F3 Side');
   await wait('Side approval draft');
@@ -213,6 +278,7 @@ try {
   await wait('Message Main…');
   await page.evaluate(() => visual.terminal.resize(100, 30));
   await wait('PgUp/PgDn history');
+  await manageLoadedPlugin(pluginBench);
   await type('hold main');
   await page.keyboard.press('Enter');
   await wait('Main is working');
@@ -221,6 +287,20 @@ try {
   await waitForArtwork();
   await capture('02-main-running.png');
   report.checks.push('Submitting Main through the terminal shows its streaming reply and leaves the editor usable');
+
+  await click('F5 Plugins');
+  await wait('Main · Running');
+  await wait('Not installed');
+  await page.keyboard.press('F9');
+  await wait(mainDraft);
+  await wait('Main is working');
+  await capture('plugins-main-streaming.png');
+  await page.keyboard.press('F9');
+  await page.waitForFunction(value => !visual.text().includes(value), mainDraft);
+  await page.keyboard.press('F2');
+  await wait('Main is working');
+  await wait(mainDraft);
+  report.checks.push('The Plugins pane and the active Main stream display together with its draft. Zoom isolates the manager and F2 restores Main');
 
   await page.keyboard.press('F3');
   await wait('Message Side…');
@@ -305,7 +385,11 @@ try {
   await page.keyboard.press('Control+u');
   await wait('Message Side…');
   await page.keyboard.type('request write');
-  await page.waitForFunction(() => visual.text().split('\n').slice(-5).some(row => row.includes('request write')));
+  await page.waitForFunction(() => {
+    const lines = visual.text().split('\n');
+    const editor = lines.findIndex(line => line.includes('Side · Ready'));
+    return editor >= 0 && lines[editor + 1]?.includes('request write');
+  });
   await page.keyboard.press('Enter');
   await wait('Side · Approval');
   await wait('Tool: write');

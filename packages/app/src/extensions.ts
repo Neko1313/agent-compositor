@@ -168,6 +168,7 @@ export async function extensionManager(
     return [...new Map(entries.map((row) => [row.name, row])).values()];
   }
   async function control(args: any, signal: AbortSignal,fetcher:typeof fetch=fetch) {
+    signal.throwIfAborted();
     if (args.action === "list"){
       const rows=await inventory(),selected=enabled();
       return {
@@ -215,6 +216,7 @@ export async function extensionManager(
           : state.installed[name]?.location==='legacy'?legacyProjectDirectory:projectDirectory;
       const destination=join(dir,name);
       if (["enable", "disable"].includes(args.action)) {
+        const old=structuredClone(state);
         if(args.action==='enable' && allowlist && !allowlist.includes(name))throw Error('Plugin is excluded by enabledPlugins; add it to that explicit allowlist first');
         if(args.action==='enable' && blocked.includes(name))throw Error('Plugin is blocked by disabledPlugins; remove that explicit restriction first');
         if(args.action==='enable' && !(await available()).some(plugin=>plugin.name===name))throw Error('Plugin is not installed or available locally; install it first');
@@ -232,7 +234,13 @@ export async function extensionManager(
         state.disabled = state.disabled.filter((n) => n !== name);
         if (args.action === "enable") state.enabled.push(name);
         if (args.action === "disable") state.disabled.push(name);
-        await atomicJson(files[scope], state);
+        try {
+          signal.throwIfAborted();
+          await atomicJson(files[scope], state);
+        } catch (error) {
+          states[scope]=old;
+          throw error;
+        }
         return { changed: name, scope, enabled:enabled().includes(name), reloadRequired: true };
       }
       await mkdir(dir, { recursive: true });
@@ -259,6 +267,7 @@ export async function extensionManager(
           await rename(previous.path,destination);
           state.installed[name]=previous.installed;
           state.backups??={};state.backups[name]=[...history.slice(0,-1),{path:saved,installed:current}];
+          signal.throwIfAborted();
           await atomicJson(files[scope],state);
         }catch(error){
           if(await stat(destination).catch(()=>undefined))await rename(destination,previous.path);
@@ -275,7 +284,7 @@ export async function extensionManager(
         state.enabled=(state.enabled??[]).filter(n=>n!==name);
         if(!state.disabled.includes(name))state.disabled.push(name);
         if(state.bindings)delete state.bindings[name];
-        try{await atomicJson(files[scope], state);}catch(error){if(saved)await rename(saved,destination);states[scope]=old;throw error;}
+        try{signal.throwIfAborted();await atomicJson(files[scope], state);}catch(error){if(saved)await rename(saved,destination);states[scope]=old;throw error;}
         return { removed: name, scope, backup: saved, reloadRequired: true };
       }
       if (!["install", "update"].includes(args.action))
@@ -442,17 +451,28 @@ export async function extensionManager(
   };
   let runtimeBusy=()=>false;
   let userFetch:typeof fetch=fetch;
-  const pending=new Map<string,any>();
+  const pending=new Map<string,{args:any;signal:AbortSignal;forget:()=>void}>();
   const applyPending=async()=>{
     if(runtimeBusy())throw Error('Wait for running agents before applying plugin changes');
     if(busy)throw Error('Another extension operation is in progress; retry Apply when it finishes');
-    for(const [key,args]of pending){await control(args,AbortSignal.timeout(300000),userFetch);pending.delete(key);}
+    for(const entry of pending.values()){
+      await control(entry.args,AbortSignal.any([entry.signal,AbortSignal.timeout(300000)]),userFetch);
+      entry.forget();
+    }
   };
   const userControl = async (args:any, signal:AbortSignal) => {
+    if(signal.aborted)return{ok:false,error:'Plugin operation cancelled'};
     if(runtimeBusy()&&['update','rollback','remove'].includes(args.action)){
       const name=String(args.name??'').split('@')[0],scope=args.scope??installed()[name]?.scope??'user';
       if(!/^[a-z0-9][a-z0-9._-]*$/.test(name)||!['user','project'].includes(scope))return{ok:false,error:'Choose a valid installed plugin and scope'};
-      pending.set(`${scope}:${name}`,{...args,name,scope});
+      const key=`${scope}:${name}`;
+      pending.get(key)?.forget();
+      const forget=()=>{
+        signal.removeEventListener('abort',forget);
+        if(pending.get(key)?.forget===forget)pending.delete(key);
+      };
+      pending.set(key,{args:{...args,name,scope},signal,forget});
+      signal.addEventListener('abort',forget,{once:true});
       return {ok:true,data:{name,scope,queued:true}};
     }
     try { return {ok:true,data:await control(args,signal,userFetch)}; }

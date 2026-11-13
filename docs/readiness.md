@@ -313,7 +313,9 @@ session state and extension ownership contracts throughout the migration.
 3. Move the production conversation, input, approvals/questions, onboarding,
    settings, plugin management, workflows and agent drill-down onto the new
    frontend. Use native input/selection/scrolling components and explicit
-   expandable details. Keep non-model commands independent of rendering.
+   expandable details. Preserve the compositor's window-manager model, including
+   the existing tiling tree, independent focus, workspaces, drag/drop, resizing,
+   close/reopen and saved placement. Keep non-model commands independent of rendering.
 4. Verify the original character assets, transparency, frame timing, state
    transitions, resize/clipping and terminal protocols. Test actual APNG/GIF
    animation support rather than inferring it from static image decoding. Retain
@@ -340,8 +342,22 @@ agents. It verified per-chat badges, full argument inspection in a narrow
 terminal, switching to Workflows and returning with drafts intact, a one-time
 allow and a denial. Independent file checks verified that only the selected
 write took effect. A repeat requested permission again, and closing the
-preview while it waited preserved the preexisting file. Settings, plugin
-management and agent questions still need OpenTUI integration.
+preview while it waited preserved the preexisting file.
+
+The source preview now also has two simultaneously visible tiles with
+independent focus, orientation, swap, resize and zoom controls. Main remains
+visible beside plugin search and management. The preview uses actual project
+installation, explicit enable/disable and deferred update/removal services,
+with separate saved and loaded-version status. This is an initial tiling shell.
+An arbitrary window tree, workspaces, drag/drop and saved placement still need
+migration. Settings and agent questions also remain open.
+
+Its Linux PTY scenario passes 16 checks, including visible Main/Plugins panes,
+layout controls, independent approval routing, deferred updates, command-written
+version receipts before and after update, disable/removal and clean shutdown.
+The updated command exposed and then verified a fix for Bun retaining old
+package modules despite a changed manifest. These checks use a deterministic
+local provider and local upstream fixture, not a real-model development task.
 
 Initial technical references are the official [OpenTUI components](https://opentui.com/docs/components/),
 [image](https://opentui.com/docs/components/image/),

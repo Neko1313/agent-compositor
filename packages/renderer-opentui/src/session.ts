@@ -10,6 +10,7 @@ export interface ConversationSnapshot {
   messages: readonly Message[];
   running: boolean;
   error?: string;
+  notice?: string;
   approval?: ConversationApproval;
 }
 

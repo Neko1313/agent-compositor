@@ -2,9 +2,9 @@ import { claudeManifest, loadClaudePlugin } from "./claude.js";
 import { readPluginMcp } from "./mcp.js";
 import { contained } from "./paths.js";
 import * as nodeModule from "node:module";
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve as resolvePath } from "node:path";
+import { isAbsolute, join, resolve as resolvePath, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { HooksHost, UserHookFn } from "@agent-compositor/hooks";
 import type { Tier, TrustClass } from "@agent-compositor/runtime";
@@ -463,6 +463,17 @@ export class PluginLoader {
       if ((hasTools || dataOnly) && !manifest.main && !manifest.entry) return undefined;
       throw error;
     });
+    // Bun caches file imports by canonical path, including ESM imports with
+    // different query strings. Refresh this package once so both entry points
+    // resolve the same new copy of each relative dependency. Linked host SDKs
+    // resolve outside this directory and keep their process-wide identity.
+    if (process.versions.bun && (entry || hasTools)) {
+      const prefix = await realpath(root) + sep;
+      const cache = nodeModule.createRequire(import.meta.url).cache;
+      for (const path of Object.keys(cache)) {
+        if (path.startsWith(prefix)) delete cache[path];
+      }
+    }
     const { hooks, events, module } = entry
       ? await importHooks(entry, lastModule)
       : { hooks: {}, module: undefined };

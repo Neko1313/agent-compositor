@@ -161,6 +161,13 @@ until idle. See [the terminal flow](../packages/app/README.md#manage-plugins-whi
 for cancellation, restart and queued-application behavior. The line-based
 interface retains its existing turn-based command handling.
 
+Deferred file operations belong to the requesting management signal. Aborting
+that signal discards its unapplied update, rollback or removal. Replacing a
+queued action transfers that queue entry to the latest caller. Saved installation
+and activation choices have their ordinary persistence. The source-only
+[OpenTUI preview](02-ui.md#opentui-conversation-prototype) uses this lifecycle
+and applies its pending changes automatically after Main becomes idle.
+
 `--project` changes this project; `--user` changes the user's defaults across
 projects. Project decisions override user decisions, including project enable
 over user disable. A user-scoped grant selects shared code; a project-local copy
@@ -402,3 +409,11 @@ backup against its content lock before restoring it and preserves activation.
 After reload, old resources are disposed and the restored version supplies all
 components. Removal is explicit, keeps a backup and does not delete independent
 user settings. Removing a marketplace registration retains installed plugins.
+
+On Bun, loading a filesystem plugin clears that package's canonical-path module
+cache before importing its hooks and tools. Relative dependencies inside the
+package then refresh together, and both entry points share their new instance.
+Linked host SDK modules outside the package retain their identity. A changed
+manifest alone does not establish that new code is running; verify the updated
+plugin's behavior. This package-local refresh is tested on Bun. Node's ESM
+relative-dependency cache has different behavior and is not covered by that claim.

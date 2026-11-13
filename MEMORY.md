@@ -1,5 +1,39 @@
 # Project memory
 
+## OpenTUI tiles and live plugin management — 2026-11-14
+
+8ea1a58 passed remote CI, documentation and release preparation. The next source
+preview keeps Main visible beside Side, Workflows or Plugins. It separates
+focus from visibility and supports orientation, swap, resize, zoom and a narrow
+focused-pane projection without losing drafts. This follows the user's explicit
+request for a window-manager/i3 interaction model. It is an initial two-tile
+shell. The existing arbitrary window tree, workspaces, drag/drop, placement
+persistence and production protocol integration still need migration.
+
+Plugin search and project install/enable/disable/update/remove use the actual
+management services. Saved and loaded versions are distinct. Main submissions
+serialize with management disk work, and reload waits through active and queued
+turns. Deferred file operations belong to their caller's abort signal. Cancelling
+that owner discards unapplied operations, and replacement transfers ownership.
+The preview has no model management tools or new permission grants.
+
+The real PTY initially exposed stale v1.0.0 behavior despite v1.1.0 manifest and
+lock state. Bun 1.4.4 caches ESM file imports by canonical path across fresh
+loaders. The loader now evicts package-local cached modules once before loading
+hooks/tools, refreshing their shared relative dependencies together. Linked SDKs
+outside the package retain identity. Node ESM relative dependencies have different
+cache semantics; this fix is verified on Bun only.
+
+Linux browser-backed PTY passed 16 checks and 22 captures, including simultaneous
+Main/Plugins, geometry changes, pending approvals, inactive install, deferred
+update, actual plugin command receipts for both versions, disable/remove and
+clean exit. Evidence: dist/opentui-tiles-plugin-lifecycle-final/report.json.
+Ghost's independent PTY check verified exact original idle/thinking frames and
+timing at the default split (dist/opentui-tiling-ghost/report.json). Full coverage
+passed 1723 tests with three optional skips across 198 files. The installed CLI
+remains Ink. Stable 1.0, settings/questions in OpenTUI, session recovery, embedded
+CPU onboarding and broad real-model self-development quality remain open.
+
 ## OpenTUI approvals across active conversations — 2026-11-13
 
 The initial OpenTUI prototype at 19ef4cb passed remote CI, documentation and

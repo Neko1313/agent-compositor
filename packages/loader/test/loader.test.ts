@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -218,6 +219,35 @@ describe("PluginLoader / loading", () => {
 });
 
 describe("PluginLoader / reload", () => {
+  it("loads new entry code and shared relative modules across fresh Bun loaders", () => {
+    const plugin = writePlugin(dir, "bun-reload", {trust: "trusted"},
+      `import {counter} from './counter.ts'; export default {'session.start': () => ++counter.value};`);
+    writeFileSync(join(plugin, "tools.ts"), `import {counter} from './counter.ts';
+      export default [{name:'count',description:'Read the counter',parameters:{},describe:()=>({}),execute:()=>counter.value}];`);
+    writeFileSync(join(plugin, "counter.ts"), "export const counter = { value: 1 };");
+    // The production Bun app constructs a fresh loader for each replacement.
+    // Node/Vitest has a different module cache and cannot verify this behavior.
+    const run = `
+      import {writeFileSync} from 'node:fs';
+      import {join} from 'node:path';
+      import {PluginLoader} from '@agent-compositor/loader';
+      const root=process.argv[1];
+      async function load() {
+        let hooks;
+        const host={registerPlugin(_manifest, value) { hooks=value; }};
+        const report=await new PluginLoader(host, {dirs:[root]}).loadAll();
+        if (report.failed.length) throw Error(JSON.stringify(report.failed));
+        hooks['session.start']();
+        return report.loaded[0].tools[0].execute({}, {});
+      }
+      const first=await load();
+      writeFileSync(join(root,'counter.ts'), 'export const counter = { value: 10 };');
+      writeFileSync(join(root,'index.ts'), "import {counter} from './counter.ts'; export default {'session.start': () => counter.value += 2};");
+      console.log(JSON.stringify([first,await load()]));
+    `;
+    expect(JSON.parse(execFileSync("bun", ["-e", run, plugin], {encoding: "utf8"}))).toEqual([2, 12]);
+  });
+
   it("reload sees new code (cache-busted import)", async () => {
     const p = writePlugin(
       dir,

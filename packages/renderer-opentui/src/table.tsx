@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/react */
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {useKeyboard, useTerminalDimensions} from '@opentui/react';
+import {useKeyboard} from '@opentui/react';
 import {MouseButton, TextAttributes, type ScrollBoxRenderable} from '@opentui/core';
 import type {UiTextView} from '@agent-compositor/events';
 
@@ -10,10 +10,9 @@ export interface PluginTableSource {
   press(action: string): void;
 }
 
-export function PluginTable({source}: {source: PluginTableSource}) {
+export function PluginTable({source, width, focused}: {source: PluginTableSource; width: number; focused: boolean}) {
   const state = useSyncExternalStore(source.subscribe, source.snapshot);
   const [selectedId, select] = useState<string>();
-  const {width} = useTerminalDimensions();
   const narrow = width < 60;
   const rows = state.table?.rows ?? [];
   const index = Math.max(0, rows.findIndex(row => row.id === selectedId));
@@ -23,7 +22,7 @@ export function PluginTable({source}: {source: PluginTableSource}) {
     if (activeRow) scroller.current?.scrollChildIntoView('table-row-' + activeRow.id);
   }, [activeRow?.id]);
   useKeyboard(key => {
-    if (!rows.length) return;
+    if (!focused || !rows.length) return;
     if (key.name === 'up' || key.name === 'down') {
       key.preventDefault();
       select(rows[Math.max(0, Math.min(rows.length - 1, index + (key.name === 'up' ? -1 : 1)))].id);
@@ -58,6 +57,6 @@ export function PluginTable({source}: {source: PluginTableSource}) {
       </box>)}
     </scrollbox>
     {state.error && <text fg="#ffa7a0">{state.error}</text>}
-    <text fg="#a8b2bd">↑↓ select · Enter or click to expand</text>
+    {focused && <text fg="#a8b2bd">↑↓ select · Enter or click to expand</text>}
   </box>;
 }

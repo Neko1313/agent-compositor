@@ -1,21 +1,14 @@
 /** @jsxImportSource @opentui/react */
-import { MouseButton, RGBA, TextAttributes, type KeyBinding, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
+import { MouseButton, RGBA, TextAttributes, type BoxRenderable, type KeyBinding, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
 import { useKeyboard, useTerminalDimensions } from '@opentui/react';
-import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useLayoutEffect, useReducer, useRef, useState, useSyncExternalStore } from 'react';
+import { color } from './colors.js';
 import { Ghost, type ComposerMedia } from './ghost.js';
+import { initialLayout, isPaneVisible, updateLayout, type LayoutAction } from './layout.js';
+import { Plugins, type PluginManagerSource } from './plugins.js';
 import type { ConversationApproval, ConversationSession } from './session.js';
 import { PluginTable, type PluginTableSource } from './table.js';
 
-const color = {
-  background: '#171a20',
-  panel: '#22272f',
-  text: '#e6e9ed',
-  muted: '#a8b2bd',
-  accent: '#a6dfd4',
-  rule: '#49545e',
-  running: '#eac280',
-  error: '#ffa7a0',
-};
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
 const composerForeground = RGBA.defaultForeground();
@@ -117,17 +110,17 @@ function ApprovalCard({ request, session, height }: {
   );
 }
 
-function Conversation({ sessions, selected, animations, composerMedia, visible }: {
-  sessions: ConversationSession[];
+function Conversation({ selected, animations, composerMedia, focused, width, height }: {
   selected: ConversationSession;
   animations: boolean;
   composerMedia?: ComposerMedia;
-  visible: boolean;
+  focused: boolean;
+  width: number;
+  height: number;
 }) {
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
   const editor = useRef<TextareaRenderable>(null);
   const history = useRef<ScrollBoxRenderable>(null);
-  const { width, height } = useTerminalDimensions();
   const wide = width >= 60;
   const editorHeight = height >= 20 ? 4 : 2;
   const busy = state.running || Boolean(state.approval);
@@ -136,11 +129,11 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
   const fullHint = state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
 
   useLayoutEffect(() => {
-    if (visible && state.approval) history.current?.scrollTo(Infinity);
-  }, [visible, selected.id, state.approval?.id]);
+    if (focused && state.approval) history.current?.scrollTo(Infinity);
+  }, [focused, selected.id, state.approval?.id]);
 
   useKeyboard(key => {
-    if (visible && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
+    if (focused && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
       key.preventDefault();
       history.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
     }
@@ -149,7 +142,7 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
   function send() {
     const input = editor.current;
     const current = selected.snapshot();
-    if (!input || current.running || current.approval) return;
+    if (!focused || !input || current.running || current.approval) return;
     const text = input.plainText;
     if (!text.trim()) return;
     selected.submit(text);
@@ -158,8 +151,8 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
   }
 
   return (
-    <box visible={visible} flexDirection="column" flexGrow={1} minHeight={0}>
-      <scrollbox key={selected.id} ref={history} flexGrow={1} flexBasis={0} minHeight={0}
+    <box flexDirection="column" flexGrow={1} minHeight={0}>
+      <scrollbox ref={history} flexGrow={1} flexBasis={0} minHeight={0}
         focusable={false} scrollX={false} stickyScroll stickyStart="bottom"
         contentOptions={{ paddingX: 1, paddingY: state.approval ? 0 : 1, gap: 1 }}>
         {state.messages.length === 0 && !state.error && <text fg={color.muted}>No messages yet</text>}
@@ -174,78 +167,144 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
         {state.error && <text wrapMode="word" fg={color.error}>{`Error: ${state.error}`}</text>}
       </scrollbox>
 
-      {visible && state.approval && <ApprovalCard key={`${selected.id}:${state.approval.id}`}
+      {state.notice && <text fg={color.muted} wrapMode="word">{state.notice}</text>}
+      {!focused && state.approval && <text fg={color.running}>Approval pending</text>}
+      {focused && state.approval && <ApprovalCard key={`${selected.id}:${state.approval.id}`}
         request={state.approval} session={selected} height={height} />}
       <box border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
         title={` ${selected.label} · ${state.approval ? 'Draft' : state.running ? 'Running' : 'Ready'} `}
         backgroundColor={composerBackground} flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
-        {/* Keeping each native editor mounted preserves its draft, cursor, selection and undo stack. */}
-        {sessions.map(session => (
-          <textarea key={session.id} ref={session === selected ? editor : undefined}
-            visible={session === selected} focused={visible && session === selected}
+        <textarea ref={editor} focused={focused}
             height={editorHeight} flexGrow={1} flexBasis={0} minWidth={1} wrapMode="word"
             textColor={composerForeground} focusedTextColor={composerForeground} cursorColor={composerForeground}
-            placeholder={`Message ${session.label}…`} placeholderColor={color.muted}
-            keyBindings={editorKeys} onSubmit={session === selected ? send : undefined} />
-        ))}
-        <Ghost media={composerMedia} enabled={visible && animations && wide && height >= 20} active={state.running} />
-        <box height={1} paddingX={1} backgroundColor={busy ? color.panel : color.accent}
+            placeholder={`Message ${selected.label}…`} placeholderColor={color.muted}
+            keyBindings={editorKeys} onSubmit={send} />
+        <Ghost media={composerMedia} enabled={focused && animations && wide && height >= 20} active={state.running} />
+        {focused && <box height={1} paddingX={1} backgroundColor={busy ? color.panel : color.accent}
           onMouseDown={event => {
             if (event.button === MouseButton.LEFT) send();
           }}>
           <text selectable={false} fg={busy ? color.muted : color.background}
             attributes={TextAttributes.BOLD}>Send</text>
-        </box>
+        </box>}
       </box>
-      <text height={1} truncate fg={color.muted}>
+      {focused && <text height={1} truncate fg={color.muted}>
         {width >= fullHint.length + 2 ? fullHint : inputHint}
-      </text>
+      </text>}
     </box>
   );
 }
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable }: {
+interface Pane {
+  id: string;
+  label: string;
+  session?: ConversationSession;
+}
+
+function Tile({ pane, focused, visible, share, onFocus, children }: {
+  pane: Pane;
+  focused: boolean;
+  visible: boolean;
+  share: number;
+  onFocus(): void;
+  children(width: number, height: number): React.ReactNode;
+}) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const measure = useCallback(function (this: BoxRenderable) {
+    const { width, height } = this;
+    setSize(old => old.width === width && old.height === height ? old : { width, height });
+  }, []);
+  return <box visible={visible} flexBasis={0} flexGrow={share} minWidth={0} minHeight={0}
+    flexDirection="column" border borderColor={focused ? color.accent : color.rule}
+    title={' ' + pane.label + (focused ? ' · focused ' : ' ')} titleColor={focused ? color.accent : color.muted}
+    onMouseDown={event => { if (event.button === MouseButton.LEFT) onFocus(); }}>
+    <box flexGrow={1} minHeight={0} minWidth={0} flexDirection="column" onSizeChange={measure}>
+      {children(size.width, size.height)}
+    </box>
+  </box>;
+}
+
+const controlLabels = ['Focus', 'Split', 'Swap', 'Zoom'] as const;
+const controls = ['focus', 'orient', 'swap', 'zoom'] as const;
+
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
   workflowTable?: PluginTableSource;
+  pluginManager?: PluginManagerSource;
 }) {
-  const [selectedId, setSelectedId] = useState(sessions[0]?.id);
-  const [showTable, setShowTable] = useState(false);
-  const tableVisible = showTable && workflowTable !== undefined;
-  const selected = sessions.find(session => session.id === selectedId) ?? sessions[0];
-  function selectSession(session: ConversationSession) {
-    setSelectedId(session.id);
-    setShowTable(false);
-  }
+  const panes: Pane[] = sessions.map(session => ({ id: 'session:' + session.id, label: session.label, session }));
+  if (workflowTable) panes.push({ id: 'workflows', label: 'Workflows' });
+  if (pluginManager) panes.push({ id: 'plugins', label: 'Plugins' });
+  const [layout, dispatch] = useReducer(updateLayout, panes, initial => initialLayout(initial[0].id, initial[1]?.id));
+  const { width } = useTerminalDimensions();
+  const compact = width < 70;
+  const controlStart = Math.max(6, panes.length + 2);
+  const split = Boolean(layout.secondary) && !layout.zoomed && !compact;
+  const direction = layout.swapped ? layout.direction === 'row' ? 'row-reverse' : 'column-reverse' : layout.direction;
+
   useKeyboard(key => {
-    const shortcut = /^f(\d+)$/.exec(key.name);
-    if (!shortcut || key.ctrl || key.shift || key.meta) return;
-    const index = Number(shortcut[1]) - 2;
-    const session = sessions[index];
-    if (session) {
+    if (key.ctrl || key.shift || key.super || key.hyper) return;
+    if (key.meta) {
+      if (!split || (key.name !== 'left' && key.name !== 'right')) return;
       key.preventDefault();
-      selectSession(session);
-    } else if (index === sessions.length && workflowTable) {
-      key.preventDefault();
-      setShowTable(true);
+      dispatch({ type: 'resize', delta: key.name === 'left' ? -5 : 5 });
+      return;
     }
+    const shortcut = /^f(\d+)$/.exec(key.name);
+    if (!shortcut) return;
+    const number = Number(shortcut[1]);
+    const pane = panes[number - 2];
+    const control = controls[number - controlStart];
+    if (!pane && !control) return;
+    key.preventDefault();
+    if (pane) dispatch({ type: 'open', id: pane.id });
+    else if (!key.repeated) dispatch({ type: control });
   });
-  return (
-    <box width="100%" height="100%" backgroundColor={color.background} paddingX={1} flexDirection="column">
-      <box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0} border={['bottom']} borderColor={color.rule}>
-        {sessions.map((session, index) => (
-          <SessionTab key={session.id} session={session} index={index}
-            selected={!tableVisible && session === selected} onSelect={() => selectSession(session)} />
-        ))}
-        {workflowTable && <Tab label="Workflows" index={sessions.length} selected={tableVisible}
-          onSelect={() => setShowTable(true)} />}
-      </box>
-      {selected
-        ? <Conversation sessions={sessions} selected={selected} animations={animations}
-            composerMedia={composerMedia} visible={!tableVisible} />
-        : <text fg={color.muted}>No conversations available</text>}
-      {tableVisible && <PluginTable source={workflowTable} />}
+
+  function layoutButton(label: string, action: LayoutAction) {
+    return <box key={label} height={1} onMouseDown={event => {
+      if (event.button === MouseButton.LEFT) dispatch(action);
+    }}>
+      <text selectable={false} fg={color.muted}>{label}</text>
+    </box>;
+  }
+  return <box width="100%" height="100%" backgroundColor={color.background} flexDirection="column">
+    <box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>
+      {panes.map((pane, index) => {
+        const props = { index, selected: layout.focused === pane.id, onSelect: () => dispatch({ type: 'open', id: pane.id }) };
+        return pane.session ? <SessionTab key={pane.id} session={pane.session} {...props} />
+          : <Tab key={pane.id} label={pane.label} {...props} />;
+      })}
     </box>
-  );
+    <box flexDirection={direction} flexBasis={0} flexGrow={1} minHeight={0}>
+      {panes.map(pane => {
+        const focused = layout.focused === pane.id;
+        const visible = isPaneVisible(layout, pane.id, compact);
+        const first = layout.swapped ? pane.id === layout.secondary : pane.id === layout.primary;
+        return <Tile key={pane.id} pane={pane} visible={visible} focused={focused}
+          share={first ? layout.firstShare : 100 - layout.firstShare} onFocus={() => dispatch({ type: 'open', id: pane.id })}>
+          {(width, height) => pane.session
+            ? <Conversation selected={pane.session} animations={animations} composerMedia={composerMedia}
+                focused={focused} width={width} height={height} />
+            : pane.id === 'workflows' && workflowTable
+              ? <PluginTable source={workflowTable} width={width} focused={focused} />
+              : pluginManager && <Plugins source={pluginManager} visible={visible} focused={focused} width={width} height={height} />}
+        </Tile>;
+      })}
+    </box>
+    {layout.secondary && <box flexDirection="row" columnGap={1} paddingX={1} flexShrink={0}>
+      {controls.map((type, index) => layoutButton('F' + (controlStart + index) + ' ' +
+        (type === 'zoom' && layout.zoomed ? 'Unzoom' : controlLabels[index]), { type }))}
+      {split && <>
+        <text fg={color.rule}>│</text>
+        <text fg={color.muted}>{layout.direction === 'row' ? 'Columns' : 'Rows'}</text>
+        {layoutButton('−', { type: 'resize', delta: -5 })}
+        <text fg={color.text}>{layout.firstShare + '%'}</text>
+        {layoutButton('+', { type: 'resize', delta: 5 })}
+        {width >= 88 && <text fg={color.muted}>Alt+←/→ resize</text>}
+      </>}
+    </box>}
+  </box>;
 }

@@ -113,8 +113,9 @@ Ctrl+C closes only the PTY session; use Restart session to reopen it.
 and xterm.js browser used by the Ink checks. It uses Bun and the Playwright
 Chromium installation or `PLAYWRIGHT_CHROMIUM_EXECUTABLE` override described
 above. The fixture holds one agent in a turn while a second agent receives
-input. The scenario exercises native text editing, keyboard and mouse tab
-switching, independent drafts, workflow row expansion, terminal resizing and
+input. The scenario exercises native text editing, keyboard and mouse pane
+focus, split orientation, swapping, resizing, zoom, independent drafts,
+workflow row expansion, terminal resizing and
 Ctrl+C cleanup. Set `VISUAL_OUTPUT` to choose a capture directory.
 
 The same browser scenario issues real `write` tool calls from both agents.
@@ -122,6 +123,15 @@ It checks the workspace on disk before and after answering, scrolls through the
 arguments in a 48×18 terminal, visits Workflows with both requests pending and
 exits while a later request is unanswered. The report and screenshots include
 the state of each conversation, the observed file contents and PTY exit code.
+
+The plugin scenario searches the real isolated local catalog, installs a project
+package inactive, enables it while Main waits for approval, and checks its loaded
+version once Main is idle. A controlled local upstream version change exercises
+deferred update. Installed files, lock state and the plugin's own command receipt
+are checked independently of rendered labels. Disable, cancelled removal and
+confirmed removal use the actual management services. No remote catalog or model
+endpoint is needed. `opentui-fixture.json` inside the temporary workspace supplies
+the isolated catalog, package and storage paths for those independent checks.
 
 `npm run visual:opentui-ghost` checks transfers on a PTY that
 answers the Kitty capability probe. It compares decoded RGBA frame bytes and

@@ -1,4 +1,9 @@
+import type {Questionnaire, UiForm} from '@agent-compositor/events';
+
 export type Message = {role: 'user' | 'assistant'; text: string};
+export type ConversationInteraction =
+  | {id: string; kind: 'question'; request: Questionnaire; error?: string}
+  | {id: string; kind: 'form'; plugin: string; request: UiForm; error?: string};
 export interface ConversationApproval {
   id: string;
   tool: string;
@@ -12,6 +17,7 @@ export interface ConversationSnapshot {
   error?: string;
   notice?: string;
   approval?: ConversationApproval;
+  interaction?: ConversationInteraction;
 }
 
 /** The renderer subscribes to the session it displays. The host owns its lifetime. */
@@ -23,5 +29,9 @@ export interface ConversationSession {
   snapshot(): ConversationSnapshot;
   subscribe(callback: () => void): () => void;
   submit(text: string): void;
+  isImmediateCommand?(text: string): boolean;
+  interrupt?(): void;
   answerApproval?(id: string, allow: boolean): void;
+  answerInteraction?(id: string, value: unknown): void;
+  cancelInteraction?(id: string): void;
 }

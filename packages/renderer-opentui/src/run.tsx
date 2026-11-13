@@ -35,5 +35,5 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
 export type {PluginTableSource} from './table.js';
 export type {PluginManagerSource, PluginManagerSnapshot, PluginManagerRow, PluginManagerAction} from './plugins.js';
 export type {ComposerMedia} from './ghost.js';
-export type {ConversationSession, ConversationSnapshot, ConversationApproval, Message} from './session.js';
+export type {ConversationSession, ConversationSnapshot, ConversationApproval, ConversationInteraction, Message} from './session.js';
 export type {WindowLayoutSource, WindowLayoutSnapshot, WindowLayoutAction, WindowFrame, WindowDirection, WindowDropEdge} from './layout.js';

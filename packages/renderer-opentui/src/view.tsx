@@ -1,10 +1,11 @@
 /** @jsxImportSource @opentui/react */
 import { MouseButton, RGBA, TextAttributes, type BoxRenderable, type KeyBinding, type MouseEvent, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
 import { flushSync, useKeyboard, useRenderer, useTerminalDimensions } from '@opentui/react';
-import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { color } from './colors.js';
 import { Ghost, type ComposerMedia } from './ghost.js';
-import { windowActionForKey, type WindowFrame, type WindowLayoutAction, type WindowLayoutSource } from './layout.js';
+import { Interaction } from './interaction.js';
+import { isWindowGestureCancelKey, windowActionForKey, type WindowFrame, type WindowLayoutAction, type WindowLayoutSource } from './layout.js';
 import { Plugins, type PluginManagerSource } from './plugins.js';
 import type { ConversationApproval, ConversationSession } from './session.js';
 import { PluginTable, type PluginTableSource } from './table.js';
@@ -54,8 +55,8 @@ function useSessionSubscription(session: ConversationSession) {
 
 function SessionTab({ session, ...tab }: Omit<TabProps, 'label'> & { session: ConversationSession }) {
   const status = useSyncExternalStore(useSessionSubscription(session), () => {
-    const { approval, running } = session.snapshot();
-    return approval ? ' · Approval' : running ? ' · Running' : '';
+    const { approval, interaction, running } = session.snapshot();
+    return approval ? ' · Approval' : interaction ? interaction.kind === 'form' ? ' · Form' + (running ? ' · Running' : '') : ' · Question' : running ? ' · Running' : '';
   });
   return <Tab {...tab} label={session.label + status} />;
 }
@@ -79,7 +80,7 @@ function ApprovalCard({ request, session, height, isActive }: {
 }) {
   const scroller = useRef<ScrollBoxRenderable>(null);
   useKeyboard(key => {
-    if (!isActive()) return;
+    if (key.defaultPrevented || !isActive()) return;
     if (key.name === 'pageup' || key.name === 'pagedown') {
       key.preventDefault();
       scroller.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
@@ -127,10 +128,18 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
   const editor = useRef<TextareaRenderable>(null);
   const history = useRef<ScrollBoxRenderable>(null);
+  const [inputMode, setInputMode] = useState<{id: string; editing: boolean}>();
+  const [immediate, setImmediate] = useState(false);
+  const editing = Boolean(state.interaction && inputMode?.id === state.interaction.id && inputMode.editing);
+  const setEditing = (value: boolean) => {
+    const interaction = selected.snapshot().interaction;
+    if (interaction && isActive()) flushSync(() => setInputMode({id: interaction.id, editing: value}));
+  };
   const wide = width >= 60;
   const editorHeight = height >= 20 ? 4 : 2;
-  const busy = state.running || Boolean(state.approval);
-  const inputHint = state.approval ? 'PgUp/PgDn details · Ctrl+J newline' :
+  const busy = state.running || Boolean(state.approval) || state.interaction?.kind === 'question';
+  const canSend = !busy || immediate;
+  const inputHint = state.interaction ? 'Alt+I answer or draft · Ctrl+J newline' : state.approval ? 'PgUp/PgDn details · Ctrl+J newline' :
     busy ? 'Draft while running · Ctrl+J newline' : 'Enter send · Ctrl+J newline';
   const fullHint = state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
 
@@ -139,7 +148,18 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
   }, [focused, selected.id, state.approval?.id]);
 
   useKeyboard(key => {
-    if (isActive() && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
+    if (key.defaultPrevented || !isActive()) return;
+    if (key.meta && !key.ctrl && key.name === 'i') {
+      key.preventDefault();
+      if (!key.repeated && selected.snapshot().interaction) setEditing(!editing);
+      return;
+    }
+    if (key.ctrl && !key.meta && key.name === 'x' && selected.interrupt && selected.snapshot().running) {
+      key.preventDefault();
+      if (!key.repeated) flushSync(() => selected.interrupt?.());
+      return;
+    }
+    if (!editing && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
       key.preventDefault();
       history.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
     }
@@ -148,17 +168,19 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
   function send() {
     const input = editor.current;
     const current = selected.snapshot();
-    if (!isActive() || !input || current.running || current.approval) return;
+    if (!isActive() || editing || !input) return;
     const text = input.plainText;
     if (!text.trim()) return;
+    if ((current.running || current.approval || current.interaction?.kind === 'question') && !selected.isImmediateCommand?.(text)) return;
     selected.submit(text);
     input.setText('');
+    setImmediate(false);
     input.focus();
   }
 
   return (
     <box flexDirection="column" flexGrow={1} minHeight={0}>
-      <scrollbox ref={history} flexGrow={1} flexBasis={0} minHeight={0}
+      <scrollbox ref={history} visible={!editing} flexGrow={1} flexBasis={0} minHeight={0}
         focusable={false} scrollX={false} stickyScroll stickyStart="bottom"
         contentOptions={{ paddingX: 1, paddingY: state.approval ? 0 : 1, gap: 1 }}>
         {state.messages.length === 0 && !state.error && <text fg={color.muted}>No messages yet</text>}
@@ -173,32 +195,38 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
         {state.error && <text wrapMode="word" fg={color.error}>{`Error: ${state.error}`}</text>}
       </scrollbox>
 
-      {state.notice && <text fg={color.muted} wrapMode="word">{state.notice}</text>}
+      {!editing && state.notice && <text fg={color.muted} wrapMode="word">{state.notice}</text>}
+      {state.interaction && <Interaction key={state.interaction.id} interaction={state.interaction}
+        session={selected} editing={editing} focused={focused} width={width} height={height} isActive={isActive} setEditing={setEditing} />}
       {!focused && state.approval && <text fg={color.running}>Approval pending</text>}
       {focused && state.approval && <ApprovalCard key={`${selected.id}:${state.approval.id}`}
         request={state.approval} session={selected} height={height} isActive={isActive} />}
-      <box border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
+      <box visible={!editing} border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
         title={` ${selected.label} · ${state.approval ? 'Draft' : state.running ? 'Running' : 'Ready'} `}
         backgroundColor={composerBackground} flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
-        <textarea ref={editor} focused={focused}
+        <textarea ref={editor} focused={focused && !editing}
             height={editorHeight} flexGrow={1} flexBasis={0} minWidth={1} wrapMode="word"
             textColor={composerForeground} focusedTextColor={composerForeground} cursorColor={composerForeground}
             placeholder={`Message ${selected.label}…`} placeholderColor={color.muted}
-            onKeyDown={key => { if (!isActive()) key.preventDefault(); }}
-            onPaste={event => { if (!isActive()) event.preventDefault(); }}
+            onKeyDown={key => { if (!isActive() || editing) key.preventDefault(); }}
+            onPaste={event => { if (!isActive() || editing) event.preventDefault(); }}
+            onContentChange={() => setImmediate(Boolean(selected.isImmediateCommand?.(editor.current?.plainText ?? '')))}
             keyBindings={editorKeys} onSubmit={send} />
-        <Ghost media={composerMedia} enabled={focused && animations && wide && height >= 20} active={state.running} />
-        {focused && <box height={1} paddingX={1} backgroundColor={busy ? color.panel : color.accent}
+        <Ghost media={composerMedia} enabled={!editing && focused && animations && wide && height >= 20} active={state.running} />
+        {focused && <box height={1} paddingX={1} backgroundColor={canSend ? color.accent : color.panel}
           onMouseDown={event => {
             if (event.button === MouseButton.LEFT) send();
           }}>
-          <text selectable={false} fg={busy ? color.muted : color.background}
+          <text selectable={false} fg={canSend ? color.background : color.muted}
             attributes={TextAttributes.BOLD}>Send</text>
         </box>}
       </box>
-      {focused && <text height={1} truncate fg={color.muted}>
-        {width >= fullHint.length + 2 ? fullHint : inputHint}
-      </text>}
+      {focused && <box flexDirection="row" columnGap={1} height={1}>
+        <text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : width >= fullHint.length + 2 ? fullHint : inputHint}</text>
+        {state.running && selected.interrupt && <box height={1} paddingX={1} backgroundColor={color.panel} onMouseDown={event => {
+          if (event.button === MouseButton.LEFT && isActive()) flushSync(() => selected.interrupt?.());
+        }}><text selectable={false} fg={color.running}>Stop</text></box>}
+      </box>}
     </box>
   );
 }
@@ -244,12 +272,25 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   const renderer = useRenderer();
   const viewport = useRef<BoxRenderable>(null);
   const workspaceButtons = useRef(new Map<number, BoxRenderable>());
+  const nativeGestureHeld = useRef(false);
+  const normalPointerUp = useRef(false);
   const { width, height } = useTerminalDimensions();
   const controlStart = Math.max(6, panes.length + 2);
   // Commit native widget focus before the parser delivers the next key in a batch.
   const act = useCallback((action: WindowLayoutAction) => {
     flushSync(() => windowLayout.act(action));
   }, [windowLayout]);
+  useLayoutEffect(() => windowLayout.subscribe(() => {
+    if (windowLayout.snapshot().gesture) {nativeGestureHeld.current = true; return;}
+    if (!nativeGestureHeld.current) return;
+    nativeGestureHeld.current = false;
+    if (normalPointerUp.current || !renderer.useMouse) return;
+    // Keyboard and viewport cancellation may have no matching native mouse-up.
+    // Cycling the public mode releases SDK capture and preserves its motion mode.
+    renderer.useMouse = false;
+    renderer.useMouse = true;
+    renderer.requestRender();
+  }), [renderer, windowLayout]);
   useLayoutEffect(() => {
     renderer.setMousePointer(layout.pointer);
   }, [renderer, layout.pointer]);
@@ -263,7 +304,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   }, [windowLayout, width, height]);
 
   useKeyboard(key => {
-    if (key.name === 'escape' && windowLayout.snapshot().gesture) {
+    if (windowLayout.snapshot().gesture && isWindowGestureCancelKey(key)) {
       key.preventDefault();
       act({type: 'pointer', phase: 'cancel', x: 0, y: 0});
       return;
@@ -282,10 +323,13 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     const frame = state.frames.find(frame => x >= frame.x && x < frame.x + frame.width && y >= frame.y && y < frame.y + frame.height);
     const workspace = phase === 'up' ? [...workspaceButtons.current].find(([, button]) =>
       event.x >= button.x && event.x < button.x + button.width && event.y >= button.y && event.y < button.y + button.height)?.[0] : undefined;
-    act({type: 'pointer', phase, x, y,
-      ...(phase === 'down' ? {kind: frame && y === frame.y ? 'title' : 'pane', revision: state.revision} : {}),
-      ...(workspace ? {workspace} : {}),
-    });
+    normalPointerUp.current = phase === 'up';
+    try {
+      act({type: 'pointer', phase, x, y,
+        ...(phase === 'down' ? {kind: frame && y === frame.y ? 'title' : 'pane', revision: state.revision} : {}),
+        ...(workspace ? {workspace} : {}),
+      });
+    } finally {normalPointerUp.current = false;}
     if (state.gesture || windowLayout.snapshot().gesture) event.preventDefault();
   }
 

@@ -131,7 +131,17 @@ export class HooksHost {
   private readonly pluginTrust = new Map<string, string>();
   private readonly pluginLifetimes = new Map<string, AbortController>();
   private formHandler?: UiFormHandler;
-  setFormHandler(handler?: UiFormHandler) { this.formHandler = handler; }
+  private formHandlerBinding?: object;
+  setFormHandler(handler?: UiFormHandler) {
+    const binding = {};
+    this.formHandlerBinding = binding;
+    this.formHandler = handler;
+    return () => {
+      if (this.formHandlerBinding !== binding) return;
+      this.formHandlerBinding = undefined;
+      this.formHandler = undefined;
+    };
+  }
   private readonly pluginState = new Map<string, Map<string, unknown>>();
   private readonly rendering = new AsyncLocalStorage<string>();
   private readonly userInteraction = new AsyncLocalStorage<boolean>();

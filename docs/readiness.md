@@ -350,8 +350,9 @@ splits, directional focus, workspace moves, drag/drop, resize, zoom and closure.
 The host persists the tree, ratios, selected workspace, focus and closed panes.
 Actual project installation, explicit enable/disable and deferred update/removal
 keep saved and loaded-version status separate. User placement-rule controls,
-settings and agent questions still need migration. Production protocol binding,
-saved conversation recovery and release packaging remain outstanding.
+provider/settings flows and selected controller adaptation still need migration.
+Production protocol binding, saved conversation recovery and release packaging
+remain outstanding.
 
 Its main Linux PTY scenario passes 18 checks, including visible Main/Plugins panes,
 layout controls, independent approval routing, deferred updates, command-written
@@ -371,6 +372,23 @@ already moved to Plugins. Native focus changes now commit synchronously, and
 action admission checks the current host snapshot. Real PTY bursts verify that
 hidden approvals stay pending, typed text reaches the newly selected chat without
 loss, and a following denial targets only that chat's request.
+
+Native single/multiple-choice questions, custom answers, questionnaires and
+private text/password/URL/select/toggle forms now use per-core host callbacks.
+Each preview conversation arbitrates approvals, questions and forms in one FIFO.
+The input editor preserves an independent chat draft; a model can work while a
+private form is open. Foreground interruption cancels its question while a form
+owned by a separate user operation stays live. The source preview rejects
+selected custom question/form controllers without silently substituting a native
+view. Independent settings-pane placement and precise delegated-child request
+attribution remain production integration gates.
+
+The inputs PTY scenario checks actual model-received answers and a trusted
+plugin's private result, rather than only UI labels. It caught and verified fixes
+for questionnaire text loss between pages and rapid Escape/mouse-release packets
+leaving a native pointer capture active. A synthetic password stays out of the
+terminal output, provider requests and session journals. The bench's raw keyboard
+log intentionally records synthetic test input; it is not a real credential test.
 
 Initial technical references are the official [OpenTUI components](https://opentui.com/docs/components/),
 [image](https://opentui.com/docs/components/image/),

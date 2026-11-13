@@ -54,6 +54,15 @@ interface WindowKey {
   meta: boolean;
   super?: boolean;
   hyper?: boolean;
+  raw?: string;
+}
+
+/** Legacy parsers can combine a bare Escape with an immediately following SGR release. */
+export function isWindowGestureCancelKey(key: WindowKey): boolean {
+  if (key.ctrl || key.super || key.hyper) return false;
+  if (key.name === 'escape' && !key.meta && !key.shift) return true;
+  const combinedRelease = /^\x1b\x1b\[<\d+;\d+;\d+m$/;
+  return combinedRelease.test(key.sequence) || (key.raw !== undefined && combinedRelease.test(key.raw));
 }
 
 const directions: Readonly<Record<string, WindowDirection>> = {h: 'left', j: 'down', k: 'up', l: 'right'};

@@ -132,6 +132,16 @@ The visual server owns the temporary project. For OpenTUI its private
 when the server stops. No real home or model credentials are used. Native panes
 stay mounted with stable semantic IDs while the compositor changes their frames.
 
+`npm run visual:opentui-inputs` exercises native questions, questionnaires and
+private plugin forms through the actual core callbacks. It checks per-chat
+ownership, explicit submission, choices/custom answers, independent message
+drafts, focus switching, cancellation and form lifetime across foreground
+interruption. Model-received answer receipts and the plugin's own form receipt
+are inspected independently of UI labels. The synthetic password must stay out
+of terminal output, provider requests and session journals. The bench necessarily
+records typed bytes in `input.jsonl`, so use synthetic test values only. Private
+form receipts store a password length/hash, never its submitted text.
+
 The same browser scenario issues real `write` tool calls from both agents.
 It checks the workspace on disk before and after answering, scrolls through the
 arguments in a 48×18 terminal, visits Workflows with both requests pending and

@@ -338,6 +338,21 @@ describe("HooksHost / $ API", () => {
 
 describe('private local settings callbacks',()=>{
   const form={title:'Key',fields:[{id:'token',label:'Token',type:'password' as const}],actions:[{id:'save',label:'Save'}]};
+  it('owns each registration separately when the same handler function is rebound',async()=>{
+    const handler=async()=>({action:'save',values:{token:'private-rebound-key'}});
+    const first=host.setFormHandler(handler),second=host.setFormHandler(handler);
+    let received:unknown;
+    host.registerPlugin(manifest('settings'),{'ui.press':async(_,$)=>{received=await $.ui.form(form);}});
+    first();
+    expect((await host.emit('ui.press',{site:'settings',key:'current'})).faults).toHaveLength(0);
+    expect(received).toEqual({action:'save',values:{token:'private-rebound-key'}});
+    second();
+    expect((await host.emit('ui.press',{site:'settings',key:'removed'})).faults).toHaveLength(1);
+    const third=host.setFormHandler(handler);
+    first();second();
+    expect((await host.emit('ui.press',{site:'settings',key:'newer'})).faults).toHaveLength(0);
+    third();
+  });
   it('requires interactive attachment and trusted plugins; secrets bypass catalog middleware',async()=>{
     const errors:string[]=[];
     host.registerPlugin(manifest('headless'),{'session.start':async(_,$)=>{try{await $.ui.form(form);}catch(e){errors.push(String(e));}}});

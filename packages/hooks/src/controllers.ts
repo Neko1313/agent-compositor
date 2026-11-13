@@ -97,6 +97,7 @@ export class UiControllerRegistry {
   private readonly leases=new Set<UiControllerLease>();
   private readonly listeners=new Set<(kinds:UiControllerKind[])=>void>();
   constructor(private selected:Partial<Record<UiControllerKind,string>>={},private renderScope:<T>(owner:string,fn:()=>T)=>T=(_owner,fn)=>fn()){}
+  selectedOwner(kind: UiControllerKind): string { return this.selected[kind] ?? '@host'; }
   register(owner:string,factories:UiControllers|undefined,signal:AbortSignal){
     validateControllers(factories);if(!factories)return;
     this.providers.set(owner,{factories,signal});this.changed(Object.keys(factories) as UiControllerKind[]);

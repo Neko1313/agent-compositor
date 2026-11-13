@@ -1,20 +1,48 @@
-import {mkdtemp, rm} from 'node:fs/promises';
+import {appendFile, mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {buildApp} from '../../packages/app/src/build.js';
 import {AgentCore, type ModelProvider, type ProviderEvent} from '@agent-compositor/core';
-import {createApprovalInbox} from './opentui-approvals.js';
+import {createInteractionInbox} from './opentui-interactions.js';
 import {connectConversation, connectPluginTable} from './opentui-host.js';
 import {ghostMedia} from './opentui-mascot.js';
 import {seedOpenTuiPlugin} from './opentui-plugin-fixture.js';
+import {seedOpenTuiInputs} from './opentui-input-fixture.js';
 import {connectPluginManager} from './opentui-plugins.js';
 import {connectWindowLayout} from './opentui-windows.js';
 import {runConversationPrototype} from '@agent-compositor/renderer-opentui';
 
-function localProvider(label: string): ModelProvider {
+function localProvider(label: string, receipts: {inputsReceipt: string; modelTrace: string}): ModelProvider {
   return { name: 'opentui-preview', async *complete(request): AsyncIterable<ProviderEvent> {
     const prompt = request.messages.findLast(message => message.role === 'user')?.content ?? '';
+    await appendFile(receipts.modelTrace, JSON.stringify({agent: label, messages: request.messages}) + '\n');
+    if (['request question', 'request custom', 'request questionnaire'].includes(prompt)) {
+      const last = request.messages.at(-1);
+      if (last?.role !== 'tool') {
+        const questionnaire = prompt === 'request questionnaire';
+        yield {type: 'tool_call', id: crypto.randomUUID(), name: questionnaire ? 'ask_questions' : 'ask_user', args: questionnaire ? {
+          title: 'Setup choices for ' + label, questions: [
+            {id: 'environment', header: 'Target', question: 'Choose environment', options: ['Preview', 'Production'], allowOther: false},
+            {id: 'checks', header: 'Checks', question: 'Which checks should run?', multi: true, options: ['Unit tests', 'Browser tests'], allowOther: true},
+            {id: 'owner', header: 'Owner', question: 'Who owns this setup?'},
+          ],
+        } : {
+          question: (prompt === 'request custom' ? 'Choose custom destination for ' : 'Choose destination for ') + label,
+          options: [{label: 'Preview', description: 'Local preview only', recommended: true},
+            {label: 'Production', description: 'External deployment target'}], allowOther: prompt === 'request custom',
+        }};
+        yield {type: 'finish', reason: 'tool_calls'};
+        return;
+      }
+      let reply: unknown;
+      try { reply = JSON.parse(last.content); } catch { reply = {error: last.content}; }
+      await appendFile(receipts.inputsReceipt, JSON.stringify({agent: label, prompt, reply}) + '\n');
+      const answered = reply && typeof reply === 'object' && ('answer' in reply || 'answers' in reply);
+      yield {type: 'text_delta', text: label + (answered ? ' received human answer' : ' question cancelled')};
+      yield {type: 'finish', reason: 'stop'};
+      return;
+    }
     // A real native write exercises permission review without external services.
     if (prompt === 'request write') {
       const last = request.messages.at(-1);
@@ -59,23 +87,27 @@ try {
 
 async function runPreview() {
   const fixture = await seedOpenTuiPlugin(cwd, home);
+  const inputs = await seedOpenTuiInputs(cwd, home);
+  await writeFile(join(cwd, 'opentui-fixture.json'), JSON.stringify({...fixture, ...inputs}, null, 2));
   const mainApp = await buildApp({
     cwd, env: {HOME: home, AGENT_HOME: join(home, '.agent-compositor')},
     fixedConfig: {
-      permissions: {rules: [{tool: 'workflow_run', decision: 'allow'}, {tool: 'write', decision: 'ask', reason: 'Write the requested preview note'}]}, enabledPlugins: ['workflows', 'preview-notes'],
-      agent: {builtinTools: ['write'], controlTools: [], tools: ['workflow_run', 'write'], skills: false, projectContext: false, fileReferences: false},
+      permissions: {rules: [{tool: 'workflow_run', decision: 'allow'}, {tool: 'write', decision: 'ask', reason: 'Write the requested preview note'}]}, enabledPlugins: ['workflows', 'preview-notes', 'preview-inputs'],
+      agent: {builtinTools: ['write'], controlTools: ['ask_user', 'ask_questions'], tools: ['workflow_run', 'write', 'ask_user', 'ask_questions'], skills: false, projectContext: false, fileReferences: false},
       compaction: {enabled: false},
     },
-    pluginDirs: [fileURLToPath(new URL('../../plugins/workflows', import.meta.url))],
-    agentHub: false, provider: localProvider('Main'),
+    pluginDirs: [fileURLToPath(new URL('../../plugins/workflows', import.meta.url)), inputs.inputPluginDir],
+    agentHub: false, provider: localProvider('Main', inputs),
   });
-  const inboxes = labels.map(() => createApprovalInbox());
-  const main = mainApp.createCore(inboxes[0].ask);
+  const inboxes = labels.map(() => createInteractionInbox());
+  const main = mainApp.createCore(inboxes[0].ask, inboxes[0].askQuestion);
   const side = new AgentCore({
-    cwd, provider: localProvider('Side'), toolNames: ['write'], controlTools: [], onApproval: inboxes[1].ask,
+    cwd, provider: localProvider('Side', inputs), toolNames: ['write', 'ask_user', 'ask_questions'],
+    controlTools: ['ask_user', 'ask_questions'], onApproval: inboxes[1].ask, onAsk: inboxes[1].askQuestion,
     rules: [{tool: 'write', decision: 'ask', reason: 'Write the requested preview note'}],
   });
   const agents = [main, side];
+  agents.forEach((core, index) => inboxes[index].bind(core));
   const workflowTable = connectPluginTable(main, 'workflows', 'plugin-workflows-runs', 'Workflows');
   let pluginManager: Awaited<ReturnType<typeof connectPluginManager>> | undefined;
   let sessions: ReturnType<typeof connectConversation>[] = [];
@@ -95,7 +127,11 @@ async function runPreview() {
     await main.submit('/workflows');
     pluginManager = await connectPluginManager(mainApp, main);
     sessions = agents.map((core, index) => ({...connectConversation(core, labels[index], inboxes[index],
-      index === 0 ? text => pluginManager!.submit(text) : undefined), paneId: index === 0 ? 'main' : 'side'}));
+      index === 0 ? text => pluginManager!.submit(text) : undefined), paneId: index === 0 ? 'main' : 'side',
+      interrupt: () => core.interrupt(),
+      isImmediateCommand: (text: string) => index === 0 && mainApp.commands().some(command =>
+        command.execution === 'immediate' && command.name === text.trim().split(/\s+/)[0]),
+    }));
     windowLayout = await connectWindowLayout(mainApp, {
       panes: [...sessions.map(session => ({id: session.paneId!, label: session.label})),
         {id: 'workflows', label: 'Workflows'}, {id: 'plugins', label: 'Plugins'}],

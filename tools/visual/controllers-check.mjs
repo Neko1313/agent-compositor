@@ -79,7 +79,7 @@ try {
   await wait('••••');
   if((await page.evaluate(()=>visual.text())).includes('fake-private-key'))throw Error('Private form exposed a secret');
   await capture('03-custom-private-form.png');await page.keyboard.press('F5');await wait('Custom form saved');
-  await send('/plugins');await wait('CUSTOM PLACEMENT');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('CUSTOM PLACEMENT'));await wait('CUSTOM INPUT');
+  await send('/placement');await wait('CUSTOM PLACEMENT');await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('CUSTOM PLACEMENT'));await wait('CUSTOM INPUT');
   report.checks.push('replacement masked form and placement panel');
   await send('/rename Saved custom workspace');await wait('CUSTOM HISTORY');await wait('Saved custom workspace');
   await capture('04-custom-history.png');await page.keyboard.press('Escape');

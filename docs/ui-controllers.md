@@ -37,6 +37,13 @@ The standard `/history`, `/sessions`, `/resume`, rename, archive and fork comman
 entry points belong to `session-manager`; a composition may omit that contribution
 and supply its own commands instead.
 
+The source-only [OpenTUI preview](02-ui.md#opentui-conversation-prototype) currently
+uses native questions and private forms. It rejects an explicitly selected
+question/form controller without instantiating it or silently substituting a
+native view. Full controller adaptation remains a migration gate. The host can
+inspect selection through `core.host.controllers.selectedOwner(kind)`, which
+returns metadata without creating a controller or receiving private input.
+
 `UiControllerFactory`, `UiController`, `UiControllerInput`, `UiEditorState` and
 `UiEditorIntent` are exported by `@agent-compositor/hooks`.
 `AppUiControllerData`, `UiApprovalResult` and `UiHistoryIntent` from
@@ -126,6 +133,18 @@ IDs/types, required values, select values and HTTP(S) URL fields before resolvin
 the requester. Approval results require a boolean decision and a recognized
 scope; malformed results deny. Question results still pass through the normal
 questionnaire validation in core. Existing permission policy remains binding.
+
+Custom host form handlers can reuse
+`validateUiFormResult(request, value)` from `@agent-compositor/events`. It returns
+only declared fields after validating the action, field types, required values,
+select membership and HTTP(S) URLs. Validation errors contain no submitted values.
+`core.host.setFormHandler(handler)` returns a disposer that clears the handler
+only while that binding is still current. Disposing a superseded binding does
+not clear or later revive another owner's handler.
+
+Native form views treat a declared action with ID `cancel` as cancellation:
+it returns `null` without collecting or validating fields. Escape and the host's
+Cancel control have the same result. Other actions require a valid form result.
 
 Trusted plugins can also call
 `$.ui.controller(kind, data, fallback, invalidate, state?)` to select a private

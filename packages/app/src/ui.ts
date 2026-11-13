@@ -5,7 +5,7 @@ import { type UiControllerFactory, UiControllerLease, type UiControllerInput, ty
 import { ApprovalDialog } from "./approval.js";
 import type { UserQuestionAnswer } from "@agent-compositor/events";
 import { FormDialog } from "./form.js";
-import type { UiForm, UiFormResult } from "@agent-compositor/events";
+import { validateUiFormResult, type UiForm, type UiFormResult } from "@agent-compositor/events";
 import type { UiTextView } from "@agent-compositor/events";
 import { PluginPanel, type PluginWindow } from "./plugin-panel.js";
 import {
@@ -175,6 +175,7 @@ export class AppUI {
   private closed = false;
   private actionFocus = new Map<string, string>();
   private form?: { dialog: ControllerDialog<UiForm>; finish: (result: UiFormResult | null) => void };
+  private formUnsubscribe?: () => void;
   private ready = false;
   private nativeRaster = false;
   private tasks = new Set<Promise<void>>();
@@ -409,22 +410,12 @@ export class AppUI {
     }).finally(()=>{this.reloading=false;this.draw();}));
   }
   private formResult(request:UiForm,value:unknown):UiFormResult|null {
-    const result=value as UiFormResult;
-    if(!result||!request.actions.some(action=>action.id===result.action)||!result.values||typeof result.values!=='object')return null;
-    const values:UiFormResult['values']={};
-    for(const field of request.fields){
-      const entry=result.values[field.id];
-      if(field.type==='toggle'?typeof entry!=='boolean':typeof entry!=='string')return null;
-      if(field.required&&!String(entry).trim())return null;
-      if(typeof entry==='string'&&entry.length>4096)return null;
-      if(field.type==='select'&&!field.options?.some(option=>option.value===entry))return null;
-      if(field.type==='url'&&entry){try{if(!['http:','https:'].includes(new URL(String(entry)).protocol))return null;}catch{return null;}}
-      values[field.id]=entry;
-    }
-    return {action:result.action,values};
+    try { return validateUiFormResult(request, value); }
+    catch { return null; }
   }
   private bindForms(): void {
-    this.core.host.setFormHandler((_plugin, request: UiForm, signal) => {
+    this.formUnsubscribe?.();
+    this.formUnsubscribe = this.core.host.setFormHandler((_plugin, request: UiForm, signal) => {
       if (this.closed || signal.aborted) return Promise.resolve(null);
       if (this.form) return Promise.reject(new Error('Close the current form first'));
       return new Promise(resolve => {
@@ -1385,7 +1376,7 @@ export class AppUI {
         const approvals=[...(this.approval?[this.approval]:[]),...this.approvalQueue];this.approval=undefined;this.approvalQueue=[];
         for(const approval of approvals)approval.resolve(false);
         this.core.host.controllers.disposeAll();
-        this.core.host.setFormHandler(undefined);
+        this.formUnsubscribe?.();this.formUnsubscribe=undefined;
         this.core = next;
         this.filePrefix=undefined;this.fileCatalog=undefined;this.fileRevision++;
         this.bindForms();
@@ -2255,7 +2246,7 @@ export class AppUI {
     this.uiLifetime.abort(new Error("UI closed"));this.editor?.dispose();this.controllerUnsubscribe?.();
     for(const id of this.composerViews.keys())this.removeComposer(id);
     this.form?.finish(null);
-    this.core.host.setFormHandler(undefined);
+    this.formUnsubscribe?.();this.formUnsubscribe=undefined;
     this.cancelDrag();
     for (const window of this.pluginWindows.values())
       void this.core.host

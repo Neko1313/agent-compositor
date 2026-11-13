@@ -2,7 +2,7 @@ import { describe,it,expect,afterEach,vi } from 'vitest';
 import { mkdtemp,rm,readFile,stat,mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { ScriptedProvider } from '@agent-compositor/core';
+import { AgentCore, ScriptedProvider } from '@agent-compositor/core';
 import { ProjectStorage } from '@agent-compositor/config';
 import { ProviderRouter } from '@agent-compositor/provider';
 import { uiFormSchema } from '@agent-compositor/events';
@@ -21,6 +21,23 @@ const text=(text:string)=>({kind:'text' as const,text});
 const form={title:'Connection',fields:[{id:'address',label:'Address',type:'url' as const,required:true},{id:'token',label:'Token',type:'password' as const},{id:'enabled',label:'Enabled',type:'toggle' as const,value:false},{id:'scope',label:'Scope',type:'select' as const,options:[{value:'project',label:'Project'},{value:'global',label:'Global'}]}],actions:[{id:'save',label:'Save'},{id:'cancel',label:'Cancel'}]};
 
 describe('native forms',()=>{
+ it('closing a superseded UI does not clear the current private form handler',async()=>{
+  const core=new AgentCore({cwd:await temp(),provider:new ScriptedProvider([])});
+  const ui=new AppUI(()=>core);
+  const expected={action:'save',values:{address:'https://example.test',token:'private-ui-value',enabled:false,scope:'project'}};
+  let received:unknown;
+  core.host.registerPlugin({name:'settings',version:'1.0.0',trust:'trusted'},{'ui.press':async(_event,$)=>{received=await $.ui.form(form);}});
+  const release=core.host.setFormHandler(async()=>expected);
+  try{
+   ui.close();
+   expect((await core.host.emit('ui.press',{site:'settings',key:'open'})).faults).toHaveLength(0);
+   expect(received).toEqual(expected);
+   release();
+   const result=await core.host.emit('ui.press',{site:'settings',key:'again'});
+   expect(result.faults).toHaveLength(1);
+   expect(result.faults[0]).toMatchObject({message:expect.stringContaining('Forms require an interactive UI')});
+  }finally{ui.close();release();await core.close();}
+ });
  it('edits text, masks secrets, validates URLs and handles toggles/selections',()=>{
   const d=new FormDialog(form);d.handle(key('enter'));d.handle(text('secret-test-token'));
   const rows=d.visible(70,16);expect(JSON.stringify(rows)).not.toContain('secret-test-token');expect(JSON.stringify(rows)).toContain('•••');

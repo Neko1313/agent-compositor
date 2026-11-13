@@ -1,6 +1,7 @@
 import type {createApprovalInbox} from './opentui-approvals.js';
+import type {createInteractionInbox} from './opentui-interactions.js';
 import type {AgentCore, ChatMessage} from '@agent-compositor/core';
-import type {ConversationSession, ConversationSnapshot, Message, PluginTableSource} from '@agent-compositor/renderer-opentui';
+import type {ConversationApproval, ConversationSession, ConversationSnapshot, Message, PluginTableSource} from '@agent-compositor/renderer-opentui';
 import {uiTextViewSchema} from '@agent-compositor/events';
 
 function conversation(messages: readonly ChatMessage[]): Message[] {
@@ -14,17 +15,23 @@ function conversation(messages: readonly ChatMessage[]): Message[] {
   return visible;
 }
 
-export function connectConversation(core: AgentCore, label: string, inbox?: ReturnType<typeof createApprovalInbox>,
+type ConversationInbox = Omit<ReturnType<typeof createApprovalInbox>, 'snapshot'> & {
+  snapshot(): ConversationApproval | undefined;
+} & Partial<Pick<ReturnType<typeof createInteractionInbox>,
+  'interactionSnapshot' | 'answerInteraction' | 'cancelInteraction'>>;
+
+export function connectConversation(core: AgentCore, label: string, inbox?: ConversationInbox,
   submit: (text: string) => Promise<void> = text => core.submit(text)): ConversationSession & {disconnect(): void} {
   const listeners = new Set<() => void>();
-  let state: ConversationSnapshot = {messages: conversation(core.getMessages()), running: core.getState() === 'running', approval: inbox?.snapshot()};
+  let state: ConversationSnapshot = {messages: conversation(core.getMessages()), running: core.getState() === 'running',
+    approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.()};
   let committed = state.messages;
   let streaming = '';
   let notice: string | undefined;
   let disconnected = false;
   function update(next: ConversationSnapshot) {
     if (disconnected) return;
-    state = {...next, notice, approval: inbox?.snapshot()};
+    state = {...next, notice, approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.()};
     for (const listener of listeners) listener();
   }
   const offInbox = inbox?.subscribe(() => update(state));
@@ -64,6 +71,7 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Retu
   });
   return {
     id: core.sessionId, label, answerApproval: inbox?.answer,
+    answerInteraction: inbox?.answerInteraction, cancelInteraction: inbox?.cancelInteraction,
     subscribe(callback) { listeners.add(callback); return () => { listeners.delete(callback); }; },
     snapshot: () => state,
     submit(text) {

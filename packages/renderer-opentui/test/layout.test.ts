@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { windowActionForKey } from '../src/layout.js';
+import { isWindowGestureCancelKey, windowActionForKey } from '../src/layout.js';
 
 const panes = ['main', 'side', 'workflows', 'plugins'];
 const key = (name: string, values: Partial<Parameters<typeof windowActionForKey>[0]> = {}) =>
@@ -41,4 +41,15 @@ it('keeps directional focus and swaps distinct from nearest-split resize', () =>
   expect(windowActionForKey(key('left', {meta: true}), panes)).toEqual({type: 'resize', delta: -.05});
   expect(windowActionForKey(key('right', {meta: true}), panes)).toEqual({type: 'resize', delta: .05});
   expect(windowActionForKey(key('left', {meta: true, ctrl: true}), panes)).toBeUndefined();
+});
+
+it('recognizes a bare Escape combined with an SGR release without reinterpreting other input', () => {
+  const packet = '\x1b\x1b[<0;70;6m';
+  expect(isWindowGestureCancelKey(key('', {sequence: packet, raw: packet}))).toBe(true);
+  expect(isWindowGestureCancelKey(key('escape'))).toBe(true);
+  for (const sequence of ['\x1b[<0;70;6m', '\x1b\x1b[<0;70;6M', '\x1b[1;3D', 'typed', '\x1b[200~' + packet + '\x1b[201~'])
+    expect(isWindowGestureCancelKey(key('', {sequence}))).toBe(false);
+  expect(isWindowGestureCancelKey(key('escape', {meta: true}))).toBe(false);
+  expect(isWindowGestureCancelKey(key('', {sequence: packet, ctrl: true}))).toBe(false);
+  expect(windowActionForKey(key('', {sequence: packet}), panes)).toBeUndefined();
 });

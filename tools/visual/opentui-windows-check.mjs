@@ -225,6 +225,39 @@ try {
   await capture('windows-title-center-swap.png');
   report.checks.push('Dropping a title in another pane center swaps their exact rectangles and retains independent native drafts');
 
+  // A native terminal resize can cancel a logical gesture while the pointer
+  // remains held. Mouse capture must be released without changing modes during
+  // an illegal native transition, and the next real widget click must work.
+  const resizeBoundary = swapped.Main.x > 0 ? swapped.Main.x : swapped.Main.x + swapped.Main.width - 1;
+  await move(resizeBoundary, swapped.Main.y + 3);
+  await page.mouse.down();
+  await move(resizeBoundary + (swapped.Main.x > 0 ? 3 : -3), swapped.Main.y + 3, 5);
+  await wait('Drag · Esc cancel');
+  await page.evaluate(() => visual.terminal.resize(140, 42));
+  await page.waitForFunction(() => visual.terminal.cols === 140 && visual.terminal.rows === 42);
+  await absent('Drag · Esc cancel');
+  await geometryWhen(current => current.Workflows.width < swapped.Workflows.width
+    && current.Main.x + current.Main.width <= 140 && current.Side.x + current.Side.width <= 140,
+    'terminal resize cancels the held gesture and reprojects all panes');
+  await page.mouse.up();
+  const workflowPoint = await page.evaluate(() => {
+    const lines = visual.text().split('\n');
+    const row = lines.findIndex(line => line.includes('Preview workflow'));
+    return {column: lines[row].indexOf('Preview workflow') + 5, row};
+  });
+  await click(workflowPoint.column, workflowPoint.row);
+  await wait('Workflow: Preview workflow');
+  await click(workflowPoint.column, workflowPoint.row);
+  await absent('Workflow: Preview workflow');
+  await page.evaluate(() => visual.terminal.resize(160, 45));
+  await page.waitForFunction(() => visual.terminal.cols === 160 && visual.terminal.rows === 45);
+  assert.deepEqual(await geometryWhen(current => JSON.stringify(current) === JSON.stringify(swapped),
+    'restored geometry after viewport-interrupted drag'), swapped);
+  assert.ok(!(await readFile(join(output, 'terminal.ansi'), 'utf8'))
+    .includes('Cannot change native scene mouse modes during a terminal transition or suspension'));
+  await capture('windows-resize-during-drag.png');
+  report.checks.push('Resizing the actual terminal during a held separator drag cancels the logical gesture, preserves its prior geometry, and leaves native mouse routing usable for the next Workflow expansion/collapse without a mouse-mode transition exception');
+
   // Hiding the streaming Main window is independent of cancelling its model turn.
   await key('F2');
   await key('Control+u');

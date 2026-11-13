@@ -1,5 +1,53 @@
 # Project memory
 
+## Native OpenTUI questions and private forms — 2026-11-14
+
+82206ff passed remote CI, documentation and release preparation. The next source
+preview adds per-core native questions, questionnaires and private forms. One
+FIFO arbitrates them with approvals. Stale/foreign IDs cannot settle another
+request; invalid answers remain pending, while cancellation rejects questions,
+returns null for forms and declines approvals. Admitted question descriptions,
+cardinality and AbortSignal ownership are detached from later caller mutation.
+
+Alt+I switches Answer/Draft without stealing ongoing typing. Explicit submission,
+Back/Next, multi/custom choices and field navigation preserve the independent
+chat draft. Immediate plugin commands can run during a turn. A private form
+alone also permits ordinary model work. Foreground Stop/Ctrl+X cancels its
+question while a separately owned user form remains live. The native password
+editor keeps actual values in private refs and only masks in native buffers;
+settlement clears drafts. Declared form action `cancel` returns null before
+collecting or validating required fields, matching the existing Ink convention.
+
+The extracted validateUiFormResult helper returns declared validated fields
+without submitted values in errors. Form-handler disposers use registration
+tokens, protecting later owners even when the same callback is rebound. Ink
+bind/resume/close uses its own disposer. selectedOwner lets the preview reject
+custom question/form controllers without instantiating or silently bypassing
+them. Full provider adaptation, independent settings-pane placement and precise
+delegated-child attribution remain production migration gates.
+
+Real PTY caught and verified two integration fixes: reused questionnaire fields
+lost custom text on page changes; rapid Escape plus SGR mouse release became
+one unnamed SDK key (ESC ESC[<0;70;6m), retaining pointer capture. Fields are
+keyed per question with guarded cleanup. The exact control packet is normalized
+only during a window gesture, and logical cancellation releases native capture
+through the public mouse-mode API. Viewport resize while dragging is verified.
+
+Validation: 1753 tests passed with three optional skips across 202 files;
+typecheck, generation and docs checks passed. Trace-free Linux PTY passed inputs
+9 cases (dist/opentui-inputs-declared-cancel-final), existing regression 18
+(dist/opentui-inputs-regression) and windows 11 (dist/opentui-inputs-windows).
+Actual model answer receipts, plugin form values/password hash, native output,
+model requests and two real session journals are checked. The bench's synthetic
+raw keyboard log is deliberately excluded from the password privacy claim.
+Legacy Ink selected controllers pass 4 cases after correcting its stale
+/plugins placement trigger to /placement; settings pass 5, and Ghost's original
+frame bytes/timing pass independently. Screenshots inspected; all temporary
+tracing removed. No paid model endpoint or budget used. Installed CLI remains
+Ink. Production protocol/profile flows, saved chat recovery, packaging, embedded
+CPU onboarding and broad real-model self-development/quality remain open.
+Stable 1.0 is not achieved; preserve the full original objective.
+
 ## Host-owned OpenTUI window tree and synchronous input focus — 2026-11-14
 
 e65c6d9 passed remote CI, documentation and release preparation. OpenTUI now

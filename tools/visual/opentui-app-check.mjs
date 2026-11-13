@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {copyFile,mkdir,readFile,readdir,rm,stat,writeFile} from 'node:fs/promises';
+import {copyFile,mkdir,readFile,readdir,realpath,rm,stat,writeFile} from 'node:fs/promises';
 import {dirname,join,relative,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
@@ -120,7 +120,9 @@ try{
   await wait('Message Main…');
   launch=await json(join(output,'opentui-app-launch.json'));
   assert.equal(launch.providerOverride,false);assert.equal(launch.environmentProviderOverride,false);
-  assert.deepEqual(launch.launches[0].command.slice(-4),['--renderer','opentui','--cwd',launch.cwd]);
+  const launchArgs=launch.launches[0].command.slice(-4);
+  assert.deepEqual(launchArgs.slice(0,3),['--renderer','opentui','--cwd']);
+  assert.equal(await realpath(launchArgs[3]),await realpath(launch.cwd));
   if(launch.executable){
     assert.equal(hash(await readFile(launch.executable)),launch.sha256);report.executable={path:launch.executable,sha256:launch.sha256};
     const directory=dirname(launch.executable),files=[];

@@ -74,6 +74,23 @@ dist/opentui-app-ghost-regression and dist/opentui-app-window-regression-synced.
 Representative screenshots were inspected. These are controlled local checks,
 not live-model quality or universal native-terminal evidence.
 
+Published main commit d158c10 passed remote CI on Node 22.19.0/26,
+documentation check/deploy and plugin release preparation. The generated
+metadata-only PR #11 was reviewed without merging or publishing its plugin tags.
+Its dispatched checks passed; duplicate pull_request runs require GitHub's bot
+workflow approval. The local PATH now selects the complete immutable
+main-20261114-bc97f700bbd0-linux-x64 bundle, with the prior main and 0.2.0 installs
+retained. Evidence: dist/opentui-app-local-install.json. This is a local main
+build, not a new public host release.
+
+Build-only release run 43481717876 passed verification and both Linux native
+jobs, including six profile/session and five manager/placement flows on x64 and
+arm64. The first macOS arm64 application check stopped before those flows at a
+harness-only launch path comparison: /var/folders and /private/var/folders name
+the same temporary directory. The check now preserves exact renderer/cwd flags
+and compares canonical real paths. A new-head native matrix is required for
+macOS evidence; do not label the original run successful.
+
 Keep the full original stable 1.0 goal active. OpenTUI still needs the discoverable
 Arrange/window-finder controls, custom private controllers (all six explicitly
 fail before launch), appearance/render overrides, legacy conversation copies,

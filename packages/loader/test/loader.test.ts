@@ -59,6 +59,20 @@ describe("PluginLoader / disk discovery", () => {
     expect(await reloaded.tools[0].execute({}, {})).toEqual({ ok: true, data: 2 });
   });
 
+  it('preserves optional argument validators when loading and reloading disk tools',async()=>{
+    const root=pluginDir(dir,'validated');writeFileSync(join(root,'plugin.json'),JSON.stringify({name:'validated',version:'0.1.0',trust:'trusted'}));
+    const source=(value:number)=>`export default [{name:'validated',description:'Validated tool',parameters:{},validate:args=>args.value===${value}?undefined:'validated.value must be ${value}',describe:()=>({tool:'validated'}),execute:async()=>({ok:true,data:${value}})}];`;
+    writeFileSync(join(root,'tools.ts'),source(1));
+    const loader=new PluginLoader(host,{dirs:[root]}),loaded=await loader.loadAll();expect(loaded.failed).toEqual([]);
+    expect(loaded.loaded[0].tools[0].validate?.({value:0})).toBe('validated.value must be 1');
+    writeFileSync(join(root,'tools.ts'),source(2));const next=await loader.reload('validated');
+    expect(next.tools[0].validate?.({value:1})).toBe('validated.value must be 2');expect(next.tools[0].validate?.({value:2})).toBeUndefined();
+  });
+  it.each(['null','false','"not a function"','{}'])('rejects malformed disk validators at load time: %s',async value=>{
+    const root=pluginDir(dir,'invalid-validator');writeFileSync(join(root,'plugin.json'),JSON.stringify({name:'invalid-validator',version:'0.1.0',trust:'trusted'}));
+    writeFileSync(join(root,'tools.ts'),`export default [{name:'bad',description:'Bad validator',parameters:{},validate:${value},describe:()=>({tool:'bad'}),execute:async()=>({ok:true,data:1})}];`);
+    const report=await new PluginLoader(host,{dirs:[root]}).loadAll();expect(report.loaded).toEqual([]);expect(report.failed[0].reason).toContain('validate must be a function');
+  });
   it("rejects tools from render-only plugins before importing executable code", async () => {
     const root = pluginDir(dir, "view");
     writeFileSync(join(root, "plugin.json"), JSON.stringify({ name: "view", version: "1.0.0", trust: "render-only" }));

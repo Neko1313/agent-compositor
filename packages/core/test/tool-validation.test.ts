@@ -53,3 +53,9 @@ it('contains validator exceptions and malformed asynchronous returns without exe
  expect(await core.invokeTool('probe0',{})).toMatchObject({ok:false,error:expect.stringContaining('Bad argument')});
  expect(await core.invokeTool('probe1',{})).toMatchObject({ok:false,error:expect.stringContaining('validator must return')});expect(executions).toBe(0);
 });
+it.each([null,false])('does not treat a malformed falsy validator %s as an absent callback',async validate=>{
+ const cwd=await fixture();let executions=0;
+ const tool:ToolSpec<any>={name:'probe',description:'Malformed validator',parameters:{},validate:validate as any,describe:()=>({tool:'probe'}),execute:async()=>{executions++;return{ok:true,data:'wrong'};}};
+ const core=new AgentCore({cwd,provider:new ScriptedProvider([]),extraTools:[tool],rules:[{tool:'probe',decision:'allow'}]});cores.push(core);
+ expect(await core.invokeTool('probe',{})).toMatchObject({ok:false,error:expect.stringContaining('validator must be a function')});expect(executions).toBe(0);
+});

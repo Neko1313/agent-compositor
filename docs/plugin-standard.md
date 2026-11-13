@@ -41,6 +41,13 @@ string or `undefined`. The host checks detached effective arguments after tool
 rewrites and before permission review or execution. Validators neither perform
 effects nor grant authority; retain execution-time safeguards. See
 [argument admission and compatibility](core-customization.md#tool-argument-admission).
+The disk loader preserves this callback across load/reload and rejects a provided
+non-function value as a plugin load error. It checks the field without invoking
+the validator; malformed owners do not block unrelated valid or legacy tools.
+Tools may also be class instances. Composition retains inherited `describe`,
+`execute` and `validate` methods bound to the original instance, including private
+state, and copies their declared metadata even when supplied by getters. Ordinary
+object tools and native function identity keep their behavior.
 
 ## Finite query tools
 

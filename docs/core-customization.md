@@ -122,6 +122,11 @@ make a model select an authorized alternative or finish an unverified task.
 perform no effects, model calls or filesystem access. The host supplies detached
 arguments, so mutation cannot rewrite the descriptor or executed call. Exceptions,
 asynchronous returns and malformed results become failed tool calls.
+Omit the callback to skip this check; `null` and `false` are malformed declarations,
+including when tools are supplied directly to the core instead of loaded from disk.
+The disk loader's structural `PluginTool` contract includes the same optional
+callback. Non-function values fail plugin loading before the tool is advertised;
+valid callbacks are retained through reload and checked by the core at admission.
 
 Execution validates the effective tool and arguments after `tool.call` rewrites,
 before descriptor resolution, `tool.check`, permission review or approval. An

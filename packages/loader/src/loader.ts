@@ -41,7 +41,9 @@ export interface PluginTool {
   name: string;
   description: string;
   usage?: {when:string;avoid?:string;examples:{purpose:string;args:Record<string,unknown>}[]};
+  loopGuard?:'query';
   parameters: Record<string, unknown>;
+  validate?(args:unknown):string|undefined;
   describe(args: unknown): unknown;
   execute(ctx: unknown, args: unknown): Promise<unknown>;
 }
@@ -232,6 +234,8 @@ async function importTools(
       throw new Error(`tools[${i}] missing parameters object`);
     if (typeof t.describe !== "function" || typeof t.execute !== "function")
       throw new Error(`tools[${i}] requires describe() and execute()`);
+    if(t.validate!==undefined&&typeof t.validate!=='function')
+      throw new Error(`tools[${i}].validate must be a function when provided`);
   }
   return { tools: tools as PluginTool[], module: mod };
 }

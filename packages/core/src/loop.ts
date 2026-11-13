@@ -869,12 +869,31 @@ export class AgentCore {
         tools.findIndex((other) => other.name === tool.name) === index
     ).map(tool=>overrides.get(tool.name) ?? tool)
       .filter(tool=>!this.options.toolNames || this.options.toolNames.includes(tool.name))
-      .map(tool=>({...tool,parameters:structuredClone(tool.parameters)}));
+      .map(tool=>{
+        const copy={...tool,name:tool.name,description:tool.description,parameters:structuredClone(tool.parameters)};
+        for(const name of ['usage','loopGuard'] as const){
+          const value=tool[name];
+          if(value!==undefined)
+            Object.defineProperty(copy,name,{value,enumerable:true,writable:true,configurable:true});
+        }
+        // Preserve class/private receivers and non-enumerable structural fields.
+        const prototype=Object.getPrototypeOf(tool),instance=prototype!==null&&prototype!==Object.prototype;
+        for(const name of ['describe','execute','validate'] as const){
+          const method=tool[name];
+          if(method!==undefined){
+            const native=typeof method==='function'&&[readTool,writeTool,editTool,execTool].some(source=>source[name]===method);
+            const value=typeof method==='function'&&!native&&(instance||!Object.hasOwn(tool,name))?method.bind(tool):method;
+            Object.defineProperty(copy,name,{value,enumerable:true,writable:true,configurable:true});
+          }
+        }
+        return copy;
+      });
   }
 
   /** Shared preflight prevents tool-help previews from using different rule dimensions. */
   private toolArgumentError(spec:ToolSpec,args:unknown):string|undefined {
-    if(!spec.validate)return;
+    if(spec.validate===undefined)return;
+    if(typeof spec.validate!=='function')return'Tool argument validator must be a function when provided.';
     try{
       const result=spec.validate(structuredClone(args));
       if(result===undefined)return;

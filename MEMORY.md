@@ -1,5 +1,76 @@
 # Project memory
 
+## Expanded coding composition and disk-tool contract completion — 2026-11-13
+
+New isolated f1557fb snapshot in /tmp/compositor-selfhost-T3FZat with 807 tracked
+files and the original two immutable acceptance files. Negative control 6F/1P;
+separate manual reference 7P. Reference copies five current production files,
+including edit.ts/types.ts dependencies now imported by current resolvers; no
+reference source is placed in the model target. All npm workspace aliases point
+into the snapshot. Parent evaluator launches the entire app under the minimal
+evaluation environment, covering SDK service.exec.run as well as builtin shell
+execution. This changes only the test environment, not production inheritance.
+
+Expanded single-agent coding composition has 14 tools: all builtin file/shell/
+Todo tools, task_plan, skills, tool_help, Callix code_query/glob/grep and
+project_check. Standard projectContext/fileReferences/skills enabled. No task/
+question controls or persistent agent hub in this headless single-agent task.
+Explicit existing npm script permissions cover test/typecheck/gen/docs:gen/docs:check.
+Zero-model actual preflight lists 59 scripts, passes typecheck, confirms native
+Callix availability and locates ToolContext in tools/src/types.ts. Native semantic
+index was built during preflight; do not claim a cold-index live condition.
+
+First expanded Gemma attempt: 79 requests, 60-step failure, four refusals, no edits,
+6F/1P, types pass. Operator scope wrongly excluded plugins/todos/hooks.ts despite
+the legitimate task including plugin persistence; preserve this as a harness
+scope mistake, not a model-quality control. Corrected fresh session authorizes
+production plugins/todos/*.ts, explicitly denies test/spec files and keeps frozen
+oracles. Second attempt: 79 requests, eight compactions, token-input refusal,
+changes app/src/harness.ts and plugins/todos/hooks.ts, still 6F/1P plus failing
+types. One code_query, no project_check calls. No task-quality gain or model repair
+success claimed; two distinct conditions, not paired or unseen evidence. Artifacts
+under dist/self-host-expanded include preparation/controls, actual runtime sources,
+composition/prompt, both trajectories, comparison.json and isolation-audit.json.
+All 807 source hashes checked against allowed changes; 21 workspace aliases intact,
+no frozen test/config/Git mutation. Keep this partial checkout and the older one.
+
+Found an incomplete disk extension contract: plain object validator functions were
+already retained at runtime, but PluginTool lacked validate typing and loader
+accepted non-function values. Added validate and existing loopGuard to the structural
+type; non-function validate rejects that owner during loading. Real disk load/
+reload and buildApp tests retain callbacks, reject null/false/string/object fields,
+preserve legacy peers, and keep corrected calls under ordinary permission policy.
+Direct core tools also reject malformed null/false validator fields instead of
+treating falsy values as an absent callback; regressions ensure no execution even
+under an allow rule.
+
+A class-based disk tool was accepted by loader but failed core admission with
+Invalid or duplicate tool definition: composeTools spread discarded prototype
+methods. Regression fails before repair. Core now copies declared metadata,
+including getters/non-enumerable properties, and retains methods bound to class
+instances for private receivers. Ordinary own object methods keep their previous
+binding; native methods retain original function identity for confinement/read-only
+classification. Tests cover both prototype methods and hidden own methods with
+private state, metadata getters and tool_help. No model calls in these tests.
+This is a manually authored interoperability fix, not the model's failed patch.
+
+Prior 0ebd093 CI 43379353240, docs 43379353020 and release preparation 43379353044
+all passed. No OpenAI use/budget mutation; Ollama monetary billing unavailable.
+Canonical plugin-standard/core-customization/readiness updated. No event schema,
+CLI, installation choice or UI rendering change. Full 1.0, model quality, real
+self-development, onboarding and OpenTUI remain incomplete. The coding policy
+still recommends exec for builds/tests; expanded runs offered project_check but
+never used it. Investigate tool selection/check-discovery using actual compositions,
+without confusing capability availability or a guided prompt with general gains.
+
+Final verification: coverage 1404 passes/three optional skips in 171 files, all
+typecheck projects and docs:check/site build pass. docs:gen has no derived changes.
+Earlier 1400/1401/1402 green runs preceded subsequent class/non-enumerable/falsy
+regressions; final evidence is /tmp/compositor-plugin-contract-verified-tests.log,
+final-types.log and docs.log (same prefix). Canonical extension/core/readiness
+pages updated; architecture/marketplace installation and selection steps unchanged.
+No UI code changed, so backend checks were used instead of the PTY bench.
+
 ## Reject certain no-op edits before permission review — 2026-11-13
 
 All 13 previous literal-identity edits carried expectedHash, so they were exact

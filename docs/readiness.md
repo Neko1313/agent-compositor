@@ -387,6 +387,30 @@ successful repair. Evidence is in
 `dist/self-host-task-state/attempt-edit-validation-gemma-resume/`. The new validator
 improves admission semantics; broad live model repair quality remains unproven.
 
+A separate expanded coding diagnostic uses a new clean snapshot, 14 single-agent
+tools, automatic project instructions/skills/references, native Callix navigation
+and `project_check`. The entire evaluator process has a minimal environment,
+including SDK-owned subprocesses. Zero-model preflight discovers 59 npm scripts,
+runs real typecheck and locates `ToolContext` through the native semantic index.
+The original six-failure baseline and separate seven-pass reference remain intact.
+One live attempt incorrectly restricted edits to package sources while excluding
+Todos plugin code; its four refusals are retained as a test-harness scope error.
+A separate run explicitly authorizes Todos production TypeScript and excludes
+test/spec files. It uses semantic navigation once and changes two source files,
+but exhausts its token allowance with the same six acceptance failures and failing
+types. Neither run uses `project_check` autonomously. More available tools alone
+do not establish a quality gain. Frozen tests/configuration and all 21 workspace
+aliases remain intact; evidence is in `dist/self-host-expanded/`.
+
+This investigation also exposed a real extension composition defect: structurally
+valid class-based tools lost prototype methods when copied. A disk-plugin
+regression reproduces that failure; core now retains class/private receivers,
+non-enumerable methods and metadata getters while preserving native function
+identity and ordinary object behavior. The loader also types optional validators
+and rejects non-function declarations without blocking legacy peers. Real
+load/reload/admission tests cover these contracts. These are extension fixes,
+not successful model-authored repairs or stable 1.0 completion.
+
 ### Offline CPU coding diagnostic — 2026-11-13
 
 The maintained local CPU evaluator verifies an existing pinned Qwen cache, owns

@@ -231,7 +231,8 @@ a passing legacy-only view does not cover the newer workflow interface.
 
 Six model profiles use `tools/plugins/live-scenario.ts`. Every task starts in a
 fresh isolated project and runs the actual plugin against the predeclared Ollama
-reference, three repetitions of seven scenarios. Graders inspect generated files,
+reference, three repetitions of each package's task set (eight scenarios for
+auto-approve, seven for the other packages). Graders inspect generated files,
 explicitly activated generated commands, workflow results, approval verdicts and
 preserved/compacted context. Negative controls reject wrong outputs, unsafe
 approvals, unchanged starters, unauthorized activation and lost goals. A failed

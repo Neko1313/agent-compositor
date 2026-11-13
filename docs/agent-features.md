@@ -84,6 +84,9 @@ the reviewer. The reviewer returns exactly three fields:
 `{decision:"allow",risk,reason,policy:"task-context"}` for that exact call.
 `approved: false` returns a denied tool result with the review reason, without
 asking the same question again. `approved: null` means the user must decide.
+The reviewer is instructed to use `null`/`unknown` when targets or effects are
+undefined, and reserve refusal for concrete prohibited, unrelated or unsafe
+effects. Missing information alone does not establish a violation.
 High/unknown-risk approvals, missing task context, protected write paths, inputs above 24000 JSON
 characters, exhausted budgets, errors, timeouts, and invalid JSON fall back to
 manual approval. The reviewer has no tools and receives action

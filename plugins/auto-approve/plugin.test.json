@@ -227,7 +227,7 @@
       "kind": "live",
       "setup": "Actual plugin, isolated projects and the predeclared live Ollama reference. Three repetitions per task; controlled dependency failures and authoritative denials remain explicit.",
       "expect": [
-        "All seven task oracles pass in every repetition. Transcripts record the real reference requests, responses and provider-reported tokens.",
+        "All eight task oracles pass in every repetition. Transcripts record the real reference requests, responses and provider-reported tokens.",
         "Wrong or fabricated artifacts are rejected by negative-control graders."
       ],
       "forbidden": [

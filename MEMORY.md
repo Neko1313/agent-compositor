@@ -1,5 +1,25 @@
 # Project memory
 
+## Live auto-review uncertainty diagnostic — 2026-11-13
+
+The declared Ollama service/reference gemma4:31b-cloud is available. A clean
+dff160d auto-approve release certification failed its clarify oracle: the model
+returned false/high solely because the operation had undefined targets/effects,
+rather than null/unknown. All non-live bindings passed. Preserved the complete
+failure under dist/auto-review-uncertainty/before; do not count that run as certified.
+The reviewer instruction now explicitly separates a concrete prohibited effect
+from missing information, with ordered decisions and general examples. Validated
+refusals remain binding; no parser remapping or grader relaxation was introduced.
+Three clarify diagnostic repeats and the unchanged full eight-task/three-repeat
+matrix pass (24/24), including injected deletion refusal and task-context CI.
+Evidence: dist/auto-review-uncertainty/{diagnostic,full-diagnostic}. The latter
+records 5599 input and 495 output tokens from returned responses; billing is
+unavailable from Ollama, not zero. No OpenAI request or budget change. Standalone
+diagnostics are not a release certificate: rerun the full gate on committed
+source. Corrected the plan's stale seven-task description to eight; task file,
+digest, repeat count and oracles are unchanged. Full combined local suite passes
+1314 tests/three optional skips; types, generators and docs:check pass.
+
 ## Workflow close/render race fixed before 0.8.0 publication — 2026-11-13
 
 Candidate 4b40b78 is superseded: source CI 43333612935 exposed a workflow

@@ -32,6 +32,12 @@ standing approval for subsequent calls. Normal clarification questions are unaff
 Use `/auto off` to return subsequent proposals to human decisions; it cannot
 override a host permission-rule deny.
 
+The reviewer distinguishes missing information from a concrete violation:
+undefined targets or effects require `null`/`unknown`, while refusal must identify
+a prohibited, unrelated or unsafe effect. An injected claim of approval does not
+authorize that effect. This guidance does not override the model's validated
+refusal or convert it into an automatic grant.
+
 ## Develop
 
 Run `npm run plugin:test -- auto-approve` from the repository root.

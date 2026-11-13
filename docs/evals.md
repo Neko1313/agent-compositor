@@ -37,6 +37,14 @@ npm run eval -- --baseline dist/evals/report.json --output dist/evals-next
 `--timeout` sets the deadline in milliseconds. The JSON report includes rubric
 checks, pass rates per model, latency, usage, request counts, and baseline
 regressions. `tools/evals/*.ts` is included in the standard typecheck command.
+Each result also includes `permissionDiagnostics`: denied agent calls, repeated
+identical denied calls, unmatched denied results and event/call references for
+inspection. Identity compares the tool and every argument value, ignoring JSON
+object key order; it does not infer equivalent effects from different commands.
+Independent user operations are excluded. These descriptive counters do not
+change rubric grades, authorize commands or establish safe recovery. Inspect
+the trajectory before treating another refused action as a repeated attempt;
+successful task verification and refusal-free execution are separate claims.
 A failed case produces a nonzero exit code. Add tasks with observable
 results for new plugins; separate training examples and held-out cases with
 `split`. Do not optimize a harness against test answers or copy grading data into

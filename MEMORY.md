@@ -1,5 +1,35 @@
 # Project memory
 
+## Separate task success from denial-count diagnostics — 2026-11-13
+
+Follow-up discovery experiments at ffd0b6d kept the public 0.8.0 runtime unchanged.
+Explicit @package.json context passed 8/8 ordinary two-task/two-family repeats
+under the original graders/rules/bounds (dist/check-discovery/manifest-context).
+This changes user context, not baseline performance. Controlled denied-command
+injection scored baseline 1/4 versus manifest 1/4 under the frozen strict criterion
+(exactly one denial, no questions, original task success). Do not promote automatic
+manifest injection from those results or overwrite the failed baseline.
+
+Trajectory inspection shows original task/check success in 7/8 controlled runs;
+the strict criterion counts every additional denial, including unrelated chained
+file inspection. There is one exact repeated denied tool/argument call in the
+failed Gemma baseline; other extra commands require separate semantic inspection.
+No conclusion about equivalent effects follows merely from exact identity.
+Derived evidence: dist/check-discovery/controlled-context-diagnostics.json; frozen
+inputs/reports remain intact. New maintained permissionDiagnostics in eval rows
+separates total denials, exact repeated denials and unmatched results, retaining
+event/call references without copying arguments. It excludes independent user
+operations and never changes grades or runtime permissions. Next use these
+dimensions to distinguish permission-aware check discovery from repeated refusal
+and terminal-completion failures when evaluating harness changes. No OpenAI call
+or spending-guard mutation; Ollama billing unavailable. OpenTUI and stable 1.0
+remain incomplete.
+
+Validation: ten focused diagnostics/runner tests pass, including real policy
+denials with unchanged task scoring; deterministic agent smoke remains 5/5.
+Typechecking and full documentation checks pass. This is evaluator reporting,
+not a production recovery fix or a new model-quality claim.
+
 ## Denial-recovery wording hypothesis rejected — 2026-11-13
 
 Investigated the two-family 0.8.0 coding baseline (6/8) without changing its

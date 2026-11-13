@@ -1,6 +1,7 @@
 import {builtinTools} from '../../packages/tools/src/index.js';
 import {evaluationEnvironmentOverlay} from './environment.js';
 import {gradeProject} from './grading.js';
+import {permissionDiagnostics} from './permission-diagnostics.js';
 import {estimateTokens} from "../../packages/context/src/index.js";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -233,6 +234,7 @@ export async function runCase(
     response: answer,
     requests,
     usage,
+    permissionDiagnostics: permissionDiagnostics(events),
     navigationMode:test.navigationMode,
     toolTraffic:{schemaTokens,estimateMethod:"utf8-weighted-heuristic",resultTokens:transcript.filter(m=>m.role==='tool').reduce((n,m)=>n+estimateTokens(m.content),0),resultBytes:transcript.filter(m=>m.role==='tool').reduce((n,m)=>n+Buffer.byteLength(m.content),0),calls:events.filter(e=>e.kind==='catalog'&&e.event==='tool.call').map(e=>({tool:e.input.tool,argumentTokens:estimateTokens(JSON.stringify(e.input.input)),action:(e.input.input as any)?.action}))},
     durationMs: Date.now() - started,

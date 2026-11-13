@@ -14,12 +14,15 @@ export async function installDuringApproval({page, wait, click, capture, report,
   await wait('Approval pending');
   await wait('Main · Approval');
   await page.keyboard.press('/');
-  await wait('Enter or Esc returns to results');
+  await wait('Enter or Esc returns to');
   await page.keyboard.type('missing-preview-item');
   await wait('missing-preview-item');
   await wait('No matching plugins');
   await page.keyboard.press('Control+u');
   await page.keyboard.type(plugin);
+  // A third tile can truncate the qualified identity; zoom to inspect the
+  // exact result, then restore the concurrent approval before installing.
+  await page.keyboard.press('F9');
   await wait(plugin + '@preview-market');
   await wait('1 result');
   await wait('Catalog v1.0.0');
@@ -27,6 +30,7 @@ export async function installDuringApproval({page, wait, click, capture, report,
   await wait('Not loaded');
   await page.keyboard.press('Enter');
   await wait('Enter run');
+  await page.keyboard.press('F9');
   await wait('yn kept');
   await wait('Approval pending');
   await capture('plugins-catalog-pending.png');

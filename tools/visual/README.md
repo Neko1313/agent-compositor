@@ -118,6 +118,20 @@ focus, split orientation, swapping, resizing, zoom, independent drafts,
 workflow row expansion, terminal resizing and
 Ctrl+C cleanup. Set `VISUAL_OUTPUT` to choose a capture directory.
 
+`npm run visual:opentui-windows` exercises the host-owned window manager through
+the same actual PTY. It checks nested panes, directional focus, title drag/drop,
+separator resize and cancellation, workspace moves, and closing/reopening a
+running conversation without losing its in-process draft. Actual PTY restarts
+verify saved tree geometry, focus, workspace and intentional pane closure, plus
+restoration of an empty workspace. The scenario independently reads the app's
+layout file named in `opentui-fixture.json`. It verifies layout persistence;
+preview conversation history and unsent drafts do not survive process restart.
+
+The visual server owns the temporary project. For OpenTUI its private
+`.opentui-home` remains there across PTY restarts and is removed with the project
+when the server stops. No real home or model credentials are used. Native panes
+stay mounted with stable semantic IDs while the compositor changes their frames.
+
 The same browser scenario issues real `write` tool calls from both agents.
 It checks the workspace on disk before and after answering, scrolls through the
 arguments in a 48×18 terminal, visits Workflows with both requests pending and

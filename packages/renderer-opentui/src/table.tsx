@@ -10,7 +10,9 @@ export interface PluginTableSource {
   press(action: string): void;
 }
 
-export function PluginTable({source, width, focused}: {source: PluginTableSource; width: number; focused: boolean}) {
+export function PluginTable({source, width, focused, isActive, isVisible}: {
+  source: PluginTableSource; width: number; focused: boolean; isActive(): boolean; isVisible(): boolean;
+}) {
   const state = useSyncExternalStore(source.subscribe, source.snapshot);
   const [selectedId, select] = useState<string>();
   const narrow = width < 60;
@@ -22,7 +24,7 @@ export function PluginTable({source, width, focused}: {source: PluginTableSource
     if (activeRow) scroller.current?.scrollChildIntoView('table-row-' + activeRow.id);
   }, [activeRow?.id]);
   useKeyboard(key => {
-    if (!focused || !rows.length) return;
+    if (!isActive() || !rows.length) return;
     if (key.name === 'up' || key.name === 'down') {
       key.preventDefault();
       select(rows[Math.max(0, Math.min(rows.length - 1, index + (key.name === 'up' ? -1 : 1)))].id);
@@ -41,7 +43,7 @@ export function PluginTable({source, width, focused}: {source: PluginTableSource
       {!rows.length && <text fg="#a8b2bd">{state.table?.empty ?? 'No workflow rows.'}</text>}
       {rows.map((row, i) => <box id={'table-row-' + row.id} key={row.id} flexDirection="column" backgroundColor={i === index ? '#22272f' : undefined}>
         <box flexDirection={narrow ? 'column' : 'row'} onMouseDown={event => {
-          if (event.button !== MouseButton.LEFT) return;
+          if (event.button !== MouseButton.LEFT || !isVisible()) return;
           select(row.id);
           if (row.action) source.press(row.action);
         }}>

@@ -1,5 +1,45 @@
 # Project memory
 
+## Host-owned OpenTUI window tree and synchronous input focus — 2026-11-14
+
+e65c6d9 passed remote CI, documentation and release preparation. OpenTUI now
+receives rectangles, focus, workspace metadata and gesture state from an adapter
+around the existing WindowManager. Its temporary two-tile reducer is removed.
+Native widgets remain flat and keyed by stable semantic pane IDs, preserving
+in-process draft, cursor and undo state through nested splits, workspaces,
+drag/drop, resize, zoom, close/reopen and compact projection. The host uses the
+app layout store for full tree, ratios, focus, workspace and closed-pane state.
+The bench preserves its private home across PTY restart, then removes it with
+the temporary project. Standalone preview state is still temporary. No preview
+transcript or unsent-draft recovery across process exit is claimed.
+
+Two existing WindowManager defects are fixed: selecting an untouched empty
+workspace now registers it for snapshot/restore, and moving a pane to its current
+workspace leaves its exact tree unchanged. Nearest-split orient/swap methods
+serve the new frontend without duplicating the tree engine.
+
+A native PTY reproduced an approval routing race: F5 and Alt+Y in one input
+packet created main-note.txt after host focus had moved to Plugins but before
+React committed. Evidence: dist/opentui-focus-batch-review/report.json. Renderer
+window actions now use OpenTUI's public flushSync, and action admission plus
+native key/paste guards reread authoritative host focus/visibility/gesture state.
+The final real PTY proves F5/Alt+Y leaves Main pending, F3/text reaches Side
+without loss or cross-draft mutation, and F2/Alt+N denies only Main. Legacy
+ESC+punctuation workspace moves and explicit Ctrl+Z/Ctrl+Y undo/redo are covered.
+
+Validation: 1733 tests passed with three optional skips across 199 files, plus
+typecheck and documentation checks. Real Linux PTY passed 18 regression cases
+(dist/opentui-wm-routing-synced) and 10 window cases (dist/opentui-wm-tree-final).
+The latter checks actual gestures, close/reopen editor state, exact rendered
+geometry and serialized custom ratio 0.45 across restart, closed Plugins and a
+second restart into empty workspace 9. Ghost's original RGBA/order/timing passes
+independently (dist/opentui-wm-ghost-final); the shared Ink bench also passes 17
+cases (dist/opentui-wm-ink-regression). Screenshots were inspected. No model
+endpoint or paid test budget used. Installed CLI remains Ink. Production protocol
+binding, user placement controls, settings/questions, saved chat recovery,
+native packaging, embedded CPU onboarding and broad model-quality/self-hosting
+gates remain open; stable 1.0 is not achieved.
+
 ## OpenTUI tiles and live plugin management — 2026-11-14
 
 8ea1a58 passed remote CI, documentation and release preparation. The next source

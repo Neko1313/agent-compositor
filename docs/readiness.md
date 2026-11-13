@@ -344,20 +344,33 @@ allow and a denial. Independent file checks verified that only the selected
 write took effect. A repeat requested permission again, and closing the
 preview while it waited preserved the preexisting file.
 
-The source preview now also has two simultaneously visible tiles with
-independent focus, orientation, swap, resize and zoom controls. Main remains
-visible beside plugin search and management. The preview uses actual project
-installation, explicit enable/disable and deferred update/removal services,
-with separate saved and loaded-version status. This is an initial tiling shell.
-An arbitrary window tree, workspaces, drag/drop and saved placement still need
-migration. Settings and agent questions also remain open.
+The source preview now uses the existing host-owned binary window manager.
+Native panes receive rectangles and retain their editor instances through nested
+splits, directional focus, workspace moves, drag/drop, resize, zoom and closure.
+The host persists the tree, ratios, selected workspace, focus and closed panes.
+Actual project installation, explicit enable/disable and deferred update/removal
+keep saved and loaded-version status separate. User placement-rule controls,
+settings and agent questions still need migration. Production protocol binding,
+saved conversation recovery and release packaging remain outstanding.
 
-Its Linux PTY scenario passes 16 checks, including visible Main/Plugins panes,
+Its main Linux PTY scenario passes 18 checks, including visible Main/Plugins panes,
 layout controls, independent approval routing, deferred updates, command-written
 version receipts before and after update, disable/removal and clean shutdown.
 The updated command exposed and then verified a fix for Bun retaining old
 package modules despite a changed manifest. These checks use a deterministic
 local provider and local upstream fixture, not a real-model development task.
+
+The window-manager scenario also verifies close/reopen draft, cursor and undo
+state, actual title and separator gestures, workspace moves, compact projection
+and layout restoration after actual PTY restarts. An empty selected workspace
+must remain empty. These checks distinguish in-process editor retention from
+conversation recovery after process exit, which is not implemented in the preview.
+
+A single-packet F5/Alt+Y input initially confirmed Main after host focus had
+already moved to Plugins. Native focus changes now commit synchronously, and
+action admission checks the current host snapshot. Real PTY bursts verify that
+hidden approvals stay pending, typed text reaches the newly selected chat without
+loss, and a following denial targets only that chat's request.
 
 Initial technical references are the official [OpenTUI components](https://opentui.com/docs/components/),
 [image](https://opentui.com/docs/components/image/),

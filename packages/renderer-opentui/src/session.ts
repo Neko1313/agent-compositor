@@ -17,6 +17,8 @@ export interface ConversationSnapshot {
 /** The renderer subscribes to the session it displays. The host owns its lifetime. */
 export interface ConversationSession {
   id: string;
+  /** Stable compositor identity, independent of this core's runtime session ID. */
+  paneId?: string;
   label: string;
   snapshot(): ConversationSnapshot;
   subscribe(callback: () => void): () => void;

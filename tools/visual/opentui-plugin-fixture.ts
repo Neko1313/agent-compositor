@@ -1,4 +1,4 @@
-import {mkdir, writeFile} from 'node:fs/promises';
+import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {storagePaths} from '@agent-compositor/config';
 
@@ -6,6 +6,12 @@ import {storagePaths} from '@agent-compositor/config';
 export async function seedOpenTuiPlugin(cwd: string, home: string) {
   const catalogRoot = join(home, 'preview-market');
   const source = join(catalogRoot, 'preview-notes');
+  const catalogFile = join(catalogRoot, '.claude-plugin/marketplace.json');
+  const seeded = await readFile(catalogFile).then(() => true, error => {
+    if (error.code !== 'ENOENT') throw error;
+    return false;
+  });
+  if (!seeded) {
   await mkdir(join(catalogRoot, '.claude-plugin'), {recursive: true});
   await mkdir(source, {recursive: true});
   await writeFile(join(source, 'plugin.json'), JSON.stringify({
@@ -22,17 +28,19 @@ export default {
   },
 };
 `);
-  await writeFile(join(catalogRoot, '.claude-plugin/marketplace.json'), JSON.stringify({
+  await writeFile(catalogFile, JSON.stringify({
     name: 'preview-market', owner: {name: 'Local preview'}, plugins: [{
       name: 'preview-notes', version: '1.0.0', description: 'Record a local preview note without a model request.',
       source: './preview-notes', compositor: {format: 'native'},
     }],
   }, null, 2));
+  }
   const paths = storagePaths(cwd, {HOME: home, AGENT_HOME: join(home, '.agent-compositor')});
   const fixture = {
     cwd, home: paths.home, state: paths.state, catalogRoot, source,
     manifest: join(cwd, '.agent-compositor/plugins/preview-notes/plugin.json'),
     receipt: join(paths.state, 'plugin-state/preview-notes/last-run.json'),
+    layout: join(paths.state, 'layout.json'),
   };
   await writeFile(join(cwd, 'opentui-fixture.json'), JSON.stringify(fixture, null, 2));
   return fixture;

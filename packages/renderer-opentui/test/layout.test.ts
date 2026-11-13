@@ -1,39 +1,44 @@
 import { expect, it } from 'vitest';
-import { initialLayout, isPaneVisible, updateLayout } from '../src/layout.js';
+import { windowActionForKey } from '../src/layout.js';
 
-it('keeps Main visible when opening utility views and focuses either tile without moving it', () => {
-  const main = initialLayout('main', 'side');
-  const plugins = updateLayout(main, { type: 'open', id: 'plugins' });
-  expect(plugins).toMatchObject({ primary: 'main', secondary: 'plugins', focused: 'plugins' });
-  expect(isPaneVisible(plugins, 'main', false)).toBe(true);
-  expect(isPaneVisible(plugins, 'side', false)).toBe(false);
-  expect(updateLayout(plugins, { type: 'focus' })).toEqual({ ...plugins, focused: 'main' });
-  expect(updateLayout(plugins, { type: 'open', id: 'main' })).toEqual({ ...plugins, focused: 'main' });
-  expect(updateLayout(plugins, { type: 'open', id: 'plugins' })).toBe(plugins);
+const panes = ['main', 'side', 'workflows', 'plugins'];
+const key = (name: string, values: Partial<Parameters<typeof windowActionForKey>[0]> = {}) =>
+  ({name, sequence: name, ctrl: false, shift: false, meta: false, ...values});
+
+it('opens registered panes and keeps window controls after the pane shortcuts', () => {
+  expect(windowActionForKey(key('f2'), panes)).toEqual({type: 'open', id: 'main'});
+  expect(windowActionForKey(key('f5'), panes)).toEqual({type: 'open', id: 'plugins'});
+  expect(['f6', 'f7', 'f8', 'f9', 'f10'].map(name => windowActionForKey(key(name), panes)))
+    .toEqual(['cycle', 'orient', 'swap', 'zoom', 'close'].map(type => ({type})));
+  expect(windowActionForKey(key('f7'), [...panes, 'inspector'])).toEqual({type: 'cycle'});
 });
 
-it('keeps the focused identity through swaps, resizing and orientation, including under zoom', () => {
-  let layout = initialLayout('main', 'side');
-  layout = updateLayout(layout, { type: 'swap' });
-  layout = updateLayout(layout, { type: 'orient' });
-  layout = updateLayout(layout, { type: 'resize', delta: -200 });
-  expect(layout).toMatchObject({ swapped: true, firstShare: 25, direction: 'column', focused: 'main' });
-  expect(updateLayout(layout, { type: 'resize', delta: 200 }).firstShare).toBe(75);
-  expect(isPaneVisible(layout, 'side', true)).toBe(false);
-  expect(isPaneVisible(layout, 'side', false)).toBe(true);
-  const zoom = updateLayout(layout, { type: 'zoom' });
-  expect(isPaneVisible(zoom, 'side', false)).toBe(false);
-  const side = updateLayout(zoom, { type: 'focus' });
-  expect(isPaneVisible(side, 'side', false)).toBe(true);
-  expect(isPaneVisible(side, 'main', false)).toBe(false);
-  expect(updateLayout(zoom, { type: 'zoom' })).toEqual(layout);
+it('leaves editor, approval and modified function keys to their own input handlers', () => {
+  for (const name of ['y', 'n', 'return', 'left', 'pageup', '1', 'a'])
+    expect(windowActionForKey(key(name), panes)).toBeUndefined();
+  for (const name of ['y', 'n', 'return'])
+    expect(windowActionForKey(key(name, {meta: true}), panes)).toBeUndefined();
+  for (const modifier of ['ctrl', 'shift', 'meta', 'super', 'hyper'])
+    expect(windowActionForKey(key('f2', {[modifier]: true}), panes)).toBeUndefined();
 });
 
-it('keeps a single pane until there is a distinct second view', () => {
-  const layout = initialLayout('main', 'main');
-  expect(layout.secondary).toBeUndefined();
-  expect(updateLayout(layout, { type: 'focus' })).toBe(layout);
-  expect(updateLayout(layout, { type: 'swap' })).toBe(layout);
-  expect(updateLayout(layout, { type: 'open', id: 'main' })).toBe(layout);
-  expect(updateLayout(layout, { type: 'open', id: 'side' })).toMatchObject({ secondary: 'side', focused: 'side' });
+it('maps both structured and legacy shifted workspace keys without treating text as a move', () => {
+  for (let id = 1; id <= 9; id++) {
+    expect(windowActionForKey(key(String(id), {meta: true}), panes)).toEqual({type: 'workspace', id});
+    expect(windowActionForKey(key(String(id), {meta: true, shift: true}), panes)).toEqual({type: 'moveWorkspace', id});
+    const symbol = '!@#$%^&*('[id - 1];
+    expect(windowActionForKey(key(symbol, {meta: true, sequence: '\x1b' + symbol}), panes))
+      .toEqual({type: 'moveWorkspace', id});
+    expect(windowActionForKey(key('', {sequence: '\x1b' + symbol}), panes))
+      .toEqual({type: 'moveWorkspace', id});
+    expect(windowActionForKey(key(symbol), panes)).toBeUndefined();
+  }
+});
+
+it('keeps directional focus and swaps distinct from nearest-split resize', () => {
+  expect(windowActionForKey(key('h', {meta: true}), panes)).toEqual({type: 'direction', key: 'left', move: false});
+  expect(windowActionForKey(key('l', {meta: true, shift: true}), panes)).toEqual({type: 'direction', key: 'right', move: true});
+  expect(windowActionForKey(key('left', {meta: true}), panes)).toEqual({type: 'resize', delta: -.05});
+  expect(windowActionForKey(key('right', {meta: true}), panes)).toEqual({type: 'resize', delta: .05});
+  expect(windowActionForKey(key('left', {meta: true, ctrl: true}), panes)).toBeUndefined();
 });

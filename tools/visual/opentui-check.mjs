@@ -116,7 +116,7 @@ try {
   await page.keyboard.press('Alt+ArrowLeft');
   await page.waitForFunction(before => visual.text().split('\n').some(line => {
     const x = line.indexOf('Side layout draft');
-    return x >= 0 && x < before;
+    return x >= 0 && x !== before;
   }), columns.side.x);
   await capture('layout-resized-columns.png');
   await page.keyboard.press('Alt+ArrowRight');
@@ -187,6 +187,17 @@ try {
   await type(' kept');
   await wait('yn kept');
   await capture('approval-main-pending.png');
+  // Public terminal.input delivers this as one real PTY chunk. The compositor
+  // changes focus before React necessarily unmounts the previous approval card.
+  await page.evaluate(() => visual.terminal.input('\x1b[15~\x1by', true));
+  await wait('Filter plugins');
+  await wait('Main · Approval');
+  await beforeDecision();
+  await capture('approval-burst-plugin-focus.png');
+  await page.keyboard.press('F2');
+  await wait('yn kept');
+  await wait('Approval required');
+  report.checks.push('F5 followed by Alt+Y in one actual PTY input chunk focuses Plugins without allowing the previously mounted Main approval');
   await installDuringApproval(pluginBench);
   await wait(mainFile);
   await wait('yn kept');
@@ -222,6 +233,15 @@ try {
   await wait(mainFile);
   assert.ok(!(await screen()).includes('Side approval draft'));
   assert.ok(!(await screen()).includes(sideFile));
+  await page.evaluate(() => visual.terminal.input('\x1bOR typed', true));
+  await wait('Side approval draft typed');
+  await page.keyboard.press('F2');
+  await wait('yn kept');
+  assert.ok(!(await screen()).includes('yn kept typed'));
+  await wait('Main · Approval');
+  await wait('Side · Approval');
+  await beforeDecision();
+  report.checks.push('F3 followed by text in one actual PTY chunk appends only to the Side draft, preserves Main and leaves both permission reviews pending');
   await page.keyboard.press('F3');
   await wait('Side approval draft');
   await page.keyboard.press('F9');
@@ -230,7 +250,9 @@ try {
   await wait('Approval pending');
   await wait('Approval required');
   await capture('approval-split-pending.png');
-  await click('Alt+N Deny');
+  await page.keyboard.press('F3');
+  await wait('Side approval draft typed');
+  await page.evaluate(() => visual.terminal.input('\x1bOQ\x1bn', true));
   await wait('Write denied');
   await wait('Main · Ready');
   await wait('yn kept');
@@ -238,7 +260,7 @@ try {
   await beforeDecision();
   await page.keyboard.press('F9');
   await page.waitForFunction(() => !visual.text().includes('Side approval draft'));
-  report.checks.push('Clicking Deny while both reviews are pending targets the focused Main card, preserves its draft and leaves the Side request pending and both files absent');
+  report.checks.push('F2 and Alt+N in one actual PTY chunk deny Main after focusing it, preserve its draft and leave the Side request pending and both files absent');
 
   await click('F3 Side');
   await wait('Side approval draft');

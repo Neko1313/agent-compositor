@@ -1,38 +1,89 @@
-export interface PaneLayout {
-  primary: string;
-  secondary?: string;
+export interface WindowFrame {
+  surface: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type WindowDirection = 'left' | 'right' | 'up' | 'down';
+export type WindowDropEdge = 'left' | 'right' | 'top' | 'bottom' | 'center';
+
+export interface WindowLayoutSnapshot {
+  revision: number;
+  width: number;
+  height: number;
+  frames: readonly WindowFrame[];
   focused: string;
-  direction: 'row' | 'column';
-  swapped: boolean;
-  zoomed: boolean;
-  firstShare: number;
+  workspace: number;
+  workspaces: readonly number[];
+  locations: Readonly<Record<string, number>>;
+  axis: 'horizontal' | 'vertical';
+  fullscreen: boolean;
+  compact: boolean;
+  pointer: 'default' | 'grab' | 'grabbing' | 'ew-resize' | 'ns-resize';
+  drop?: {surface: string; edge: WindowDropEdge};
+  dragging?: string;
+  gesture?: 'move' | 'resize';
+  saving?: boolean;
+  error?: string;
 }
 
-export type LayoutAction =
-  | { type: 'open'; id: string }
-  | { type: 'focus' | 'orient' | 'swap' | 'zoom' }
-  | { type: 'resize'; delta: number };
+export type WindowLayoutAction =
+  | {type: 'open' | 'focus'; id: string}
+  | {type: 'cycle' | 'orient' | 'swap' | 'zoom' | 'close'}
+  | {type: 'resize'; delta: number}
+  | {type: 'direction'; key: WindowDirection; move?: boolean}
+  | {type: 'workspace' | 'moveWorkspace'; id: number}
+  | {type: 'pointer'; phase: 'down' | 'move' | 'up' | 'cancel'; x: number; y: number;
+      kind?: 'title' | 'pane' | 'separator'; revision?: number; workspace?: number};
 
-export function initialLayout(primary: string, secondary?: string): PaneLayout {
-  return { primary, secondary: primary === secondary ? undefined : secondary, focused: primary,
-    direction: 'row', swapped: false, zoomed: false, firstShare: 65 };
+/** The host owns the tiling tree, gestures, placement policy and persistence. */
+export interface WindowLayoutSource {
+  snapshot(): WindowLayoutSnapshot;
+  subscribe(listener: () => void): () => void;
+  resize(width: number, height: number): void;
+  act(action: WindowLayoutAction): void;
 }
 
-export function updateLayout(layout: PaneLayout, action: LayoutAction): PaneLayout {
-  if (action.type === 'open') {
-    if (action.id === layout.focused) return layout;
-    return { ...layout, focused: action.id, secondary: action.id === layout.primary ? layout.secondary : action.id };
+interface WindowKey {
+  name: string;
+  sequence: string;
+  ctrl: boolean;
+  shift: boolean;
+  meta: boolean;
+  super?: boolean;
+  hyper?: boolean;
+}
+
+const directions: Readonly<Record<string, WindowDirection>> = {h: 'left', j: 'down', k: 'up', l: 'right'};
+
+/** Keep window shortcuts disjoint from ordinary editor and approval input. */
+export function windowActionForKey(key: WindowKey, panes: readonly string[]): WindowLayoutAction | undefined {
+  if (key.ctrl || key.super || key.hyper) return;
+  // Legacy xterm encodes Alt+Shift+digit as ESC plus punctuation. The SDK's
+  // generic key parser leaves those exact packets unnamed and without Meta.
+  const legacyWorkspace = /^\x1b([!@#$%^&*(])$/.exec(key.sequence);
+  if (legacyWorkspace) return {type: 'moveWorkspace', id: '!@#$%^&*('.indexOf(legacyWorkspace[1]) + 1};
+  if (key.meta) {
+    const sequence = key.sequence.replace(/^\x1b/, '');
+    const shiftedWorkspace = '!@#$%^&*('.indexOf(sequence);
+    const digit = /^[1-9]$/.test(key.name) ? Number(key.name) : undefined;
+    if (digit) return {type: key.shift ? 'moveWorkspace' : 'workspace', id: digit};
+    if (shiftedWorkspace >= 0 && sequence.length === 1)
+      return {type: 'moveWorkspace', id: shiftedWorkspace + 1};
+    const direction = directions[key.name.toLowerCase()];
+    if (direction) return {type: 'direction', key: direction, move: key.shift};
+    if (!key.shift && (key.name === 'left' || key.name === 'right'))
+      return {type: 'resize', delta: key.name === 'left' ? -.05 : .05};
+    return;
   }
-  if (!layout.secondary) return layout;
-  switch (action.type) {
-    case 'focus': return { ...layout, focused: layout.focused === layout.primary ? layout.secondary : layout.primary };
-    case 'orient': return { ...layout, direction: layout.direction === 'row' ? 'column' : 'row' };
-    case 'swap': return { ...layout, swapped: !layout.swapped };
-    case 'zoom': return { ...layout, zoomed: !layout.zoomed };
-    case 'resize': return { ...layout, firstShare: Math.min(75, Math.max(25, layout.firstShare + action.delta)) };
-  }
-}
-
-export function isPaneVisible(layout: PaneLayout, id: string, compact: boolean) {
-  return id === layout.focused || (!layout.zoomed && !compact && (id === layout.primary || id === layout.secondary));
+  if (key.shift) return;
+  const match = /^f(\d+)$/.exec(key.name);
+  if (!match) return;
+  const number = Number(match[1]);
+  if (panes[number - 2]) return {type: 'open', id: panes[number - 2]};
+  const controls = ['cycle', 'orient', 'swap', 'zoom', 'close'] as const;
+  const control = controls[number - Math.max(6, panes.length + 2)];
+  return control ? {type: control} : undefined;
 }

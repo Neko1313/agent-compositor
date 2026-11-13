@@ -176,6 +176,7 @@ export class WindowManager {
   switchTo(id: number): void {
     this.spaces.set(this.workspace, { tree: this.tree, focus: this.contentFocus() });
     this.workspace = id;
+    if (!this.spaces.has(id)) this.spaces.set(id, {});
     this.focused =
       this.spaces.get(id)?.focus ?? leaves(this.tree)[0] ?? "input";
     this.fullscreen = false;
@@ -274,7 +275,7 @@ export class WindowManager {
     if (this.focused === id) this.focused = this.ids()[0] ?? "input";
   }
   moveWorkspace(id: number): void {
-    if (this.focused === "input") return;
+    if (this.focused === "input" || id === this.workspace) return;
     const surface = this.focused;
     this.close();
     this.switchTo(id);
@@ -441,6 +442,31 @@ export class WindowManager {
       return true;
     };
     if (this.tree) walk(this.tree);
+  }
+  /** Change the nearest split without changing pane identities or focus. */
+  orient(): void {
+    const walk = (node?: Tree): boolean => {
+      if (!node || "surface" in node) return false;
+      const child = node.children.find(child => leaves(child).includes(this.focused));
+      if (!child) return false;
+      if (!walk(child)) {
+        node.axis = node.axis === "horizontal" ? "vertical" : "horizontal";
+        this.axis = node.axis;
+      }
+      return true;
+    };
+    if (!walk(this.tree)) this.axis = this.axis === "horizontal" ? "vertical" : "horizontal";
+  }
+  /** Swap the children of the nearest split, retaining the focused pane. */
+  swap(): void {
+    const walk = (node?: Tree): boolean => {
+      if (!node || "surface" in node) return false;
+      const child = node.children.find(child => leaves(child).includes(this.focused));
+      if (!child) return false;
+      if (!walk(child)) node.children = [node.children[1], node.children[0]];
+      return true;
+    };
+    walk(this.tree);
   }
   workspaces(): number[] {
     return [...new Set([1, 2, 3, ...this.spaces.keys(), this.workspace])].sort(

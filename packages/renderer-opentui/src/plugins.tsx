@@ -57,8 +57,9 @@ function Button({ label, onPress, selected, disabled, danger }: {
   </box>;
 }
 
-export function Plugins({ source, visible, focused, width, height }: {
+export function Plugins({ source, visible, focused, width, height, isActive, isVisible }: {
   source: PluginManagerSource; visible: boolean; focused: boolean; width: number; height: number;
+  isActive(): boolean; isVisible(): boolean;
 }) {
   const state = useSyncExternalStore(source.subscribe, source.snapshot);
   const [query, setQuery] = useState('');
@@ -89,18 +90,20 @@ export function Plugins({ source, visible, focused, width, height }: {
   }, [focused]);
 
   function choose(id: string) {
+    if (!isVisible()) return;
     setSelectedId(id);
     setSelectedAction(undefined);
     setRemoveIntent(undefined);
     setSearching(false);
   }
   function refresh() {
+    if (!isVisible()) return;
     setRemoveIntent(undefined);
     setSearching(false);
     if (!state.working) source.refresh();
   }
   function run(chosen: PluginManagerAction) {
-    if (!row || state.working || !row.actions.includes(chosen)) return;
+    if (!isVisible() || !row || state.working || !row.actions.includes(chosen)) return;
     setSelectedId(row.id);
     setSelectedAction(chosen);
     setSearching(false);
@@ -108,12 +111,12 @@ export function Plugins({ source, visible, focused, width, height }: {
     else source.act(row.id, chosen, state.revision);
   }
   function confirmRemoval() {
-    if (confirming && !state.working) source.act(removeIntent.id, 'remove', removeIntent.revision);
+    if (isVisible() && confirming && !state.working) source.act(removeIntent.id, 'remove', removeIntent.revision);
     setRemoveIntent(undefined);
   }
 
   useKeyboard(key => {
-    if (!focused || key.ctrl || key.meta || key.super || key.hyper) return;
+    if (!isActive() || key.ctrl || key.meta || key.super || key.hyper) return;
     const enter = key.name === 'return' || key.name === 'kpenter';
     if (confirming) {
       if (key.name === 'escape') setRemoveIntent(undefined);
@@ -147,10 +150,12 @@ export function Plugins({ source, visible, focused, width, height }: {
     </box>
     <box flexDirection="row" marginBottom={narrow || short ? 0 : 1} gap={1}
       backgroundColor={color.panel} onMouseDown={event => {
-        if (event.button === MouseButton.LEFT) { setRemoveIntent(undefined); setSearching(true); }
+        if (event.button === MouseButton.LEFT && isVisible()) { setRemoveIntent(undefined); setSearching(true); }
       }}>
       <text fg={searching ? color.accent : color.muted} selectable={false}>Search</text>
       <input flexGrow={1} flexBasis={0} minWidth={1} scrollMargin={0} focused={focused && searching} placeholder="Filter plugins…"
+        onKeyDown={key => { if (!isActive()) key.preventDefault(); }}
+        onPaste={event => { if (!isActive()) event.preventDefault(); }}
         value={query} onInput={setQuery} backgroundColor={color.panel} focusedBackgroundColor={color.panel}
         textColor={color.text} focusedTextColor={color.text} cursorColor={color.accent} placeholderColor={color.muted} />
     </box>

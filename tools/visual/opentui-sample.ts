@@ -9,6 +9,7 @@ import {connectConversation, connectPluginTable} from './opentui-host.js';
 import {ghostMedia} from './opentui-mascot.js';
 import {seedOpenTuiPlugin} from './opentui-plugin-fixture.js';
 import {connectPluginManager} from './opentui-plugins.js';
+import {connectWindowLayout} from './opentui-windows.js';
 import {runConversationPrototype} from '@agent-compositor/renderer-opentui';
 
 function localProvider(label: string): ModelProvider {
@@ -46,11 +47,13 @@ function localProvider(label: string): ModelProvider {
 const temp = process.argv[2] ? undefined : await mkdtemp(join(tmpdir(), 'compositor-opentui-'));
 const cwd = temp ?? process.argv[2]!;
 const labels = ['Main', 'Side'];
-const home = await mkdtemp(join(tmpdir(), 'compositor-opentui-home-'));
+// The visual server owns this temporary workspace across PTY restarts.
+const persistentBench = process.env.VISUAL_OPENTUI === '1';
+const home = persistentBench ? join(cwd, '.opentui-home') : await mkdtemp(join(tmpdir(), 'compositor-opentui-home-'));
 try {
   await runPreview();
 } finally {
-  await rm(home, {recursive: true, force: true});
+  if (!persistentBench) await rm(home, {recursive: true, force: true});
   if (temp) await rm(temp, {recursive: true, force: true});
 }
 
@@ -76,6 +79,7 @@ async function runPreview() {
   const workflowTable = connectPluginTable(main, 'workflows', 'plugin-workflows-runs', 'Workflows');
   let pluginManager: Awaited<ReturnType<typeof connectPluginManager>> | undefined;
   let sessions: ReturnType<typeof connectConversation>[] = [];
+  let windowLayout: Awaited<ReturnType<typeof connectWindowLayout>> | undefined;
   try {
     await Promise.all(agents.map(core => core.start()));
     const registered = await main.host.emit('service.marketplace.control', {
@@ -90,15 +94,21 @@ async function runPreview() {
     if (!started.ok) throw new Error(started.error);
     await main.submit('/workflows');
     pluginManager = await connectPluginManager(mainApp, main);
-    sessions = agents.map((core, index) => connectConversation(core, labels[index], inboxes[index],
-      index === 0 ? text => pluginManager!.submit(text) : undefined));
+    sessions = agents.map((core, index) => ({...connectConversation(core, labels[index], inboxes[index],
+      index === 0 ? text => pluginManager!.submit(text) : undefined), paneId: index === 0 ? 'main' : 'side'}));
+    windowLayout = await connectWindowLayout(mainApp, {
+      panes: [...sessions.map(session => ({id: session.paneId!, label: session.label})),
+        {id: 'workflows', label: 'Workflows'}, {id: 'plugins', label: 'Plugins'}],
+      initial: ['main', 'side'],
+    });
     await runConversationPrototype(sessions, {
-      workflowTable, pluginManager, composerMedia: ghostMedia,
+      workflowTable, pluginManager, windowLayout, composerMedia: ghostMedia,
       animations: process.env.AGENT_GRAPHICS !== 'off' && !process.env.NO_COLOR && process.env.AGENT_REDUCED_MOTION !== '1',
     });
   } finally {
     workflowTable.disconnect();
     for (const session of sessions) session.disconnect();
+    await windowLayout?.disconnect();
     await pluginManager?.disconnect();
     await Promise.allSettled([mainApp.close(), side.close()]);
   }

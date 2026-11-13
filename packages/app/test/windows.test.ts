@@ -2,6 +2,38 @@ import { describe, it, expect } from "vitest";
 import { WindowManager, leaves } from "../src/windows.js";
 
 describe("tiling compositor", () => {
+  it("orients and swaps the nearest nested split without changing its focused identity", () => {
+    const wm = new WindowManager();
+    wm.focused = "tools"; wm.open("inspector");
+    wm.orient();
+    expect(wm.axis).toBe("vertical");
+    expect(wm.frames(100, 40).find(f => f.surface === "session")).toMatchObject({width: 70, height: 40});
+    expect(wm.frames(100, 40).find(f => f.surface === "inspector")).toMatchObject({x: 70, y: 20, width: 30, height: 20});
+    wm.swap();
+    expect(wm.focused).toBe("inspector");
+    expect(wm.frames(100, 40).find(f => f.surface === "inspector")).toMatchObject({x: 70, y: 0});
+    wm.focused = "session"; wm.orient();
+    expect(wm.frames(100, 40).find(f => f.surface === "session")).toMatchObject({x: 0, y: 0, width: 100});
+  });
+  it("restores a selected empty workspace without inventing panes", () => {
+    const wm = new WindowManager();
+    wm.switchTo(3);
+    const restored = new WindowManager();
+    restored.restore(wm.snapshot(), new Set(["session", "tools"]));
+    expect(restored.workspace).toBe(3);
+    expect(restored.frames(100, 40)).toEqual([]);
+    expect(restored.focused).toBe("input");
+    restored.switchTo(1);
+    expect(restored.ids()).toEqual(["session", "tools"]);
+  });
+  it("keeps the exact tree when moving a pane to its current workspace", () => {
+    const wm = new WindowManager();
+    wm.focused = "tools"; wm.axis = "vertical"; wm.open("inspector");
+    const before = wm.snapshot(), frames = wm.frames(100, 40);
+    wm.moveWorkspace(1);
+    expect(wm.snapshot()).toEqual(before);
+    expect(wm.frames(100, 40)).toEqual(frames);
+  });
   it("nests splits, partitions the viewport and collapses closed containers", () => {
     const wm = new WindowManager(); wm.focused = "tools"; wm.axis = "vertical"; wm.open("inspector");
     const frames = wm.frames(100, 40);

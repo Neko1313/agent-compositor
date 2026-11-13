@@ -109,11 +109,12 @@ try{
   await page.evaluate(()=>visual.terminal.resize(180,50));await command('/nav-panes');await wait('Navigation controls');
   await observe(layout,value=>value.registered.filter(id=>/^plugin-navigation-probe-pane\d+$/.test(id)).length===12,'All12 actual plugin panes must be registered');
   await main();await type('NAV_DRAFT_47');await key('Home');await key('ArrowRight');
-  const previousContext=(await layout()).windows;
+  const previousContext=(await observe(layout,value=>value.windows.focused==='session','Saved focus must acknowledge the visible Main pane')).windows;
   await finder();await paste('PRIVATE_窗_47');await wait('PRIVATE_窗_47');await wait('No matching windows');
   await key('Home');await key('ArrowRight');await type('_');await wait('P_RIVATE_窗_47');await key('Control+z');await wait('PRIVATE_窗_47');
   await key('Control+u');await type('Заметки 窗口');await wait('WS 3');await capture('01-private-unicode-finder');
-  await key('Escape');await absent(finderMarker);assert.deepEqual((await layout()).windows,previousContext);
+  await key('Escape');await absent(finderMarker);
+  const returned=await observe(layout,value=>JSON.stringify(value.windows)===JSON.stringify(previousContext),'Finder Escape must restore the exact saved context');assert.deepEqual(returned.windows,previousContext);
   await type('_');await wait('N_AV_DRAFT_47');await key('Control+z');await wait('NAV_DRAFT_47');
   await key('End');await key('Control+u');
   const batch='/windows\r\x1b[200~BATCH_窗_47\x1b[201~';await rawInput(batch);await wait(finderMarker);await wait('BATCH_窗_47');await noRequests(0);
@@ -129,13 +130,15 @@ try{
   const originalJournal=await sessionFiles();assert.equal(originalJournal.length,1);
   await arrange();await key('q');await leave();await observe(layout,value=>!value.windows.spaces.some(space=>leaves(space.tree).includes('session')),'Arrange q must close Main');
   await finder('Main');await wait('Closed');await capture('02-closed-main-pending');await key('Enter');await absent(finderMarker);
-  assert.deepEqual(await sessionFiles(),originalJournal);assert.equal((await layout()).windows.spaces.flatMap(space=>leaves(space.tree)).filter(id=>id==='session').length,1);
+  const reopened=await observe(layout,value=>value.windows.focused==='session'&&value.windows.spaces.flatMap(space=>leaves(space.tree)).filter(id=>id==='session').length===1,'Saved layout must acknowledge the same reopened Main pane');
+  assert.deepEqual(await sessionFiles(),originalJournal);assert.equal(reopened.windows.spaces.flatMap(space=>leaves(space.tree)).filter(id=>id==='session').length,1);
   await wait('NAV_PENDING_DRAFT_47');await click('Edit answer');await wait('[x] Production');await click('Draft');await noResult('ask_user');
   report.checks.push('Arrange typing, Enter, pasted q and Ctrl+C cannot settle Main; closing and finding Main reopens the same pending conversation and journal without duplicate panes or lost selected answer');
 
   await pick('/nav-form');await wait('Navigation private form');await wait('FORMvalue');await key('Home');await key('ArrowRight');await type('_');await wait('F_ORMvalue');
-  const formId=(await layout()).windows.focused;await arrange();await paste('q');await key('Control+c');await absent('WINDOW MODE');assert.equal(await exists(launch.navigation.formReceipt),false);
-  await main();await wait('NAV_PENDING_DRAFT_47');await pick('Navigation private form');assert.equal((await layout()).windows.focused,formId);
+  assert.equal(await observe(()=>json(launch.navigation.formCalls),value=>value===1,'The caller must make one actual private form request'),1);
+  await arrange();await paste('q');await key('Control+c');await absent('WINDOW MODE');assert.equal(await exists(launch.navigation.formReceipt),false);
+  await main();await wait('NAV_PENDING_DRAFT_47');await pick('Navigation private form');assert.equal(await json(launch.navigation.formCalls),1);
   await type('X');await wait('F_XORMvalue');await capture('03-private-form-return');await key('Alt+Enter');
   const receipt=await observe(()=>json(launch.navigation.formReceipt),value=>value?.action==='save','Only explicit form submission may publish a receipt');assert.equal(receipt.values.name,'F_XORMvalue');
   await main();await wait('NAV_PENDING_DRAFT_47');await click('Edit answer');await wait('[x] Production');await key('Alt+Enter');await wait('APP_ANSWER_RECEIVED: Production; model=app-start');
@@ -156,7 +159,8 @@ try{
   assert.equal(location(await layout(),'plugin-navigation-probe-slow'),undefined);assert.ok(!(await screen()).includes('LATE_CANCELLED_ROUTE'));
   await pick('Navigation controls');await click('Refresh inventory');await observe(()=>json(launch.navigation.refreshStarted),Boolean,'Real refresh action must start');
   await finder('Nav pane 12');await wait('WS 2');await observe(()=>json(launch.navigation.refreshFinished),Boolean,'Real refresh must remove its source');await wait('Unavailable');
-  await key('Enter');await wait('fresh view from its plugin');assert.equal(location(await layout(),'plugin-navigation-probe-pane12'),undefined);
+  await key('Enter');await wait('fresh view from its plugin');
+  const removed=await observe(layout,value=>location(value,'plugin-navigation-probe-pane12')===undefined,'Saved layout must acknowledge removal of the unavailable pane');assert.equal(location(removed,'plugin-navigation-probe-pane12'),undefined);
   await key('Control+u');await type('Nav pane 11');await key('Enter');await absent(finderMarker);await wait('NAV_REFRESH_COMPLETE');
   await command('/reload');await observe(()=>json(launch.navigation.reloadStarted),Boolean,'Actual plugin reload must begin');await finder('Nav pane 11');
   await observe(()=>json(launch.navigation.ready),value=>value.generation===2,'Actual plugin reload must replace sources');await wait('Nav pane 11 refreshed');

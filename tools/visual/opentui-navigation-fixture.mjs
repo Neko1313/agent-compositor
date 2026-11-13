@@ -37,6 +37,7 @@ async function start($,reload=false){
   await $.storage.set('ready',{generation:previous+1});
 }
 async function form($){
+  await $.storage.set('form-calls',(await $.storage.get('form-calls')||0)+1);
   const result=await $.ui.form({title:'Navigation private form',fields:[
     {id:'name',label:'Private name',type:'text',value:'FORMvalue'},
     {id:'enabled',label:'Enabled',type:'toggle',value:false},
@@ -69,7 +70,7 @@ export default {
 };
 `);
   const state=join(paths.state,'plugin-state/navigation-probe');
-  return{state,formReceipt:join(state,'form-result.json'),ready:join(state,'ready.json'),
+  return{state,formReceipt:join(state,'form-result.json'),formCalls:join(state,'form-calls.json'),ready:join(state,'ready.json'),
     slowStarted:join(state,'slow-started.json'),slowFinished:join(state,'slow-finished.json'),
     refreshStarted:join(state,'refresh-started.json'),refreshFinished:join(state,'refresh-finished.json'),
     reloadStarted:join(state,'reload-started.json'),approvalFile:join(cwd,'navigation-approval.txt')};

@@ -37,7 +37,12 @@ export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
         offset: args.offset,
         limit: args.limit,
       });
-      return { ok: true, data: outcome };
+      const content=outcome?.content;
+      // Preserve raw line breaks for model edits, while keeping terminal controls
+      // in the existing JSON-escaped representation.
+      const readable=typeof content==='string'&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]|\r(?!\n)/u.test(content);
+      const {content:_content,...metadata}=outcome??{};
+      return { ok: true, data: outcome, ...(readable?{modelText:'Read metadata (JSON):\n'+JSON.stringify(metadata)+'\n\nFile content (verbatim):\n'+content}:{}) };
     } catch (err) {
       const message=err instanceof Error?err.message:String(err);
       const recovery=/\bENOENT\b/.test(message)?' Discover actual project filenames with available file-search tools before retrying; do not invent a path or create a file merely to satisfy this read.'

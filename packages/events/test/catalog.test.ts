@@ -43,6 +43,13 @@ describe("event catalog", () => {
           signature.responses.next=structuredClone(next);delete (signature.responses.next as any).properties.operationId;
         }
       }
+      // Reviewed additive 0.31: explicit model text preserves structured output
+      // and exact replay; old records retain their existing reconstruction.
+      if(name==='tool.result'){
+        expect(signature.input.properties.modelText).toEqual({type:'string'});
+        expect(signature.input.required??[]).not.toContain('modelText');
+        signature.input=structuredClone(signature.input);delete signature.input.properties.modelText;
+      }
       // Reviewed additive change in 0.23: omitted profile retains the selected
       // model; auxiliary callers may resolve their own profile's hard capacity.
       if(name==='service.model.capabilities'){

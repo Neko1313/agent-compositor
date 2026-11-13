@@ -1,5 +1,6 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {QueryProgress,queryObservation} from './query-progress.js';
+import {modelToolText} from './tool-text.js';
 import {
   optionLabel, questionSchema, questionnaireSchema, validateQuestionnaireResult,
   type UserQuestionRequest, type UserQuestionAnswer,
@@ -1623,6 +1624,7 @@ export class AgentCore {
         metadata: call.metadata,
       });
       let result: unknown;
+      let modelText:string|undefined;
       let denied = false;
       let error: string | undefined;
 
@@ -1811,7 +1813,7 @@ export class AgentCore {
           const ctx = this.buildToolContext(signal);
           try {
             const executed = await spec.execute(ctx, args);
-            if (executed.ok) result = executed.data;
+            if (executed.ok){result=executed.data;modelText=executed.modelText;}
             else {
               error = executed.error;
               denied = executed.denied ?? false;
@@ -1824,14 +1826,16 @@ export class AgentCore {
         result = interceptedResult;
       }
 
-      await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query');
+      await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText);
       void turnId;
     }
   }
 
-  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false):Promise<void> {
+  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string):Promise<void> {
     const record={name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result,...(denied?{denied:true}:{})};
     this.executionRecords.push(record);
+    const formatted=typeof modelText==='string'&&modelText.length>0;
+    const text=error ? error + (denied ? "\nPermission denied: do not retry equivalent effects through another tool. Report the blocker or continue unrelated authorized work." : "") : modelToolText(result,formatted?modelText:undefined);
     await this.emit("tool.result", {
       callId: call.id,
       tool: call.name,
@@ -1839,8 +1843,8 @@ export class AgentCore {
       output: error === undefined ? result : undefined,
       error,
       denied: denied || undefined,
+      ...(error===undefined&&formatted?{modelText:text}:{}),
     });
-    const text=error ? error + (denied ? "\nPermission denied: do not retry equivalent effects through another tool. Report the blocker or continue unrelated authorized work." : "") : this.toolResultText(result);
     if(query&&record.ok)this.queryObservations.set(record,queryObservation(call.name,args,text));
     this.executionMessages.push({
       role: "tool",
@@ -1848,12 +1852,6 @@ export class AgentCore {
       name: call.name,
       content: text,
     });
-  }
-
-  private toolResultText(value:unknown):string {
-    const text=JSON.stringify(value)??"null";
-    if(Buffer.byteLength(text,"utf8")<=128*1024)return text;
-    return JSON.stringify({truncated:true,originalBytes:Buffer.byteLength(text,"utf8"),preview:text.slice(0,16000),hint:"Tool result exceeded 128 KiB. Query a smaller page/range; this preview is not a complete edit source."});
   }
 
   private buildToolContext(signal=this.abort.signal): ToolContext {

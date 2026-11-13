@@ -509,7 +509,10 @@ See [coding completion checks](core-customization.md#coding-completion-checks)
 for opt-out, replacement policies and explicit limitations.
 
 `read.offset` uses 1-based integer lines (omit it or use 1 to start); `read.limit`
-is an integer from 1 to 10000. The model-facing schema matches these existing
+is an integer from 1 to 10000. Ordinary source is presented to the model with
+literal line breaks and separate JSON anchor metadata; callers/UI retain the
+structured result. See [model-facing tool text](core-customization.md#model-facing-tool-text).
+The model-facing schema matches these existing
 runtime bounds. Invalid pagination is rejected with a clear error before path
 access, without normalizing zero to one. Missing-file and directory errors retain
 the underlying error and explain how to discover a real file. No read failure

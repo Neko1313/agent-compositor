@@ -47,6 +47,7 @@ export const toolResult = defineEvent({
     output: z.unknown().optional(),
     error: z.string().optional(),
     denied: z.boolean().optional(),
+    modelText:z.string().optional(),
   }),
   responses: [{ kind: "next", summary: "proceed", schema: z.unknown() }],
   frozen: true,

@@ -31,6 +31,11 @@ explicit selection and must preserve policy, privacy, journal and budget behavio
 `dispose()` stops subprocesses, connections, timers and listeners; reload restores
 required state without depending on the previous module instance.
 
+A successful tool result may include optional `modelText` with its structured
+`data`. This supplies a model-facing text view while callers/UI keep the data.
+See [presentation bounds and journal compatibility](core-customization.md#model-facing-tool-text)
+before using it; omitted text preserves the legacy representation.
+
 ## Finite query tools
 
 Tools may opt in to repeated-observation recovery with `loopGuard: "query"` on

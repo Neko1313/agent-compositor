@@ -53,7 +53,10 @@ export interface ToolSpec<Args = unknown, Result = unknown> {
   execute(ctx: ToolContext, args: Args): Promise<ToolResult<Result>>;
 }
 
-/** Discriminated tool results — errors are VALUES (fail-operational loop). */
+/** Discriminated tool results — errors are VALUES (fail-operational loop).
+ * Optional modelText presents successful data to the model; data remains the
+ * structured result for callers/UI. Core bounds and journals the presentation.
+ */
 export type ToolResult<T> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; modelText?: string }
   | { ok: false; error: string; denied?: boolean };

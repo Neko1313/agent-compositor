@@ -1,5 +1,63 @@
 # Project memory
 
+## Separate literal model text from structured tool results — 2026-11-13
+
+Tracing a Gemma checkout failure found repeated edits copying JSON-escaped read
+content as literal backslash-n characters; four mismatches consumed the turn
+allowance without fixing math.mjs. Introduced optional modelText on successful
+ToolResult, preserving data for callers/UI/verification. Built-in read supplies
+one JSON metadata/anchor block followed by verbatim source with ordinary line
+breaks. Hash/range/strict guards are unchanged; literal escape sequences inside
+source are not decoded or normalized. Nonstandard read-provider results without
+string content retain their prior representation. Terminal-control content uses
+escaped JSON; binary/NUL rejection remains intact.
+
+Core bounds either presentation at the existing 128 KiB UTF-8 limit. Oversized
+text becomes the same explicit incomplete JSON preview, with no top-level edit
+anchor. Catalog 0.31 adds optional tool.result.modelText; old frozen fields remain
+unchanged. The bounded text is journaled and replayed exactly. A shared byte-limit
+helper also bounds formatted text in external replay records. Empty/absent text
+uses legacy presentation; failed results cannot replace their error with prose.
+Legacy journal reconstruction stays unchanged. Optional model text is evidence,
+not authority or a substitute for actual verification.
+
+Real-core tests cover LF/CRLF, Unicode/tabs, intentional literal escapes,
+unchanged anchors, actual guarded edits/stale rejection, JSON journal roundtrip
+and resumed model requests, unsafe controls, binary rejection, large UTF-8
+replay records, empty/legacy results and failures. Full coverage passes 1366
+tests/three optional skips, 166 files; types/docs pass. Latest focused rerun
+also exercises the empty-text fallback. Original deterministic smoke is 5/5;
+permission-preview feature preflight remains 2/2 scripted. Canonical capability,
+core and extension guides plus generated event references are updated; structured
+UI output and workspace authority are unchanged.
+
+Known coding matrix remains 5/8 with identical prompts, rules, graders and
+24-step/80000-token/180s bounds. All eight artifacts pass the independent behavior
+grader. Gemma checkout repeats both succeed with one edit each and no erroneous
+literal-newline match; both greeting attempts still miss actual verification,
+one reaching the token admission bound. DeepSeek checkout repeats pass; one
+greeting passes every oracle/actual check but reaches the turn allowance before
+terminal completion, while the other completes. This is not the earlier
+optional-prefix defect; do not conflate different runs. Literal backslash-n in
+an arbitrary edit argument is not alone an error: test source can intentionally
+contain escapes. No broad improvement or causal/statistical claim from these
+small known tasks, and no failed run reclassification.
+
+Evidence: dist/check-discovery/coding-readable-source and readable-source-decision.json.
+The final read formatter matches the live prototype's SHA; reconstructing the
+prototype core by inlining its byte limiter reproduces its exact source SHA.
+Final shared replay-bound hardening is separately tested. No OpenAI request,
+profile use or spending-guard mutation; Ollama billing unavailable.
+
+Push b58c249d51a575b26b54539fcb8fe5bf951add47 is verified successful in GitHub CI
+43361984338, documentation 43361984551 and release preparation 43361984312.
+Current tool-text changes need their own committed checks. Public 0.8.0 remains
+unchanged; generated plugin release PR11 remains a preparation workflow, not a
+publication. Full 1.0/self-development/model-quality/onboarding/OpenTUI scope stays
+active. Next investigate verification discovery and completion efficiency, plus
+the observed task_plan in_progress versus running schema mismatch, preserving
+the frozen failure evidence rather than masking it with looser evaluation.
+
 ## Remember identical model-turn approval refusals without caching allows — 2026-11-13
 
 Core now remembers completed approval-path refusals within one model turn, keyed

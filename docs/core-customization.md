@@ -398,6 +398,29 @@ The selected
 resumption; `ui.controllers` replaces its UI controllers. Their contracts and
 external-extension checks are documented in [ui-controllers.md](ui-controllers.md).
 
+### Model-facing tool text
+
+A successful `ToolResult` may include optional `modelText` alongside `data`.
+Callers, UI observers and `tool.result.output` retain the structured data; the
+model receives the explicit text. Empty/absent text uses the existing JSON
+presentation, and failure results retain their actual error. Text is data, not
+authorization or a replacement for verification evidence.
+
+Built-in `read` uses this view for ordinary UTF-8 source: one JSON metadata block
+contains the unchanged edit anchor, line count and truncation status, followed
+by source with literal line breaks. It does not decode literal backslash escapes
+or alter the file. LF/CRLF, tabs and Unicode remain intact. Source with terminal
+control characters keeps the existing JSON-escaped view; binary rejection is
+unchanged. Custom read providers without a string `content` retain their prior
+representation.
+
+The 128 KiB UTF-8 model-result bound applies to both forms. Oversized text becomes
+a bounded JSON preview explicitly marked incomplete, without a top-level edit
+anchor. The exact bounded view is journaled in optional `tool.result.modelText`
+(catalog 0.31) and restored on replay, which applies the same byte bound to
+external records. Older records retain their existing reconstruction. Consumers
+needing structured results should use `output`, rather than parse model prose.
+
 ### Repeated query recovery
 
 The default loop tracks tools explicitly declaring `loopGuard: "query"` on their

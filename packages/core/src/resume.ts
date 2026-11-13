@@ -1,5 +1,6 @@
 import type { ChatMessage, ChatToolCall } from "./provider.js";
 import type { SessionEvent } from "@agent-compositor/session";
+import {modelToolText} from './tool-text.js';
 
 /**
  * Replay a persisted session's event roll back into a model-ready message
@@ -113,7 +114,7 @@ export function replayTranscript(
               : `call_${messages.length}`,
           name: typeof event.tool === "string" ? event.tool : "unknown",
           content: ok
-            ? safeStringify(event.output)
+            ? typeof event.modelText==='string'&&event.modelText.length>0?modelToolText(event.output,event.modelText):safeStringify(event.output)
             : `error: ${String(event.error ?? "unknown")}`,
         });
         break;

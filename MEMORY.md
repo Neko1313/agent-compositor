@@ -1,5 +1,26 @@
 # Project memory
 
+## Failed mutation feedback and offline checkout evidence — 2026-11-13
+
+The previous revision 1c1c7b5 passed CI, documentation and release preparation.
+Three actual offline Qwen 3 1.7B attempts on the same checkout fixture each
+failed its independent grader (18 instead of 12). Preserved reports are under
+`dist/local-cpu-multi-file-20261113-{current,recovery,cwd}`. Baseline accepted
+a false completion after four rejected unchanged edits and zero checks. The
+coding policy now asks for a correction or a report identifying the unchanged
+outcome. The focused integration reproduces the old acceptance and covers
+recovery or bounded failure. The next live runs exhausted their request budgets
+before proposing completion. They provide no live verification of that guard.
+
+The evaluator keeps its composition outside the model workspace and preserves
+project config fixtures. The navigation grader accepts snapshot references and
+links guarded successful edits to the intended final file. Both edit forms are
+covered through the real app. Callix accepts exact `cwd: "@."` when there is no
+literal entry. In the final local run the model used default cwd successfully,
+read both source files, then submitted six edit calls without a target. No
+successful edits or project checks followed. Diagnose target omission and
+incorrect arithmetic proposals independently. The full 1.0 gates remain open.
+
 ## Complete scoped instructions and bounded file previews — 2026-11-13
 
 The default attachment loader now shares a 16,000-byte UTF-8 preview budget

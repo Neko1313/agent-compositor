@@ -19,6 +19,12 @@ and DeepSeek. Cloud-backed tests run explicitly and are not required in regular
 CI. The runner bounds steps, tokens, and execution time; it does not copy actual
 home-directory credentials. Traces and scores are saved in ignored `dist/evals*/`.
 
+The runner passes the case's tool roster and permission rules directly to the
+app. File discovery and grep therefore see the fixture as supplied. A project
+fixture named `agent-compositor.json` remains available as source data, including
+when its settings differ from the evaluator's composition. Navigation-specific
+Callix settings live under the temporary user home.
+
 Checks cover reading evidence with a tool and answering accurately, actually
 fixing a file, persisting Todos, enforcing a permission denial, and blocking a
 secret before contacting the model. Scoring uses artifacts/events instead of
@@ -431,6 +437,13 @@ The Callix benchmark commands are deliberately separate:
 - `npm run eval:navigation`: fixed navigation/edit protocols on a generated project.
 - `npm run eval:navigation:live`: model-directed work with semantic tools available
   versus text-only tools, using the same correctness/guard checks and permissions.
+
+Both live modes accept a returned `editRef` or the explicit snapshot anchor.
+The grader pairs each effective edit at permission check time with its successful
+exact replacement by call ID and target path. The snapshot hashes must link the
+original pricing fixture to the final file bytes. A refused call, an edit to the
+other pricing file, or an unguarded rewrite cannot earn that check. Artifact
+correctness and project test execution are graded separately.
 
 The mechanical report is `dist/navigation-benchmark/report.json` / `report.md`.
 In the recorded fixture, broad grep + full read returned about 34880 heuristic

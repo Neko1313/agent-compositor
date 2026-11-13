@@ -54,3 +54,54 @@ it.each([false,true])('uses ordinary directory attachments only when explicitly 
  expect(context).not.toContain('PRIVATE_GRADER_SENTINEL');expect(context).not.toContain('REFERENCE_SOLUTION_SENTINEL');
  expect(result.composition).toHaveProperty('fileReferences',fileReferences);
 });
+
+it('exposes only the project fixture through directory references, glob and grep', async () => {
+ const {ScriptedProvider} = await import('../../packages/core/src/index.js');
+ const provider = new ScriptedProvider([
+  {toolCalls:[{name:'glob',args:{pattern:'**/*'}}]},
+  {toolCalls:[{name:'grep',args:{pattern:'checks.mjs'}}]},
+  {toolCalls:[{name:'read',args:{path:'.agent-compositor/callix.json'}}]},
+  {text:'Inspected the fixture.'},
+ ]);
+ const result = await runCase({
+  id:'project-discovery', prompt:'Inspect the project @.', navigationMode:'text',
+  files:{'package.json':'{"scripts":{"test":"node checks.mjs"}}','checks.mjs':"console.log('passed');\n"},
+  rules:[{tool:'exec',command:'node checks.mjs',decision:'allow'}],
+  expect:{preserve:['package.json','checks.mjs']},
+ },{model:'scripted',provider,tools:['glob','grep','read'],fileReferences:true});
+ expect(result.ok,result.error).toBe(true);
+ const context = provider.requests[0].messages.find(message => message.role === 'user')?.content;
+ expect(context).toContain('Directory @.');
+ expect(context).toContain('checks.mjs');
+ expect(context).toContain('package.json');
+ expect.soft(context).not.toContain('agent-compositor.json');
+ expect.soft(context).not.toContain('.agent-compositor');
+ const outputs = result.trajectory.filter(event => event.event === 'tool.result').map(event => event.input);
+ expect.soft(outputs.find(event => event.tool === 'glob')?.output.files).toEqual(['checks.mjs','package.json']);
+ expect.soft(outputs.find(event => event.tool === 'grep')?.output.matches.map((match:{path:string}) => match.path)).toEqual(['package.json']);
+ expect(outputs.find(event => event.tool === 'read')).toMatchObject({ok:false,error:expect.stringMatching(/ENOENT|not found|does not exist/i)});
+});
+
+it('preserves a fixture named agent-compositor.json while enforcing the evaluation toolset and rules', async () => {
+ const {ScriptedProvider} = await import('../../packages/core/src/index.js');
+ const check = 'node checks.mjs';
+ const fixture = JSON.stringify({
+  agent:{tools:['read'],builtinTools:['read']},
+  permissions:{rules:[{tool:'exec',command:check,decision:'allow'}]},
+ },null,2) + '\n';
+ const provider = new ScriptedProvider([
+  {toolCalls:[{name:'read',args:{path:'agent-compositor.json'}}]},
+  {toolCalls:[{name:'exec',args:{command:check}}]},
+  {text:'Inspected the project config.'},
+ ]);
+ const result = await runCase({
+  id:'project-config-fixture',prompt:'Read the project config and check the permission @.',
+  files:{'agent-compositor.json':fixture,'checks.mjs':"console.log('completed');\n"},
+  rules:[{tool:'exec',command:check,decision:'deny'}],expect:{preserve:['agent-compositor.json'],deniedTool:'exec'},
+ },{model:'scripted',provider,tools:['read','exec'],fileReferences:true});
+ expect(result.ok,JSON.stringify(result.checks) + (result.error ?? '')).toBe(true);
+ expect(provider.requests[0].tools.map(tool => tool.name).sort()).toEqual(['exec','read']);
+ const outputs = result.trajectory.filter(event => event.event === 'tool.result').map(event => event.input);
+ expect(outputs.find(event => event.tool === 'read')).toMatchObject({ok:true,output:{content:fixture}});
+ expect(outputs.find(event => event.tool === 'exec')).toMatchObject({ok:false,denied:true,error:'denied by permission rules'});
+});

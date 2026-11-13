@@ -102,9 +102,8 @@ filenames. Its optional path filter should use an existing path. A complete empt
 first page returns recovery guidance; exhausted later pages and scan-limited
 searches keep their own pagination/limit meaning. Hints enter the ordinary result
 budget before formatting. They do not invent matches or issue another query.
-A missing search directory/filter retains ENOENT and explains using the default
-cwd or an existing attached project. It does not silently substitute a directory,
-retry the operation or grant new filesystem access.
+A missing literal search directory or filter returns ENOENT and suggests using
+the default cwd or an existing attached project.
 
 The native project-text backend returns long-line previews around the first occurrence, bounded to
 2000 UTF-8 bytes without splitting a Unicode code point. `textTruncated` marks
@@ -275,8 +274,13 @@ assistant benchmarks.
 
 ### Attached projects
 
-`glob`, `grep` and `code_query` accept `cwd` for an attached project, including
-`~/path`. Absolute/home `path` filters select an attached directory or a file
+Omit `cwd` on `glob`, `grep` and `code_query` to use the primary project.
+The exact attachment spelling `"@."` also selects it when the primary project
+has no entry named `@.`. An existing entry takes precedence and goes through
+ordinary directory and workspace checks, including symlink resolution.
+Use `"./@."` for an explicit literal lookup. Use an attached directory's
+absolute path or `~/path` to search another project.
+Absolute/home `path` filters select an attached directory or a file
 inside a selected project. Returned results include the resolved `cwd`; relative
 result paths belong to that project. A single-file attachment permits `read`,
 while project navigation requires its containing directory to be attached.

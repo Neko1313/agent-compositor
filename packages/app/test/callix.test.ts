@@ -1,7 +1,7 @@
 import callixTools from '../../../plugins/callix/tools.js';
 import type {ToolContext} from '@agent-compositor/tools';
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, realpath, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { indexProject, parseGraph, queryGraph, runBinary, type Graph } from '../../../plugins/callix/adapter.js';
@@ -103,4 +103,52 @@ it('explains a missing search directory without retrying or changing scope',asyn
  const tool=callixTools.find(tool=>tool.name==='grep')!;let attempts=0;
  const ctx={cwd:'/project',resolvePath:async()=>{attempts++;throw Object.assign(Error('ENOENT: missing directory'),{code:'ENOENT'});}} as unknown as ToolContext;
  const result=await tool.execute(ctx,{pattern:'x',cwd:'guessed-folder'});expect(result.ok).toBe(false);expect(attempts).toBe(1);expect(result.error).toContain('Keep the default cwd');expect(result.error).toContain('Do not invent');
+});
+
+it('resolves the project reference cwd for search and graph tools, preserving literal directories and workspace scope', async () => {
+  const cwd = await realpath(await temp()), other = await realpath(await temp()), home = await temp();
+  const attached = await realpath(await temp());
+  await mkdir(join(cwd, '.agent-compositor'));
+  await writeFile(join(cwd, '.agent-compositor/callix.json'), JSON.stringify({background:false}));
+  await writeFile(join(cwd, 'main.mjs'), 'export const match = "primary";');
+  await writeFile(join(other, 'external.mjs'), 'export const match = "external";');
+  await writeFile(join(attached, 'attached.mjs'), 'export const match = "attached";');
+  const provider = new ScriptedProvider([]);
+  const app = await buildApp({cwd, env:{HOME:home}, provider, pluginDirs:[join(process.cwd(), 'plugins/callix')]});
+  try {
+    const core = app.createCore(async () => false);
+    await core.start();
+    await core.attachWorkspace(attached);
+    const roots = core.workspace.list();
+    const grep = (cwd:string) => core.invokeTool('grep', {pattern:'export const match', cwd});
+    const glob = (cwd:string) => core.invokeTool('glob', {pattern:'*.mjs', cwd});
+    const status = (cwd:string) => core.invokeTool('code_query', {action:'status', cwd});
+    expect(await grep(attached)).toMatchObject({ok:true, output:{cwd:attached, matches:[{path:'attached.mjs'}]}});
+    expect(await glob('@.')).toMatchObject({ok:true, output:{cwd, files:['main.mjs']}});
+    expect(await grep('@.')).toMatchObject({ok:true, output:{cwd, matches:[{path:'main.mjs'}]}});
+    expect(await status('@.')).toMatchObject({ok:true, output:{cwd}});
+    expect(await glob('./@.')).toMatchObject({ok:false,error:expect.stringContaining('ENOENT')});
+
+    const literal = join(cwd, '@.');
+    await mkdir(literal);
+    await writeFile(join(literal, 'nested.mjs'), 'export const match = "literal";');
+    for (const spelling of ['@.', './@.']) {
+      expect(await glob(spelling)).toMatchObject({ok:true, output:{cwd:literal, files:['nested.mjs']}});
+      expect(await grep(spelling)).toMatchObject({ok:true, output:{cwd:literal, matches:[{path:'nested.mjs'}]}});
+      expect(await status(spelling)).toMatchObject({ok:true, output:{cwd:literal}});
+    }
+    await rm(literal, {recursive:true});
+    await symlink(other, literal);
+    expect(await grep('@.')).toMatchObject({ok:false,error:expect.stringContaining('escapes attached workspaces')});
+    await rm(literal);
+    await symlink(join(other, 'missing'), literal);
+    expect(await glob('@.')).toMatchObject({ok:false,error:expect.stringContaining('ENOENT')});
+    await rm(literal);
+    await writeFile(literal, 'a regular file');
+    expect(await status('@.')).toMatchObject({ok:false,error:expect.stringContaining('Not a workspace directory')});
+    expect(core.workspace.list()).toEqual(roots);
+    expect(provider.requests).toHaveLength(0);
+  } finally {
+    await app.close();
+  }
 });

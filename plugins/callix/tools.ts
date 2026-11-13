@@ -1,10 +1,10 @@
-import { isAbsolute, relative, sep } from "node:path";
-import { stat } from "node:fs/promises";
+import { isAbsolute, join, relative, sep } from "node:path";
+import { lstat, stat } from "node:fs/promises";
 import type { ToolContext } from "@agent-compositor/tools";
 import { graphActions } from './adapter.js';
 
 const properties = {
-  cwd:{type:"string",description:"Attached project directory; accepts absolute paths and ~/path. Defaults to the primary project."},
+  cwd:{type:"string",description:"Omit cwd to search the primary project. Select another attached directory with an absolute path or ~/path. Exact @. also selects the primary project when no literal @. entry exists."},
   action: {
     type: "string",
     enum: [...graphActions],
@@ -28,7 +28,18 @@ const execute =
   (action?: string) => async (ctx: ToolContext, args: unknown) => {
     try {
       const input=args as Record<string,any>;
-      let cwd=ctx.resolvePath?await ctx.resolvePath(input.cwd??ctx.cwd,{directory:true}):input.cwd??ctx.cwd;
+      let selected = input.cwd ?? ctx.cwd;
+      if (input.cwd === '@.') {
+        const literal = join(ctx.cwd, '@.');
+        try {
+          await lstat(literal);
+          selected = literal;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          selected = ctx.cwd;
+        }
+      }
+      let cwd=ctx.resolvePath?await ctx.resolvePath(selected,{directory:true}):selected;
       let path=input.path;
       if(ctx.resolvePath&&typeof path==='string'&&(isAbsolute(path)||path.startsWith('~/'))){
         const target=await ctx.resolvePath(path);

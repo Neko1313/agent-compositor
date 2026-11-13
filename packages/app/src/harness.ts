@@ -103,11 +103,23 @@ export function harnessControls(storage: ProjectStorage, config: Record<string, 
             const lastPlan = [...e.tools].reverse().find((t: any) => t.name === 'task_plan' && t.ok)?.args;
                 if (lastPlan?.tasks?.some((t: any) => ['pending', 'running', 'in_progress'].includes(t.status)))
                     return { value: { complete: false, continue: 'Your task plan still has unfinished work. Complete it or mark a concrete blocker with evidence using task_plan before finishing.' } };
-                const edits = e.tools.filter((t: any) => t.ok && ['write', 'edit'].includes(t.name));
+                const attempts = e.tools.filter((t: any) => ['write', 'edit'].includes(t.name));
+                const changed = attempts.some((t: any) => t.ok);
+                const verifyWork = lastPlan || config.verifyCompletion === true || config.instructionsPreset === 'coding';
+                if (verifyWork && attempts.length && !changed && !e.text.includes('[no file changes]')) {
+                    const refused = attempts.some((t: any) => t.denied);
+                    const recovery = refused
+                        ? 'Respect the refused action. Do not retry it through another tool.'
+                        : 'Use the tool error to make a different, authorized correction when appropriate.';
+                    return { value: { complete: false, continue:
+                        'No write or edit succeeded in this turn. ' + recovery +
+                        ' If the task is blocked, required no changes, or used another mechanism, explain the outcome with [no file changes] for these attempts. Report only checks that actually ran.'
+                    } };
+                }
                 const verification = verificationState(e.tools);
                 // The second proposal can explicitly explain why automated checks do not apply.
                 // This is a reminder, not a claim that arbitrary test output proves correctness.
-                if (edits.length && (lastPlan || config.verifyCompletion === true || config.instructionsPreset === 'coding') && !verification.complete && !e.text.includes('[verification unavailable]') && !e.text.includes('[checks not applicable]'))
+                if (changed && verifyWork && !verification.complete && !e.text.includes('[verification unavailable]') && !e.text.includes('[checks not applicable]'))
                 {
                     return { value: { complete: false, continue: verification.refused
                         ? 'One or more unresolved verification calls were refused by permission policy. Do not rerun those calls or bypass the refused effects through another tool. Use independently authorized checks where useful, and explain the remaining limitation with [verification unavailable] in the final report. A refused check was not executed and must not be reported as passed.'

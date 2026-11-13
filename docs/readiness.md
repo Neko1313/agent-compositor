@@ -562,6 +562,27 @@ native release smoke. This demonstrates completion-policy behavior, not autonomo
 model coding ability. See [offline CPU diagnostics](evals.md#offline-cpu-development-diagnostic)
 and [coding completion checks](core-customization.md#coding-completion-checks).
 
+On the local Qwen 3 1.7B checkout case at `1c1c7b5`, four identical-text
+edits failed, neither project checks nor other writes ran, and the model
+claimed a successful fix. The independent grader still got 18 for an expected
+12 after nine model requests. The coding completion policy now requests a
+correction or an explicit unchanged outcome when all built-in mutation attempts
+failed. App regressions exercise repeated false completion, a reported blocker
+and recovery through a changed file and a successful check.
+
+A second live attempt used the updated policy, clarified edit instructions
+and a fixture containing only its original four files. It spent all 12
+admitted requests on discovery. Eight grep calls treated `@.` as a literal
+working directory. The grader again got 18. This attempt never proposed
+completion. Callix now recognizes that exact working-directory argument when
+the primary project has no literal entry of that name. App tests cover the
+primary and attached projects, a real directory with that name, and invalid
+symlink targets. In the final live run, all four searches used the default
+directory and four reads reached the two implementation files. All six edit
+requests omitted both `path` and `editRef`. The model exhausted 12 requests
+without a successful edit or a project check. The independent result remained
+18. The runs used different host code and do not measure a quality improvement.
+
 ## Acceptance gates
 
 | Gate | Required evidence | Current assessment |

@@ -12,6 +12,12 @@ history, storage, lifecycle and selection.
 
 ## Select capabilities
 
+An embedder can pass `fixedConfig` to `buildApp` to supply the composition
+directly. The app validates the supplied configuration and skips discovery
+of layered `agent-compositor.json(c)` files. This applies to child agents
+as well. Plugin settings, stored sessions and project files retain their
+normal lookup paths.
+
 The assembled application accepts these settings in `agent-compositor.json`:
 
 ```json
@@ -57,9 +63,12 @@ The assembled application accepts these settings in `agent-compositor.json`:
   independently. This prevents unrelated repository content entering a selected
   domain's prompt.
 
-The `agent-harness` contribution now defaults to domain-independent instructions.
-`agent.instructionsPreset: "coding"` explicitly selects the former coding
-instructions. `agent.instructions` or private `behavior.json` instructions can
+The `agent-harness` contribution defaults to domain-independent instructions.
+`agent.instructionsPreset: "coding"` selects coding instructions. For a guarded
+edit, this preset directs the model to copy the returned `editRef` with exact
+`oldText` and `newText`. If a read returns only an explicit anchor, the model
+uses all its fields. See [snapshot edit references](#snapshot-edit-references).
+`agent.instructions` or private `behavior.json` instructions can
 replace them; `agent.baseInstructions: false` disables this contribution's base
 instructions. Disabling `agent-harness` removes its commands, task-plan tool and
 behavior services. Other host contribution names include `model-selector`,
@@ -681,6 +690,13 @@ verification after successful built-in `write`/`edit` calls even when no task pl
 was saved. General instructions retain their prior plan/explicit-verification
 behavior. `agent.verifyCompletion: false` still disables these default checks;
 an explicitly selected `service.agent.finish` provider can replace the policy.
+
+If every attempted built-in write or edit failed in the turn, the completion
+policy requests a correction or a report explaining the outcome with
+`[no file changes]`. A permission refusal stays binding. If a separate tool
+made a change, identify that tool and its evidence in the report. The marker
+describes the failed write/edit attempts. It does not certify the report or
+substitute for running a check.
 
 A recognized check must follow the latest successful built-in edit. Foreground
 `exec` and configured `project_check` runs require exit code zero. Common check

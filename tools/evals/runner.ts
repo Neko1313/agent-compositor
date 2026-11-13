@@ -62,27 +62,44 @@ export async function runCase(
       await mkdir(dirname(join(cwd, file)), { recursive: true });
       await writeFile(join(cwd, file), text);
     }
-    await writeFile(
-      join(cwd, "agent-compositor.json"),
-      JSON.stringify({
-        enabledPlugins:['todos','guard-secrets','guard-scope','plan-mode','network-proxy',...(options.agentHarness?['agent-harness']:[]),...(useCallix?['callix']:[])],
-        permissions: {
-          rules: [
-            { tool: "write", path: cwd + "/**", decision: "allow" },
-            { tool: "edit", path: cwd + "/**", decision: "allow" },
-            ...(test.rules ?? []).map((rule) => ({
-              ...rule,
-              ...(rule.path?.startsWith("**/")
-                ? { path: join(cwd, rule.path.slice(3)) }
-                : {}),
-            })),
-          ],
-        },
-        ...((options.tools||options.instructionsPreset||options.fileReferences!==undefined)?{agent:{...(options.tools?{tools:options.tools,builtinTools:options.tools.filter(name=>builtinTools.some(tool=>tool.name===name)),controlTools:options.tools.filter(name=>['tool_help','task','ask_user','ask_questions'].includes(name)),skills:false,projectContext:false,fileReferences:false}:{}),...(options.fileReferences!==undefined?{fileReferences:options.fileReferences}:{}),instructionsPreset:options.instructionsPreset}}:{}),
-        compaction: { enabled: false },
-      })
-    );
-    if(test.navigationMode){await mkdir(join(cwd,".agent-compositor"),{recursive:true});await writeFile(join(cwd,".agent-compositor/callix.json"),JSON.stringify({background:false,executable:process.env.CALLIX_TEST_BIN??join(root,"plugins/callix/bin/callix")}));}
+    const fixedConfig: NonNullable<Parameters<typeof buildApp>[0]["fixedConfig"]> = {
+      enabledPlugins: [
+        'todos', 'guard-secrets', 'guard-scope', 'plan-mode', 'network-proxy',
+        ...(options.agentHarness ? ['agent-harness'] : []),
+        ...(useCallix ? ['callix'] : []),
+      ],
+      permissions: {
+        rules: [
+          { tool: 'write', path: cwd + '/**', decision: 'allow' },
+          { tool: 'edit', path: cwd + '/**', decision: 'allow' },
+          ...(test.rules ?? []).map(rule => ({
+            ...rule,
+            ...(rule.path?.startsWith('**/') ? {path: join(cwd, rule.path.slice(3))} : {}),
+          })),
+        ],
+      },
+      agent: {
+        ...(options.tools ? {
+          tools: options.tools,
+          builtinTools: options.tools.filter(name => builtinTools.some(tool => tool.name === name)),
+          controlTools: options.tools.filter(name => ['tool_help', 'task', 'ask_user', 'ask_questions'].includes(name)),
+          skills: false,
+          projectContext: false,
+          fileReferences: false,
+        } : {}),
+        ...(options.fileReferences !== undefined ? {fileReferences: options.fileReferences} : {}),
+        ...(options.instructionsPreset ? {instructionsPreset: options.instructionsPreset} : {}),
+      },
+      compaction: {enabled: false},
+    };
+    if (test.navigationMode) {
+      const settings = join(home, ".agent-compositor");
+      await mkdir(settings, { recursive: true });
+      await writeFile(join(settings, "callix.json"), JSON.stringify({
+        background: false,
+        executable: process.env.CALLIX_TEST_BIN ?? join(root, "plugins/callix/bin/callix"),
+      }));
+    }
     const provider =
       options.provider ?? (options.model === "scripted"
         ? new ScriptedProvider(test.script ?? [])
@@ -92,6 +109,7 @@ export async function runCase(
       : undefined;
     app = await buildApp({
       cwd,
+      fixedConfig,
       env: {
         HOME: home,
         XDG_CONFIG_HOME: join(home, ".config"),

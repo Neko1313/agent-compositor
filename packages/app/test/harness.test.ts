@@ -123,6 +123,20 @@ describe('dynamic workflow scheduler', () => {
     });
 });
 describe('agent behavior and completion', () => {
+    it('sends the coding preset with both supported guarded edit forms', async () => {
+        const cwd = await temp();
+        await writeFile(join(cwd, 'agent-compositor.json'), JSON.stringify({ agent: { instructionsPreset: 'coding' } }));
+        const provider = new ScriptedProvider([{ text: 'Ready.' }]);
+        const app = await buildApp({ cwd, env: { HOME: cwd }, provider });
+        try {
+            await app.createCore(async () => false).submit('Describe how to edit a selected range.');
+            const instructions = provider.requests[0].messages.find(message => message.role === 'system')?.content;
+            expect(instructions).toMatch(/editRef[^.]*verbatim[^.]*oldText[^.]*newText/);
+            expect(instructions).toMatch(/only an explicit edit anchor[^.]*path[^.]*expectedHash[^.]*range[^.]*strict/);
+        } finally {
+            await app.close();
+        }
+    });
     it('injects replaceable behavior and keeps working when a plan is unfinished', async () => {
         const cwd = await temp();
         const provider = new ScriptedProvider([{ toolCalls: [{ name: 'task_plan', args: { goal: 'Investigate', tasks: [{ id: 'a', title: 'Inspect', status: 'pending' }] } }] }, { text: 'finished too early' }, { toolCalls: [{ name: 'task_plan', args: { goal: 'Investigate', tasks: [{ id: 'a', title: 'Inspect', status: 'completed', evidence: 'inspected' }] } }] }, { text: 'done' }]);

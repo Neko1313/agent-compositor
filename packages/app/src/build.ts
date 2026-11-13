@@ -51,6 +51,8 @@ export interface ProviderSettings {
 
 export interface BuildAppOptions {
   inheritedConfig?: LoadedConfig;
+  /** Use a host-supplied composition without discovering project or machine config. */
+  fixedConfig?: LoadedConfig["config"];
   workspacePaths?:string[];
   /** Independent agents resume only if the selected repository contains their session. */
   resumeIfPresent?: boolean;
@@ -118,14 +120,16 @@ export interface BuiltApp {
  */
 export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const env = options.env ?? process.env;
-  const config = await loadConfig({
+  const config: LoadedConfig = options.fixedConfig !== undefined
+    ? { config: structuredClone(options.fixedConfig), sources: [], origins: [], substitutions: [], warnings: [] }
+    : await loadConfig({
     cwd: options.cwd,
     env,
     ...(options.inheritedConfig
       ? { global: false, system: false, projectRoot: options.cwd }
       : {}),
   });
-  if (options.inheritedConfig) {
+  if (options.fixedConfig === undefined && options.inheritedConfig) {
     config.config = mergeSettings(
       structuredClone(options.inheritedConfig.config),
       config.config
@@ -334,7 +338,9 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           async (record, channels) => {
             const child = await buildApp({
               ...options,
-              inheritedConfig:{...config,config:{...config.config,workspacePaths:[]}},
+              ...(options.fixedConfig !== undefined
+                ? {fixedConfig: {...config.config, workspacePaths: []}}
+                : {inheritedConfig: {...config, config: {...config.config, workspacePaths: []}}}),
               inheritedSettings: (name) => storage.config(name),
               env: { ...env, AGENT_MODEL: router.active },
               agentHub: false,

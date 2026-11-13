@@ -9,10 +9,29 @@ afterEach(async()=>{for(const app of apps.splice(0))await app.close();for(const 
 async function fixture(script:ScriptedStep[],agent:Record<string,unknown>={instructionsPreset:'coding'},check="import a from 'node:assert/strict';import{readFileSync}from'node:fs';a.equal(readFileSync('result.txt','utf8'),'fixed');console.log('CHECK_OK');",checkFile='verify.mjs',extraChecks:Record<string,string>={}){
  const cwd=await mkdtemp(join(tmpdir(),'coding-verification-'));roots.push(cwd);await writeFile(join(cwd,checkFile),check);
  for(const [file,text] of Object.entries(extraChecks))await writeFile(join(cwd,file),text);
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness'],agent:{...agent,tools:['write','exec'],builtinTools:['write','exec'],controlTools:[],projectContext:false,skills:false,fileReferences:false},permissions:{rules:[{tool:'write',path:cwd+'/**',decision:'allow'},...[checkFile,...Object.keys(extraChecks)].map(file=>({tool:'exec',command:`node ${file}`,decision:'allow'}))]}}));
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness'],agent:{...agent,tools:['write','edit','exec'],builtinTools:['write','edit','exec'],controlTools:[],projectContext:false,skills:false,fileReferences:false},permissions:{rules:[{tool:'edit',path:cwd+'/**',decision:'allow'},{tool:'write',path:cwd+'/**',decision:'allow'},...[checkFile,...Object.keys(extraChecks)].map(file=>({tool:'exec',command:`node ${file}`,decision:'allow'}))]}}));
  const provider=new ScriptedProvider(script),app=await buildApp({cwd,env:{HOME:cwd},provider});apps.push(app);const core=app.createCore(async()=>false);return{core,provider,cwd};
 }
 const write={toolCalls:[{name:'write',args:{path:'result.txt',content:'fixed'}}]};
+const unchanged:ScriptedStep = {toolCalls:[{name:'edit',args:{path:'result.txt',oldText:'wrong',newText:'wrong',strict:true}}]};
+it('rejects unsupported success after only failed edit attempts', async () => {
+ const claim = {text:'The fix was applied, and the tests are now passing.'};
+ const f = await fixture([unchanged,claim,claim,claim], undefined, undefined, 'verify.mjs', {'result.txt':'wrong'});
+ await f.core.submit('Repair the wrong result and run checks');
+ expect(f.core.failure).toContain('Completion checks remain unsatisfied');
+ expect(f.provider.requests).toHaveLength(4);
+ expect(f.provider.requests[2].messages.at(-1)?.content).toContain('No write or edit succeeded');
+});
+it('allows an explicit unchanged outcome or a successful repair after an unsuccessful edit', async () => {
+ const blocked = await fixture([unchanged,{text:'[no file changes] The attempted edit made no change. Checks were not run.'}]);
+ await blocked.core.submit('Try to fix the output');
+ expect(blocked.core.failure).toBeUndefined();
+ expect(blocked.provider.requests).toHaveLength(2);
+ const fixed = await fixture([unchanged,{text:'Fixed.'},write,{toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},{text:'Repaired and verified.'}]);
+ await fixed.core.submit('Fix and verify');
+ expect(fixed.core.failure).toBeUndefined();
+ expect(fixed.provider.requests).toHaveLength(5);
+});
 it('accepts an executed checks.mjs project check without redundant completion retries',async()=>{
  const f=await fixture([write,{toolCalls:[{name:'exec',args:{command:'node checks.mjs'}}]},{text:'The project checks passed.'}],{instructionsPreset:'coding'},undefined,'checks.mjs');
  await f.core.submit('Fix the project and run its existing checks');

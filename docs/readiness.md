@@ -144,6 +144,27 @@ protocol fixture. The maintained release smoke now requires this check on every
 declared release platform. Other platforms have not yet run this new check;
 this does not close the live-model classification gate.
 
+### 0.8.0 candidate preparation — 2026-11-13
+
+Generated plugin release PR9 was independently reproduced and merged after its
+matching CI/docs checks. The host now prepares 0.8.0 with generated changelog and
+documented `/btw --once` migration. The complete local Linux archive passes eight
+runtime probes and real PTY setup, conversation-tab and workflow-table scenarios,
+including narrow layouts, private profile setup, plugin activation, independent
+drafts, parent wake and restart history. Screenshots were visually inspected.
+
+An actual checksum-verified public 0.7.4 installation upgrades to this local
+candidate while retaining settings, plugin state and the old binary. The new
+host resumes its old session with the original task/answer and journal prefix.
+This is a local-candidate upgrade check, not a public 0.8.0 download check.
+Candidate coverage passes 1312 tests with three optional skips. Its clean
+committed native matrix and tagged publication are still required.
+
+Prior runtime [run 43329351577](https://github.com/Neko1313/agent-compositor/actions/runs/43329351577)
+at `a66fcc3` passed all four native platforms; all 32 installed-runtime reports
+were independently checked. These remain separate from the newer versioned
+candidate. None of these deterministic checks closes the broad live-model gates.
+
 ### Finite-query repetition recovery — 2026-11-13
 
 The default loop now warns after three repeated query-only steps and stops after

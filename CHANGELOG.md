@@ -2,11 +2,57 @@
 
 All notable changes are generated from Conventional Commits with git-cliff.
 
+## v0.8.0 - 2026-11-12
+
+### Documentation
+- Record native candidate audits and live release handles ([feb4034](https://github.com/Neko1313/agent-compositor/commit/feb403456ee84f65021f5a52812eba615119144f))
+- Record audited report archives and host runner wait ([09ac70c](https://github.com/Neko1313/agent-compositor/commit/09ac70c8e332361fdb045dbb8f422eb43dcc5f35))
+- Record public host proof and daily-use acceptance scope ([7b4218c](https://github.com/Neko1313/agent-compositor/commit/7b4218c2ca350d799dfc7625e64b5889822186c6))
+- Plan OpenTUI frontend migration ([c11cc15](https://github.com/Neko1313/agent-compositor/commit/c11cc153e2dd6af666ca4c6929b964f798116684))
+
+
+### Features
+- Add immediate commands and main conversation recovery ([4bc76d6](https://github.com/Neko1313/agent-compositor/commit/4bc76d67b8b609d0d161ea74d7ca1a0769c7d815))
+- Honor task-context approvals and refusals ([76ce8c6](https://github.com/Neko1313/agent-compositor/commit/76ce8c6d91bad6145ca629bbd9afb43e068b100b))
+- Add user-opened conversations and independent agent editors ([31616b7](https://github.com/Neko1313/agent-compositor/commit/31616b7ba177f2787b3adda370865f195c65e35d))
+- **BREAKING:** Open persistent side-agent conversations ([2f1f5ae](https://github.com/Neko1313/agent-compositor/commit/2f1f5ae63036b8bd9f9ddc4e6d708a074a6191e6))
+- Guide first-run model and plugin setup ([e60ce22](https://github.com/Neko1313/agent-compositor/commit/e60ce2278367499f3d17e2577a2d6b946d10dbd5))
+- Add semantic tables and a live expandable agent overview ([3d2bfb7](https://github.com/Neko1313/agent-compositor/commit/3d2bfb7ca489ddd18cc65ad017f644bd1517e231))
+- Add paginated run and stage table navigation ([cc98705](https://github.com/Neko1313/agent-compositor/commit/cc98705eb10b5e295f2755b251c22068d5eb93b7))
+- Add semantic state tabs for agents and workflows ([4afc96e](https://github.com/Neko1313/agent-compositor/commit/4afc96e5bfdaeb37ba2f91d5aaa5e37e5db10997))
+- Add independent agent conversation tabs ([f18a275](https://github.com/Neko1313/agent-compositor/commit/f18a2756577c146bbe2ffb14514bb6acf5e57b9c))
+- Inspect saved tool activity across restarts ([ae76972](https://github.com/Neko1313/agent-compositor/commit/ae76972f422a96fee0b00a13e54580401b1c1834))
+- Add independent process CPU and memory charts ([0f3ec00](https://github.com/Neko1313/agent-compositor/commit/0f3ec00ca3ada036a1a0645391f4d98f15f86197))
+- Exercise ordinary project directory references ([c2fa4c4](https://github.com/Neko1313/agent-compositor/commit/c2fa4c44a7b6f87d1b88b7835d27aa24a10a249e))
+- Recover from repeated finite query results ([a66fcc3](https://github.com/Neko1313/agent-compositor/commit/a66fcc38dc868ff1ef0879fdb0ff8a2992188978))
+
+
+### Fixes
+- Synchronize repeated report reads before configuration ([4358ed1](https://github.com/Neko1313/agent-compositor/commit/4358ed1517d5a0f697096ee2993c791d07332434))
+- Use active model without reviewer configuration ([da34f54](https://github.com/Neko1313/agent-compositor/commit/da34f548e82e064fb8f34e26fea61ab6ef5b6fe1))
+- Refresh development marketplace descriptions ([8698732](https://github.com/Neko1313/agent-compositor/commit/869873276c57b93975cc276846f73239dc07e2ee))
+- Keep controls and human dialog input independent ([e7a6bd1](https://github.com/Neko1313/agent-compositor/commit/e7a6bd14e0a6419d3df9c50729d056f3f1aac03f))
+- Propagate PTY child exits and reap before cleanup ([d9b964e](https://github.com/Neko1313/agent-compositor/commit/d9b964e2b3feab8707d7e81eae23010f34502277))
+- Keep agent controls immediate and restore pane focus ([d321d87](https://github.com/Neko1313/agent-compositor/commit/d321d87995fa967ff1587b7aabff19e7145c09d5))
+- Require completed checks for coding changes ([fdd3d9b](https://github.com/Neko1313/agent-compositor/commit/fdd3d9be6847a6951ee8e10110924d70e6d4e303))
+- Clarify discovery and read pagination recovery ([f14d3ce](https://github.com/Neko1313/agent-compositor/commit/f14d3ce41a59b89a4cd80d76714fda110348eb46))
+- Require current passing results for attempted checks ([7139daa](https://github.com/Neko1313/agent-compositor/commit/7139daa4ed90702867be4eea77b2265c35eb5d1d))
+- Reject edits that leave file text unchanged ([9cb714b](https://github.com/Neko1313/agent-compositor/commit/9cb714b10a15a8a8ac4d50264b38c33eca620d69))
+
+
+### Tests
+- Cover check and report cooperation with actual Vitest ([268b2af](https://github.com/Neko1313/agent-compositor/commit/268b2af623e0df80da273b97489c658eefe80be7))
+- Verify installed structured approval decisions ([f21b50a](https://github.com/Neko1313/agent-compositor/commit/f21b50a0010620f2b744687f713f366ef0c4aca4))
+- Synchronize raw interruption and retain native evidence ([173f5f1](https://github.com/Neko1313/agent-compositor/commit/173f5f1c23eb5dda1f6ac1b3cadd95a1ad3ab688))
+- Verify first-run setup with compiled archives ([94a3076](https://github.com/Neko1313/agent-compositor/commit/94a307669cfaade7c2b8b7dc09189ebfe71736ac))
+
 ## v0.7.4 - 2026-11-12
 
 ### Documentation
 - Record verified v0.7.3 publication and public upgrade ([8c2aad9](https://github.com/Neko1313/agent-compositor/commit/8c2aad9e2b133fb5ba62578bcda40bc1e9fd066f))
 - Record report panel evidence and release preparation ([e6d9443](https://github.com/Neko1313/agent-compositor/commit/e6d9443d708354e3f7f3d11a228a4a97ec51e483))
+- Record prepared host UI gates and metadata review ([a6e778d](https://github.com/Neko1313/agent-compositor/commit/a6e778d1ae67c727905a953cef289ee80e855124))
+- Record native host 0.7.4 smoke evidence ([973012a](https://github.com/Neko1313/agent-compositor/commit/973012a8ca3631c1e14910ab4944e974a097d6e7))
 
 
 ### Features
@@ -24,6 +70,9 @@ All notable changes are generated from Conventional Commits with git-cliff.
 - Merge pull request #7 from Neko1313/automation/plugin-releases
 
 chore(release): prepare plugin versions ([cc982a3](https://github.com/Neko1313/agent-compositor/commit/cc982a371c08b97743144ccb4f69c5440d3e6c9a))
+- Merge pull request #8 from Neko1313/automation/plugin-releases
+
+chore(release): prepare plugin versions ([917f12a](https://github.com/Neko1313/agent-compositor/commit/917f12a76bd3b0d0c6cd1d7748f2a04c2e019147))
 
 ## v0.7.3 - 2026-11-12
 

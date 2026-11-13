@@ -1,5 +1,61 @@
 # Project memory
 
+## Prepare the 0.8.0 host release — 2026-11-13
+
+Generated release PR9 at 7797de5 was independently reproduced from clean a66fcc3
+in a disposable worktree: all 18 changed files match byte-for-byte. Bundler inputs
+were resolved from the identical clean main checkout to avoid scratch symlinks
+omitting workspace dependencies. Matching dispatched Node 22/26 CI and docs checks
+passed. The normal merge used --match-head-commit, with no admin override, and
+created 7fc14bf. Prepared versions: auto-approve 1.4, btw 2, callix 1.4,
+checkpoint-history 1.3, mcp 1.4, plugin-author 1.4, resources 0.1 and workflows 1.6;
+development catalog 1.0.10. No plugin version/changelog was hand-edited.
+Receipt: dist/release-next/generated-review.json. The scratch worktree was removed.
+
+Root/app/lockfile versions now prepare 0.8.0. Offline lock regeneration changes
+only those three version strings; dependencies are unchanged. The root changelog
+is generated with git-cliff; release guidance explains /btw's new persistent
+conversation default and /btw --once compatibility, unsent draft restart limits,
+and planned OpenTUI/embedded CPU onboarding. This is an intermediate release,
+not stable 1.0 or a model-quality claim.
+
+The locally built complete Linux candidate reports compositor 0.8.0, binary SHA
+fab67b86ab91102edb5c862d1869f03c498c591d9b987b908062bd9bf62d62d4.
+All eight installed-runtime probes pass. Real PTY scenarios against that exact
+extracted binary pass setup, independent conversation tabs and workflow tables;
+screenshots were visually inspected in normal/narrow/restored states. Setup
+tests a saved private profile, selected plugin install/enable/reload, draft and
+completion persistence, and a first task. Conversations test three bounded local
+requests, isolated drafts/history, pane reopening and restored selected tabs.
+Workflows test six local requests, parallel workers, pause/resume, drill-down,
+keyboard/mouse tabs, parent wake and restart. No UI/backend API was used to
+simulate terminal input. The existing compatible cached Chromium passed launch
+preflight; no browser download was needed. These are controlled protocol checks,
+not live provider/model quality. Evidence: dist/release-0.8.0-candidate.
+
+Actual public 0.7.4 assets were downloaded and checksum-verified for an isolated
+installer upgrade to the local 0.8 candidate. A similarly named cached candidate
+archive did NOT match the public checksum and was not used. Settings, plugin
+state, draft and old executable survive; the new host resumes the actual old
+session with its original task/answer, preserving the journal prefix. Two local
+completion requests, zero paid. First the operator test incorrectly required
+an unchanged install target for a repeated latest install; the installer properly
+creates a fresh versioned directory. The corrected test requires version/bytes,
+state preservation and retained older binaries. Its initial failure is preserved
+as upgrade-initial-oracle-error.json; successful upgrade.json identifies local
+candidate versus public baseline bytes. All owned temporary state was removed.
+
+The prior a66fcc3 build-only run 43329351577 completed verification and all four
+native build/install jobs successfully; all 32 downloaded runtime reports pass.
+Publication was skipped. Local candidate coverage passes 1312 tests/three optional
+skips in 161 files; types, generation/docs checks and marketplace validation pass.
+The 0.8 candidate still needs its own clean committed four-platform CI and tagged
+publication. No 0.8 tag/public release or paid-budget change exists at this point.
+Broader 1.0/model-family quality/OpenTUI remain open. Visual follow-up: the side
+composer can still show the held main agent's Thinking caption while the side
+agent is idle; independent sending and persistence work. Clarify target/global
+status before the final 1.0 usability gate.
+
 ## Bounded recovery for repeated successful finite queries — 2026-11-13
 
 ToolSpec now has optional loopGuard:'query' for finite read-only observations;

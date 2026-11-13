@@ -1,5 +1,28 @@
 # Releases
 
+## 0.8.0 changes and migration
+
+Version 0.8.0 combines guided first-run profile/plugin setup, immediate controls,
+recoverable conversation views, independent agent conversation tabs, saved agent
+activity, interactive agent/workflow tables and process CPU/memory charts.
+Automatic permission review can use the active provider and the actual task
+context. Coding completion now checks current verification evidence; edits that
+leave file text unchanged fail, and finite queries support bounded repetition
+recovery through optional `ToolSpec.loopGuard: "query"` metadata.
+
+`/btw <question>` now opens or restores a persistent side-agent conversation.
+Use `/btw --once <question>` for the former isolated notification response.
+The bundled `btw` plugin is version 2.0.0; update the host before adopting the new
+plugin major. Existing scoped plugin settings remain separate from installation
+and activation. Conversation history persists; unsent side-agent drafts are
+preserved during navigation but do not survive a process restart.
+
+OpenTUI migration and embedded CPU inference for onboarding remain planned.
+The setup guide itself requires no model call; completing agent tasks requires a
+configured provider. Local CPU diagnostics and passing deterministic checks do
+not establish general model quality or stable 1.0 readiness. See the
+[acceptance gates and current evidence](readiness.md).
+
 ## Distribution contract
 
 The workflows pin GitHub Actions to immutable commits for checkout 7.0.1,

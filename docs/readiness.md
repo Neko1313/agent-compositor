@@ -346,8 +346,21 @@ requests and changed only `plugins/todos/hooks.ts`, then stopped at the provider
 typecheck passes. All 807 baseline files, 21 local workspace aliases, frozen
 acceptance files and fixture Git HEAD were audited. This is another failed repair,
 not evidence of self-development readiness. Retained artifacts are under
-`dist/self-host-readable/`. Next investigate bounded recovery from output
-truncation without executing incomplete tool calls or enlarging the task budget.
+`dist/self-host-readable/`.
+
+The default strategy now permits one bounded recovery from a provider `length`
+finish, discarding all calls in that response and recording a replay-safe context
+boundary. The retry consumes an ordinary step under unchanged output/token limits.
+Ten regressions cover effect admission, replay/resume, permissions, budgets,
+interruption and storage failure. In a fresh historical Gemma diagnostic, recovery
+occurred once and execution continued, but the task still failed at 60 steps:
+78 requests, six compactions, four production files changed, six of seven
+acceptance checks still failing, and an introduced type error. All 807 baseline
+files, frozen inputs, 21 workspace aliases and fixture HEAD were audited. Artifacts
+are under `dist/self-host-output-recovery/`. This proves recovery was exercised,
+not task-quality improvement. Next investigate the observed edit-argument,
+ambiguous-match and stale-snapshot failures and verify complete repairs. Stable
+1.0, broader model coverage, onboarding and OpenTUI remain incomplete.
 
 Compositor was asked to repair the actual Todo scope/status defects in an isolated
 f1557fb source snapshot, with the two immutable acceptance files from the later

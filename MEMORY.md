@@ -1,5 +1,48 @@
 # Project memory
 
+## Bounded recovery from provider output truncation — 2026-11-13
+
+The previous readable-command commit 5c32ae8 passed CI 43389789819 on both Node
+versions, docs 43389789665 and release preparation 43389789893. Its live repair
+failure motivates this change; no successful repair is inferred from that CI.
+
+Default runSteps now permits one recovery per turn after a provider length finish,
+only if another ordinary step remains. Discard the entire response's tool batch,
+even apparently complete calls, and remove partial text/metadata from model
+context. Add host-origin feedback asking for a shorter response/focused action,
+then emit the existing context.restored snapshot before any next request. Replay
+therefore drops already-streamed incomplete text and retains the feedback's
+provenance. The latest actual user request remains the task reference. Subsequent
+truncation stops; a successful intervening tool batch does not reset the bound.
+No step/output/token allowance increases or automatic input compaction occurs.
+Token exhaustion, interruption, storage failure and ordinary errors remain stops;
+retried calls still pass normal permission checks. Custom strategies own recovery.
+
+Regression first reproduced three failures under the old behavior. Ten tests now
+cover discarded calls, replay/resume, cumulative usage, one recovery across tool
+batches, step exhaustion, unchanged provider output ceiling, permission denial,
+ordinary errors, token exhaustion, journal failure and interruption. Full coverage
+suite: 1425 passed, three optional skips, 174 files. Typecheck, docs:gen, docs:check
+(examples/site) and diff checks pass. Canonical core-customization documents the
+policy. Architecture is flagged by docs:impact but its existing execution and
+serializable journal contracts are unchanged. No event catalog or UI code changed.
+
+Fresh historical repair in /tmp/compositor-selfhost-cI9g5y, same model/limits/
+composition as the previous readable-stream condition: preflight zero requests,
+negative 6F/1P, separate manual reference 7P. Live Gemma made 78 requests and six
+compactions, exercised one recovery snapshot, then failed at 60 steps. Changed
+app/src/harness.ts, tools/src/resolvers.ts, tools/src/tools/todo.ts and Todos hooks.
+Independent acceptance remains 6F/1P; typecheck now fails TS2698 at resolvers.ts:72.
+Seven of twelve edit calls failed (oldText type, ambiguous match, range type or
+stale snapshot). No code_query/project_check calls; six exec calls and 32 reads.
+No quality improvement claimed. All 807 tracked hashes audited; frozen files and
+HEAD unchanged, all 21 aliases local. Configuration hash check passes in launcher.
+Preserved partial patch, runtime source hashes, comparison and isolation audit in
+dist/self-host-output-recovery. No OpenAI request/guard mutation; Ollama billing
+unavailable. Next inspect those concrete edit failures without bypassing snapshot
+guards or crediting the manual reference as model work. Self-development,
+model-family quality, onboarding, OpenTUI and stable 1.0 remain incomplete.
+
 ## Readable command streams with independent status receipts — 2026-11-13
 
 Builtin exec/exec_output now attach a modelText projection: JSON metadata followed

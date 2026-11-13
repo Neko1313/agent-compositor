@@ -1241,7 +1241,7 @@ export class AgentCore {
     let metadata: Record<string, unknown> | undefined;
     let failed: string | undefined;
 
-    let recoveryAttempted=false, finishChecks=0;
+    let recoveryAttempted=false, outputRecoveryAttempted=false, finishChecks=0;
     const queryProgress=new QueryProgress();
     let queryContext=this.messages;
     for (let step = 0; step < this.maxSteps; step++) {
@@ -1312,6 +1312,14 @@ export class AgentCore {
 
       if(finish?.reason==="error"&&!recoveryAttempted&&/context.{0,30}(length|window|limit)|too many tokens|prompt.{0,20}too (long|large)/i.test(finish.error??"")){
         recoveryAttempted=true;const before=this.messages;await this.compactNow();if(this.messages!==before){fullText="";metadata=undefined;step--;continue;}
+      }
+      if(finish?.reason==='length'&&!outputRecoveryAttempted&&step<this.maxSteps-1){
+        // Never execute even apparently complete calls from a truncated response.
+        // The snapshot also removes already-streamed partial text on replay.
+        outputRecoveryAttempted=true;fullText='';metadata=undefined;
+        this.messages.push({role:'user',origin:'harness',content:'Harness recovery: the provider truncated its previous response (finish reason length). All tool calls from that response were discarded; none executed. Produce a shorter response or a smaller focused tool call. Prefer a targeted edit over a whole-file replacement when appropriate. Continue the original user task within existing permissions and budgets; do not assume truncated actions ran.'});
+        await this.emit('context.restored',{messages:this.messages});
+        continue;
       }
       if (finish?.reason === "error" || finish?.reason === "length") {
         failed =

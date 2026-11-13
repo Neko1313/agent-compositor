@@ -218,6 +218,26 @@ cannot call `next()` to continue an expired hook; render-only and sandboxed hook
 cannot acquire it. This is an explicit lifetime choice, not a separate process or
 a bypass of service interception and permission checks.
 
+### Truncated model responses
+
+When a provider finishes with `length`, the default turn strategy discards every
+tool call from that response, including calls whose arguments appear complete.
+If a step remains, it permits one recovery per turn: it removes the partial
+response from model context and gives host-origin feedback asking for a shorter
+answer or a smaller focused tool call. This feedback preserves the original user
+task and does not grant permissions. A `context.restored` journal snapshot records
+the recovery boundary, so replay and resume do not resurrect discarded text or
+attach it to later tool calls. Already streamed text may have been visible before
+the context restore; it is not a completed answer.
+
+The retry consumes an ordinary step and uses the same model, output ceiling and
+remaining token budget. It does not enlarge limits or automatically compact an
+input context solely because the provider reported `length`. A second truncated
+response, or truncation at the last step, fails with the output/context-limit
+error. Interruptions, journal failures, token exhaustion and ordinary provider
+errors retain their existing stop behavior. Custom `service.agent.run` strategies
+own their recovery policy.
+
 ### Context compaction
 
 `TokenBudget.applyCapacity(capacity, overrides)` resolves provider limits against

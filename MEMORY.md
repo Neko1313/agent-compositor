@@ -1,5 +1,89 @@
 # Project memory
 
+## Opt-in OpenTUI application host — 2026-11-14
+
+The default frontend remains Ink, including its discoverable Arrange mode and
+window finder. `compositor --renderer opentui` now launches the actual configured
+BuiltApp instead of a demonstration provider. It uses the ordinary provider
+router, private credentials, loaded plugins, management services and saved
+sessions. The separate deterministic preview remains a development fixture.
+Renderer selection requires an interactive terminal and rejects plain/headless
+combinations before application construction.
+
+The production host owns semantic text/table/tab/search/raster views, current
+revision/action admission and plugin identity. UI-only command metadata now
+retains its declaring owner. Explicit UI actions receive bounded independent
+operations and private form windows; Main can retain a question, chosen answer
+and separate draft while provider/proxy or management forms complete. Late,
+stale or foreign callbacks cannot settle another owner. Private form results
+return directly to their requester and are not journal/model messages. Real
+composer media retains its producer dimensions and original RGBA data.
+
+Canonical manager navigation opens the real marketplace, extension management,
+settings and placement routes. Marketplace install remains inactive; enable
+persists selection and reload waits for the current turn and UI operations.
+The tracked reload commit is drained before core/app shutdown. New model work
+waits for its success; UI actions are refused with a retry notice while owners
+are replaced. A failed reload requires an explicit retry. Source generations
+detach from rendering without deleting their canonical window identity. Closed
+windows, manual workspace moves and once-admitted placement rules survive a
+same-owner reload, including a retained owner that does not republish. Truly
+disabled/uninstalled owners are forgotten even on a later reload.
+
+`/placement` opens a six-field private editor for registered plugin windows:
+Apply changes this run, Save rule writes the normal project JSONC override and
+applies it, and Cancel discards the current unsubmitted fields. Existing comments,
+unrelated settings and inherited rules remain. Runtime rules are cloned from
+effective configuration and updated separately after Apply/Save. The explicit
+198-plugin-window limit preserves the form's 200-neighbor-option bound; unloading
+a plugin frees capacity, while merely closing its view does not. `/windows`
+currently gives a local explanatory notice in OpenTUI and never falls through
+to a model request. Marketplace removal also has a valid confirmation-toggle
+form; unchecked/cancelled removal retains registration and installed packages.
+
+Release archives retain a separate renderer bundle, matching native library,
+workers, parser WASM/queries and third-party native source/relinking notices.
+The compiled loader anchors that bundle to the real executable, including PATH
+symlink launches and unrelated working directories. Both app/SDK bundles keep
+the renderer lazy. The single-file development build covers Ink; use the full
+release archive for native OpenTUI. Source CI and all four native release jobs
+now require actual application profile/session and manager/placement PTY checks
+against an isolated bounded loopback HTTP provider. No paid/live-model budget
+was used for this stage. A new gate alone is not evidence of a successful remote
+platform run.
+
+Local validation: final full coverage passed 1834 tests with three optional
+skips across 208 files; full typecheck, generation and documentation checks
+passed. Source manager PTY passed five integrated flows. The final relocated
+Linux archive passed all five manager/placement flows and six unchanged
+provider/privacy/session flows under CI=1, plus the complete installer/runtime
+release smoke. Evidence: dist/opentui-managers-source-budget,
+dist/opentui-managers-native-final and dist/opentui-app-native-production-final.
+The executable SHA-256 is e79ac4db1dcccc310fa80de2616d90181eed8e701bd506a0dbc5a227b565c1e6;
+the separate renderer SHA-256 is 46666b962a8e151ab315bf8c56a2f4cacfe453755c136ecc88b9ac3c29c1da72.
+
+The manager PTY exposed SDK listener-capacity warnings corrupting terminal
+cells with legitimate resident windows. The renderer now reserves a bounded
+instance-only keyboard-listener budget matching the 256-pane limit. The global
+EventEmitter default remains unchanged. A native React probe kept listeners
+stable at 18 mounted / 5 after surface removal over eight cycles, returning to
+baseline 1 on unmount, with no warnings (dist/opentui-keyboard-listeners).
+The real manager PTY also rejects raw warning output. Earlier exact Ghost
+RGBA/timing and 11-case window-gesture regression evidence remains under
+dist/opentui-app-ghost-regression and dist/opentui-app-window-regression-synced.
+Representative screenshots were inspected. These are controlled local checks,
+not live-model quality or universal native-terminal evidence.
+
+Keep the full original stable 1.0 goal active. OpenTUI still needs the discoverable
+Arrange/window-finder controls, custom private controllers (all six explicitly
+fail before launch), appearance/render overrides, legacy conversation copies,
+full wire-protocol parity and wider native-terminal/protocol evidence. UI-tool
+manual approvals/questions still share Main's FIFO, and cancelling an immediate
+command's UI handler does not yet cancel its exact already-started internal tool
+(closing the host does). Embedded CPU onboarding and broad real-model
+self-development/model-quality gates also remain open. Existing historical
+preview evidence below keeps its original scope.
+
 ## Discoverable window controls in the shipping terminal — 2026-11-14
 
 c459a8e passed remote CI, documentation and release preparation. The user's

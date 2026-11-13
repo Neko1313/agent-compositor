@@ -409,6 +409,8 @@ backup against its content lock before restoring it and preserves activation.
 After reload, old resources are disposed and the restored version supplies all
 components. Removal is explicit, keeps a backup and does not delete independent
 user settings. Removing a marketplace registration retains installed plugins.
+The marketplace UI requires selecting its confirmation toggle before submitting
+Remove marketplace; Cancel or an unchecked confirmation retains the registration.
 
 On Bun, loading a filesystem plugin clears that package's canonical-path module
 cache before importing its hooks and tools. Relative dependencies inside the

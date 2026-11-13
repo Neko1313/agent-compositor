@@ -641,7 +641,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       ...new Map<string,AppCommand>([
         ...plugins
           .flatMap(plugin=>(plugin.commands??[]).map(command=>({...command,
-            ...(command.execution?{plugin:plugin.manifest.name}:{}),
+            ...(command.execution||command.ui?{plugin:plugin.manifest.name}:{}),
             ...(command.ui?{ui:{site:`plugin-${plugin.manifest.name}-${command.ui.site}`}}:{}),
           })))
           .map((command) => [command.name, command] as const),

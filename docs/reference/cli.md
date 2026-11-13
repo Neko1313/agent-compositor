@@ -13,6 +13,7 @@ Usage: compositor [options]
   --resume [ID]           Resume a session or open interactive history
   --history               Open interactive chat history
   --plain                 Use the line-based interface
+  --renderer NAME         ink (default) or opentui (experimental)
   -p, --prompt TEXT       Run a prompt without the TUI (- reads stdin)
   -i, --image FILE        Attach an image (repeatable)
   --model NAME            Select a model

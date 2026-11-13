@@ -92,11 +92,11 @@ try {
     }, label)).jsonValue();
   }
   async function geometry(labels) {return Object.fromEntries(await Promise.all(labels.map(async label => [label, await pane(label)])));}
-  async function geometryWhen(predicate, reason) {
+  async function geometryWhen(predicate, reason, labels = ['Main', 'Side', 'Workflows']) {
     const deadline = Date.now() + timeout;
     let frames;
     while (Date.now() < deadline) {
-      frames = await geometry(['Main', 'Side', 'Workflows']);
+      frames = await geometry(labels);
       if (predicate(frames)) return frames;
       await delay(25);
     }
@@ -337,13 +337,45 @@ try {
   await key('Alt+Digit1');
   await key('F2');
   const beforeCustom = await layoutWhen(state => state.workspace === 1 && state.focused === 'main', 'focus the remaining Main split');
-  const oldMainFrame = await pane('Main');
+  const viewport = await page.evaluate(() => {
+    const lines = visual.text().split('\n');
+    const y = lines.findIndex(line => line.startsWith('┌'));
+    const footer = lines.findLastIndex(line => /^\s*F\d+ Focus/.test(line));
+    return {x: 0, y, width: visual.terminal.cols, height: footer - y};
+  });
+  assert.deepEqual(viewport, {x: 0, y: 2, width: 160, height: 42});
+  const remainingGeometry = state => {
+    const tree = state.spaces.find(space => space.id === 1)?.tree;
+    assert.equal(tree?.axis, 'vertical', 'The remaining workspace must have a top/bottom split');
+    assert.deepEqual(tree.children.map(child => child.surface).sort(), ['main', 'workflows']);
+    const firstHeight = Math.max(6, Math.min(viewport.height - 6, Math.floor(viewport.height * tree.ratio)));
+    const labels = {main: 'Main', workflows: 'Workflows'};
+    return Object.fromEntries(tree.children.map((child, index) => [labels[child.surface], {
+      x: viewport.x, y: viewport.y + (index ? firstHeight : 0), width: viewport.width,
+      height: index ? viewport.height - firstHeight : firstHeight,
+    }]));
+  };
+  const sameFrames = (actual, expected) => Object.keys(expected).every(label =>
+    JSON.stringify(actual[label]) === JSON.stringify(expected[label]));
+  const beforeFrames = remainingGeometry(beforeCustom);
+  const actualBefore = await geometryWhen(current => sameFrames(current, beforeFrames),
+    'rendered pre-resize two-pane split must match its persisted ratio', ['Main', 'Workflows']);
+  assert.deepEqual(actualBefore, beforeFrames);
+  await capture('windows-before-custom-ratio.png');
   await key('Alt+ArrowRight');
   const customized = await layoutWhen(state => state.workspace === 1 && JSON.stringify(state.spaces)
     !== JSON.stringify(beforeCustom.spaces), 'custom split ratio before restart');
   assert.ok(JSON.stringify(customized.spaces).includes('ratio'), 'Restart must cover a real remaining split');
-  await page.waitForFunction(oldY => visual.text().split('\n').some((line, y) => y !== oldY && line.includes('─ Main ')), oldMainFrame.y);
-  const customFrames = await geometry(['Main', 'Workflows']);
+  const beforeTree = beforeCustom.spaces.find(space => space.id === 1).tree;
+  const expectedRatio = Math.max(.15, Math.min(.85, beforeTree.ratio + (beforeTree.children[0].surface === 'main' ? .05 : -.05)));
+  assert.equal(customized.spaces.find(space => space.id === 1).tree.ratio, expectedRatio);
+  const expectedCustomFrames = remainingGeometry(customized);
+  const customFrames = await geometryWhen(current => sameFrames(current, expectedCustomFrames),
+    'rendered custom split must match the persisted resized boundary', ['Main', 'Workflows']);
+  assert.deepEqual(customFrames, expectedCustomFrames);
+  report.customSplit = {viewport, before: {saved: beforeCustom, frames: actualBefore},
+    customized: {saved: customized, frames: customFrames}};
+  await capture('windows-custom-ratio.png');
   await key('Alt+Digit2');
   await key('F9');
   const beforeRestart = await layoutWhen(state => state.workspace === 2 && state.focused === 'side' && state.fullscreen,

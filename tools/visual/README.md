@@ -23,6 +23,35 @@ The standard scenario also checks the semantic agent overview: expand by mouse
 and keyboard, click state tabs, switch with Left/Right, resize to stacked narrow fields and enter the
 selected agent's conversation. Screenshots include the expanded and narrow views.
 
+`npm run visual:opentui-app` runs the actual application entry point with
+`--renderer opentui`, isolated saved profiles and a bounded loopback HTTP model.
+It does not inject a `buildApp` provider. It verifies pending Main question/draft
+state while native provider/model/key/proxy forms complete, actual model and
+authorization selection on the next HTTP request, independent form lifetime
+during foreground interruption, and exact layout plus session restoration with
+`--resume`. Synthetic keys must be absent from terminal output, provider bodies,
+session journals and non-secret profile settings; diagnostic raw keyboard logs
+are deliberately excluded. No user profiles or credentials are read.
+
+Set `VISUAL_EXECUTABLE=/absolute/path/to/extracted/compositor` for the same proof
+against a native archive. The report records the executable identity. The older
+`visual:opentui`, `visual:opentui-windows` and `visual:opentui-inputs` commands keep
+their isolated preview fixtures and test different integration boundaries.
+
+`npm run visual:opentui-managers` checks the actual OpenTUI application with an
+offline local catalog and the normal configured loopback provider. While Main
+waits for an answer, terminal actions browse the canonical manager panels,
+register the catalog, install a package inactive, explicitly enable it and queue
+reload. The plugin's own storage receipt and pane establish when it actually
+loads. The scenario also keeps a deliberately closed plugin window closed across
+reload, exercises private placement Apply/Save rule/Cancel and restores the saved
+rule after a real CLI restart. `/windows` must remain a host notice without a
+model request. No fixture permission rules or live model services are used.
+Artifacts default to `dist/visual-opentui-managers/`; inspect the PNGs and report.
+Set `VISUAL_EXECUTABLE` to an executable inside a complete extracted archive for
+the same native check. The bench preserves `CI` and records native executable
+and renderer hashes.
+
 `npm run visual:windows` checks the shipping Ink window controls through the
 actual PTY: finder search and cancellation, draft/cursor retention, nearest-split
 orientation and resize, directional movement, workspace transfer, fullscreen,

@@ -12,6 +12,7 @@ interface ComposerFrame {
 /** The host owns the source, animation clock and activity-to-media mapping. */
 export interface ComposerMedia {
   subscribe(active: boolean, onFrame: (frame: ComposerFrame | undefined) => void): () => void;
+  dimensions?():{width:number;height:number};
 }
 
 function AnimatedImage({ media, active }: { media: ComposerMedia; active: boolean }) {
@@ -32,8 +33,9 @@ function AnimatedImage({ media, active }: { media: ComposerMedia; active: boolea
     }
   }, [renderer, frame]);
 
+  const size=media.dimensions?.();
   return frame ? <image id="composer-ghost" ref={image} fit="fit" protocol="kitty"
-    width={8} height={4} flexShrink={0} /> : null;
+    width={Math.max(1,Math.min(20,size?.width??8))} height={Math.max(1,Math.min(8,size?.height??4))} flexShrink={0} /> : null;
 }
 
 export function Ghost({ media, enabled, active }: { media?: ComposerMedia; enabled: boolean; active: boolean }) {

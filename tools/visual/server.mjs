@@ -23,6 +23,7 @@ await writeFile(join(output, 'input.jsonl'), '');
 if(process.env.VISUAL_PERFORMANCE)await writeFile(join(output,'terminal.events.jsonl'),'');
 await mkdir(join(cwd, 'plugins'));
 for (const name of ['todos', 'slash-commands', 'ui-theme']) await cp(join(root, 'plugins', name), join(cwd, 'plugins', name), { recursive: true });
+if(process.env.VISUAL_OPENTUI_APP&&!process.env.VISUAL_EXECUTABLE)await cp(join(root,'plugins/network-proxy'),join(cwd,'plugins/network-proxy'),{recursive:true});
 await mkdir(join(cwd, '.agent-compositor'));
 if(process.env.VISUAL_GIT_FIXTURE){
   const git=(...args)=>{
@@ -134,14 +135,30 @@ if(process.env.VISUAL_WINDOW_CONTROLS){
 }
 if(process.env.VISUAL_AGENT_HISTORY)await writeFile(join(cwd,'history-proof.txt'),'HISTORICAL_TOOL_EVIDENCE');
 const workflowRequests=[];
+let appLaunch;
+let appStarts=0;
+let appRequests=0;
+const appBootKey='SYNTHETIC_BOOT_KEY_47',appUiKey='SYNTHETIC_UI_KEY_47';
+const appReceipt=value=>appendFileSync(join(output,'app-http.jsonl'),JSON.stringify({at:Date.now(),...value})+'\n');
 let terminalSize={cols:100,rows:30};
 async function start(ws) {
   if(process.env.VISUAL_PERFORMANCE)appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'start',...terminalSize})+'\n');
-  const command = process.env.VISUAL_EXECUTABLE
+  let command = process.env.VISUAL_EXECUTABLE
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
     : ['bun', join(import.meta.dir, process.env.VISUAL_OPENTUI === '1' ? 'opentui-sample.ts' : 'fixture.ts'), cwd];
+  if(process.env.VISUAL_OPENTUI_APP){
+    const sessions=appStarts?(await readdir(join(appLaunch.state,'sessions'))).filter(name=>name.endsWith('.jsonl')):[];
+    if(appStarts&&sessions.length!==1)throw Error('Expected one actual app session to resume');
+    command=[...(process.env.VISUAL_EXECUTABLE?[resolve(process.env.VISUAL_EXECUTABLE)]:['bun',join(root,'packages/app/src/bin.ts')]),
+      '--renderer','opentui','--cwd',cwd,...(sessions.length?['--resume',sessions[0].slice(0,-6)]:[])];
+    appStarts++;
+    appLaunch.launches.push({command});
+    await writeFile(join(output,'opentui-app-launch.json'),JSON.stringify(appLaunch));
+  }
+  const childEnv={...process.env,...(ciBin?{PATH:ciBin+':'+process.env.PATH}:{}),...((process.env.VISUAL_HARNESS||process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:'visual-fixture',AGENT_GRAPHICS:'off',...(process.env.VISUAL_HARNESS||process.env.VISUAL_WINDOW_CONTROLS?{AGENT_API_KEY:''}:{})}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??'on',HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor'),XDG_CONFIG_HOME:join(cwd,'xdg'),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)};
+  if(process.env.VISUAL_OPENTUI_APP)for(const name of ['AGENT_MODEL','AGENT_BASE_URL','AGENT_API_KEY','HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy'])delete childEnv[name];
   const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), ...command],
-    { cwd: root, env:{...process.env,...(ciBin?{PATH:ciBin+':'+process.env.PATH}:{}),...((process.env.VISUAL_HARNESS||process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off",...(process.env.VISUAL_HARNESS||process.env.VISUAL_WINDOW_CONTROLS?{AGENT_API_KEY:''}:{})}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+    {cwd:root,env:childEnv,stdin:'pipe',stdout:'pipe',stderr:'pipe'});
   active = { ws, proc };
   const sendLines = async () => {
     let pending = '';
@@ -165,6 +182,31 @@ const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(process.env.PORT ?? 0),
   async fetch(request, server) {
     const url = new URL(request.url);
+    if(process.env.VISUAL_OPENTUI_APP&&url.pathname===`/app-model/${token}/v1/models`){
+      const authorization=request.headers.get('authorization')??'';
+      appReceipt({kind:'models',credential:authorization==='Bearer '+appUiKey?'ui':authorization==='Bearer '+appBootKey?'bootstrap':'unexpected',authorizationHash:new Bun.CryptoHasher('sha256').update(authorization).digest('hex')});
+      return Response.json({data:[{id:'app-alpha',context_window:65536},{id:'app-beta',context_window:65536}]});
+    }
+    if(process.env.VISUAL_OPENTUI_APP&&url.pathname===`/app-model/${token}/v1/chat/completions`&&request.method==='POST'){
+      const body=await request.json(),authorization=request.headers.get('authorization')??'';
+      const prompt=body.messages?.filter(message=>message.role==='user').at(-1)?.content??'';
+      const credential=authorization==='Bearer '+appUiKey?'ui':authorization==='Bearer '+appBootKey?'bootstrap':'unexpected';
+      appReceipt({kind:'completion',number:++appRequests,model:body.model,credential,authorizationHash:new Bun.CryptoHasher('sha256').update(authorization).digest('hex'),body});
+      if(appRequests>12||credential==='unexpected'||!['APP_QUESTION','APP_HOLD','APP_RESTORED'].includes(prompt))return new Response('Unexpected isolated app request',{status:400});
+      if(prompt==='APP_HOLD'){
+        const data=`data: ${JSON.stringify({choices:[{delta:{content:'APP_MODEL_HELD'},finish_reason:null}]})}\n\n`;
+        return new Response(new ReadableStream({start(controller){
+          controller.enqueue(new TextEncoder().encode(data));
+          request.signal.addEventListener('abort',()=>{appReceipt({kind:'hold-aborted'});try{controller.close();}catch{}},{once:true});
+        }}),{headers:{'content-type':'text/event-stream'}});
+      }
+      const answer=body.messages?.filter(message=>message.role==='tool'&&message.tool_call_id==='app-main-question').at(-1)?.content;
+      const delta=prompt==='APP_RESTORED'?{content:'APP_RESTORED: '+(answer?.includes('Production')?'Production retained':'missing answer')}
+        :answer?{content:'APP_ANSWER_RECEIVED: '+(answer.includes('Production')?'Production':'unexpected')+'; model='+body.model}
+        :{tool_calls:[{index:0,id:'app-main-question',type:'function',function:{name:'ask_user',arguments:JSON.stringify({question:'MAIN_QUESTION: choose deployment',options:['Preview','Production'],allowOther:false})}}]};
+      const tool=Boolean(delta.tool_calls);
+      return new Response(`data: ${JSON.stringify({choices:[{delta,finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{delta:{},finish_reason:tool?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
+    }
     if(process.env.VISUAL_HARNESS&&url.pathname===`/model/${token}/v1/models`)return Response.json({data:[{id:'visual-fixture',context_window:32768}]});
     if(process.env.VISUAL_HARNESS&&url.pathname===`/model/${token}/v1/chat/completions`){
       const body=await request.json(),prompt=body.messages?.filter(message=>message.role==='user').at(-1)?.content??'';
@@ -283,6 +325,42 @@ const server = Bun.serve({
     async close(ws) { if (active?.ws === ws) await stop(); },
   },
 });
+if(process.env.VISUAL_OPENTUI_APP){
+ if(process.env.VISUAL_PLUGIN_DIR)throw Error('Actual app proof does not substitute plugin directories');
+ const paths=storagePaths(cwd,{HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
+ const baseUrl=`http://127.0.0.1:${server.port}/app-model/${token}/v1`;
+ await mkdir(paths.state,{recursive:true});await mkdir(paths.home,{recursive:true});
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['network-proxy','todos','slash-commands','model-selector','provider-auth','session-manager',
+  ...(process.env.VISUAL_OPENTUI_MANAGERS?['extension-manager','marketplace-manager','local-flow-probe']:[])],agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
+ await writeFile(join(paths.state,'providers.json'),JSON.stringify({profiles:{bootstrap:{type:'openai-compat',baseUrl,model:'app-start',contextWindow:65536,timeoutMs:300000}}}));
+ await writeFile(join(paths.state,'model.json'),JSON.stringify('bootstrap'));
+ await writeFile(join(paths.home,'credentials.json'),JSON.stringify({bootstrap:{accessToken:appBootKey}}),{mode:0o600});
+ await writeFile(join(output,'app-http.jsonl'),'');
+ const executable=process.env.VISUAL_EXECUTABLE?resolve(process.env.VISUAL_EXECUTABLE):undefined;
+ appLaunch={cwd:paths.project,state:paths.state,home:paths.home,baseUrl,launches:[],mode:executable?'binary':'source',
+  ...(executable?{executable,sha256:new Bun.CryptoHasher('sha256').update(await readFile(executable)).digest('hex')}:{}),
+  providerOverride:false,environmentProviderOverride:false};
+ if(process.env.VISUAL_OPENTUI_MANAGERS){
+  const catalogRoot=join(cwd,'local-flow-catalog'),source=join(catalogRoot,'plugins/local-flow-probe');
+  await mkdir(join(catalogRoot,'.claude-plugin'),{recursive:true});await mkdir(source,{recursive:true});
+  await writeFile(join(source,'plugin.json'),JSON.stringify({name:'local-flow-probe',version:'1.0.0',trust:'trusted',main:'hooks.js',
+   description:'Local fixture for explicit manager installation and activation.'}));
+  await writeFile(join(source,'hooks.js'),`async function show($){
+  await $.storage.set('loaded',{version:'1.0.0',sessionId:$.session.id});
+  await $.ui.view('proof','Local flow probe',{lines:[{text:'LOCAL_FLOW_PROBE_LOADED',bold:true}]},{site:'inspector',focus:false});
+}
+export default {'session.start':async(_,$)=>show($),'session.reload':async(_,$)=>show($)};
+`);
+  await writeFile(join(catalogRoot,'.claude-plugin/marketplace.json'),JSON.stringify({name:'local-flow',owner:{name:'Local fixture'},plugins:[{
+   name:'local-flow-probe',version:'1.0.0',source:'./plugins/local-flow-probe',description:'Offline manager activation proof',compositor:{format:'native'},
+  }]}));
+  const installedRoot=resolve(cwd,'.agent-compositor/plugins')===resolve(paths.home,'plugins')?join(paths.state,'project-plugins'):join(cwd,'.agent-compositor/plugins');
+  appLaunch.managers={catalogRoot,source,manifest:join(installedRoot,'local-flow-probe/plugin.json'),
+   receipt:join(paths.state,'plugin-state/local-flow-probe/loaded.json'),extensionState:join(paths.state,'extensions-state.json'),
+   placement:join(cwd,'.agent-compositor/agent-compositor.jsonc')};
+ }
+ await writeFile(join(output,'opentui-app-launch.json'),JSON.stringify(appLaunch));
+}
 if(process.env.VISUAL_WORKSPACES)await writeFile(join(cwd,'.agent-compositor/web.json'),JSON.stringify({searchUrl:`http://127.0.0.1:${server.port}/search/${token}`}));
 let closing = false;
 async function shutdown() { if (closing) return; closing = true; await stop(); server.stop(true); await rm(cwd, { recursive: true, force: true });if(workspaceHome!==cwd)await rm(workspaceHome,{recursive:true,force:true});process.exit(0); }

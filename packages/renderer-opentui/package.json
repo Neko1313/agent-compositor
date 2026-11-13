@@ -2,7 +2,7 @@
   "name": "@agent-compositor/renderer-opentui",
   "version": "0.1.0",
   "private": true,
-  "description": "Experimental OpenTUI conversation renderer for independent agent sessions.",
+  "description": "Experimental OpenTUI frontend for conversations and host-owned plugin windows.",
   "type": "module",
   "exports": { ".": "./src/run.tsx" },
   "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" },

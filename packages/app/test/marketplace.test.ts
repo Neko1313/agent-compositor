@@ -8,6 +8,7 @@ import { buildApp } from "../src/build.js";
 import { ScriptedProvider } from "@agent-compositor/core";
 import { marketplaces, marketplaceSchema } from "../src/marketplaces.js";
 import { loadClaudePlugin, PluginLoader } from "@agent-compositor/loader";
+import type {UiFormResult} from '@agent-compositor/events';
 const exec = promisify(execFile),
   dirs: string[] = [],
   apps: Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -51,6 +52,36 @@ async function fixture() {
   return { cwd, home, repo };
 }
 describe("Claude-compatible marketplace", () => {
+  it.each<{answer:UiFormResult|null;removed:boolean}>([
+    {answer:null,removed:false},
+    {answer:{action:'cancel',values:{}},removed:false},
+    {answer:{action:'remove',values:{confirm:false}},removed:false},
+    {answer:{action:'remove',values:{confirm:true}},removed:true},
+  ])('removes a registration only after explicit UI confirmation: $removed / $answer',async({answer,removed})=>{
+    const {cwd,home,repo}=await fixture();
+    const provider=new ScriptedProvider([]);
+    const app=await buildApp({cwd,env:{HOME:home},provider});apps.push(app);
+    const core=app.createCore(async()=>true);
+    expect((await core.invokeTool('marketplace_control',{action:'add',source:repo})).ok).toBe(true);
+    expect((await core.invokeTool('extension_control',{action:'install',name:'portable@sample-market'})).ok).toBe(true);
+    const before=(await core.invokeTool('extension_control',{action:'list'})).output as any;
+    const directory=before.available.find((plugin:any)=>plugin.name==='portable').directory;
+    const manifest=await readFile(join(directory,'.claude-plugin/plugin.json'),'utf8');
+    let forms=0;
+    core.host.setFormHandler(async(_plugin,form)=>{
+      forms++;
+      expect(form.fields).toEqual([{id:'confirm',label:'Remove this marketplace registration',type:'toggle',value:false}]);
+      return answer;
+    });
+    const result=await core.host.emit('ui.press',{site:'plugin-marketplace-manager-marketplaces',key:'remove:sample-market'});
+    expect(result.faults).toEqual([]);expect(forms).toBe(1);
+    const registered=(await core.invokeTool('marketplace_control',{action:'list'})).output as any[];
+    expect(registered.some(row=>row.name==='sample-market')).toBe(!removed);
+    expect(((await core.invokeTool('extension_control',{action:'list'})).output as any).installed).toEqual(before.installed);
+    expect(await readFile(join(directory,'.claude-plugin/plugin.json'),'utf8')).toBe(manifest);
+    expect(provider.requests).toHaveLength(0);
+  });
+
   it("validates real catalog schema and rejects duplicate plugin identities", () => {
     expect(
       marketplaceSchema.safeParse({

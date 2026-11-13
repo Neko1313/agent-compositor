@@ -64,6 +64,17 @@ and a pinned native Callix executable with its upstream license/provenance.
 The Bun runtime is compiled into the executable. Keep the archive's directories
 together; copying only the executable drops the supplied plugin distribution.
 
+The optional OpenTUI frontend ships as an isolated JavaScript bundle under
+`node_modules/@agent-compositor/renderer-opentui/`, together with its matching
+native library, parser worker, WebAssembly grammars and highlight queries.
+The native build bundles only its declared platform's library; Windows and musl
+packages remain outside the supported archive targets. The lazy renderer loader
+and native-library bootstrap resolve paths from the installed files rather than
+the current working directory. An explicit upstream `OPENTUI_LIB_PATH` override
+is preserved. Native FFmpeg license/source information and bundled dependencies'
+author and patent notices are retained under `licenses/`, including dependencies
+installed beside the renderer workspace at different versions.
+
 User and project plugin directories take precedence over the distribution's
 supplied packages. Since v0.4.0, plugins remain inactive until explicitly enabled
 in user or project scope; installation alone never activates them. The repository

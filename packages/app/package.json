@@ -12,7 +12,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "build:binary": "bun build --compile src/bin.ts --outfile ../../dist/compositor",
+    "build:binary": "bun build --compile src/bin.ts --external @agent-compositor/renderer-opentui --outfile ../../dist/compositor",
     "start": "bun src/bin.ts --cwd ../.."
   },
   "dependencies": {
@@ -27,6 +27,7 @@
     "@agent-compositor/protocol": "^0.1.0",
     "@agent-compositor/provider": "^0.1.0",
     "@agent-compositor/renderer-ink": "^0.1.0",
+    "@agent-compositor/renderer-opentui": "^0.1.0",
     "@agent-compositor/session": "^0.1.0",
     "@agent-compositor/skills": "^0.1.0",
     "@agent-compositor/tools": "^0.1.0",

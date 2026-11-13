@@ -297,8 +297,11 @@ public shipping files match the exercised Linux archive.
 ### Planned OpenTUI migration — 2026-11-13
 
 The user explicitly requested adding migration to OpenTUI to the plan. OpenTUI
-is the intended future terminal frontend. The first source prototype now runs
-alongside Ink. Try the [conversation and workflow preview](02-ui.md#opentui-conversation-prototype).
+is the intended future terminal frontend. The opt-in
+[application frontend](02-ui.md#experimental-opentui-application-frontend) now
+runs the configured app with `compositor --renderer opentui`. The deterministic
+[conversation and workflow preview](02-ui.md#opentui-conversation-prototype)
+remains a separate development fixture. Ink remains the default.
 The acceptance checks below govern the switch to a shipping frontend. Preserve the agent core, provider adapters, permissions, tools,
 session state and extension ownership contracts throughout the migration.
 
@@ -397,6 +400,39 @@ Initial technical references are the official [OpenTUI components](https://opent
 The prior chat estimates were preliminary effort ranges, not a release deadline.
 This migration extends the 1.0 usability scope and does not change the authorized
 live-model spending limit or interrupt the current approval-work fixes.
+
+### Opt-in OpenTUI application integration — 2026-11-14
+
+`--renderer opentui` now connects the actual BuiltApp, provider router, private
+credential store, session repository and loaded plugin handlers to native
+conversation and semantic plugin windows. Explicit settings forms have their
+own operation and window, so Main's pending question does not block editing a
+connection. Loaded plugin views retain host-validated actions, revisions and
+ownership. The host adapts plain legacy text without executing plugin frontend
+code. The canonical placement editor, saved rules and full window tree are
+shared with the application. This closes the earlier preview-only integration
+gap; Ink remains the default.
+
+The Linux source and relocated native application checks exercise real profile
+add/edit/cancel/discovery/selection, private credential and proxy storage, a
+pending Main question plus independent draft, foreground interruption without
+cancelling a separate form, and actual session/profile/layout restoration after
+restart. Requests use a bounded loopback HTTP provider through the ordinary
+router. No live-model endpoint or paid test budget is involved. The native
+archive carries the renderer bundle, native library, parser WASM and workers;
+release CI now requires the actual relocated application flow on all four
+declared platforms. Adding that gate does not establish that its first remote
+matrix has passed.
+
+Remaining frontend gates include the discoverable Arrange/window finder,
+selected replacement controllers, full appearance/render overrides, legacy
+conversation copies, complete wire-protocol parity and independent request
+windows for UI-tool approvals/questions that currently share Main's inbox.
+Immediate command cancellation must also propagate to its exact internal tool
+operation instead of only cancelling the surrounding UI handler.
+Native terminal/protocol coverage, embedded CPU onboarding and broader real-model
+self-development quality remain open. These application checks do not establish
+stable 1.0 readiness.
 
 ### Historical self-hosting repair diagnostic — 2026-11-13
 

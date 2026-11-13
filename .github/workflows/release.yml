@@ -83,12 +83,40 @@ jobs:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_tag || '' }}
       - name: Verify archive, install, default plugins and model request
         run: npm run release:smoke
+      - name: Prepare the terminal bench browser
+        timeout-minutes: 10
+        run: |
+          npx playwright install chromium
+          node --input-type=module -e 'import {chromium} from "playwright"; const browser=await chromium.launch({headless:true}); try { const page=await browser.newPage(); await page.goto("about:blank"); console.log("Browser ready:",browser.version()); } finally { await browser.close(); }'
+      - name: Verify relocated OpenTUI application flow
+        timeout-minutes: 7
+        shell: bash
+        env:
+          VISUAL_OUTPUT: dist/release/opentui-app-${{ matrix.platform }}
+        run: |
+          OPENTUI_INSTALL_DIR="$(mktemp -d "$RUNNER_TEMP/opentui-native.XXXXXX")"
+          trap 'rm -rf "$OPENTUI_INSTALL_DIR"' EXIT
+          tar -xzf "dist/release/compositor-${{ matrix.platform }}.tar.gz" -C "$OPENTUI_INSTALL_DIR"
+          VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" npm run visual:opentui-app
+      - name: Verify relocated OpenTUI plugin management and placement
+        timeout-minutes: 7
+        shell: bash
+        env:
+          VISUAL_OUTPUT: dist/release/opentui-managers-${{ matrix.platform }}
+        run: |
+          OPENTUI_INSTALL_DIR="$(mktemp -d "$RUNNER_TEMP/opentui-native.XXXXXX")"
+          trap 'rm -rf "$OPENTUI_INSTALL_DIR"' EXIT
+          tar -xzf "dist/release/compositor-${{ matrix.platform }}.tar.gz" -C "$OPENTUI_INSTALL_DIR"
+          VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" npm run visual:opentui-managers
       - name: Preserve installed-runtime evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: installed-runtime-${{ matrix.platform }}
-          path: dist/release/*smoke-*.json
+          path: |
+            dist/release/*smoke-*.json
+            dist/release/opentui-app-${{ matrix.platform }}/
+            dist/release/opentui-managers-${{ matrix.platform }}/
           if-no-files-found: warn
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

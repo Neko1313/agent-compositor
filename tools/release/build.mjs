@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { installCallix } from '../../plugins/callix/distribution.mjs';
 import { copyPluginResources } from './resources.mjs';
 import {copyLicenseNotices} from './licenses.mjs';
+import {openTuiRenderer, openTuiNativeExternals, writeOpenTuiBundle} from './opentui.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.chdir(root);
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
@@ -20,12 +21,20 @@ const stage = join(output, platform, 'compositor');
 await rm(join(output, platform), { recursive: true, force: true });
 await mkdir(stage, { recursive: true });
 const exists = path => access(path).then(() => true, () => false);
-async function bundle(entry, outfile) {
-  const result = await Bun.build({ entrypoints: [entry], target: 'bun', format: 'esm' });
+async function bundle(entry, outfile, external = [openTuiRenderer]) {
+  const result = await Bun.build({ entrypoints: [entry], target: 'bun', format: 'esm', external });
   if (!result.success) throw new AggregateError(result.logs, `Cannot bundle ${entry}`);
   if (result.outputs.length !== 1) throw new Error(`Unexpected assets in ${entry}`);
   await writeFile(outfile, Buffer.from(await result.outputs[0].arrayBuffer()));
 }
+// Keep OpenTUI lazy. Bundle its JS once and retain every native/parser asset;
+// disk packages with bare scoped imports are not relocatable in standalone Bun.
+const rendererDest = join(stage, 'node_modules', openTuiRenderer);
+await mkdir(rendererDest, {recursive: true});
+const rendererMetadata = JSON.parse(await readFile('packages/renderer-opentui/package.json', 'utf8'));
+const rendererBuild = await Bun.build({entrypoints: ['packages/renderer-opentui/src/run.tsx'], target: 'bun', format: 'esm', external: openTuiNativeExternals(platform), metafile: true});
+await writeOpenTuiBundle(rendererBuild, rendererDest, platform);
+await writeFile(join(rendererDest, 'package.json'), JSON.stringify({name: rendererMetadata.name, version: rendererMetadata.version, type: 'module', main: './index.js', exports: './index.js'}) + '\n');
 // Plugins remain external and replaceable; compile their dependencies into each entry.
 for (const name of await readdir('plugins')) {
   const source = join('plugins', name), dest = join(stage, 'plugins', name);
@@ -61,14 +70,15 @@ for (const name of await readdir('packages')) {
   const source = join('packages', name);
   if (!await exists(join(source, 'src/index.ts'))) continue;
   const metadata = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'));
+  if (metadata.name === openTuiRenderer) continue;
   const dest = join(stage, 'node_modules', metadata.name);
   await mkdir(dest, { recursive: true });
   await bundle(join(source, 'src/index.ts'), join(dest, 'index.js'));
   await writeFile(join(dest, 'package.json'), JSON.stringify({ name: metadata.name, version: metadata.version, type: 'module', main: './index.js', exports: './index.js' }) + '\n');
 }
 // Preserve third-party license texts for bundled modules as well as disk modules.
-await copyLicenseNotices(root,join(stage,'licenses'));
-const command = ['build', '--compile', 'packages/app/src/bin.ts', '--outfile', join(stage, 'compositor')];
+await copyLicenseNotices(root,join(stage,'licenses'),undefined,Object.keys(rendererBuild.metafile.inputs));
+const command = ['build', '--compile', 'packages/app/src/bin.ts', '--external', openTuiRenderer, '--outfile', join(stage, 'compositor')];
 if (process.arch === 'x64') command.push(`--target=bun-${process.platform === 'darwin' ? 'darwin' : 'linux'}-x64-baseline`);
 execFileSync(process.execPath, command, { stdio: 'inherit' });
 for (const file of ['LICENSE', 'README.md', 'install.sh']) await cp(file, join(stage, file));

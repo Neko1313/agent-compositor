@@ -41,6 +41,20 @@ jobs:
       - name: Check OpenTUI image frames in a PTY
         if: matrix.node == '26'
         run: npm run visual:opentui-ghost
+      - name: Prepare the terminal bench browser
+        if: matrix.node == '26'
+        timeout-minutes: 10
+        run: |
+          npx playwright install chromium
+          node --input-type=module -e 'import {chromium} from "playwright"; const browser=await chromium.launch({headless:true}); try { const page=await browser.newPage(); await page.goto("about:blank"); console.log("Browser ready:",browser.version()); } finally { await browser.close(); }'
+      - name: Check actual OpenTUI settings and session flows
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-app
+      - name: Check actual OpenTUI plugin management and placement
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-managers
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -77,6 +91,8 @@ jobs:
             reports/coverage/coverage.xml
             reports/certification/
             dist/visual-opentui-ghost/report.json
+            dist/visual-opentui-app/
+            dist/visual-opentui-managers/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

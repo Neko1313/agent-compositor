@@ -20,7 +20,7 @@ The monorepo contains 19 packages. Public extension contracts live in their expo
 | [`@agent-compositor/protocol`](https://github.com/Neko1313/agent-compositor/tree/main/packages/protocol) | Versioned JSONL messages and capability negotiation. |
 | [`@agent-compositor/provider`](https://github.com/Neko1313/agent-compositor/tree/main/packages/provider) | Model adapters, routing, capabilities and network transport. |
 | [`@agent-compositor/renderer-ink`](https://github.com/Neko1313/agent-compositor/tree/main/packages/renderer-ink) | Reference terminal renderer consuming protocol frames. |
-| [`@agent-compositor/renderer-opentui`](https://github.com/Neko1313/agent-compositor/tree/main/packages/renderer-opentui) | Experimental OpenTUI conversation renderer for independent agent sessions. |
+| [`@agent-compositor/renderer-opentui`](https://github.com/Neko1313/agent-compositor/tree/main/packages/renderer-opentui) | Experimental OpenTUI frontend for conversations and host-owned plugin windows. |
 | [`@agent-compositor/runtime`](https://github.com/Neko1313/agent-compositor/tree/main/packages/runtime) | Onion event dispatcher, ordering, deadlines and fault handling. |
 | [`@agent-compositor/session`](https://github.com/Neko1313/agent-compositor/tree/main/packages/session) | Conversation journal, history and replaceable repository routing. |
 | [`@agent-compositor/skills`](https://github.com/Neko1313/agent-compositor/tree/main/packages/skills) | Progressive skill discovery and loading. |

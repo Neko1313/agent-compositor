@@ -14,10 +14,14 @@ extension installation.
 # from source (bun resolves the workspace TS directly)
 npm run start -w @agent-compositor/app
 
-# or compile a single binary (bun build --compile, ~105 MB, self-contained)
+# or compile the default Ink frontend as a single binary
 npm run build:binary -w @agent-compositor/app
 ./dist/compositor --plugins ./plugins
 ```
+
+For native OpenTUI, use `npm run build:release` from the repository root and
+keep the complete archive together. Its renderer, native library and parser
+assets live beside the executable.
 
 ## Plugins start off
 
@@ -31,7 +35,7 @@ for compatibility, tests, versions, updates and rollback.
 ## Flags
 
 ```
-compositor [--plugins dir ...] [--resume [ID]] [--history] [--cwd dir] [--plain]
+compositor [--plugins dir ...] [--resume [ID]] [--history] [--cwd dir] [--plain] [--renderer ink|opentui]
 ```
 
 - `--plugins dir` — extra plugin directory (repeatable). Convention dirs
@@ -173,6 +177,21 @@ See [sandbox setup and limits](../../plugins/monty/README.md).
 
 The default `callix` plugin uses a native binary for code graph navigation.
 See [installation and provider replacement](../../plugins/callix/README.md).
+
+## Experimental OpenTUI frontend
+
+`compositor --renderer opentui` opens the configured application with native
+OpenTUI editors, questions and plugin views. From source use
+`bun packages/app/src/bin.ts --renderer opentui`. Providers, private credentials,
+session resume and plugin management use the same services as the default Ink
+frontend. Settings forms run in separate windows while Main remains active or
+waits for a human answer. This is distinct from `npm run opentui:preview`, which
+uses isolated deterministic demonstration sessions.
+
+See the [application frontend guide](../../docs/02-ui.md#experimental-opentui-application-frontend)
+for controls, private-form behavior and current migration limits. Ink remains
+the default; the following Arrange/window-finder controls describe that frontend.
+`--renderer` requires a TTY and is not accepted with `--plain` or `--prompt`.
 
 ## Tiling windows
 

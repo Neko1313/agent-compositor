@@ -45,6 +45,7 @@ export async function main(options: MainOptions = {}): Promise<number> {
   --resume [ID]           Resume a session or open interactive history
   --history               Open interactive chat history
   --plain                 Use the line-based interface
+  --renderer NAME         ink (default) or opentui (experimental)
   -p, --prompt TEXT       Run a prompt without the TUI (- reads stdin)
   -i, --image FILE        Attach an image (repeatable)
   --model NAME            Select a model
@@ -60,6 +61,8 @@ export async function main(options: MainOptions = {}): Promise<number> {
   const pluginDirs: string[] = [];
   const workspacePaths:string[]=[];
   let plain = false;
+  let renderer:'ink'|'opentui'='ink';
+  let rendererSelected=false;
   let historyPicker = false;
   let prompt: string | undefined, schemaFile: string | undefined;
   let format: 'text' | 'json' | 'stream-json' = 'text';
@@ -76,6 +79,10 @@ export async function main(options: MainOptions = {}): Promise<number> {
     } else if (arg === '--max-steps') { maxSteps = Number(argv[++i]); if (!Number.isInteger(maxSteps) || maxSteps < 1) return fail(stdout, '--max-steps must be a positive integer');
     } else if (arg === '--model') { model = argv[++i]; if (!model) return fail(stdout, '--model needs a model name');
     } else if(arg==='--add-dir'){const dir=argv[++i];if(!dir)return fail(stdout,'--add-dir needs a directory');workspacePaths.push(dir);
+    } else if(arg==='--renderer'){
+      const value=argv[++i];
+      if(value!=='ink'&&value!=='opentui')return fail(stdout,'--renderer must be ink or opentui');
+      renderer=value;rendererSelected=true;
     } else if (arg === "--plain") { plain = true;
     } else if (arg === "--plugins") {
       const dir = argv[++i];
@@ -98,6 +105,7 @@ export async function main(options: MainOptions = {}): Promise<number> {
   if (prompt === '-') { prompt = ''; for await (const chunk of stdin) prompt += String(chunk); }
   if ((schemaFile || format !== 'text') && prompt === undefined) return fail(stdout, 'Structured output requires --prompt');
   if(historyPicker&&(plain||prompt!==undefined||!stdin.isTTY||!stdout.isTTY))return fail(stdout,'Interactive history requires a terminal; use --resume ID for noninteractive runs');
+  if(rendererSelected&&(plain||prompt!==undefined||!stdin.isTTY||!stdout.isTTY))return fail(stdout,'--renderer requires an interactive terminal without --plain or --prompt');
   const images = await Promise.all(imageFiles.map(async file => {
     const path = resolve(cwd, file), mimeType = ({ '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif' } as Record<string,string>)[extname(path).toLowerCase()];
     if (!mimeType) throw new Error('Unsupported image type');
@@ -108,7 +116,10 @@ export async function main(options: MainOptions = {}): Promise<number> {
   if (prompt !== undefined) { try { return await runHeadless(app, prompt, format, text => { stdout.write(text); }, schemaFile); } finally { await app.close(); } }
 
   if (!plain && stdin.isTTY && stdout.isTTY) {
-    await runTui(app, stdin, stdout, historyPicker ? "/history" : undefined);
+    if(renderer==='opentui'){
+      const {runOpenTui}=await import('./opentui.js');
+      await runOpenTui(app,stdin,stdout,historyPicker?'/history':undefined,env);
+    }else await runTui(app, stdin, stdout, historyPicker ? "/history" : undefined);
     return 0;
   }
   if (app.pluginErrors.length > 0) {
@@ -127,6 +138,6 @@ export async function main(options: MainOptions = {}): Promise<number> {
 }
 
 function fail(stdout: NodeJS.WriteStream, message: string): number {
-  stdout.write(`compositor: ${message}\nusage: compositor [--plugins dir ...] [--resume [ID]] [--history] [--cwd dir] [--plain] [-p prompt] [--output-format text|json|stream-json]\n`);
+    stdout.write(`compositor: ${message}\nusage: compositor [--plugins dir ...] [--resume [ID]] [--history] [--cwd dir] [--renderer ink|opentui] [--plain] [-p prompt] [--output-format text|json|stream-json]\n`);
   return 2;
 }

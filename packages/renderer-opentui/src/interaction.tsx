@@ -95,7 +95,7 @@ function TextField({id, value, focused, active, onChange, onFocus, placeholder, 
   </box>;
 }
 
-export function Interaction({interaction, session, editing, focused, width, height, isActive, setEditing}: {
+export function Interaction({interaction, session, editing, focused, width, height, isActive, setEditing,draftToggle=true}: {
   interaction: ConversationInteraction;
   session: ConversationSession;
   editing: boolean;
@@ -104,6 +104,7 @@ export function Interaction({interaction, session, editing, focused, width, heig
   height: number;
   isActive(): boolean;
   setEditing(editing: boolean): void;
+  draftToggle?:boolean;
 }) {
   const [page, setPage] = useState(0);
   const [target, setTarget] = useState(0);
@@ -302,7 +303,7 @@ export function Interaction({interaction, session, editing, focused, width, heig
               selected={target === interaction.request.fields.length + index} onPress={() => submit(action.id)} />)}
         {(interaction.kind !== 'form' || !interaction.request.actions.some(action => action.id === 'cancel')) &&
           <Button label="Cancel" onPress={cancel} />}
-        <Button label="Draft" onPress={() => {if (current()) setEditing(false);}} />
+        {draftToggle&&<Button label="Draft" onPress={() => {if (current()) setEditing(false);}} />}
       </box>
       <text height={1} truncate paddingX={1} fg={color.muted}>{width < 55 ? 'Tab fields · Alt+Enter ' + display(submitLabel) :
         'Tab fields · Space choose · Alt+Enter ' + display(submitLabel) + ' · Esc cancel'}</text>

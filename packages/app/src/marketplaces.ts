@@ -422,8 +422,8 @@ export async function marketplaces(
         if(e.key.startsWith('refresh:')||e.key.startsWith('remove:')){
           const [kind,name]=e.key.split(':');
           if(kind==='remove'){
-            const form=await $.ui.form({title:`Remove marketplace ${name}`,description:'Installed plugins are retained.',fields:[],actions:[{id:'remove',label:'Remove marketplace'},{id:'cancel',label:'Cancel'}]});
-            if(!form||form.action!=='remove')return;
+            const form=await $.ui.form({title:`Remove marketplace ${name}`,description:'Installed plugins are retained.',fields:[{id:'confirm',label:'Remove this marketplace registration',type:'toggle',value:false}],actions:[{id:'remove',label:'Remove marketplace'},{id:'cancel',label:'Cancel'}]});
+            if(!form||form.action!=='remove'||form.values.confirm!==true)return;
           }
           await $.ui.view('marketplaces','Marketplaces',pendingManagementView(kind==='refresh'?'update':'remove',name),{site:'sidebar',size:.5,focus:true});
           const result=await managementResult($,'service.marketplace.control',{action:kind==='refresh'?'update':'remove',name});

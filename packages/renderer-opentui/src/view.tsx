@@ -9,6 +9,8 @@ import { isWindowGestureCancelKey, windowActionForKey, type WindowFrame, type Wi
 import { Plugins, type PluginManagerSource } from './plugins.js';
 import type { ConversationApproval, ConversationSession } from './session.js';
 import { PluginTable, type PluginTableSource } from './table.js';
+import {SurfaceView} from './surface-view.js';
+import type {UiSurfaceRegistry,UiSurfaceSource} from './surface.js';
 
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
@@ -235,6 +237,7 @@ interface Pane {
   id: string;
   label: string;
   session?: ConversationSession;
+  surface?:UiSurfaceSource;
 }
 
 function Tile({ pane, frame, focused, drop, children }: {
@@ -257,17 +260,29 @@ function Tile({ pane, frame, focused, drop, children }: {
 const controlLabels = ['Focus', 'Split', 'Swap', 'Zoom', 'Close'] as const;
 const controls = ['cycle', 'orient', 'swap', 'zoom', 'close'] as const;
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout }: {
+const noSurfaces:readonly UiSurfaceSource[]=[];
+const emptyRegistry:UiSurfaceRegistry={snapshot:()=>noSurfaces,subscribe:()=>()=>{}};
+
+function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSource}){
+  const state=useSyncExternalStore(source.subscribe,source.snapshot);
+  return <Tab {...tab} label={state.title+(state.form?' · Form':state.busy?' · Working':'')} />;
+}
+
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
   workflowTable?: PluginTableSource;
   pluginManager?: PluginManagerSource;
   windowLayout: WindowLayoutSource;
+  surfaces?:UiSurfaceRegistry;
 }) {
+  const published=useSyncExternalStore(surfaces.subscribe,surfaces.snapshot);
   const panes: Pane[] = sessions.map(session => ({ id: session.paneId ?? 'session:' + session.id, label: session.label, session }));
   if (workflowTable) panes.push({ id: 'workflows', label: 'Workflows' });
   if (pluginManager) panes.push({ id: 'plugins', label: 'Plugins' });
+  for(const surface of published)if(!panes.some(pane=>pane.id===surface.id))
+    panes.push({id:surface.id,label:surface.snapshot().title,surface});
   const layout = useSyncExternalStore(windowLayout.subscribe, windowLayout.snapshot);
   const renderer = useRenderer();
   const viewport = useRef<BoxRenderable>(null);
@@ -346,6 +361,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         const props = { index, selected: layout.focused === pane.id && layout.locations[pane.id] === layout.workspace,
           onSelect: () => act({ type: 'open', id: pane.id }) };
         return pane.session ? <SessionTab key={pane.id} session={pane.session} {...props} />
+          : pane.surface?<SurfaceTab key={pane.id} source={pane.surface} {...props}/>
           : <Tab key={pane.id} label={pane.label} {...props} />;
       })}
     </box>
@@ -383,6 +399,8 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
           {(width, height) => pane.session
             ? <Conversation selected={pane.session} animations={animations} composerMedia={composerMedia}
                 focused={focused} width={width} height={height} isActive={isActive} />
+            :pane.surface?<SurfaceView source={pane.surface} focused={focused} width={width} height={height}
+              isActive={isActive} isVisible={isVisible}/>
             : pane.id === 'workflows' && workflowTable
               ? <PluginTable source={workflowTable} width={width} focused={focused} isActive={isActive} isVisible={isVisible} />
               : pluginManager && <Plugins source={pluginManager} visible={Boolean(frame)} focused={focused}

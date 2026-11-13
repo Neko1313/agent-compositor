@@ -93,6 +93,14 @@ protocol. The renderer draws and translates input. It does not own agent state
 or execute extension modules. [UI controller contracts](ui-controllers.md) and
 [appearance hooks](ui-theming.md) describe the two extension mechanisms.
 
+The opt-in `--renderer opentui` frontend binds the actual application through
+renderer-neutral conversation snapshots and semantic plugin sources. The host
+retains provider/session/permission ownership and the same tiling engine; the
+renderer receives views and revision-checked actions. Explicit UI operations
+own separate abort signals and private form windows, so they can coexist with a
+pending model question. This adapter is still migrating toward the full
+replacement and wire-protocol coverage described above; Ink remains the default.
+
 Streaming text updates are composed on a 16 ms timer instead of rebuilding the
 Markdown transcript for every provider delta. The catalog's `assistant.text`
 precursor is still available to plugins; the UI consumes the subsequent rewritten

@@ -30,6 +30,42 @@ export interface ProjectExpectations {
 
 const sha256 = (bytes:string|Buffer) => createHash('sha256').update(bytes).digest('hex');
 
+/** Grade the effective exec at tool preflight. A tool.call hook can rewrite or
+ * answer the call before that point. Lower-level shell services are replaceable. */
+function verifiedAfterLastChange(events:any[],marker:string,commands?:string[]):boolean {
+  const pending = new Map<string,{outstanding:number;overlap:boolean;matches:boolean}>();
+  let verified = false;
+  for (const event of events) {
+    if (event.kind !== 'catalog') continue;
+    const entry = event.input;
+    if (event.event === 'tool.result' && (entry.tool === 'write' || entry.tool === 'edit') &&
+        entry.ok === true && !entry.denied) {
+      // Independent user operations can change the same files during a check.
+      verified = false;
+      for (const call of pending.values()) call.matches = false;
+    }
+    if (entry.operationId !== undefined || typeof entry.callId !== 'string' || !entry.callId) continue;
+    const call = pending.get(entry.callId);
+    if (event.event === 'tool.call') {
+      // Sequential reuse is unambiguous. Overlapping uses cannot be paired
+      // until every result has settled, even after the first one comes back.
+      pending.set(entry.callId,{outstanding:(call?.outstanding ?? 0) + 1,overlap:!!call,matches:false});
+    } else if (call && event.event === 'tool.check') {
+      const args = entry.input;
+      call.matches = !call.overlap && entry.tool === 'exec' &&
+        (args?.background === undefined || args.background === false) &&
+        typeof args?.command === 'string' && (!commands || commands.includes(args.command.trim()));
+    } else if (call && event.event === 'tool.result') {
+      if (call.matches && entry.tool === 'exec' && entry.ok === true && !entry.denied &&
+          entry.output?.started !== true && entry.output?.exitCode === 0 &&
+          typeof entry.output.stdout === 'string' && entry.output.stdout.includes(marker)) verified = true;
+      call.matches = false;
+      if (--call.outstanding === 0) pending.delete(entry.callId);
+    }
+  }
+  return verified;
+}
+
 /** Match the effective edit after tool.call hooks and before execution. Ranged native edits
  * report the full file hashes on both sides, including when several edits build the result. */
 async function guardedFixtureEdit(cwd:string,file:string,original:string,events:any[]):Promise<boolean> {
@@ -89,14 +125,7 @@ export async function gradeProject(input:{
       ...(!bytes?{detail:'Original regular file is missing or replaced'}:{})});
   }
   if(exp.verification){
-    const calls=new Map(events.filter(e=>e.kind==='catalog'&&e.event==='tool.call'&&!e.input.operationId&&e.input.tool==='exec')
-      .map(e=>[e.input.callId,e.input.input?.command]));
-    const verified=events.some(e=>{
-      if(e.kind!=='catalog'||e.event!=='tool.result'||e.input.tool!=='exec'||e.input.operationId||!calls.has(e.input.callId))return false;
-      const command=calls.get(e.input.callId);
-      return (!exp.verificationCommands||exp.verificationCommands.includes(String(command).trim()))&&
-        e.input.ok===true&&e.input.output?.exitCode===0&&String(e.input.output?.stdout??'').includes(exp.verification!);
-    });
+    const verified=verifiedAfterLastChange(events,exp.verification,exp.verificationCommands);
     checks.push({name:'agent executed verification successfully',ok:verified});
   }
   for(const file of exp.originalChecks??[]){

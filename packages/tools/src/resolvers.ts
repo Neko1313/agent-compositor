@@ -172,7 +172,10 @@ async function readFileRange(payload: unknown): Promise<unknown> {
 async function readText(payload: unknown): Promise<unknown> {
   const p = payload as { path: string };
   try {
-    return await fs.readFile(p.path, "utf8");
+    const bytes = await fs.readFile(p.path);
+    const text = bytes.toString('utf8');
+    if (!Buffer.from(text).equals(bytes)) throw new Error('write: the existing file is not valid UTF-8. Cannot preserve its original bytes for undo.');
+    return text;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;
@@ -180,9 +183,25 @@ async function readText(payload: unknown): Promise<unknown> {
 }
 
 async function writeFile(payload: unknown): Promise<unknown> {
-  const p = payload as { path: string; content: string };
+  const p = payload as {path: string; content: string; expectedHash?: string | null};
+  const stale = () => new Error('write: the destination changed after the preimage was read. Inspect the current file before retrying.');
+  if (p.expectedHash !== undefined && p.expectedHash !== null) {
+    if (typeof p.expectedHash !== 'string' || !/^[a-f0-9]{64}$/.test(p.expectedHash)) throw new Error('write: invalid expectedHash.');
+    try {
+      const bytes = await fs.readFile(p.path);
+      if (createHash('sha256').update(bytes).digest('hex') !== p.expectedHash) throw stale();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw stale();
+      throw error;
+    }
+  }
   await fs.mkdir(path.dirname(p.path), { recursive: true });
-  await fs.writeFile(p.path, p.content);
+  try {
+    await fs.writeFile(p.path, p.content, {flag: p.expectedHash === null ? 'wx' : 'w'});
+  } catch (error) {
+    if (p.expectedHash === null && (error as NodeJS.ErrnoException).code === 'EEXIST') throw stale();
+    throw error;
+  }
   return { path: p.path, bytes: Buffer.byteLength(p.content) };
 }
 

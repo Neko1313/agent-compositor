@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import type { ToolContext, ToolResult, ToolSpec } from "../types.js";
+import { fileResult } from '../file-result.js';
 import {encodeEditAnchor} from '../edit-ref.js';
 import {decodeReadCursor,encodeReadCursor,readHash,readPageEnd} from '../read-cursor.js';
 
@@ -93,27 +94,56 @@ export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
 export interface WriteArgs {
   path: string;
   content: string;
+  allowPartialOverwrite?: boolean;
+}
+
+/** Detect the unchanged excerpt that would survive a full replacement. */
+function retainsOnlyExcerpt(current: string, proposed: string): boolean {
+  const original = current.trim(), excerpt = proposed.trim();
+  return excerpt.length > 0 && excerpt.length < original.length && original.includes(excerpt);
+}
+
+function writeArgumentError(args: WriteArgs): string | undefined {
+  if (!args || typeof args.path !== 'string' || !args.path) return 'write.path must be a non-empty string.';
+  if (typeof args.content !== 'string') return 'write.content must be the complete file text.';
+  if (Object.hasOwn(args, 'allowPartialOverwrite') && typeof args.allowPartialOverwrite !== 'boolean')
+    return 'write.allowPartialOverwrite must be a boolean.';
 }
 
 export const writeTool: ToolSpec<WriteArgs, { path: string; bytes: number }> = {
   name: "write",
-  description: "Write (create or overwrite) a file.",
+  description: "Create a file or replace its complete content. Use edit for a focused change. If content is just an existing excerpt, writing it would discard the rest of the file.",
   parameters: {
     type: "object",
-    properties: { path: { type: "string" }, content: { type: "string" } },
+    properties: {
+      path: { type: "string" }, content: { type: "string", description: "Complete new file contents." },
+      allowPartialOverwrite: { type: "boolean", description: "Set true only for an intentional replacement of the entire file with an existing excerpt." },
+    },
     required: ["path", "content"],
   },
   describe: (args) => ({ tool: "write", path: path.resolve(args.path) }),
+  validate: writeArgumentError,
   async execute(ctx, args): Promise<ToolResult<{ path: string; bytes: number }>> {
+    const error = writeArgumentError(args);
+    if (error) return {ok: false, error};
     try {
       const target = ctx.resolvePath?await ctx.resolvePath(args.path,{missing:true}):path.resolve(ctx.cwd,args.path);
       const previous = await ctx.request<string | null>("service.file.readText", { path: target });
+      if (previous !== null && typeof previous !== 'string') throw new Error('write: expected a text preimage or null for a new file.');
+      if (previous !== null && !args.allowPartialOverwrite && retainsOnlyExcerpt(previous, args.content)) {
+        return {ok: false, error: 'write: the proposed content is already present as an excerpt. Replacing the file would delete surrounding text. No file was changed. For a focused change, use edit. If this excerpt is already correct, inspect or verify the current file. Use allowPartialOverwrite: true only when removing all surrounding text is intended.'};
+      }
       const outcome = await ctx.request<{ path: string; bytes: number }>("service.file.write", {
         path: target,
         content: args.content,
+        expectedHash: previous === null ? null : readHash(previous),
       });
-      ctx.undo.push({ tool: "write", path: target, inverse: previous === null ? { op: "delete" } : { op: "write", content: previous } });
-      return { ok: true, data: outcome };
+      const inverse = previous === null ? {op: 'delete'} : {
+        op: 'write', content: previous,
+        ...(retainsOnlyExcerpt(args.content, previous) ? {allowPartialOverwrite: true} : {}),
+      };
+      ctx.undo.push({tool: 'write', path: target, inverse});
+      return fileResult('wrote', target, outcome);
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }

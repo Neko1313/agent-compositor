@@ -1,6 +1,31 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {runCase} from './runner.js';
+import {readFile} from 'node:fs/promises';
+import {ScriptedProvider} from '../../packages/core/src/index.js';
+import {runCase,type EvalCase} from './runner.js';
 afterEach(()=>vi.unstubAllEnvs());
+
+it('preserves the checkout import when a correct discount edit is followed by a function-only overwrite',async()=>{
+ const cases:EvalCase[]=JSON.parse(await readFile(new URL('./agent-cases.json',import.meta.url),'utf8'));
+ const fixture=cases.find(test=>test.id==='multi-file-bug')!;
+ const provider=new ScriptedProvider([
+   {toolCalls:[{name:'edit',args:{target:'math.mjs',oldText:'total + total * percent / 100',newText:'total - (total * percent / 100)'}}]},
+   {toolCalls:[{name:'write',args:{path:'checkout.mjs',content:'export function checkout(items, percent=0) { return discount(subtotal(items), percent); }'}}]},
+   {toolCalls:[{name:'exec',args:{command:'npm test'}}]},
+   {text:'Fixed the discount calculation and verified the project checks.'},
+ ]);
+ const result=await runCase(fixture,{model:'scripted',provider,tools:['read','write','edit','exec'],agentHarness:true,instructionsPreset:'coding'});
+ const outputs=result.trajectory.filter(event=>event.event==='tool.result').map(event=>event.input);
+ expect(outputs).toMatchObject([
+   {tool:'edit',ok:true,output:{match:'exact',replacements:1}},
+   {tool:'write',ok:false,error:expect.stringContaining('already present as an excerpt')},
+   {tool:'exec',ok:true,output:{exitCode:0,stdout:expect.stringContaining('PROJECT_CHECKS_PASSED')}},
+ ]);
+ expect(result.checks).toEqual(expect.arrayContaining([
+   {name:'agent executed verification successfully',ok:true},
+   {name:'held-out behavioral grader',ok:true},
+ ]));
+ expect(result.ok,result.error??JSON.stringify(result.checks)).toBe(true);
+});
 it('reports repeated actual policy denials independently of the task grade',async()=>{
  const result=await runCase({id:'denial-diagnostics',prompt:'Try the requested check and report restrictions.',files:{},rules:[{tool:'exec',decision:'deny'}],expect:{deniedTool:'exec',responseIncludes:'Blocked'},script:[{toolCalls:[{name:'exec',args:{command:'node scratch.mjs'}}]},{toolCalls:[{name:'exec',args:{command:'node scratch.mjs'}}]},{text:'Blocked'}]},{model:'scripted'});
  expect(result.ok,result.error).toBe(true);

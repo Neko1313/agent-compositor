@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import {isDeepStrictEqual} from "node:util";
 import type { ToolContext, ToolResult, ToolSpec } from "../types.js";
+import { fileResult } from '../file-result.js';
 import {decodeEditRef,resolveEditRef,editTargetPath,type EditArgs} from '../edit-ref.js';
 
 export type {EditArgs} from '../edit-ref.js';
@@ -102,7 +103,7 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
         inverse: outcome.undo ? {op:"edit",...outcome.undo} : { op: "edit", oldText: args.newText, newText: args.oldText, replaceAll: args.replaceAll },
       });
       const {undo,...visible}=outcome;
-      return { ok: true, data: visible };
+      return fileResult('edited', target, visible);
     } catch (err) {
       const message=err instanceof Error?err.message:String(err);
       const recovery=/\bENOENT\b/.test(message)?' Edit requires an existing file. Inspect actual project filenames with the available discovery tools before retrying. Do not create a guessed replacement just to make this edit succeed.':'';

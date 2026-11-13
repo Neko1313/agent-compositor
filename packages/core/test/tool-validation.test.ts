@@ -49,6 +49,34 @@ it('sends corrected edits through normal permission handling instead of treating
  expect(asked).toBe(1);expect(await readFile(join(cwd,'a.ts'),'utf8')).toBe('old');
 });
 
+it('reviews an intentional partial overwrite separately after an approved call preserved the file', async () => {
+ const cwd = await fixture(), path = join(cwd, 'checkout.mjs');
+ const content = 'export function checkout(items) { return subtotal(items); }';
+ const original = "import {subtotal} from './math.mjs';\n" + content + '\n';
+ await writeFile(path, original);
+ const args = {path: 'checkout.mjs', content};
+ const provider = new ScriptedProvider([
+   {toolCalls: [{name: 'write', args}]},
+   {toolCalls: [{name: 'write', args: {...args, allowPartialOverwrite: true}}]},
+   {text: 'The original file was preserved.'},
+ ]);
+ const results: Record<string, unknown>[] = [];
+ let approvals = 0;
+ const core = new AgentCore({cwd, provider, onApproval: async () => ++approvals === 1});
+ cores.push(core);
+ core.subscribe(e => { if (e.kind === 'catalog' && e.event === 'tool.result') results.push(e.input); });
+ await core.submit('Keep only the exported function in checkout.mjs.');
+ expect(provider.requests[0].tools.find(tool => tool.name === 'write')?.parameters.properties).toMatchObject({
+   allowPartialOverwrite: {type: 'boolean'},
+ });
+ expect(results).toHaveLength(2);
+ expect(results[0]).toMatchObject({tool: 'write', ok: false, error: expect.stringMatching(/partial|fragment/i)});
+ expect(results[0].denied).toBeFalsy();
+ expect(results[1]).toMatchObject({tool: 'write', ok: false, denied: true});
+ expect(approvals).toBe(2);
+ expect(await readFile(path, 'utf8')).toBe(original);
+});
+
 it('preserves unguarded whitespace normalization when equal arguments can change actual source',async()=>{
  const cwd=await fixture();await writeFile(join(cwd,'a.ts'),'a   b\na   b\n');
  const core=new AgentCore({cwd,provider:new ScriptedProvider([]),rules:[{tool:'edit',path:cwd+'/**',decision:'allow'}]});cores.push(core);

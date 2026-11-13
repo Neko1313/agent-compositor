@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "agent-compositor event catalog",
-  "version": "0.31.0",
+  "version": "0.32.0",
   "events": {
     "service.agent.batch": {
       "since": "0.18.0",
@@ -5871,7 +5871,7 @@
     "service.file.write": {
       "since": "0.5.0",
       "version": 1,
-      "summary": "Core write tool: create or overwrite a file.",
+      "summary": "Create or overwrite a file. Optional expectedHash checks the current bytes before writing. Null requires an absent destination.",
       "namespace": "service",
       "generator": false,
       "aliases": [],
@@ -5885,6 +5885,17 @@
           },
           "content": {
             "type": "string"
+          },
+          "expectedHash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

@@ -111,6 +111,39 @@ describe("read/write tools", () => {
 });
 
 describe("edit tool", () => {
+  it("reports the completed file action in model JSON while keeping content and undo private", async () => {
+    const file = 'quote"\nname.txt';
+    const target = path.join(cwd, file);
+    const oldText = 'private old '.repeat(1000);
+    const newText = 'private new '.repeat(1000);
+    const ctx = makeCtx();
+    const written = await writeTool.execute(ctx, { path: file, content: oldText });
+    if (!written.ok) throw Error(written.error);
+    expect(written.data).toEqual({ path: target, bytes: Buffer.byteLength(oldText) });
+    expect(JSON.parse(written.modelText!)).toEqual({ fileAction: 'wrote', ...written.data });
+
+    const read = await readTool.execute(ctx, { path: file });
+    if (!read.ok || !read.data.edit) throw Error('Expected a guarded read');
+    const edited = await editTool.execute(ctx, { ...read.data.edit, oldText, newText });
+    if (!edited.ok) throw Error(edited.error);
+    expect(edited.data).toEqual({ path: target, replacements: 1, match: 'exact', hashAfter: expect.any(String) });
+    expect(JSON.parse(edited.modelText!)).toEqual({ fileAction: 'edited', ...edited.data });
+    expect(await fs.readFile(target, 'utf8')).toBe(newText);
+  });
+
+  it("leaves a service's own fileAction and nonstandard mutation outcomes intact", async () => {
+    const target = path.join(cwd, 'f.txt');
+    const custom = { path: target, bytes: 0, fileAction: { provider: 'example' } };
+    const noMatch = { path: target, replacements: 0, match: 'exact' };
+    const ctx = makeCtx(async (service, _payload, next) => {
+      if (service === 'service.file.write') return custom;
+      if (service === 'service.file.edit') return noMatch;
+      return next();
+    });
+    expect(await writeTool.execute(ctx, { path: target, content: '' })).toEqual({ ok: true, data: custom });
+    expect(await editTool.execute(ctx, { path: target, oldText: 'a', newText: 'b' })).toEqual({ ok: true, data: noMatch });
+  });
+
   it.each([false,true])('rejects exact replacements that leave actual text unchanged, replaceAll=%s',async replaceAll=>{
     await fs.writeFile(path.join(cwd,'f.txt'),'unchanged');const before=await fs.stat(path.join(cwd,'f.txt'),{bigint:true}),ctx=makeCtx();
     const result=await editTool.execute(ctx,{path:'f.txt',oldText:'unchanged',newText:'unchanged',replaceAll});

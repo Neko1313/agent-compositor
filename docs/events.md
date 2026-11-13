@@ -1,7 +1,7 @@
 # Event catalog
 
 > Generated from `packages/events/src/catalog/`. Do not edit by hand — run `npm run gen`.
-> Catalog version: **0.31.0**. "Don't break plugins": frozen shapes change only via new event versions.
+> Catalog version: **0.32.0**. "Don't break plugins": frozen shapes change only via new event versions.
 
 | Event | Since | V | Fires when | Response forms | Aliases |
 |---|---|---|---|---|---|
@@ -108,7 +108,7 @@
 | `service.todo.update` | 0.5.0 | 1 | Core todo tool: replace (or read) this Core/dispatcher's task list. | `deny`, `value` | — |
 | `service.file.read` | 0.5.0 | 1 | Core read tool: paginated file read with truncation note. | `deny`, `value` | — |
 | `service.file.readText` | 0.5.0 | 1 | Internal: raw full-text read (undo pre-image). null when missing. | `deny`, `value` | — |
-| `service.file.write` | 0.5.0 | 1 | Core write tool: create or overwrite a file. | `deny`, `value` | — |
+| `service.file.write` | 0.5.0 | 1 | Create or overwrite a file. Optional expectedHash checks the current bytes before writing. Null requires an absent destination. | `deny`, `value` | — |
 | `service.file.edit` | 0.5.0 | 1 | Core edit tool: exact (or whitespace-normalized) text replacement. | `deny`, `value` | — |
 
 ## Domains

@@ -43,6 +43,16 @@ describe("event catalog", () => {
           signature.responses.next=structuredClone(next);delete (signature.responses.next as any).properties.operationId;
         }
       }
+      // 0.32 adds a write precondition. Removing this optional field must
+      // leave every previously frozen field and response unchanged.
+      if (name === 'service.file.write') {
+        expect(signature.input.properties.expectedHash).toEqual({anyOf: [
+          {type: 'string', pattern: '^[a-f0-9]{64}$'}, {type: 'null'},
+        ]});
+        expect(signature.input.required).not.toContain('expectedHash');
+        signature.input = structuredClone(signature.input);
+        delete signature.input.properties.expectedHash;
+      }
       // Reviewed additive 0.31: explicit model text preserves structured output
       // and exact replay; old records retain their existing reconstruction.
       if(name==='tool.result'){

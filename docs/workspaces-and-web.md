@@ -46,6 +46,10 @@ Read permission denials still apply to attachments, and normal tool policy still
 applies to reads, edits, writes, shell commands and network calls. Attaching a
 project does not implicitly approve its mutations.
 
+Use `edit` for a focused code change. An ordinary `write` with only an
+existing excerpt would discard the rest of the file and is rejected. To
+intentionally keep just that excerpt, see [whole-file writes](core-customization.md#whole-file-writes).
+
 For built-in `read`, `write` and `edit`, `tool.check` receives the canonical target
 path used by permission evaluation, including when the call uses a symlink,
 workspace alias or snapshot edit reference. An attached workspace therefore does

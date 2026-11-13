@@ -607,6 +607,21 @@ nine searches and three reads, left the source unchanged, and failed both
 the original checks and the independent behavior grader. Neither episode
 qualifies as a complete autonomous task.
 
+A further CPU checkout run on clean `c458dc7` repaired the arithmetic and then
+used `write` with just the existing checkout function. That discarded its import.
+The agent ran `npm test` twice and both executions failed on the missing
+`discount` binding. The native writer now rejects a verbatim excerpt submitted
+as a whole-file overwrite unless intentional extraction is explicit. A regression
+replays the operator fix and the erroneous write, then runs the real project
+check and the original independent grader.
+
+The next live run took a different path. It used `edit` to introduce a duplicate
+`checkout` declaration, duplicated the incorrect discount function, and ran `npm test`
+twice. Both attempts failed on the duplicate declaration. The 12-request limit
+was reached and the independent behavior check failed. This live run did not
+exercise the excerpt guard. Both runs preserved the protected tests and package
+file. See the current [write contract](core-customization.md#whole-file-writes).
+
 ## Acceptance gates
 
 | Gate | Required evidence | Current assessment |

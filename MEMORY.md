@@ -1,5 +1,30 @@
 # Project memory
 
+## Preserve surrounding code on a mistaken whole-file write — 2026-11-13
+
+c458dc7 passed remote CI, documentation and release preparation. In a clean
+offline checkout run, Qwen repaired the arithmetic and then erased an import
+by writing only the existing checkout function. Both npm tests failed with a
+ReferenceError. Primary evidence is in
+`dist/local-cpu-checkout-20261113-post-edit-baseline/`. A new deterministic
+regression replays the exact destructive write against the original task.
+
+Native write now reports that an existing verbatim excerpt would discard
+surrounding text. Intentional extraction uses allowPartialOverwrite. A matching
+UTF-8 preimage hash (or exclusive create when absent) also protects cooperating
+writers from a stale undo snapshot. Catalog 0.32 adds the optional service hash.
+Edit/write model receipts name the successful action, and the coding instructions
+direct the agent toward the project's checks after the intended change.
+The evaluator pairs foreground effective preflights with terminal results after
+the last observed successful write/edit. Independent behavior checks stay separate.
+
+The post-change offline Qwen run in
+`dist/local-cpu-checkout-20261113-post-edit-guard/` made edits and ran npm test
+twice but did not repair a duplicate declaration in checkout.mjs. The case and
+independent grader both failed; no live write exercised the new guard. Investigate
+localization of the actual failing test diagnostic across subsequent repairs.
+Broad self-hosting, model quality, OpenTUI and 1.0 release gates remain open.
+
 ## Portable model edit target and checkout repair — 2026-11-13
 
 a8fedd8 passed remote CI, docs and release preparation. Investigation of its

@@ -213,10 +213,13 @@ changed implementation and removes it. This permits additional regression tests
 without letting replacement assertions hide a broken implementation.
 
 `expect.verificationCommands` optionally constrains the accepted verification
-commands. Verification requires a successful `exec` result paired with the
-matching tool call ID, exit code zero and the expected marker. An orphan result,
-wrong command or unsuccessful exit cannot establish verification. Independent
-behavioral probes still check correctness beyond that marker.
+commands. For cases that require agent-run verification, the grader correlates a
+foreground `exec` call, its effective command at `tool.check`, and its result
+by call ID. It requires exit zero and the expected marker in stdout after the
+latest observed successful write or edit. A later change invalidates earlier
+or in-flight evidence. Other user operations, intercepted answers without a
+preflight, and overlapping call IDs cannot supply this credit. The grade
+describes recorded tool execution. Independent behavior checks run separately.
 
 Graders run with the fixture project's cwd, an isolated HOME and a minimal
 process environment. Shell checks clear inherited host environment values and

@@ -364,8 +364,8 @@ export const serviceFileWrite = defineEvent({
   name: "service.file.write",
   since: "0.5.0",
   version: 1,
-  summary: "Core write tool: create or overwrite a file.",
-  input: z.object({ path: z.string(), content: z.string() }),
+  summary: "Create or overwrite a file. Optional expectedHash checks the current bytes before writing. Null requires an absent destination.",
+  input: z.object({ path: z.string(), content: z.string(), expectedHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional() }),
   responses: denyValue,
   frozen: true,
 });

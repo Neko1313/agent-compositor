@@ -186,6 +186,32 @@ range. Rejections neither write nor create an undo entry; they do not widen the
 range, drop guards or select a replacement automatically. A successful edit
 invalidates the earlier snapshot hash, so later edits may require a fresh read.
 
+### Whole-file writes
+
+Native `write` expects complete file text. If the proposed content, with outer
+whitespace trimmed, is a nonempty proper substring of the trimmed current file,
+the tool reports that it would discard surrounding text. No mutation or undo
+entry occurs. To intentionally retain only that excerpt, submit the complete
+call with `allowPartialOverwrite: true`. That flag covers this single content
+check. Ordinary permission rules still apply. New files, empty content and
+complete replacements with other text use the usual write flow. The excerpt
+check only recognizes verbatim text and cannot detect every accidental deletion.
+
+The native writer obtains a UTF-8 text preimage for undo, then passes its
+SHA-256 as `expectedHash` to `service.file.write` (catalog 0.32). A null hash
+requests exclusive creation of a missing file. The default resolver checks
+an existing file's bytes under the native mutation queue for that path.
+A stale preimage or malformed UTF-8 stops the write. This queue serializes
+native cooperating mutations and cannot lock out unrelated processes.
+Custom file-service providers must implement the precondition to provide the
+same behavior. Existing direct service calls can omit it.
+
+Successful native edit and write receipts expose `fileAction: "edited"` or
+`"wrote"` to the model, alongside the returned path and replacement or byte
+count. Hooks continue to receive the original structured service outcome.
+The coding preset directs the model to inspect the project's documented check
+and run it with an available authorized tool once its changes are ready.
+
 ### Snapshot edit references
 
 Builtin `read` adds optional `editRef` to its structured result and model-facing

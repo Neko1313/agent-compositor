@@ -113,7 +113,7 @@ converted before those fields are returned. A preview is not guarded edit source
 Copy the result's `readArgs` object into `read` to inspect that location directly,
 including in an attached project. It supplies the canonical absolute path and
 line window, with a snapshot cursor when the preview starts inside the line.
-Then use the read result's `editRef` for an exact edit. A changed search view
+Then copy the read result's `editRef` into `edit.target` for an exact edit. A changed search view
 invalidates the cursor; rerun the search or read the indicated line window.
 These selectors grant no permission: the read and edit retain normal checks.
 Short complete lines keep their existing `path`/`line`/`text` result shape.
@@ -176,13 +176,13 @@ A typical semantic edit uses these tools:
 2. `code_query {"action":"read_symbol","pattern":"<id>"}` returns the source
    syntax-node slice, `editRef` and an `edit` object with path, expectedHash, range
    and strict. Older host SDKs without reference support retain the explicit anchor.
-3. Prefer copying `editRef` verbatim to the normal `edit` tool, adding exact
-   oldText and newText. The current editor derives its path before plugin guards
-   and policy; older hosts may require the returned path as well, so follow the
-   host's tool schema. Do not calculate offsets from line numbers. Without
-   a reference, pass **all** explicit anchor fields. The selected symbol range
-   disambiguates identical expressions elsewhere in the file; the reference does
-   not authorize an edit or permit dropping guards.
+3. Copy `editRef` verbatim into the native editor's `target` field, then supply
+   the exact `oldText` and intended `newText`. If only the explicit anchor is
+   available, use its `path` as `target` and copy `expectedHash`, `range` and
+   `strict`. The symbol range disambiguates identical expressions elsewhere in
+   the file. The editor resolves the path before plugin guards and permission
+   checks. For older hosts, follow the installed editor's schema for passing
+   the reference or explicit anchor.
 4. Re-read on a stale-snapshot error, then run relevant checks.
 
 Callix spans use one-based UTF-8 byte columns and an exclusive end; model edit

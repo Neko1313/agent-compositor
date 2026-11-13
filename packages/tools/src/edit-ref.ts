@@ -26,12 +26,35 @@ export function decodeEditRef(ref:unknown):EditAnchor {
  const anchor={path:values[0],expectedHash:values[1],range:{start:values[2],end:values[3]},strict:true};
  if(!valid(anchor))throw invalid();return anchor;
 }
-export function editTargetPath(args:{path?:string;editRef?:string}):string {
- const target=args.path===undefined&&args.editRef!==undefined?decodeEditRef(args.editRef).path:args.path;
- if(typeof target!=='string'||!target)throw Error('edit.path must be a non-empty string, or supply a valid editRef.');
- return target;
+type EditSelector = {target?:string;path?:string;editRef?:string};
+
+export interface EditArgs extends EditSelector {
+ oldText:string;
+ newText:string;
+ replaceAll?:boolean;
+ expectedHash?:string;
+ range?:{start:number;end:number};
+ strict?:boolean;
 }
-export function resolveEditRef<T extends {path?:string;editRef?:string;expectedHash?:string;range?:{start:number;end:number};strict?:boolean}>(args:T):T {
+
+/** Translate the model selector before hooks and permission checks. */
+export function projectEditTarget(args:EditArgs):EditArgs {
+ if(!Object.hasOwn(args,'target'))return args;
+ const {target,...rest}=args;
+ if(typeof target!=='string'||!target)throw Error('edit.target must be a non-empty file path or the complete editRef from read/read_symbol.');
+ if(Object.hasOwn(args,'path')||Object.hasOwn(args,'editRef'))throw Error('edit.target cannot be combined with path or editRef. Supply the file path or complete editRef in target alone.');
+ return target.startsWith(prefix)?{...rest,editRef:target}:{...rest,path:target};
+}
+
+export function editTargetPath(args:EditArgs):string {
+ args=projectEditTarget(args);
+ const path=args.path===undefined&&args.editRef!==undefined?decodeEditRef(args.editRef).path:args.path;
+ if(path===undefined)throw Error('edit.target is required. Supply the intended file path or copy the complete editRef from read/read_symbol into target.');
+ if(typeof path!=='string'||!path)throw Error('edit.path must be a non-empty string.');
+ return path;
+}
+export function resolveEditRef(args:EditArgs):EditArgs {
+ args=projectEditTarget(args);
  if(args.editRef===undefined)return args;
  const anchor=decodeEditRef(args.editRef);
  for(const field of ['expectedHash','range','strict'] as const){

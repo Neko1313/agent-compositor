@@ -131,8 +131,8 @@ describe('agent behavior and completion', () => {
         try {
             await app.createCore(async () => false).submit('Describe how to edit a selected range.');
             const instructions = provider.requests[0].messages.find(message => message.role === 'system')?.content;
-            expect(instructions).toMatch(/editRef[^.]*verbatim[^.]*oldText[^.]*newText/);
-            expect(instructions).toMatch(/only an explicit edit anchor[^.]*path[^.]*expectedHash[^.]*range[^.]*strict/);
+            expect(instructions).toMatch(/editRef[^.]*verbatim into target[^.]*oldText[^.]*newText/);
+            expect(instructions).toMatch(/only an explicit edit anchor[^.]*path as target[^.]*expectedHash[^.]*range[^.]*strict/);
         } finally {
             await app.close();
         }

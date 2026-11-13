@@ -1,5 +1,28 @@
 # Project memory
 
+## Portable model edit target and checkout repair — 2026-11-13
+
+a8fedd8 passed remote CI, docs and release preparation. Investigation of its
+local checkout failure found the missing target requirement in Ollama's
+top-level function parameter representation. Native editor model declarations
+now use a required string target (path or complete edit-v1 reference), oldText
+and newText. Tool admission, permission previews, hook rewrites, accounting and
+journal replay support that shape. Legacy path/editRef forms remain available.
+An omitted target can receive an explicit retry suggestion based on a unique
+matching retained native read. A failed repeat of an earlier successful exact
+edit can identify the earlier path. Both hints are turn-local and perform no
+mutation or grant.
+
+Local Qwen 3 1.7B used path targets and independently repaired the checkout
+calculation (+ to -) with normal read/edit calls. Five subsequent edits found no
+match. It used 12 admissions and never ran checks: the artifact grader passed
+and the overall episode failed. A separate greeting run only searched and read,
+without a repair or verification. Reports and input hashes are retained under
+dist/local-cpu-{multi-file,greeting}-20261113-selector. The repeated-edit hint
+was verified in integration tests, not a live run. The navigation comparison
+again consumes all full-read pages and counts the model-visible schemas.
+Stable 1.0, sustained development and broad model-quality gates remain open.
+
 ## Failed mutation feedback and offline checkout evidence — 2026-11-13
 
 The previous revision 1c1c7b5 passed CI, documentation and release preparation.

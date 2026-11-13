@@ -128,10 +128,16 @@ export function replayTranscript(
         if (batchClosed) flushAssistant(); // post-result text becomes its own assistant message
         const {compositorEditInput:projection,...providerMetadata}=(event.metadata??{}) as Record<string,unknown>;
         let input=event.input;
-        // Audit records expose the effective target to plugins. Restore the
-        // provider's original reference-only arguments rather than changing its call.
-        if((projection as any)?.version===1&&(projection as any)?.pathFromReference===true&&input&&typeof input==='object'&&!Array.isArray(input)&&typeof (input as any).editRef==='string'&&typeof (input as any).path==='string'){
-          const {path:_derived,...original}=input as Record<string,unknown>;input=original;
+        // Reconstruct the selector that the model sent from the host's projected call.
+        if(input && typeof input==='object' && !Array.isArray(input)){
+          const {path,editRef,...rest}=input as Record<string,unknown>;
+          const marker=projection as {version?:number;targetField?:string;pathFromReference?:boolean}|undefined;
+          if(marker?.version===1 && marker.pathFromReference===true && typeof path==='string' && typeof editRef==='string')
+            input={...rest,editRef};
+          if(marker?.version===2 && typeof path==='string'){
+            if(marker.targetField==='path' && editRef===undefined)input={...rest,target:path};
+            if(marker.targetField==='editRef' && typeof editRef==='string')input={...rest,target:editRef};
+          }
         }
         pendingCalls.push({
           id:

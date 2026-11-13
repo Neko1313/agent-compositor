@@ -5,8 +5,8 @@ import { readTool, writeTool, type ReadArgs, type ReadOutcome } from "./tools/fs
 import { todoTool, type TodoArgs, type TodoItem, type TodoOutcome } from "./tools/todo.js";
 import { UndoStore, type ToolContext, type ToolResult, type ToolSpec } from "./types.js";
 
-export { editTool } from "./tools/edit.js";
-export {encodeEditAnchor,type EditAnchor} from './edit-ref.js';
+export { editTool,modelToolParameters } from "./tools/edit.js";
+export {encodeEditAnchor,projectEditTarget,type EditAnchor} from './edit-ref.js';
 export {
   execTool,
   execOutputTool,

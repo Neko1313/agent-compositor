@@ -438,7 +438,8 @@ The Callix benchmark commands are deliberately separate:
 - `npm run eval:navigation:live`: model-directed work with semantic tools available
   versus text-only tools, using the same correctness/guard checks and permissions.
 
-Both live modes accept a returned `editRef` or the explicit snapshot anchor.
+Both live modes ask for `edit.target` from the selected read. Use its `editRef`
+verbatim or its path with the complete explicit snapshot guards.
 The grader pairs each effective edit at permission check time with its successful
 exact replacement by call ID and target path. The snapshot hashes must link the
 original pricing fixture to the final file bytes. A refused call, an edit to the
@@ -446,15 +447,15 @@ other pricing file, or an unguarded rewrite cannot earn that check. Artifact
 correctness and project test execution are graded separately.
 
 The mechanical report is `dist/navigation-benchmark/report.json` / `report.md`.
-In the recorded fixture, broad grep + full read returned about 34880 heuristic
-tokens, bounded text + ranged read 376, and Callix 834. All preserved the neighbor
-function and resolved the same two fixture callers. Callix made four calls vs
-five for text. Its cold navigation path took about 78 ms; warm symbol/caller
-queries took roughly 2..6 ms. These single-machine timings are illustrative.
-The repeated-input estimate also includes schema and argument cost; it excludes
-unknown model reasoning, provider framing and cache pricing. Efficient text
-navigation was cheaper on this small known-path task. Graph navigation should be
-chosen for semantic identity/relationships, not imposed on every literal edit.
+In the local run recorded under `dist/navigation-benchmark-edit-target/`, all
+three methods preserved the neighboring function and located the same two
+callers. Broad grep and a full read took 17 calls, including 13 read pages.
+Ranged text navigation took five calls and Callix took four. Estimated result
+tokens were 36,713, 434 and 886 respectively. The cumulative input estimates,
+which include history, arguments and model-facing schemas, were 487,823,
+9,716 and 8,516. These estimates describe the fixed fixture with the native
+tool declarations used in that run. Provider tokenization, reasoning and
+cache pricing can change actual usage.
 
 Live evidence is under `dist/navigation-live-final/`. All four final episodes
 passed artifact correctness, successful project checks and use of a fresh
@@ -550,6 +551,9 @@ listing and ordinary project-instruction expansion available to the user. These
 coding fixtures contain no instruction files; their source contents are not
 automatically attached. Neither the reference solution nor independent grader is
 attached. Both preflight and inference use the resulting prompt.
+On each actual local HTTP request the report records the tool names, body digest
+and top-level required fields of the advertised editor. These describe the
+request before the server renders its chat template.
 Reports record the reference flag, `fileReferences` composition option and the
 submitted prompt SHA-256 separately from the unchanged source case hash. This is a
 different context condition from the unassisted diagnostic; do not present it as

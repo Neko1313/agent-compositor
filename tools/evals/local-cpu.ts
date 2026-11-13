@@ -40,7 +40,21 @@ const verified=await verifyLocalCache(cache,pin,controller.signal);await writeFi
  server=await localModelServer(cache,pin,controller.signal);await writeFile(join(output,'model-identity.json'),JSON.stringify(await server.metadata(),null,2)+'\n');
  console.log(JSON.stringify({phase:'ready',localOnly:true,pid:server.pid}));
  for(let repetition=0;repetition<repeat;repetition++)for(const test of selected){
-  let admitted=0;const transportRequests:{tools:string[];bodySha256:string}[]=[];const transport=new OpenAICompatProvider({baseUrl:server.base+'/v1',model:server.model,apiKey:'',retries:0,timeoutMs:180000,maxOutputTokens:1536,reasoningEffort:'none',fetch:localCompletionFetch(server.base,server.model,async(input,init)=>{const body=JSON.parse(String(init?.body));transportRequests.push({tools:(body.tools??[]).map((tool:any)=>tool.function.name),bodySha256:createHash('sha256').update(String(init?.body)).digest('hex')});return fetch(input,init);})});
+  let admitted=0;
+  const transportRequests:{tools:string[];bodySha256:string;editRequired?:string[]}[]=[];
+  const transport=new OpenAICompatProvider({
+   baseUrl:server.base+'/v1',model:server.model,apiKey:'',retries:0,timeoutMs:180000,maxOutputTokens:1536,reasoningEffort:'none',
+   fetch:localCompletionFetch(server.base,server.model,async(input,init)=>{
+    const raw=String(init?.body), tools=JSON.parse(raw).tools??[];
+    const required=tools.find((tool:any)=>tool.function.name==='edit')?.function.parameters.required;
+    transportRequests.push({
+     tools:tools.map((tool:any)=>tool.function.name),
+     bodySha256:createHash('sha256').update(raw).digest('hex'),
+     ...(Array.isArray(required)?{editRequired:required}:{}),
+    });
+    return fetch(input,init);
+   }),
+  });
   const provider={name:'owned-local-cpu',async *complete(request:any){
    if(request.model!==server!.model)throw Error('Nonlocal model name');if(admitted>=12)throw Error('Local request ceiling reached');
    const input=request.messages.reduce((sum:number,message:any)=>sum+estimateMessageTokens(message),0)+estimateTokens(JSON.stringify(request.tools));if(input+1536>16384)throw Error('Local context ceiling reached before transport');

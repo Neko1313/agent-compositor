@@ -1,4 +1,5 @@
 import type { ToolSpec } from './types.js';
+import { modelToolParameters } from './tools/edit.js';
 export interface ToolUsage {
     when: string;
     avoid?: string;
@@ -18,7 +19,7 @@ export const toolUsage: Record<string, ToolUsage> = {
     grep: recipe('Find literal content in a known file or narrow directory. Copy returned readArgs into read before editing.', 'Use code_query for semantic callers; page large results.', 'Find a configuration name', { pattern: 'timeoutMs', path: 'src', limit: 20, maxTokens: 1000 }),
     code_query: recipe('Resolve symbol identity, outline, callers, dependencies or impact. read_symbol returns guarded source.', 'For a known-path literal edit, narrow grep/read may cost less. Disambiguate with the returned ID.', 'Read one symbol before editing', { action: 'read_symbol', pattern: 'calculateTotal', path: 'src/total.ts', maxTokens: 1500 }),
     read: recipe('Read a bounded text page; preserve its edit anchor. Follow nextCursor before nextOffset.', 'Do not repeatedly dump large files.', 'Inspect a relevant range', { path: 'src/total.ts', offset: 20, limit: 30 }),
-    edit: recipe('Change existing text using a fresh read/read_symbol anchor.', 'Copy editRef verbatim; it supplies path, so do not repeat path or calculate offsets. If no reference is returned, preserve all explicit expectedHash/range/strict fields. Re-read stale snapshots; fix argument errors directly. Exact newText must differ from oldText.', 'Guarded replacement; substitute the actual returned editRef', { oldText: 'a - b', newText: 'a + b', editRef: '<copy editRef verbatim from the read result>' }),
+    edit: recipe('Replace existing text. Supply target, oldText and newText.', 'For a guarded edit, copy a fresh read/read_symbol editRef verbatim into target. With an explicit anchor, use its path as target and copy expectedHash, range and strict. Re-read stale snapshots. Exact newText must differ from oldText.', 'Replace text inside the returned snapshot range', { target: '<copy editRef verbatim from the read result>', oldText: 'a - b', newText: 'a + b' }),
     write: recipe('Create a file or intentionally replace its complete content.', 'Use edit for focused changes; preserve unrelated code.', 'Create a small file', { path: 'notes.txt', content: 'Verified behavior\n' }),
     exec: recipe('Run project tests/builds or commands that need the host shell. cwd is already the project.', 'Prefer search/read tools for navigation. Run independent checks separately: an exact command grant does not authorize extra chained commands or redirection. Never bypass denied actions; bound output and runtime.', 'Execute project checks', { command: 'npm test', timeoutMs: 30000 }),
     exec_output: recipe('Read output from an already started background command.', 'Do not busy-poll or restart the same job.', 'Read a job buffer', { id: '<returned shellId>' }),
@@ -57,7 +58,7 @@ export function createToolHelp(tools: () => ToolSpec[], preview?: (tool: ToolSpe
             ctx.signal.throwIfAborted();
             const permission = wantsPreview ? await preview!(tool, args.preview, ctx.signal) : undefined;
             ctx.signal.throwIfAborted();
-            return { ok: true, data: { name: tool.name, description: tool.description, usage: tool.usage ?? toolUsage[tool.name] ?? { when: tool.description, examples: [] }, parameters: tool.parameters, ...(wantsPreview ? { permission } : {}) } };
+            return { ok: true, data: { name: tool.name, description: tool.description, usage: tool.usage ?? toolUsage[tool.name] ?? { when: tool.description, examples: [] }, parameters: modelToolParameters(tool), ...(wantsPreview ? { permission } : {}) } };
         }
     };
 }

@@ -1,17 +1,9 @@
 import * as path from "node:path";
+import {isDeepStrictEqual} from "node:util";
 import type { ToolContext, ToolResult, ToolSpec } from "../types.js";
-import {decodeEditRef,resolveEditRef,editTargetPath} from '../edit-ref.js';
+import {decodeEditRef,resolveEditRef,editTargetPath,type EditArgs} from '../edit-ref.js';
 
-export interface EditArgs {
-  path?: string;
-  oldText: string;
-  newText: string;
-  replaceAll?: boolean;
-  editRef?:string;
-  expectedHash?:string;
-  range?:{start:number;end:number};
-  strict?:boolean;
-}
+export type {EditArgs} from '../edit-ref.js';
 
 export interface EditOutcome {
   path: string;
@@ -26,9 +18,7 @@ export interface EditOutcome {
  * Unguarded whitespace fallback can still normalize actual source in that case.
  */
 export function editArgumentError(args:EditArgs):string|undefined {
-  if(!args)return'edit.path must be a non-empty string, or supply a valid editRef.';
-  try{args=resolveEditRef(args);}catch(error){return error instanceof Error?error.message:String(error);}
-  if(typeof args.path!=='string'||args.path.length===0)return'edit.path must be a non-empty string, or supply a valid editRef.';
+  try{args=resolveEditRef(args??{});editTargetPath(args);}catch(error){return error instanceof Error?error.message:String(error);}
   if(typeof args.oldText!=='string')return'edit.oldText must be a string containing the current source text.';
   if(typeof args.newText!=='string')return'edit.newText must be a string containing the intended replacement.';
   if(args.oldText===args.newText&&(args.strict===true||args.expectedHash!==undefined||args.range!==undefined))
@@ -41,6 +31,28 @@ export function editArgumentError(args:EditArgs):string|undefined {
   }
 }
 
+const targetParameter = {type:'string',minLength:1,description:'File to change. Copy the complete editRef from read/read_symbol verbatim for a guarded edit, or supply the intended file path. Use ./ for a relative filename beginning with edit-v1:.'};
+const replacementParameters = {
+  oldText: { type: "string", description: "Current source text to replace, copied exactly from the selected read range." },
+  newText: { type: "string", description: "Replacement implementing the intended change. With hash, range or strict matching it must differ from oldText; do not echo the old text unchanged." },
+  replaceAll: { type: "boolean" },
+  expectedHash:{type:"string",description:"SHA-256 of the UTF-8 file snapshot in the edit anchor from read or code_query read_symbol; required with range and rejects stale edits."},
+  range:{type:"object",properties:{start:{type:"integer",minimum:0},end:{type:"integer",minimum:0}},required:["start","end"],description:"Optional UTF-16 start/end offsets (end exclusive) from the read/read_symbol edit anchor. Requires expectedHash and exact matching."},
+  strict:{type:"boolean",description:"Require exact text; disable whitespace-normalized fallback."},
+};
+const modelEditParameters = {
+  type:'object',
+  properties:{target:targetParameter,...replacementParameters},
+  required:['target','oldText','newText'],
+};
+
+/** Hosts may replace a tool's declaration as well as its implementation. */
+export function modelToolParameters(tool:ToolSpec):Record<string,unknown> {
+  if(tool.name===editTool.name && tool.execute===editTool.execute && tool.describe===editTool.describe && isDeepStrictEqual(tool.parameters,editTool.parameters))
+    return structuredClone(modelEditParameters);
+  return tool.parameters;
+}
+
 /**
  * Surgical edit. Semantics harvested from Claude Code / the kimi fork:
  *  - exact match required; empty or ambiguous (multi without replaceAll) → error
@@ -49,21 +61,20 @@ export function editArgumentError(args:EditArgs):string|undefined {
  */
 export const editTool: ToolSpec<EditArgs, EditOutcome> = {
   name: "edit",
-  description: "Replace exact text in a file. Prefer editRef copied verbatim from read/read_symbol + exact oldText/newText; path is already in the reference and may be omitted. Do not calculate offsets. Alternatively preserve ALL explicit anchor fields: path, expectedHash, range, strict. Replacements that leave text unchanged are rejected. A stale snapshot requires re-reading. oldText must match uniquely inside the selected range unless replaceAll is set. References do not grant permission.",
+  description: "Replace text in an existing file. Supply target, oldText and newText. Set target to the complete editRef from read/read_symbol for a guarded replacement, or to the file path. For an explicit edit anchor, use its path as target and copy expectedHash, range and strict together. Re-read a stale snapshot. oldText must match uniquely inside the selected range unless replaceAll is set.",
   parameters: {
     type: "object",
     properties: {
-      path: { type: "string",description:'Required without editRef. With a reference this may be omitted; an explicit path must resolve to the same file.' },
+      target:targetParameter,
+      path: { type: "string",description:'Legacy explicit file path. With a reference it must resolve to the same file.' },
       editRef:{type:'string',maxLength:16384,description:'Snapshot/range reference from read/read_symbol. Copy it verbatim with exact oldText/newText. Supplies path and replaces manual expectedHash/range/strict fields; conflicting explicit guards are rejected.'},
-      oldText: { type: "string", description: "Current source text to replace, copied exactly from the selected read range." },
-      newText: { type: "string", description: "Replacement implementing the intended change. With hash, range or strict matching it must differ from oldText; do not echo the old text unchanged." },
-      replaceAll: { type: "boolean" },
-      expectedHash:{type:"string",description:"SHA-256 of the UTF-8 file snapshot in the edit anchor from read or code_query read_symbol; required with range and rejects stale edits."},
-      range:{type:"object",properties:{start:{type:"integer",minimum:0},end:{type:"integer",minimum:0}},required:["start","end"],description:"Optional UTF-16 start/end offsets (end exclusive) from the read/read_symbol edit anchor. Requires expectedHash and exact matching."},
-      strict:{type:"boolean",description:"Require exact text; disable whitespace-normalized fallback."},
+      ...replacementParameters,
     },
     required: ["oldText", "newText"],
-    anyOf:[{type:'object',properties:{path:{type:'string'}},required:['path']},{type:'object',properties:{editRef:{type:'string'}},required:['editRef']}],
+    oneOf:[
+      {required:['target'],not:{anyOf:[{required:['path']},{required:['editRef']}]}},
+      {not:{required:['target']},anyOf:[{required:['path']},{required:['editRef']}]},
+    ],
   },
   describe: (args) => ({ tool: "edit", path: path.resolve(editTargetPath(args)) }),
   validate:editArgumentError,

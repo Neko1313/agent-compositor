@@ -34,7 +34,7 @@ function readArguments(args:ReadArgs){
 export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
   name: "read",
   loopGuard: 'query',
-  description: "Read UTF-8 text, default 200 lines and at most 16000 UTF-8 bytes, with a guarded edit anchor. Use offset/limit for targeted lines and maxChars for a smaller page in Unicode characters (1..16000). Copy nextCursor with the same path to continue inside a long line/window; after it ends, nextOffset continues line pages. Prefer copying editRef verbatim to edit with exact oldText/newText; edit.path may be omitted. Do not calculate offsets. The anchor covers only returned content. Files over 2 MiB require targeted search.",
+  description: "Read UTF-8 text, default 200 lines and at most 16000 UTF-8 bytes, with a guarded edit anchor. Use offset/limit for targeted lines and maxChars for a smaller page in Unicode characters (1..16000). Copy nextCursor with the same path to continue inside a long line/window; after it ends, nextOffset continues line pages. For a guarded edit, copy editRef verbatim into edit.target and supply exact oldText and the intended newText. The anchor covers only returned content. Files over 2 MiB require targeted search.",
   parameters: {
     type: "object",
     properties: {

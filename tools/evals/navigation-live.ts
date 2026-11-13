@@ -3,7 +3,7 @@ import {resolve,join} from 'node:path';
 import {runCase,type EvalCase} from './runner.js';
 const output=resolve(process.env.NAV_OUTPUT??'dist/navigation-live'),models=(process.env.NAV_MODELS??'gemma4:31b-cloud,deepseek-v4.1-flash:1017-cloud').split(',');
 const target = 'src/core/pricing.ts';
-const editInstructions = 'Use the returned editRef verbatim with exact oldText and newText. If the read returns only an explicit anchor, copy its path, expectedHash, range and strict fields.';
+const editInstructions = 'Copy the returned editRef verbatim into edit.target and supply exact oldText and the intended newText. If the read returns only an explicit anchor, use its path as target and copy expectedHash, range and strict.';
 const files:Record<string,string>={
  'package.json':'{"type":"module","scripts":{"test":"node --experimental-strip-types checks.mjs"}}',
  'tsconfig.json':'{"compilerOptions":{"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext"},"include":["src/**/*.ts"]}',

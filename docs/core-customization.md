@@ -65,9 +65,10 @@ The assembled application accepts these settings in `agent-compositor.json`:
 
 The `agent-harness` contribution defaults to domain-independent instructions.
 `agent.instructionsPreset: "coding"` selects coding instructions. For a guarded
-edit, this preset directs the model to copy the returned `editRef` with exact
-`oldText` and `newText`. If a read returns only an explicit anchor, the model
-uses all its fields. See [snapshot edit references](#snapshot-edit-references).
+edit, this preset directs the model to copy the returned `editRef` verbatim into
+`target`, alongside `oldText` and `newText`. With an explicit anchor, the model
+uses its path as `target` and copies its guards. See
+[snapshot edit references](#snapshot-edit-references).
 `agent.instructions` or private `behavior.json` instructions can
 replace them; `agent.baseInstructions: false` disables this contribution's base
 instructions. Disabling `agent-harness` removes its commands, task-plan tool and
@@ -189,26 +190,28 @@ invalidates the earlier snapshot hash, so later edits may require a fresh read.
 
 Builtin `read` adds optional `editRef` to its structured result and model-facing
 metadata when it has a complete strict edit anchor. Callix `read_symbol` supplies
-the same field on hosts with the reference encoder. Prefer an edit such as:
+the same field on hosts with the reference encoder. The native editor's model
+declaration requires three fields. A model can copy the reference into `target`.
 
 ```json
-{"editRef":"<copy the returned editRef verbatim>","oldText":"a - b","newText":"a + b"}
+{"target":"<copy the returned editRef verbatim>","oldText":"a - b","newText":"a + b"}
 ```
 
-The reference carries the original absolute path, full-file SHA-256 and exact
-UTF-16 slice; strict matching is mandatory. Treat its versioned encoding as opaque
-and copy it rather than calculating offsets. `oldText` and `newText` remain
-required. With a valid reference, `path` may be omitted: the core derives it before
-`tool.call`/`tool.check`, workspace resolution, permission review and execution.
+A path is also a valid `target`. For a read that provides only an explicit
+anchor, use its path as `target` and include its hash, range and strict flag.
+A versioned `edit-v1:` reference selects an absolute path, full-file SHA-256 and
+exact UTF-16 slice with strict matching. Use `./edit-v1:...` to select a
+relative filename that starts with the reserved prefix. Existing native callers
+can still supply `path` or `editRef` in their previous forms. Select one calling
+convention per request. The host resolves the selector before permission checks.
 Both plugin phases receive a concrete target, including checkpoint and scope
 guards. Native `read`/`write`/`edit` checks receive the canonical descriptor path,
 so a symlink or workspace alias cannot disguise the target from `tool.check`
 guards. Custom tools retain their own descriptor/input contracts. Inputs rewritten
-by a plugin are projected again before policy. Without
-a reference, `path` remains required. An explicitly empty, null or non-string path
-is rejected rather than silently replaced. An explicit resolved target must match
-the reference's file, even if another
-file has identical contents. Explicit `expectedHash`/`range`/`strict` fields remain
+by a plugin are projected again before policy. A path passed as `target`, or
+as legacy `path`, must be a non-empty string. A caller using the legacy
+combination of `path` and `editRef` must select the same file with both, even
+if two files have identical contents. Explicit `expectedHash`/`range`/`strict` fields remain
 supported without a reference; when supplied with one they must agree exactly.
 Conflicting guards, malformed/unsupported references and certain no-op edits fail
 admission and `tool_help` preview before permission review or the built-in file-edit service. An
@@ -223,14 +226,24 @@ expand that range, substitute a current hash or use whitespace fallback. A stale
 reference requires a fresh read. The resolved guards cross the existing
 `service.file.edit` seam; that event's schema is unchanged.
 
-The core does not mutate the caller's argument object. Journal `tool.call.input`
-records the effective input, including a derived path; reserved journal metadata
-`compositorEditInput` version 1 records `pathFromReference: true` for that projection.
-Replay removes only that added path to restore the original model call and strips
-the host marker while retaining provider metadata. The marker is informational,
-never permission evidence, and does not add a catalog field. Custom tools own
-their input contracts; this projection applies to the native builtin editor.
-Older hosts may still require both `path` and `editRef`; follow their tool schema.
+When a native edit omits its selector, validation fails before any mutation.
+If the submitted old text appears in a single distinct snapshot among this
+turn's retained native reads, the error can suggest the corresponding
+`target` as a JSON field. The model can verify the intended file and explicitly
+retry with that field. A retry goes through the usual permission and snapshot
+checks. Missing, ambiguous or invalid selectors never trigger an automatic edit.
+If an exact replacement succeeded earlier in the current turn and a later edit
+cannot find the identical old text for the identical replacement, the error
+identifies the most recent matching success in the retained history. The agent
+can inspect that file and run the project checks. The earlier result describes
+a past edit and does not certify the current file contents.
+
+Journal `tool.call.input` records the effective input seen by hooks. The host
+records how it projected a native selector in reserved `compositorEditInput`
+metadata. Replay restores the model's original argument shape and removes the
+host marker while retaining provider metadata. Existing journals using the
+version 1 reference projection remain readable. For custom or older editors,
+follow the tool's advertised schema.
 
 Native file execution is bound to the canonical path evaluated by policy, including
 after an approval wait. Retargeting an argument symlink does not redirect the

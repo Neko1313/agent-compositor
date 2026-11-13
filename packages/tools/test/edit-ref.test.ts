@@ -30,6 +30,28 @@ it('uses the reference path when no redundant path is supplied, without mutating
  expect(await editTool.execute(f.ctx,args as any)).toMatchObject({ok:true,data:{path:join(f.cwd,'a.ts'),replacements:1}});
  expect(args).toEqual(before);expect(await readFile(join(f.cwd,'a.ts'),'utf8')).toBe(f.text.replace('second target','second updated'));
 });
+it('selects a read range by target and enforces its snapshot on reuse',async()=>{
+ const f=await fixture(),args={target:f.editRef,oldText:'target',newText:'updated'},original=structuredClone(args);
+ expect(await editTool.execute(f.ctx,args)).toMatchObject({ok:true,data:{replacements:1}});
+ expect(await readFile(join(f.cwd,'a.ts'),'utf8')).toBe(f.text.replace('second target','second updated'));
+ expect(await editTool.execute(f.ctx,{...args,oldText:'updated',newText:'stale'})).toMatchObject({ok:false,error:expect.stringContaining('stale')});
+ expect(args).toEqual(original);
+});
+it('treats a malformed reserved reference as invalid even if the literal file exists',async()=>{
+ const f=await fixture(),literal='edit-v1:broken';
+ await writeFile(join(f.cwd,literal),'before');
+ const args={target:literal,oldText:'before',newText:'after'};
+ expect(await editTool.execute(f.ctx,args)).toMatchObject({ok:false,error:expect.stringContaining('editRef')});
+ expect(await readFile(join(f.cwd,literal),'utf8')).toBe('before');
+ expect(await editTool.execute(f.ctx,{...args,target:'./'+literal})).toMatchObject({ok:true});
+ expect(await readFile(join(f.cwd,literal),'utf8')).toBe('after');
+});
+it.each([{}, {target:''},{target:null},{target:123},{target:'a.ts',path:'a.ts'},{target:'a.ts',editRef:'edit-v1:abc'}])('rejects missing, invalid or mixed target selectors before contacting file services (%#)',async selector=>{
+ let requests=0;
+ const ctx:ToolContext={cwd:process.cwd(),signal:new AbortController().signal,undo:new UndoStore(),request:async()=>{requests++;throw Error('Must not run');}};
+ expect(await editTool.execute(ctx,{...selector,oldText:'old',newText:'new'} as any)).toMatchObject({ok:false,error:expect.stringContaining('edit.target')});
+ expect(requests).toBe(0);
+});
 it.each(['',null,42])('does not replace an explicitly invalid path with a reference path (case %#)',async path=>{
  const f=await fixture();expect(await editTool.execute(f.ctx,{path,editRef:f.editRef,oldText:'target',newText:'updated'} as any)).toMatchObject({ok:false,error:expect.stringContaining('edit.path')});expect(await readFile(join(f.cwd,'a.ts'),'utf8')).toBe(f.text);
 });

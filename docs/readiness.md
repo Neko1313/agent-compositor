@@ -583,6 +583,30 @@ requests omitted both `path` and `editRef`. The model exhausted 12 requests
 without a successful edit or a project check. The independent result remained
 18. The runs used different host code and do not measure a quality improvement.
 
+The six targetless calls in the last checkout attempt contained only
+`oldText` and `newText`. Those were the editor's only top-level required
+fields. Its path-or-reference requirement depended on a root JSON Schema
+`anyOf`. The pinned Qwen chat template renders the Ollama function structure,
+and the locally inspected Ollama root parameter representation has no field for
+that alternative. The native editor now advertises a required string `target`
+alongside both text fields. Each local CPU transport receipt records those
+required fields for comparison with the tool calls the model produced.
+
+In a fresh local checkout attempt all 12 HTTP requests advertised
+`target`, `oldText` and `newText` as required. Qwen selected `math.mjs` and
+changed addition to subtraction. The independent behavior check passed, and
+the protected package file and tests retained their original bytes. Five
+subsequent edits repeated the replacement and found no matching text. The
+model exhausted its request allowance without executing the project checks,
+so the overall case failed. The core now includes the path of an earlier
+successful identical replacement in that specific no-match error when the
+corresponding tool result remains in the turn. This result does not prove the
+file is still current or that any tests passed. A separate local greeting
+case on the required-selector schema also used all 12 admissions. It made
+nine searches and three reads, left the source unchanged, and failed both
+the original checks and the independent behavior grader. Neither episode
+qualifies as a complete autonomous task.
+
 ## Acceptance gates
 
 | Gate | Required evidence | Current assessment |

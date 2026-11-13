@@ -4,7 +4,7 @@ import {resolve,join,dirname} from 'node:path';
 import {estimateTokens} from '../../packages/context/src/index.js';
 import {query,runBinary} from '../../plugins/callix/adapter.js';
 import callixTools from '../../plugins/callix/tools.js';
-import {queryProject,readTool,editTool,registerDefaultResolvers,UndoStore,type ToolContext} from '../../packages/tools/src/index.js';
+import {queryProject,readTool,editTool,modelToolParameters,registerDefaultResolvers,UndoStore,type ReadArgs,type ToolContext} from '../../packages/tools/src/index.js';
 const output=resolve(process.env.NAV_OUTPUT??'dist/navigation-benchmark'),binary=resolve(process.env.CALLIX_TEST_BIN??'plugins/callix/bin/callix');
 const temp=await mkdtemp(join(tmpdir(),'callix-method-bench-'));await mkdir(output,{recursive:true});
 const question='Change the multiplier in src/core/pricing.ts computeTotal from 2 to 3 without changing the UI function. Identify its real callers.';
@@ -19,7 +19,7 @@ const files:Record<string,string>={
 };
 for(let i=0;i<40;i++)files[`src/noise/file-${i}.ts`]=Array.from({length:8},(_,j)=>`// historical computeTotal example ${i}:${j}, not an executable reference`).join('\n')+'\nexport const value'+i+' = 0;\n';
 const cases=['text-full','text-ranged','callix']as const,results:any[]=[];
-const schemas=(tools:any[])=>tools.map(t=>({name:t.name,description:t.description,parameters:t.parameters}));
+const schemas=(tools:any[])=>tools.map(t=>({name:t.name,description:t.description,parameters:modelToolParameters(t)}));
 try{
  for(const method of cases){
   const cwd=join(temp,method);for(const[file,body]of Object.entries(files)){await mkdir(dirname(join(cwd,file)),{recursive:true});await writeFile(join(cwd,file),body);}
@@ -37,7 +37,18 @@ try{
   }else{
    const found=await record('grep',method==='text-full'?{pattern:'computeTotal',limit:1000}:{pattern:'function computeTotal',path:target},()=>queryProject({cwd,action:'grep',pattern:method==='text-full'?'computeTotal':'function computeTotal',path:method==='text-full'?undefined:target,limit:method==='text-full'?1000:40}));
    const line=found.matches.find((m:any)=>m.path===target)?.line;if(!line)throw Error('Text definition missing');
-   const read=await record('read',{path:target,...(method==='text-ranged'?{offset:line,limit:1}:{})},async()=>{const r=await readTool.execute(ctx,{path:target,...(method==='text-ranged'?{offset:line,limit:1}:{})});if(!r.ok)throw Error(r.error);return r.data;});anchor=read.edit;oldText='n * 2';
+   oldText='n * 2';
+   let readArgs:ReadArgs={path:target,...(method==='text-ranged'?{offset:line,limit:1}:{})};
+   for(;;){
+    const page=await record('read',readArgs,async()=>{
+     const result=await readTool.execute(ctx,readArgs);if(!result.ok)throw Error(result.error);return result.data;
+    });
+    if(page.content.includes(oldText))anchor=page.edit;
+    if(page.nextCursor)readArgs={path:target,cursor:page.nextCursor};
+    else if(method==='text-full'&&page.nextOffset)readArgs={path:target,offset:page.nextOffset};
+    else break;
+   }
+   if(!anchor)throw Error('No text read page contained the intended replacement');
    const imports=await record('grep imports',{pattern:'import.*computeTotal',regex:true},()=>queryProject({cwd,action:'grep',pattern:'import.*computeTotal',regex:true,limit:1000}));
    const aliases=[...new Set(imports.matches.map((m:any)=>m.text.match(/computeTotal\s+as\s+(\w+)/)?.[1]??'computeTotal'))]as string[];
    const expression='('+aliases.join('|')+')\\(';
@@ -48,7 +59,8 @@ try{
   }
   if(JSON.stringify(resolvedCallerPaths)!==JSON.stringify(["src/checkout.ts","src/invoice.ts"]))throw Error("Caller navigation oracle failed: "+JSON.stringify(resolvedCallerPaths));
   const beforeEditCount=traffic.length;
-  const edit=await record('edit',{...anchor,oldText,newText:'n * 3'},()=>editTool.execute(ctx,{...anchor,oldText,newText:'n * 3'}));if(!edit.ok)throw Error(edit.error);
+  const editArgs={target:anchor.path,expectedHash:anchor.expectedHash,range:anchor.range,strict:anchor.strict,oldText,newText:'n * 3'};
+  const edit=await record('edit',editArgs,()=>editTool.execute(ctx,editArgs));if(!edit.ok)throw Error(edit.error);
   const changed=await readFile(join(cwd,target),'utf8'),ui=await readFile(join(cwd,'src/ui/pricing.ts'),'utf8');if(!changed.includes('return n * 3')||!ui.includes('return n * 2'))throw Error('Behavior/neighbor preservation failed');
   const resultTokens=traffic.reduce((n,r)=>n+r.tokens,0),argumentTokens=traffic.reduce((n,r)=>n+estimateTokens(JSON.stringify(r.args)),0);
   let cumulative=estimateTokens(question)+schemaTokens,estimatedInputAcrossRounds=0;

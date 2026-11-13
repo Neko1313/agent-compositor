@@ -586,16 +586,18 @@ access, without normalizing zero to one. Missing-file and directory errors retai
 the underlying error and explain how to discover a real file. No read failure
 creates a replacement file or changes workspace grants.
 
-A guarded `edit` can copy the returned `editRef` verbatim with exact
-`oldText` and `newText`, avoiding manual offset calculations and a redundant path.
-The core supplies the encoded path to plugin hooks and policy before execution;
-explicit paths must still select the same file. Without a reference, path remains
-required. The reference carries
-the same snapshot/range guards and works after session resume while the hash still
-matches; it grants no permissions. Alternatively preserve the complete explicit
-anchor returned by `read` or `code_query read_symbol`: `path`, `expectedHash`,
-`range` and `strict`. Conflicting reference/explicit guards are rejected; a present
-invalid reference never falls back to unguarded editing. See
+The native model-facing `edit` tool requires `target`, `oldText` and `newText`.
+For a guarded edit, copy the `editRef` from `read` or `code_query read_symbol`
+verbatim into `target`. Copy the source to replace into `oldText` and put the
+replacement in `newText`. The reference identifies the file, its snapshot and
+the selected range. It works after session resume while the hash still matches.
+For an explicit anchor, use its `path` as `target` and copy `expectedHash`,
+`range` and `strict` together. A plain path in `target` selects a file without
+snapshot guards unless guards are also supplied.
+
+The core supplies the selected path to plugin hooks and permission checks.
+Existing native callers can still submit `path` or `editRef`. Conflicting
+guards and invalid references fail before editing. See
 [snapshot edit references](core-customization.md#snapshot-edit-references).
 With hash/range/strict,
 identical `oldText` and `newText` fail before permission review or file access,

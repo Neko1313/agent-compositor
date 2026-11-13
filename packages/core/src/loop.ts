@@ -33,7 +33,7 @@ import {
   builtinTools,
   createToolHelp,
   execTool,
-  readTool,writeTool,editTool,
+  readTool,writeTool,editTool,encodeEditAnchor,modelToolParameters,projectEditTarget,
   isReadOnlyShell,
   builtinToolRules,
   registerDefaultResolvers,
@@ -188,6 +188,10 @@ export class AgentCore {
   private messages: ChatMessage[] = [];
   private baseInstructions = "";
   private turnToolRecords:Array<{name:string;args:unknown;ok:boolean;output?:unknown;denied?:boolean}>=[];
+  // Key suggestions by delivered message, so removed context and other operations
+  // cannot become a source of edit targets.
+  private readonly readTargets = new WeakMap<ChatMessage, { turnId: string; ref: string; content: string }>();
+  private readonly appliedEdits = new WeakMap<ChatMessage, { turnId: string; path: string; oldText: string; newText: string }>();
   private queryObservations=new WeakMap<object,string>();
   private refusalMemory={refused:new Map<string,string>(),pending:new Map<string,Promise<void>>()};
   private resetRefusals(){this.refusalMemory={refused:new Map(),pending:new Map()};}
@@ -916,10 +920,14 @@ export class AgentCore {
 
   /** Project reference targets before plugins and policy, without mutating requests. */
   private toolInput(spec:ToolSpec,args:unknown):unknown {
-    if(!this.isBuiltinEdit(spec)||!args||typeof args!=='object'||Array.isArray(args)||(args as any).path!==undefined||typeof (args as any).editRef!=='string')return args;
+    if(!this.isBuiltinEdit(spec)||!args||typeof args!=='object'||Array.isArray(args))return args;
     try{
-      const target=editTool.describe(args as any).path;
-      if(typeof target==='string'&&target)return{...args,path:target};
+      const selected=projectEditTarget(args as Parameters<typeof projectEditTarget>[0]);
+      if(selected.path===undefined&&typeof selected.editRef==='string'){
+        const path=editTool.describe(selected).path;
+        if(path)return{...selected,path};
+      }
+      return selected;
     }catch{/* Malformed selectors retain their normal admission error. */}
     return args;
   }
@@ -1417,7 +1425,7 @@ export class AgentCore {
     this.contextSource=limits.contextWindow?'configured':validWindow?caps!.source:'fallback';
     this.contextWindow=compaction.budget.windowSize;
     compaction.budget.setMessages([...this.messages,...(this.baseInstructions?[{role:'system',content:this.baseInstructions}]:[])]);
-    compaction.budget.setOverhead(estimateTokens(JSON.stringify(this.toolSpecs.map(t=>({name:t.name,description:t.description,parameters:t.parameters})))));
+    compaction.budget.setOverhead(estimateTokens(JSON.stringify(this.toolSpecs.map(t=>({name:t.name,description:t.description,parameters:modelToolParameters(t)})))));
     const breakdown=compaction.budget.breakdown();
     await this.emit('context.pressure',{...breakdown,contextWindow:this.contextWindow,source:this.contextSource,model:this.options.model?.()});
     const cooldown = compaction.cooldownMessages ?? 8;
@@ -1625,6 +1633,35 @@ export class AgentCore {
     return this.draining;
   }
 
+  private missingEditTargetHint(args: unknown, turnId: string): string {
+    if (this.currentTurnId !== turnId || this.userOperation.getStore() || !args || typeof args !== 'object') return '';
+    if ('target' in args || 'editRef' in args || 'path' in args || !('oldText' in args)) return '';
+    const oldText = args.oldText;
+    if (typeof oldText !== 'string' || !oldText || !('newText' in args) || typeof args.newText !== 'string') return '';
+    let match: string | undefined;
+    for (const message of this.messages) {
+      const read = this.readTargets.get(message);
+      if (!read || read.turnId !== turnId || !read.content.includes(oldText)) continue;
+      if (match && match !== read.ref) return '';
+      match = read.ref;
+    }
+    if (!match) return '';
+    return '\nA read in this turn contains the exact oldText. If it is the intended file and range, add this field to a fresh edit call. No change was made.\nSuggested edit target (JSON):\n' +
+      JSON.stringify({target: match});
+  }
+
+  private earlierEditHint(args: unknown, turnId: string): string {
+    if (this.currentTurnId !== turnId || this.userOperation.getStore() ||
+        !args || typeof args !== 'object' || !('oldText' in args) || !('newText' in args)) return '';
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const prior = this.appliedEdits.get(this.messages[i]);
+      if (prior?.turnId === turnId && prior.oldText === args.oldText && prior.newText === args.newText) {
+        return '\nThe same replacement succeeded earlier in this turn at the path below. This attempt made no change. Inspect the current file if needed and run the authorized project check before reporting completion.\nEarlier successful edit (JSON):\n' + JSON.stringify({path: prior.path});
+      }
+    }
+    return '';
+  }
+
   private async runToolBatch(
     turnId: string,
     batch: ChatToolCall[],
@@ -1693,7 +1730,10 @@ export class AgentCore {
       let args = this.toolInput(spec,suppliedArgs);
       // Reserve the projection marker for the host; replay restores raw calls.
       const {compositorEditInput:_source,...providerMetadata}=call.metadata??{};
-      const toolMetadata=args!==suppliedArgs?{...providerMetadata,compositorEditInput:{version:1,pathFromReference:true}}:Object.keys(providerMetadata).length?providerMetadata:undefined;
+      const projection=args===suppliedArgs?undefined:Object.hasOwn(suppliedArgs,'target')
+        ? {version:2,targetField:Object.hasOwn(args as object,'editRef')?'editRef':'path'}
+        : {version:1,pathFromReference:true};
+      const toolMetadata=projection?{...providerMetadata,compositorEditInput:projection}:Object.keys(providerMetadata).length?providerMetadata:undefined;
       // 1) tool.call: a plugin may answer ({result}) or refuse ({deny})
       const intercepted = await this.emit("tool.call", {
         tool: call.name,
@@ -1737,6 +1777,7 @@ export class AgentCore {
         }
         args=this.toolInput(spec,args);
         error=this.toolArgumentError(spec,args);
+        if (error && this.isBuiltinEdit(spec)) error += this.missingEditTargetHint(args, turnId);
         // 2) Recheck policy after waiting for an identical in-flight review.
         while(error===undefined){
         let descriptor: ToolCallDescriptor;
@@ -1907,6 +1948,8 @@ export class AgentCore {
             else {
               error = executed.error;
               denied = executed.denied ?? false;
+              if (!denied && this.isBuiltinEdit(spec) && error === 'edit: no match for oldText in ' + approvedPath)
+                error += this.earlierEditHint(args, turnId);
             }
           } catch (caught) {
             error = String(caught);
@@ -1916,12 +1959,27 @@ export class AgentCore {
         result = interceptedResult;
       }
 
-      await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText);
-      void turnId;
+      const delivered = await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText);
+      if (!error && approvedPath && turnId === this.currentTurnId && !this.userOperation.getStore() &&
+          this.isBuiltinEdit(spec) && isObject(result) && result.path === approvedPath &&
+          result.match === 'exact' && typeof result.replacements === 'number' && result.replacements > 0 &&
+          isObject(args) && typeof args.oldText === 'string' && typeof args.newText === 'string') {
+        this.appliedEdits.set(delivered, {turnId, path: approvedPath, oldText: args.oldText, newText: args.newText});
+      }
+      if (!error && approvedPath && turnId === this.currentTurnId && !this.userOperation.getStore() &&
+          spec.execute === readTool.execute && spec.describe === readTool.describe && isObject(result)) {
+        const ref = encodeEditAnchor(result.edit);
+        const anchor = result.edit;
+        if (ref && ref === result.editRef && isObject(anchor) && anchor.path === approvedPath &&
+            typeof result.content === 'string' && Buffer.byteLength(result.content, 'utf8') <= 16_000 &&
+            delivered.content.includes(ref)) {
+          this.readTargets.set(delivered, { turnId, ref, content: result.content });
+        }
+      }
     }
   }
 
-  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string):Promise<void> {
+  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string):Promise<ChatMessage> {
     const record={name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result,...(denied?{denied:true}:{})};
     this.executionRecords.push(record);
     const formatted=typeof modelText==='string'&&modelText.length>0;
@@ -1936,13 +1994,15 @@ export class AgentCore {
       ...(error===undefined&&formatted?{modelText:text}:{}),
     });
     if(query&&record.ok)this.queryObservations.set(record,queryObservation(call.name,args,text));
-    this.executionMessages.push({
+    const delivered: ChatMessage = {
       role: "tool",
       toolCallId: call.id,
       name: call.name,
       content: text,
       ...(['read','write','edit','exec'].includes(call.name)?{metadata:{compositorToolResult:toolObservationMetadata(call.name,error===undefined,result)}}:{}),
-    });
+    };
+    this.executionMessages.push(delivered);
+    return delivered;
   }
 
   private buildToolContext(signal=this.abort.signal): ToolContext {
@@ -2013,7 +2073,7 @@ export class AgentCore {
       tools: [...this.toolSpecs].sort((a,b)=>a.name < b.name ? -1 : a.name > b.name ? 1 : 0).map((t) => ({
         name: t.name,
         description: t.description,
-        parameters: t.parameters,
+        parameters: modelToolParameters(t),
       })),
       signal: this.abort.signal,
       model: this.options.model?.(),

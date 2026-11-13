@@ -4,9 +4,9 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {AgentCore,ScriptedProvider} from '../src/index.js';
 import type {SessionEvent} from '@agent-compositor/session';
-import type {ModelProvider,CompletionRequest} from '../src/provider.js';
+import type {ModelProvider,CompletionRequest,ScriptedStep} from '../src/provider.js';
 import scopeGuard from '../../../plugins/guard-scope/hooks.js';
-import {encodeEditAnchor} from '@agent-compositor/tools';
+import {editTool,encodeEditAnchor} from '@agent-compositor/tools';
 const roots:string[]=[],cores:AgentCore[]=[];
 afterEach(async()=>{for(const core of cores.splice(0))await core.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
 async function fixture(){const cwd=await mkdtemp(join(tmpdir(),'core-edit-ref-'));roots.push(cwd);await writeFile(join(cwd,'a.ts'),'old\n');return cwd;}
@@ -16,6 +16,11 @@ it('keeps edit permission denial binding for a valid reference',async()=>{
  const editRef=await reference(core);
  expect(await core.invokeTool('edit',{path:'a.ts',editRef,oldText:'old',newText:'new'})).toMatchObject({ok:false,error:expect.stringContaining('denied')});
  expect(await core.invokeTool('edit',{editRef,oldText:'old',newText:'new'})).toMatchObject({ok:false,error:expect.stringContaining('denied')});
+ for(const target of [editRef,'a.ts']){
+  const args={target,oldText:'old',newText:'new'};
+  expect(await core.invokeTool('tool_help',{name:'edit',preview:args})).toMatchObject({ok:true,output:{permission:{decision:'deny',executionAuthorized:false}}});
+  expect(await core.invokeTool('edit',args)).toMatchObject({ok:false,error:expect.stringContaining('denied')});
+ }
  expect(await core.invokeTool('tool_help',{name:'edit',preview:{editRef,oldText:'old',newText:'new'}})).toMatchObject({ok:true,output:{permission:{decision:'deny',executionAuthorized:false}}});
  expect(await readFile(join(cwd,'a.ts'),'utf8')).toBe('old\n');
 });
@@ -27,6 +32,40 @@ it('provides the derived path to pre-tool/check hooks while leaving the caller i
  expect(await core.invokeTool('edit',args)).toMatchObject({ok:true});expect(args).toEqual(before);
  expect(phases).toMatchObject([{phase:'call',input:{path:join(cwd,'a.ts'),editRef}},{phase:'check',input:{path:join(cwd,'a.ts'),editRef}}]);expect(annotation).toMatchObject({compositorEditInput:{pathFromReference:true}});
  expect(await readFile(join(cwd,'a.ts'),'utf8')).toBe('new\n');
+});
+it('advertises one required edit target and restores the exact selector shape in model history and replay',async()=>{
+ const cwd=await fixture(),journal:SessionEvent[]=[],steps:ScriptedStep[]=[],model=new ScriptedProvider(steps);
+ const session=new AgentCore({cwd,provider:model,rules:[{tool:'edit',path:join(cwd,'a.ts'),decision:'allow'}],
+  sessions:{create:async()=>{},append:async(_id,events)=>{journal.push(...events);}}});cores.push(session);
+ const editRef=await reference(session);
+ const guarded={target:editRef,oldText:'old',newText:'new'},explicit={target:'a.ts',oldText:'new',newText:'done',strict:true};
+ const calls=[guarded,explicit].map(args=>({name:'edit',args}));
+ steps.push(...calls.map(call=>({toolCalls:[call]})),{text:'Finished'});
+ const hooks:unknown[]=[];
+ session.host.registerPlugin({name:'inspect-edit-path',version:'1.0.0',trust:'trusted'},{'tool.call':e=>{if(e.tool==='edit')hooks.push(e.input);}});
+ await session.submit('Change a.ts');expect(session.failure).toBeUndefined();
+ const schema=model.requests[0].tools.find(t=>t.name==='edit')!.parameters;
+ expect(schema).toMatchObject({required:['target','oldText','newText'],properties:{target:{type:'string'}}});
+ expect(schema.properties).not.toHaveProperty('path');expect(schema.properties).not.toHaveProperty('editRef');
+ expect(schema).not.toHaveProperty('oneOf');expect(schema).not.toHaveProperty('anyOf');
+ expect(await session.invokeTool('tool_help',{name:'edit'})).toMatchObject({ok:true,output:{parameters:schema}});
+ const effective=[{path:join(cwd,'a.ts'),editRef,oldText:'old',newText:'new'},{path:'a.ts',oldText:'new',newText:'done',strict:true}];
+ expect(hooks).toEqual(effective);
+ const recorded=journal.filter(e=>e.type==='tool.call'&&e.tool==='edit');
+ expect(recorded.map(e=>e.input)).toEqual(effective);
+ expect(recorded.map(e=>e.metadata)).toEqual(['editRef','path'].map(targetField=>({compositorEditInput:{version:2,targetField}})));
+ const replay=(await import('../src/resume.js')).replayTranscript(JSON.parse(JSON.stringify(journal)));
+ for(const messages of [model.requests[2].messages,replay])
+  expect(messages.flatMap(m=>m.toolCalls??[]).filter(call=>call.name==='edit').map(call=>call.args)).toEqual([guarded,explicit]);
+ expect(await readFile(join(cwd,'a.ts'),'utf8')).toBe('done\n');
+});
+it('honors custom edit declarations, including schemas that retain the native implementation',async()=>{
+ const parameters={type:'object',properties:{path:{type:'string'},oldText:{type:'string'},newText:{type:'string'}},required:['path','oldText','newText']};
+ const provider=new ScriptedProvider([{text:'Done'}]);
+ const session=new AgentCore({cwd:await fixture(),provider,toolOverrides:[{...editTool,parameters}]});cores.push(session);
+ await session.submit('Inspect');
+ expect(provider.requests[0].tools.find(tool=>tool.name==='edit')?.parameters).toEqual(parameters);
+ expect(await session.invokeTool('tool_help',{name:'edit'})).toMatchObject({ok:true,output:{parameters}});
 });
 it('retains an actual scope-guard denial even when the reference points to an attached authorized root',async()=>{
  const cwd=await fixture(),other=await fixture(),core=new AgentCore({cwd,provider:new ScriptedProvider([]),rules:[{tool:'edit',path:join(other,'a.ts'),decision:'allow'}]});cores.push(core);await core.attachWorkspace(other);

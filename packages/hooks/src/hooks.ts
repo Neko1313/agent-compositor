@@ -146,7 +146,9 @@ export class HooksHost {
   private readonly rendering = new AsyncLocalStorage<string>();
   private readonly userInteraction = new AsyncLocalStorage<boolean>();
   private readonly serviceSignal = new AsyncLocalStorage<AbortSignal>();
+  private readonly backgroundService = new AsyncLocalStorage<boolean>();
   get currentSignal():AbortSignal|undefined{return this.serviceSignal.getStore();}
+  get isBackgroundService():boolean{return this.backgroundService.getStore()===true;}
   private readonly workspaceRoot: string;
 
   /** The workspace the $ API confines fs/exec to. */
@@ -282,7 +284,8 @@ export class HooksHost {
         ].includes(event)
       )
         stateGuard(event);
-      const res = await host.emit(event, { plugin, ...input },operationSignal);
+      const emit = () => host.emit(event, { plugin, ...input },operationSignal);
+      const res = await host.backgroundService.run(detached,emit);
       const v = res.value as Record<string, unknown> | undefined;
       if (
         v &&

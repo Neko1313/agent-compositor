@@ -12,7 +12,7 @@ import type {PlacementConfig} from '../src/placement.js';
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {for (const close of cleanup.splice(0).reverse()) await close();});
 
-async function fixture(options: {ui?: PlacementConfig; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]}[]} = {}) {
+async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny'; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]}[]} = {}) {
   const root = await mkdtemp(join(tmpdir(), 'opentui-real-host-'));
   cleanup.push(() => rm(root, {recursive: true, force: true}));
   const cwd = join(root, 'project'), home = join(root, 'home');
@@ -46,7 +46,8 @@ async function fixture(options: {ui?: PlacementConfig; enabledPlugins?: string[]
   const env = {HOME: home, AGENT_HOME: join(home, '.agent-compositor'), AGENT_BASE_URL: endpoint, AGENT_MODEL: 'initial-model', AGENT_API_KEY: ''};
   await writeFile(join(cwd, 'agent-compositor.json'), JSON.stringify({
     enabledPlugins: ['model-selector', 'provider-auth', 'session-manager', ...(options.enabledPlugins ?? []), ...(options.plugins ?? []).map(plugin => plugin.name)],
-    agent: {tools: ['ask_user'], builtinTools: [], controlTools: ['ask_user'], skills: false, projectContext: false, fileReferences: false, verifyCompletion: false},
+    agent: {tools: ['ask_user', ...(options.exec ? ['exec'] : [])], builtinTools: options.exec ? ['exec'] : [], controlTools: ['ask_user'], skills: false, projectContext: false, fileReferences: false, verifyCompletion: false},
+    ...(options.exec ? {permissions: {rules: [{tool: 'exec', decision: options.exec}]}} : {}),
     compaction: {enabled: false},
     ...(options.ui ? {ui: options.ui} : {}),
   }));
@@ -82,6 +83,71 @@ async function connection(f: Awaited<ReturnType<typeof fixture>>) {
   const form = await f.waitForm('New provider connection');
   return {models, form};
 }
+
+function commandWorker() {
+  return {name: 'command-worker', commands: [{name: '/command-worker', description: 'Run a local test worker', execution: 'immediate'}], source: `export default {
+    'command.invoke': async (event, $) => {
+      const name = event.args.trim();
+      if (!['a', 'b', 'denied'].includes(name)) throw Error('Unknown worker');
+      await $.ui.view(name, 'Command ' + name.toUpperCase(), {lines: [{text: 'COMMAND_' + name.toUpperCase()}]}, {site: 'split', focus: true});
+      const result = await $.agent.tool('exec', {command: '/bin/sh ./worker.sh ' + name, timeoutMs: 20000});
+      await $.ui.view(name, 'Command ' + name.toUpperCase(), {lines: [{text: result.ok ? 'WORKER_COMPLETED' : 'WORKER_DENIED'}]});
+    },
+  };`};
+}
+function processAlive(pid: number) {
+  try {process.kill(pid, 0); return true;}
+  catch (error) {if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false; throw error;}
+}
+
+it('cancels one command window and its real builtin exec while preserving its neighbor and Main', async () => {
+  const f = await fixture({exec: 'allow', plugins: [commandWorker()]});
+  await writeFile(join(f.cwd, 'worker.sh'), 'printf "%s" "$$" > "$1.pid"\nwhile [ ! -f "release-$1" ]; do /bin/sleep 0.1; done\n');
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const question = f.host.session.snapshot().interaction!;
+  await f.host.submit('/command-worker a');
+  await f.host.submit('/command-worker b');
+  const pid = async (name: string) => {
+    let value = 0;
+    await expect.poll(async () => {value = Number(await readFile(join(f.cwd, name + '.pid'), 'utf8').catch(() => '0')); return value > 0;}).toBe(true);
+    return value;
+  };
+  const [a, b] = await Promise.all([pid('a'), pid('b')]);
+  const first = f.find('plugin-command-worker-a')!, second = f.find('plugin-command-worker-b')!;
+  expect(first.snapshot().busy).toBe(true);
+  expect(second.snapshot().busy).toBe(true);
+  expect(f.host.cancelOperation(first.id)).toBe(true);
+  await expect.poll(() => first.snapshot().busy).toBe(false);
+  expect(processAlive(a)).toBe(false);
+  expect(processAlive(b)).toBe(true);
+  expect(second.snapshot().busy).toBe(true);
+  expect(f.host.session.snapshot().interaction?.id).toBe(question.id);
+  expect(f.host.core.getState()).toBe('running');
+  expect(f.requests).toHaveLength(1);
+  expect(f.host.core.getOperations()).toHaveLength(2);
+  f.host.session.interrupt!(); await main;
+  expect(processAlive(b)).toBe(true);
+  expect(second.snapshot().busy).toBe(true);
+  await writeFile(join(f.cwd, 'release-b'), 'release');
+  await expect.poll(() => second.snapshot().busy).toBe(false);
+  expect(processAlive(b)).toBe(false);
+  expect(second.snapshot().view?.lines[0].text).toBe('WORKER_COMPLETED');
+  expect(first.snapshot().view?.lines[0].text).toBe('COMMAND_A');
+  expect(f.host.core.getOperations()).toEqual([]);
+  expect(f.requests).toHaveLength(1);
+});
+
+it('preserves normal permissions for a command window that invokes builtin exec', async () => {
+  const f = await fixture({exec: 'deny', plugins: [commandWorker()]});
+  await writeFile(join(f.cwd, 'worker.sh'), 'printf "%s" "$$" > "$1.pid"\n');
+  await f.host.submit('/command-worker denied');
+  await expect.poll(() => f.find('plugin-command-worker-denied')?.snapshot().view?.lines[0].text).toBe('WORKER_DENIED');
+  await expect.poll(() => f.find('plugin-command-worker-denied')?.snapshot().busy).toBe(false);
+  await expect(readFile(join(f.cwd, 'denied.pid'))).rejects.toMatchObject({code: 'ENOENT'});
+  expect(f.host.core.getOperations()).toEqual([]);
+  expect(f.requests).toHaveLength(0);
+});
 function profile(endpoint: string, key = 'FAKE_LOOPBACK_PRIVATE_KEY') {
   return {id: 'opentui-local', type: 'openai-compat', baseUrl: endpoint, model: 'configured-model', key, clearKey: false,
     maxOutputTokens: '1000', timeoutMs: '20000', scope: 'project', contextWindow: '', reasoningEffort: ''};

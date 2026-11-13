@@ -307,7 +307,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   }, [windowLayout,navigation]);
   useLayoutEffect(()=>{
     if(navigation)tabStrip.current?.scrollChildIntoView('window-tab-'+layout.focused);
-  },[navigation,layout.focused,published.length]);
+  },[navigation,layout.workspace,layout.focused,published.length]);
   useLayoutEffect(() => windowLayout.subscribe(() => {
     if (windowLayout.snapshot().gesture) {nativeGestureHeld.current = true; return;}
     if (!nativeGestureHeld.current) return;
@@ -376,7 +376,30 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       <text selectable={false} fg={active?color.background:color.text}>{label}</text>
     </box>;
   }
-  const tabs=panes.map((pane,index)=>{
+  const stripPanes=navigation?panes.filter(pane=>layout.locations[pane.id]===layout.workspace):panes;
+  const occupied=new Set(Object.values(layout.locations));
+  const workspaceStatus=layout.error??(layout.gesture?'Drag · Esc cancel':layout.saving?'Saving layout…':navigation
+    ?width>=48?`WS ${layout.workspace} · ${navigationState.focusedLabel??'Empty workspace'}`:'* open':'');
+  const workspaceBar=<box flexDirection="row" columnGap={navigation?0:1} height={1} flexShrink={0} paddingX={1}>
+    <text fg={color.muted}>{navigation?'WS ':'WS'}</text>
+    {layout.workspaces.map(id=>{
+      const selected=id===layout.workspace,hasWindows=occupied.has(id);
+      return <box key={id} height={1} width={navigation?3:undefined} flexShrink={0}
+        paddingLeft={navigation?1:undefined} paddingX={navigation?undefined:1}
+        ref={button=>{if(button)workspaceButtons.current.set(id,button);else workspaceButtons.current.delete(id);}}
+        backgroundColor={selected?color.accent:navigation&&hasWindows?color.panel:undefined}
+        onMouseDown={event=>{
+          if(event.button===MouseButton.LEFT&&!windowLayout.snapshot().gesture)act({type:'workspace',id});
+        }}>
+        <text selectable={false} attributes={selected||navigation&&hasWindows?TextAttributes.BOLD:TextAttributes.NONE}
+          fg={selected?color.background:navigation&&hasWindows?color.text:color.muted}>
+          {String(id)+(navigation?(hasWindows?'*':' '):'')}
+        </text>
+      </box>;
+    })}
+    <text flexGrow={1} minWidth={0} truncate fg={layout.error?color.error:color.muted}>{workspaceStatus}</text>
+  </box>;
+  const tabs=stripPanes.map((pane,index)=>{
     const props={index,id:'window-tab-'+pane.id,showShortcut:!navigation,
       selected:layout.focused===pane.id&&layout.locations[pane.id]===layout.workspace,
       onSelect:()=>act({type:'open',id:pane.id})};
@@ -385,6 +408,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       :<Tab key={pane.id} label={pane.label} {...props}/>;
   });
   return <box width="100%" height="100%" backgroundColor={color.background} flexDirection="column">
+    {navigation&&workspaceBar}
     {navigation&&<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {navigationButton(width>=42?(navigationState.mode==='arrange'?'Alt+W Type':'Alt+W Arrange'):(navigationState.mode==='arrange'?'Type':'Arrange'),navigationState.mode==='arrange',()=>navigation.toggleArrange())}
       {navigationButton(width>=42?'F2 Windows':'Windows',navigationState.mode==='finder',()=>navigation.openFinder())}
@@ -392,23 +416,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     </box>}
     {navigation?<scrollbox ref={tabStrip} height={1} flexShrink={0} scrollX scrollY={false} focusable={false}
       horizontalScrollbarOptions={{visible:false}}
-      contentOptions={{flexDirection:'row',columnGap:1}}>{tabs}</scrollbox>
+      contentOptions={{flexDirection:'row',columnGap:1}}>{tabs.length?tabs:<text fg={color.muted}>No open windows · F2 Windows</text>}</scrollbox>
       :<box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>{tabs}</box>}
-    <box flexDirection="row" columnGap={1} height={1} flexShrink={0} paddingX={1}>
-      <text fg={color.muted}>WS</text>
-      {layout.workspaces.map(id => <box key={id} height={1} paddingX={1}
-        ref={button => { if (button) workspaceButtons.current.set(id, button); else workspaceButtons.current.delete(id); }}
-        backgroundColor={id === layout.workspace ? color.accent : undefined}
-        onMouseDown={event => {
-          if (event.button === MouseButton.LEFT && !windowLayout.snapshot().gesture) act({type: 'workspace', id});
-        }}>
-        <text selectable={false} attributes={id === layout.workspace ? TextAttributes.BOLD : TextAttributes.NONE}
-          fg={id === layout.workspace ? color.background : color.muted}>{String(id)}</text>
-      </box>)}
-      <text flexGrow={1} truncate fg={layout.error ? color.error : color.muted}>
-        {layout.error ?? (layout.gesture ? 'Drag · Esc cancel' : layout.saving ? 'Saving layout…' : '')}
-      </text>
-    </box>
+    {!navigation&&workspaceBar}
     <box ref={viewport} onSizeChange={measure} flexBasis={0} flexGrow={1} minHeight={0} minWidth={0}
       onMouseDown={event => pointer('down', event)} onMouseMove={event => pointer('move', event)}
       onMouseDrag={event => pointer('move', event)} onMouseUp={event => pointer('up', event)}
@@ -437,7 +447,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
                   width={width} height={height} isActive={isActive} isVisible={isVisible} />}
         </Tile>;
       })}
-      {!layout.frames.length && <text fg={color.muted}>Empty workspace · open a pane above</text>}
+      {!layout.frames.length&&<text fg={color.muted}>{navigation?'Empty workspace · F2 Windows opens or restores a window':'Empty workspace · open a pane above'}</text>}
       {navigation&&navigationState.mode==='finder'&&<box position="absolute" left={0} top={0} width={layout.width} height={layout.height} zIndex={100}
         onMouseDown={event=>{event.preventDefault();event.stopPropagation();}}
         onMouseUp={event=>event.stopPropagation()} onMouseMove={event=>event.stopPropagation()} onMouseDrag={event=>event.stopPropagation()}>

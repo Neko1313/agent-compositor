@@ -59,6 +59,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-navigation
+      - name: Check independent OpenTUI command cancellation
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-cancellation
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -98,6 +102,7 @@ jobs:
             dist/visual-opentui-app/
             dist/visual-opentui-managers/
             dist/visual-opentui-navigation/
+            dist/visual-opentui-cancellation/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

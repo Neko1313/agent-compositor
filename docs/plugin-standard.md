@@ -82,8 +82,14 @@ with five-minute deadlines, owner-scoped cancellation and shutdown cleanup.
 Hook deadlines still apply. Tools use ordinary permissions and independent
 user operations; auxiliary model usage consumes session/command budgets rather
 than the active model turn's allowance. `command.operation` reports start and
-settlement. `AgentCore.invokeCommand(text)` returns false for an unregistered
+settlement. `AgentCore.invokeCommand(text, callerSignal?)` returns false for an unregistered
 control; failures of registered controls are errors, never fallback prompts.
+The optional `AbortSignal` cancels only this invocation and its foreground tool
+and auxiliary-model work. An already-aborted caller is rejected before handler
+admission. Cancellation preserves Main and other invocations, including commands
+from the same owner; ordinary permission checks and accounting still apply.
+Explicit `$.background()` work and an already-started background exec retain their
+documented independent lifetime. Cancellation does not roll back completed effects.
 Embedders supply loaded `{name,plugin}` registrations through `userCommands`.
 `AgentCore.hasImmediateCommand(text)` checks that live owner registry without
 invoking a handler, for input dispatchers that preserve setup ordering while

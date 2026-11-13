@@ -45,12 +45,33 @@ register the catalog, install a package inactive, explicitly enable it and queue
 reload. The plugin's own storage receipt and pane establish when it actually
 loads. The scenario also keeps a deliberately closed plugin window closed across
 reload, exercises private placement Apply/Save rule/Cancel and restores the saved
-rule after a real CLI restart. `/windows` must remain a host notice without a
+rule after a real CLI restart. `/windows` must remain private host navigation without a
 model request. No fixture permission rules or live model services are used.
 Artifacts default to `dist/visual-opentui-managers/`; inspect the PNGs and report.
 Set `VISUAL_EXECUTABLE` to an executable inside a complete extracted archive for
 the same native check. The bench preserves `CI` and records native executable
 and renderer hashes.
+
+`npm run visual:opentui-navigation` checks the actual configured OpenTUI shell's
+stable Arrange mode, private native finder, protected Main questions/approvals,
+resident form/editor state and route lifetime. The scenario verifies current
+workspace window strips and cross-workspace restoration through F2, all nine
+workspace mouse targets at 38 columns, and exact saved split-tree/ratio restoration
+after restart. The separate deterministic preview retains its development keymap.
+Artifacts default to `dist/visual-opentui-navigation/`; `VISUAL_EXECUTABLE` selects
+a complete extracted native candidate rather than a source override.
+
+`npm run visual:opentui-cancellation` checks immediate commands through the actual
+configured OpenTUI CLI. Two commands from one plugin start real `/bin/sh` workers
+under exact normal permission rules. Ctrl+C in one window must settle its
+operation and kill its PID while the neighboring worker, Main's pending question,
+selected answer and draft remain intact. Main interruption must preserve the
+other command; its own Ctrl+C must then stop it. A denied third invocation must
+create no process. Plugin storage receipts, distinct journal operation IDs and a
+completed `/reload` establish settlement without injecting app or window state.
+The provider is bounded loopback HTTP; no paid model or user credentials are used.
+Artifacts default to `dist/visual-opentui-cancellation/`. Set `VISUAL_EXECUTABLE`
+to the executable inside a complete extracted archive for the same native check.
 
 `npm run visual:windows` checks the shipping Ink window controls through the
 actual PTY: finder search and cancellation, draft/cursor retention, nearest-split

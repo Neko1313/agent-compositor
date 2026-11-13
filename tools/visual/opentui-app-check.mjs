@@ -64,7 +64,8 @@ try{
     const attempt=++pointerAttempt;
     const point=await page.waitForFunction(({label,last,top,attempt})=>{
       const lines=visual.text().split('\n');
-      const rows=lines.flatMap((line,row)=>line.includes(label)&&(!top||row<lines.findIndex(line=>/^\s*WS\s/.test(line)))?[row]:[]);
+      const chromeEnd=lines.findIndex(line=>/┌[─ ]/.test(line));
+      const rows=lines.flatMap((line,row)=>line.includes(label)&&(!top||chromeEnd>=0&&row<chromeEnd)?[row]:[]);
       const row=last?rows.at(-1):rows[0];if(row===undefined){delete window.__appPointer;return;}
       const col=lines[row].indexOf(label)+Math.min(1,label.length-1);
       const rect=document.querySelector('.xterm-screen').getBoundingClientRect();

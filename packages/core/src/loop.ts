@@ -221,6 +221,10 @@ export class AgentCore {
   private readonly userOperation=new AsyncLocalStorage<UserToolOperation>();
   private readonly userOperations=new Map<string,UserToolOperation>();
   private readonly commandOperations=new Map<string,UserToolOperation>();
+  private activeUserOperation(){
+    const operation=this.userOperation.getStore();
+    return operation&&(operation.command?this.commandOperations:this.userOperations).get(operation.id)===operation?operation:undefined;
+  }
   private activeOperations(){return [...this.userOperations.values(),...this.commandOperations.values()];}
   private readonly journalSignal=new AbortController().signal;
   get hasActiveOperations():boolean{return this.userOperations.size>0||this.commandOperations.size>0;}
@@ -299,33 +303,39 @@ export class AgentCore {
       },
       // $.model.complete rides the configured provider (collected to text)
       model: {
-        complete: async (request) => {
-          let text = "";
-          for await (const ev of this.streamModel({
-            messages: request.messages as ChatMessage[],
-            tools: [],
-            profile:
-              typeof request.profile === "string" ? request.profile : undefined,
-            maxOutputTokens:
-              typeof request.maxOutputTokens === "number" &&
-              Number.isFinite(request.maxOutputTokens) &&
-              request.maxOutputTokens > 0
-                ? Math.floor(request.maxOutputTokens)
-                : undefined,
-            signal:
-              request.signal instanceof AbortSignal
-                ? AbortSignal.any([this.userOperation.getStore()?.signal??this.abort.signal, request.signal])
-                : this.userOperation.getStore()?.signal??this.abort.signal,
-          })) {
-            if (ev.type === "text_delta") text += ev.text;
-            if (text.length > 64000)
-              throw new Error("Plugin model response exceeds limit");
-            if (ev.type === "finish" && ev.reason !== "stop")
-              throw new Error(
-                ev.error ?? `Incomplete model response: ${ev.reason}`
-              );
-          }
-          return text;
+        complete: (request) => {
+          const complete = async () => {
+            const scope=this.host.currentSignal??this.activeUserOperation()?.signal??this.abort.signal;
+            const signal=request.signal instanceof AbortSignal?AbortSignal.any([scope,request.signal]):scope;
+            signal.throwIfAborted();
+            let text = "";
+            for await (const ev of this.streamModel({
+              messages: request.messages as ChatMessage[],
+              tools: [],
+              profile:
+                typeof request.profile === "string" ? request.profile : undefined,
+              maxOutputTokens:
+                typeof request.maxOutputTokens === "number" &&
+                Number.isFinite(request.maxOutputTokens) &&
+                request.maxOutputTokens > 0
+                  ? Math.floor(request.maxOutputTokens)
+                  : undefined,
+              signal,
+            })) {
+              if (ev.type === "text_delta") text += ev.text;
+              if (text.length > 64000)
+                throw new Error("Plugin model response exceeds limit");
+              if (ev.type === "finish" && ev.reason !== "stop")
+                throw new Error(
+                  ev.error ?? `Incomplete model response: ${ev.reason}`
+                );
+            }
+            signal.throwIfAborted();
+            return text;
+          };
+          // An explicit background handle must not inherit an active command's
+          // cancellation, user authorization or per-operation usage ledger.
+          return this.host.isBackgroundService ? this.userOperation.exit(complete) : complete();
         },
       },
       agent: {
@@ -422,9 +432,10 @@ export class AgentCore {
     );
     this.runtime.setResolver(
       "service.agent.tool",
-      async ({ name, args, plugin }: { name: string; args: unknown;plugin?:string }) => ({
-        value: await this.invokeUserTool(name, args,{owner:plugin,signal:this.host.currentSignal}),
-      })
+      async ({ name, args, plugin }: { name: string; args: unknown;plugin?:string }) => {
+        const invoke=()=>this.invokeUserTool(name,args,{owner:plugin,signal:this.host.currentSignal});
+        return {value:await (this.host.isBackgroundService?this.userOperation.exit(invoke):invoke())};
+      }
     );
 
     // core resolvers at the chain end; everything above them can deny/value
@@ -439,7 +450,7 @@ export class AgentCore {
       {
         root: options.cwd,
         resolvePath:(value,missing)=>this.workspace.resolve(value,{missing}),
-        signal: () => this.abort.signal,
+        signal: () => this.host.currentSignal ?? this.abort.signal,
         env: options.toolEnv,
         onBackgroundComplete:async status=>{if(!this.closed)await this.emit('shell.completed',status);},
         onFilesChanged: async (path: string) => {
@@ -659,7 +670,7 @@ export class AgentCore {
     // Preserve provenance in host state, not as an undeclared provider field.
     if(request.messages.some(message=>Object.hasOwn(message,'userRequest')))
       request={...request,messages:request.messages.map(({userRequest:_original,...message})=>message)};
-    const operation=this.userOperation.getStore();
+    const operation=this.activeUserOperation();
     if(operation)request={...request,signal:AbortSignal.any([request.signal,operation.signal])};
     if(!request.profile && this.options.modelProfile) request={...request,profile:this.options.modelProfile};
     const remaining = Math.min(
@@ -1021,19 +1032,21 @@ export class AgentCore {
   /** Inspect the currently loaded command registry without invoking a handler. */
   hasImmediateCommand(text:string):boolean{return !!this.immediateCommand(text);}
   /** Explicit user control: no prompt queue, transcript mutation or implied pane. */
-  async invokeCommand(text:string):Promise<boolean>{
+  async invokeCommand(text:string,callerSignal?:AbortSignal):Promise<boolean>{
     if(this.closed)throw Error('Session is closed');
     const command=this.immediateCommand(text);if(!command)return false;
+    callerSignal?.throwIfAborted();
     if(this.userOperation.getStore())throw Error('Nested immediate commands are not supported');
     if(text.length>64000)throw Error('Command input exceeds 64000 characters');
     if(this.commandOperations.size>=4)throw Error('Four immediate commands are already active');
-    const controller=new AbortController(),signal=controller.signal;
+    const controller=new AbortController(),signal=callerSignal?AbortSignal.any([controller.signal,callerSignal]):controller.signal;
     const op:UserToolOperation={command:true,id:randomUUID(),callId:randomUUID(),tool:command.name,owner:command.plugin,controller,signal,tools:[],messages:[],records:[],tokens:0,usage:{inputTokens:0,outputTokens:0},promise:Promise.resolve()};
     this.commandOperations.set(op.id,op);
     const timer=setTimeout(()=>controller.abort(Error('Immediate command timed out after five minutes')),300000);timer.unref();
     const work=Promise.resolve().then(()=>this.userOperation.run(op,async()=>{
       signal.throwIfAborted();
       await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'started'});
+      signal.throwIfAborted();
       const trimmed=text.trim(),args=trimmed.slice(command.name.length).trimStart();
       const result=await this.host.emit('command.invoke',{plugin:command.plugin,name:command.name,text:trimmed,args},signal);
       signal.throwIfAborted();

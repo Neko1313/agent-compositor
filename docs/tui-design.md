@@ -27,7 +27,12 @@ is under `.impeccable/critique/`; it records provenance and all ten scores.
 
 The [configured OpenTUI frontend](02-ui.md#experimental-opentui-application-frontend)
 keeps Alt+W Arrange, F2 Windows and Alt+0 Main stable as its window strip scrolls
-horizontally. Arrange names the selected window and zoom state, with exit, typing
+horizontally. Its workspace bar precedes navigation and the window strip; occupied
+workspaces carry a literal `*` marker as well as the palette distinction. Nine
+fixed-width workspace targets remain available at 38 columns. The strip contains
+only open windows on the current workspace, including collapsed tiles; the finder
+retains the complete inventory. Empty-workspace guidance points to F2. Arrange
+names the selected window and zoom state, with exit, typing
 and Windows access readable at narrow widths. Its modal input ownership protects
 resident editors and pending questions/approvals. The native finder searches only
 titles and public command names; its query is bounded to 512 UTF-16 units. Queries

@@ -111,7 +111,11 @@ history, so restarting the session cannot deliver the rejected request.
 
 `AgentCoreOptions.userCommands` supplies the currently loaded immediate user
 controls. `submit` and `steer` dispatch them outside the prompt queue;
-`invokeCommand` explicitly attempts this path and returns false if unregistered.
+`invokeCommand(text, callerSignal?)` explicitly attempts this path and returns
+false if unregistered. The optional caller `AbortSignal` cancels that invocation,
+including its foreground builtin tools and auxiliary model calls, independently
+of Main and neighboring commands from the same owner. Completed effects are not
+rolled back; explicitly detached background work retains its independent lifetime.
 Owner cancellation, auxiliary usage accounting and teardown remain independent
 of the active turn. See the [command contract](plugin-standard.md#immediate-user-commands).
 

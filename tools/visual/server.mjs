@@ -5,6 +5,7 @@ import {authorReply} from './author-sample.ts';
 import {uxTool,uxReply} from './ux-sample.ts';
 import {seedHistory,historyReply} from './history-sample.ts';
 import {seedOpenTuiNavigationFixture} from './opentui-navigation-fixture.mjs';
+import {seedOpenTuiCancellationFixture} from './opentui-cancellation-fixture.mjs';
 import {questionsSample,questionsReply} from './questions-sample.ts';
 import {markdownSample} from './markdown-sample.ts';
 import {storagePaths} from '../../packages/config/src/storage.ts';
@@ -335,9 +336,11 @@ if(process.env.VISUAL_OPENTUI_APP){
  const paths=storagePaths(cwd,{HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
  const baseUrl=`http://127.0.0.1:${server.port}/app-model/${token}/v1`;
  await mkdir(paths.state,{recursive:true});await mkdir(paths.home,{recursive:true});
+ const cancellation=process.env.VISUAL_OPENTUI_CANCELLATION?await seedOpenTuiCancellationFixture(cwd,paths):undefined;
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['network-proxy','todos','slash-commands','model-selector','provider-auth','session-manager',
   ...(process.env.VISUAL_OPENTUI_MANAGERS?['extension-manager','marketplace-manager','local-flow-probe']:[]),
-  ...(process.env.VISUAL_OPENTUI_NAVIGATION?['navigation-probe']:[])],agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
+  ...(process.env.VISUAL_OPENTUI_NAVIGATION?['navigation-probe']:[]),...(cancellation?['cancellation-probe']:[])],
+  ...(cancellation?{permissions:{rules:cancellation.rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
  await writeFile(join(paths.state,'providers.json'),JSON.stringify({profiles:{bootstrap:{type:'openai-compat',baseUrl,model:'app-start',contextWindow:65536,timeoutMs:300000}}}));
  await writeFile(join(paths.state,'model.json'),JSON.stringify('bootstrap'));
  await writeFile(join(paths.home,'credentials.json'),JSON.stringify({bootstrap:{accessToken:appBootKey}}),{mode:0o600});
@@ -347,6 +350,7 @@ if(process.env.VISUAL_OPENTUI_APP){
   ...(executable?{executable,sha256:new Bun.CryptoHasher('sha256').update(await readFile(executable)).digest('hex')}:{}),
   providerOverride:false,environmentProviderOverride:false};
  if(process.env.VISUAL_OPENTUI_NAVIGATION)appLaunch.navigation=await seedOpenTuiNavigationFixture(cwd,paths);
+ if(cancellation)appLaunch.cancellation=cancellation;
  if(process.env.VISUAL_OPENTUI_MANAGERS){
   const catalogRoot=join(cwd,'local-flow-catalog'),source=join(catalogRoot,'plugins/local-flow-probe');
   await mkdir(join(catalogRoot,'.claude-plugin'),{recursive:true});await mkdir(source,{recursive:true});

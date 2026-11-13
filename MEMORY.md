@@ -1,5 +1,74 @@
 # Project memory
 
+## Workspace-led OpenTUI shell and exact command cancellation — 2026-11-14
+
+The user reiterated that the UI should feel like an i3-style window manager.
+The configured OpenTUI shell now starts with a workspace bar: literal asterisks
+mark occupied spaces, the active space is highlighted, and all nine fixed-width
+mouse/drag targets fit at 38 columns. Its strip contains only open windows on
+the current workspace, including projected/collapsed tiles. F2 still finds
+closed windows and windows on other workspaces; empty spaces explain that path.
+The legacy deterministic preview retains its old row order, all-pane strip and
+F-key map. Resident editors, placement policy and the canonical tree are unchanged.
+Ink is still the default; use compositor --renderer opentui for this frontend.
+
+AgentCore.invokeCommand(text, callerSignal?) now propagates an exact caller's
+cancellation to its foreground builtin tools and auxiliary model. The configured
+host supplies each UI operation's signal and marks the first command publication
+busy before its route is rebound to the new window. Main and another command
+from the same owner remain independent. Pre-aborted callers and cancellation
+during command-start audit cannot enter the handler. An aborted auxiliary model
+cannot return partial text as successful handler output. Completed effects are
+not rolled back; hiding a window does not cancel its operation.
+
+Builtin resolvers now consume the effective host service signal. A host-internal
+explicit background-service scope separates retained handles from active or
+stale command ALS. Background model/tool calls keep their plugin lifetime and
+existing accounting/policy path; owner unload and close still cancel them.
+Nested ordinary handles explicitly restore ordinary service scope. Tests cover
+background requests starting both before and after command settlement, model
+provenance/usage audit, normal denial, real PID cleanup and already-started
+background exec. The plugin-facing API and event catalog are unchanged.
+
+Validation: full standalone coverage passed 1869 tests, three optional skips,
+210 files. Core/Hooks focused suites passed 290 tests; actual host integration
+passed 28. Typecheck, generation and documentation checks passed (106 pages,
+19 packages, 32 plugins). Source PTY navigation six/cancellation three passed;
+a fresh independent review inspected all 12 captures and returned ship for this
+bounded shell change. Evidence: dist/opentui-navigation-workspaces-source and
+dist/opentui-cancellation-workspaces-source. The existing offscreen selected tab
+after resize remains a minor limitation; the tile/Arrange heading identifies it.
+
+The relocated Linux archive passed all 20 native cases under CI=1: app six,
+managers five, navigation six and cancellation three, with no errors and PTY
+exit 0. Evidence: dist/opentui-workspaces-native-{app,managers,navigation,cancellation}.
+Actual worker PIDs establish that A cancellation preserves B/Main, Main
+interruption preserves B, denial starts no worker, and a real reload waits for
+the distinct command/tool IDs to settle. The complete release smoke also passed.
+No live-model service or paid model budget was used.
+
+Artifact identity: executable
+aaa29b78ca25d4100931c51cf8a74915586ff3a4a108727be9fef725666fbb05;
+renderer 9d6c4278d8e7cb77ba23a86153432f5ca18feee99b0ccd433536c3ab978480fa.
+The local PATH installation now selects the complete immutable
+main-20261114-b9e27b03c167-linux-x64 bundle. The prior b33, bc97, earlier main
+and 0.2.0 installations remain available. Reports:
+dist/opentui-workspaces-artifact.json and dist/opentui-workspaces-local-install.json.
+This is a local main build reporting 0.8.0, not a new public host release.
+
+The prior dec770b main CI/docs/release preparation passed. Native run 43494273273
+on cfe6b51 passed verification and Linux x64/arm64 plus macOS x64, but the macOS
+arm64 job was cancelled without steps; the overall run is not a successful
+four-platform matrix. New-head remote CI and native evidence still need checking.
+CI/release workflows now retain the actual cancellation gate and its artifacts.
+
+Keep the full original 1.0 goal active. Remaining frontend gates include custom
+controllers, appearance/render and wire parity, legacy conversation copies, and
+independent UI-tool approval/question inboxes. Embedded CPU onboarding and broad
+real-model/self-development quality are still open. Follow-up WM topics are a
+visible selected split/container/resize target, readable tiling below 70 columns,
+and passive first-publication focus policy. They are not implemented by this slice.
+
 ## Stable OpenTUI window navigation — 2026-11-14
 
 The active 1.0 goal remains the complete original scope. This next application

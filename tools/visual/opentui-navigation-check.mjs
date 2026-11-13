@@ -100,6 +100,18 @@ try{
   }
   async function noRequests(count){assert.equal((await completions()).length,count,'Window operations must not issue/settle model work');}
   async function noResult(tool){assert.equal((await events()).filter(event=>event.type==='tool.result'&&event.tool===tool).length,0);}
+  const paneStrip=()=>page.evaluate(()=>{const lines=visual.text().split('\n'),body=lines.findIndex(line=>/┌[─ ]/.test(line));return body>0?lines[body-1]:'';});
+  const workspaceLine=()=>page.evaluate(()=>visual.text().split('\n').find(line=>/^\s*WS\s/.test(line))??'');
+  async function workspaceClick(id){const attempt=++pointerAttempt;
+    const point=await page.waitForFunction(({id,attempt})=>{
+      const lines=visual.text().split('\n'),row=lines.findIndex(line=>/^\s*WS\s/.test(line));if(row<0)return;
+      const match=new RegExp('\\b'+id+'(?=[* ])').exec(lines[row]);if(!match)return;
+      const col=match.index,rect=document.querySelector('.xterm-screen').getBoundingClientRect();
+      const signature=[row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height].join(':'),previous=window.__navigationWorkspace;
+      if(previous?.attempt!==attempt||previous.signature!==signature){window.__navigationWorkspace={attempt,signature,count:1};return;}
+      if(++previous.count<3)return;return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};
+    },{id,attempt},{polling:'raf'});const value=await point.jsonValue();await page.mouse.click(value.x,value.y);
+  }
 
   await wait('Message Main…');launch=await json(join(output,'opentui-app-launch.json'));assert.ok(launch.navigation);
   assert.equal(launch.providerOverride,false);assert.equal(launch.environmentProviderOverride,false);
@@ -108,6 +120,16 @@ try{
     const renderer=join(dirname(launch.executable),'node_modules/@agent-compositor/renderer-opentui/index.js');report.renderer={path:renderer,sha256:hash(await readFile(renderer))};}
   await page.evaluate(()=>visual.terminal.resize(180,50));await command('/nav-panes');await wait('Navigation controls');
   await observe(layout,value=>value.registered.filter(id=>/^plugin-navigation-probe-pane\d+$/.test(id)).length===12,'All12 actual plugin panes must be registered');
+  await main();await observe(workspaceLine,line=>['1*','2*','3*'].every(value=>line.includes(value)),'The workspace bar must mark each occupied workspace');
+  const initialStrip=await paneStrip();assert.ok(initialStrip.includes('Main')&&initialStrip.includes('Navigation controls')&&initialStrip.includes('Todos'));
+  assert.ok(!initialStrip.includes('Nav pane')&&!initialStrip.includes('Заметки'),'The current strip must omit other workspace panes');
+  await pick('Navigation controls');await arrange();await key('Shift+Digit2');await key('1');await leave();await main();
+  await observe(layout,value=>location(value,'plugin-navigation-probe-control')===2&&value.windows.workspace===1,'Actual Arrange input must move controls to workspace2');
+  assert.ok(!(await paneStrip()).includes('Navigation controls'),'Moved panes must leave the current workspace strip');
+  await pick('Navigation controls');await observe(layout,value=>value.windows.workspace===2&&value.windows.focused==='plugin-navigation-probe-control','Finder must activate the cross-workspace pane');
+  const secondStrip=await paneStrip();assert.ok(secondStrip.includes('Navigation controls')&&!secondStrip.includes('Main')&&!secondStrip.includes('Todos'));
+  await capture('00-cross-workspace-controls');await arrange();await key('Shift+Digit1');await key('1');await leave();
+  await observe(layout,value=>location(value,'plugin-navigation-probe-control')===1,'Actual Arrange input must restore controls to workspace1');
   await main();await type('NAV_DRAFT_47');await key('Home');await key('ArrowRight');
   const previousContext=(await observe(layout,value=>value.windows.focused==='session','Saved focus must acknowledge the visible Main pane')).windows;
   await finder();await paste('PRIVATE_窗_47');await wait('PRIVATE_窗_47');await wait('No matching windows');
@@ -129,6 +151,7 @@ try{
   assert.equal(JSON.stringify((await layout()).windows),beforePaste);await wait('Main · Question');await wait('MAIN_QUESTION: choose deployment');await noRequests(1);await noResult('ask_user');
   const originalJournal=await sessionFiles();assert.equal(originalJournal.length,1);
   await arrange();await key('q');await leave();await observe(layout,value=>!value.windows.spaces.some(space=>leaves(space.tree).includes('session')),'Arrange q must close Main');
+  assert.ok(!/\bMain\b/.test(await paneStrip()),'The closed Main pane must leave the current workspace strip');
   await finder('Main');await wait('Closed');await capture('02-closed-main-pending');await key('Enter');await absent(finderMarker);
   const reopened=await observe(layout,value=>value.windows.focused==='session'&&value.windows.spaces.flatMap(space=>leaves(space.tree)).filter(id=>id==='session').length===1,'Saved layout must acknowledge the same reopened Main pane');
   assert.deepEqual(await sessionFiles(),originalJournal);assert.equal(reopened.windows.spaces.flatMap(space=>leaves(space.tree)).filter(id=>id==='session').length,1);
@@ -169,6 +192,10 @@ try{
 
   await page.evaluate(()=>visual.terminal.resize(48,22));await arrange();await wait('i type');await wait('Esc exit');await capture('05-arrange-48-columns');await leave();
   await page.evaluate(()=>visual.terminal.resize(38,20));await arrange();await wait('Esc exit');await wait('i type');await capture('06-arrange-38-columns');await leave();
+  const narrowTargets=(await workspaceLine()).match(/\b[1-9](?=[* ])/g);assert.deepEqual(narrowTargets,['1','2','3','4','5','6','7','8','9']);
+  await workspaceClick(9);await observe(layout,value=>value.windows.workspace===9,'The ninth workspace mouse target must remain reachable at38 columns');
+  await wait('No open windows · F2 Windows');await wait('Empty workspace');await capture('06-empty-workspace-nine-38-columns');
+  await workspaceClick(2);await observe(layout,value=>value.windows.workspace===2,'The occupied second workspace mouse target must restore its panes');await wait('Nav pane 11 refreshed');
   await finder('Заметки');await wait('WS 3');await key('Escape');await absent(finderMarker);await page.evaluate(()=>visual.terminal.resize(180,50));
   await pick('Nav pane 11');await arrange();await key('Shift+Digit1');await key('1');
   const pane='plugin-navigation-probe-pane11';await observe(layout,value=>location(value,pane)===1&&value.windows.workspace===1,'Shift+1 and1 must move/select workspace1');

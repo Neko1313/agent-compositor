@@ -431,7 +431,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
       const placement = resolvePlacement(config, owner, semantic, surface.placement ?? event.input.placement as SurfacePlacement | undefined);
       surface.placement = placement;
       publish(surface, {title: String(event.input.title), view: parsed.data,
-        busy: [...operations.values()].some(op => op.site === id)});
+        busy: [...operations.values()].some(op => op.site === id)
+          || !!(origin && live(origin) && origin.open && origin.site.startsWith('command:') && origin.owner === owner)});
       windowTitles.set(id, {title: surface.state.title, owner});
       layout.register({id, label: surface.state.title}, placement);
       if (placementAdmissions.get(id) !== owner) {
@@ -582,7 +583,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
   }
   function dispatch(command: NonNullable<ReturnType<typeof route>>, signal?: AbortSignal) {
     return runOperation(command.owner, command.site, op => command.command
-      ? op.core.invokeCommand(command.command)
+      ? op.core.invokeCommand(command.command, op.controller.signal)
       : emit(op, 'ui.press', {site: command.site, key: command.key}), undefined, 'action', true, signal);
   }
   function waitForDestination(op: Operation, signal: AbortSignal) {

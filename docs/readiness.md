@@ -435,8 +435,10 @@ Remaining frontend gates include selected replacement controllers,
 full appearance/render overrides, legacy
 conversation copies, complete wire-protocol parity and independent request
 windows for UI-tool approvals/questions that currently share Main's inbox.
-Immediate command cancellation must also propagate to its exact internal tool
-operation instead of only cancelling the surrounding UI handler.
+Immediate-command window cancellation now propagates to its exact foreground
+internal tool or auxiliary model call. Verification includes real worker PIDs,
+same-owner neighboring commands, held Main input, normal permissions and a reload
+after operation settlement; explicit background work remains independent.
 Native terminal/protocol coverage, embedded CPU onboarding and broader real-model
 self-development quality remain open. These application checks do not establish
 stable 1.0 readiness.

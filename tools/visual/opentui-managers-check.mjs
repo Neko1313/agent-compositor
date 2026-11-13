@@ -51,16 +51,16 @@ try{
         if(bottom>y){bounds={x,right,y,bottom};break;}
       }
       if(pane&&!bounds)return;
-      const header=lines.findIndex(line=>/^\s*WS\s/.test(line));
+      const header=lines.findIndex(line=>/┌[─ ]/.test(line));
       for(const[row,line]of lines.entries()){
-        if(top&&row>=header||footer&&row<lines.length-2||bounds&&(row<=bounds.y||row>=bounds.bottom||button&&row<bounds.bottom-6))continue;
+        if(top&&(header<0||row>=header)||footer&&row<lines.length-2||bounds&&(row<=bounds.y||row>=bounds.bottom||button&&row<bounds.bottom-6))continue;
         const start=bounds?.x??0,end=bounds?bounds.right+1:line.length;
         const at=line.slice(start,end).indexOf(label);if(at<0)continue;
-        const col=start+at+Math.min(1,label.length-1),signature=row+':'+col;
+        const col=start+at+Math.min(1,label.length-1),rect=document.querySelector('.xterm-screen').getBoundingClientRect();
+        const signature=[row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height].join(':');
         const previous=window.__managerPointer;
         if(previous?.attempt!==attempt||previous.signature!==signature){window.__managerPointer={attempt,signature,count:1};return;}
         if(++previous.count<3)return;
-        const rect=document.querySelector('.xterm-screen').getBoundingClientRect();
         return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};
       }
     },{label,top,pane,button,footer,attempt},{polling:'raf'});const value=await point.jsonValue();await page.mouse.click(value.x,value.y);
@@ -105,6 +105,7 @@ try{
   async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await replace(value);await key('Enter');}
   async function focusTab(label){await click(label,{top:true});}
+  async function findWindow(label){await key('F2');await wait('Search window or command…');await type(label);await key('Enter');await absent('windows · ↑↓ select · Enter open');}
   async function setZoom(enabled){
     await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
@@ -194,7 +195,7 @@ try{
   await unzoom();await main();const beforeRestart=await layout();await writeFile(join(output,'before-restart-layout.json'),JSON.stringify(beforeRestart,null,2));
   const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');
   await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0&&visual.text().includes('Main'),generation);
-  await wait('LOCAL_FLOW_PROBE_LOADED');await focusTab('Todos');await wait('0/3 complete');
+  await wait('LOCAL_FLOW_PROBE_LOADED');await findWindow('Todos');await wait('0/3 complete');
   const restored=await observe(layout,value=>value.windows.workspace===3&&location(value,todo)===3,'Saved rule must restore Todos on workspace 3');
   assert.ok(restored.registered.includes('plugin-network-proxy-network'));assert.equal(location(restored,'plugin-network-proxy-network'),undefined);
   assert.deepEqual(parseJsonc(await readFile(launch.managers.placement,'utf8')).ui.rules,savedRule.ui.rules);

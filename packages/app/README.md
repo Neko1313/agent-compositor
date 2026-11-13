@@ -193,6 +193,12 @@ for controls, private-form behavior and current migration limits. Its stable
 Alt+W Arrange, F2 Windows and Alt+0 Main controls retain resident native editors
 while windows move, close or change workspace. Search includes current forms and
 declared plugin UI routes; it stays outside model messages and journals.
+The leading workspace bar marks occupied spaces with `*`; the window strip shows
+only open windows on the current workspace. F2 also restores closed windows and
+finds windows on other workspaces.
+Ctrl+C in an immediate-command window cancels that command and its foreground
+tools or auxiliary model call, preserving Main and neighboring command windows.
+Explicit background work keeps its own lifetime; closing a window hides it.
 Ink remains the default; the following detailed controls describe that frontend.
 `--renderer` requires a TTY and is not accepted with `--plain` or `--prompt`.
 

@@ -52,6 +52,27 @@ describe("HooksHost / $ API", () => {
     await expect(background.fs.write('revoked','x')).rejects.toThrow('unloaded');expect(writes).toBe(1);
   });
 
+  it('keeps explicit background service scope across awaits without marking concurrent ordinary calls',async()=>{
+    let release=()=>{};
+    const gate=new Promise<void>(done=>{release=done;});
+    const scopes:{path:string;before:boolean;after?:boolean}[]=[];
+    runtime.setResolver('service.fs.read',async input=>{
+      const scope={path:(input as {path:string}).path,before:host.isBackgroundService,after:undefined as boolean|undefined};
+      scopes.push(scope);await gate;scope.after=host.isBackgroundService;return{value:'read'};
+    });
+    host.registerPlugin(manifest('worker'),{'ui.press':async(_e,$)=>{
+      await Promise.all([$.fs.read('ordinary'),$.background().fs.read('background')]);
+    }});
+    const work=host.emit('ui.press',{site:'worker',key:'open'});
+    try{
+      await expect.poll(()=>scopes.length).toBe(2);
+      expect(host.isBackgroundService).toBe(false);
+      release();await work;
+      expect(scopes).toEqual([{path:'ordinary',before:false,after:false},{path:'background',before:true,after:true}]);
+      expect(host.isBackgroundService).toBe(false);
+    }finally{release();}
+  });
+
   it("does not grant background capabilities to render-only or sandboxed plugins",async()=>{
     for(const trust of ['render-only','sandboxed'] as const){
       host.registerPlugin(manifest(trust,trust),{'ui.press':(_e,$)=>{$.background();}});

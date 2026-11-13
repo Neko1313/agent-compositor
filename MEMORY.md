@@ -1,5 +1,43 @@
 # Project memory
 
+## MCP streaming UTF-8 and bidirectional RPC framing — 2026-11-13
+
+1dc26fc passed CI 43412436021 on both Node versions, docs 43412435888 and
+release preparation 43412435935. The preceding goal turn made concrete progress
+in schema-preserving discovery and truthful execution errors. Continued offline
+while explicit approval for cloud replay of the saved transcript stays pending.
+
+Reproduced transport defects in isolated owner/server processes: a split UTF-8
+character was corrupted, JSON null crashed the owner, malformed RPC envelopes
+could be accepted, server requests could resolve pending client calls with a
+colliding numeric ID, and stdout EOF waited for the request timeout. The initial
+12-case reproduction failed 11 tests; valid interleaved notifications/unmatched
+responses already worked. Fixture cleanup stops all recorded local process groups.
+
+stdout now uses the stream UTF-8 decoder. Parsed RPC envelopes require version
+2.0, proper IDs and exactly one result/error; error objects require an integer
+code and string message. Requests/notifications are distinguished before response
+matching. Server ping receives an empty result, unsupported requests receive
+-32601 without executing local code, and their IDs never consume client pending
+calls. Malformed envelopes close the connection with error values, not uncaught
+event-handler exceptions. stdout EOF/error and stdin/process errors stop the
+connection; failure also releases the buffered input. Existing non-JSON log-line
+tolerance, 2,000,000-character buffer bound, request timeouts and advertised MCP
+version remain unchanged. This is not full MCP conformance or semantic validation
+of every initialize payload/capability. Protocol references checked:
+https://modelcontextprotocol.io/specification/2024-11-05/basic/messages,
+https://modelcontextprotocol.io/specification/2024-11-05/basic/utilities/ping,
+https://modelcontextprotocol.io/specification/2024-11-05/basic/transports.
+
+The final 14-case real-stdio suite additionally verifies string server IDs and
+the retained oversized-message bound; it is included in MCP's declared test
+matrix (41 passing integration tests). Full coverage: 1567 pass, three optional
+skips, 184 files. Typecheck, gen, docs:gen and docs:check pass. Updated the owning
+plugin README, with no UI, frozen event, version/catalog or changelog changes.
+No cloud model, API key, transcript egress or budget mutation. Stable 1.0, broad
+real-model self-development/quality, onboarding and OpenTUI remain incomplete;
+keep the original goal active.
+
 ## MCP schemas, explicit discovery pages and truthful tool failures — 2026-11-13
 
 43bef7d passed CI 43411227845 on both Node versions, docs 43411227445 and

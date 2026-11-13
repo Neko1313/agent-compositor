@@ -8,7 +8,8 @@
         "packages/app/test/composite-plugin.test.ts",
         "packages/app/test/storage-network.test.ts",
         "packages/app/test/mcp-lifecycle.test.ts",
-        "packages/app/test/mcp-discovery.test.ts"
+        "packages/app/test/mcp-discovery.test.ts",
+        "packages/app/test/mcp-transport.test.ts"
       ]
     }
   ],

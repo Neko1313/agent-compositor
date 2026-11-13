@@ -68,14 +68,15 @@ class McpClient {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...(cfg.env ?? {}) },
     });
-    this.proc.stdout?.on("data", (d: Buffer | string) =>
-      this.onData(d.toString())
-    );
+    this.proc.stdout?.setEncoding('utf8');
+    this.proc.stdout?.on("data", (text: string) => this.onData(text));
+    this.proc.stdout?.on('end', () => this.stop('MCP output pipe closed'));
+    this.proc.stdout?.on('error', error => this.stop(`MCP output pipe error: ${error.message}`));
     this.proc.stderr?.resume();
     this.proc.on("error", (error) =>
-      this.failAll(`MCP process error: ${error.message}`)
+      this.stop(`MCP process error: ${error.message}`)
     );
-    this.proc.stdin?.on("error", () => this.failAll("MCP input pipe closed"));
+    this.proc.stdin?.on("error", () => this.stop("MCP input pipe closed"));
     this.proc.on("exit", (code) =>
       this.failAll(`mcp server "${cfg.command}" exited (code ${code ?? "?"})`)
     );
@@ -84,6 +85,7 @@ class McpClient {
   }
 
   onData(chunk: string): void {
+    if (this.dead) return;
     this.buffer += chunk;
     if (this.buffer.length > 2000000) {
       this.stop("MCP message exceeds limit");
@@ -94,17 +96,40 @@ class McpClient {
       const line = this.buffer.slice(0, idx).trim();
       this.buffer = this.buffer.slice(idx + 1);
       if (!line) continue;
-      let msg: { id?: number; error?: { message?: string }; result?: unknown };
+      let msg: unknown;
       try {
-        msg = JSON.parse(line) as typeof msg;
+        msg = JSON.parse(line);
       } catch {
         continue; // not JSON — ignore (server logs etc.)
+      }
+      if (!isRecord(msg) || msg.jsonrpc !== '2.0') {
+        this.stop('MCP invalid JSON-RPC message envelope');
+        return;
+      }
+      const hasResult = Object.hasOwn(msg, 'result'), hasError = Object.hasOwn(msg, 'error');
+      const validId = typeof msg.id === 'string' || typeof msg.id === 'number' && Number.isInteger(msg.id);
+      if (Object.hasOwn(msg, 'method')) {
+        if (typeof msg.method !== 'string' || hasResult || hasError || (msg.params !== undefined && !isRecord(msg.params)) || (Object.hasOwn(msg, 'id') && !validId)) {
+          this.stop('MCP invalid JSON-RPC request or notification');
+          return;
+        }
+        // Requests in the opposite direction have an independent ID namespace.
+        // Never resolve a pending client call with a server request/notification.
+        if (Object.hasOwn(msg, 'id')) this.proc.stdin?.write(JSON.stringify({
+          jsonrpc: '2.0', id: msg.id,
+          ...(msg.method === 'ping' ? {result: {}} : {error: {code: -32601, message: 'Method not found'}}),
+        }) + '\n');
+        continue;
+      }
+      if (!validId || hasResult === hasError || (hasError && (!isRecord(msg.error) || !Number.isInteger(msg.error.code) || typeof msg.error.message !== 'string'))) {
+        this.stop('MCP invalid JSON-RPC response');
+        return;
       }
       if (typeof msg.id === "number" && this.pending.has(msg.id)) {
         const p = this.pending.get(msg.id)!;
         clearTimeout(p.timer);
         this.pending.delete(msg.id);
-        if (msg.error) p.reject(new Error(msg.error.message ?? "mcp error"));
+        if (hasError) p.reject(new Error((msg.error as {message: string}).message));
         else p.resolve(msg.result);
       }
     }
@@ -112,6 +137,7 @@ class McpClient {
 
   failAll(reason: string): void {
     this.dead = reason;
+    this.buffer = '';
     for (const p of this.pending.values()) {
       clearTimeout(p.timer);
       p.reject(new Error(reason));

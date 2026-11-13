@@ -46,6 +46,18 @@ in the error so the agent can inspect both text and structured diagnostics.
 Malformed call result objects or non-boolean `isError` flags fail as well.
 This distinguishes a successful JSON-RPC exchange from successful tool execution.
 
+The stdio transport preserves UTF-8 characters across byte-chunk boundaries.
+Malformed JSON-RPC envelopes fail the connection with a tool error instead of
+crashing the agent or accepting an incomplete reply. Responses require version
+`2.0`, a valid ID and exactly one result/error; error objects require an integer
+code and string message. Valid notifications and unmatched responses do not
+settle pending calls. Server-initiated requests use their own ID namespace:
+`ping` receives an empty result, and unsupported methods receive `-32601`
+without executing local operations. Closing stdout fails pending work and stops
+the connection immediately. The existing 2,000,000-character input-buffer limit
+remains in force. Non-JSON log lines remain ignored for compatibility; servers
+should send logs to stderr.
+
 ## Use
 
 This plugin is available through the default `agent-compositor` marketplace.

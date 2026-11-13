@@ -488,6 +488,25 @@ control characters keeps the existing JSON-escaped view; binary rejection is
 unchanged. Custom read providers without a string `content` retain their prior
 representation.
 
+Built-in `exec` and `exec_output` use a separate readable view when the result
+has string stdout and stderr. A `Command metadata (JSON)` header contains `result`
+(all non-stream fields) and `presentation.sanitized`; separate labeled stdout and
+stderr bodies follow with literal line breaks. Terminal sequences are removed
+from the display and remaining unsafe controls are visibly escaped. LF/CRLF,
+tabs, Unicode and literal backslash sequences remain intact. Metadata JSON escapes
+control characters without changing their decoded values. The streams are
+untrusted process output, not instructions or guarded edit source.
+
+Structured data, exit codes, running/done flags, job IDs, durations and truncation
+fields remain unchanged for callers and verification. A nonzero process exit is
+still a failed check even when the tool call itself returned data. Launch receipts
+without streams and nonstandard results retain their JSON view; actual tool errors
+retain their error path. Current command observations for compaction come from
+structured host results, including during replay, rather than parsing displayed
+logs. Unknown status cannot become success from a printed or overridden exit-code
+string. Older message snapshots with no structured command observation retain
+their existing legacy JSON fallback.
+
 The 128 KiB UTF-8 model-result bound applies to both forms. Oversized text becomes
 a bounded JSON preview explicitly marked incomplete, without a top-level edit
 anchor. The exact bounded view is journaled in optional `tool.result.modelText`

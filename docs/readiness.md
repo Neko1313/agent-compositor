@@ -336,6 +336,19 @@ live-model spending limit or interrupt the current approval-work fixes.
 
 ### Historical self-hosting repair diagnostic — 2026-11-13
 
+Follow-up command-presentation diagnostic: builtin `exec` and `exec_output` now
+send readable stream sections to the model while retaining raw structured results
+and host-derived exit-status receipts. One captured failed-test result shrinks
+from 12637 to 7090 bytes; this is a formatting measurement, not a quality or billing
+result. A fresh expanded-tool Gemma run on the same historical task made 30
+requests and changed only `plugins/todos/hooks.ts`, then stopped at the provider's
+4096-token output limit. Independent acceptance still fails six of seven checks;
+typecheck passes. All 807 baseline files, 21 local workspace aliases, frozen
+acceptance files and fixture Git HEAD were audited. This is another failed repair,
+not evidence of self-development readiness. Retained artifacts are under
+`dist/self-host-readable/`. Next investigate bounded recovery from output
+truncation without executing incomplete tool calls or enlarging the task budget.
+
 Compositor was asked to repair the actual Todo scope/status defects in an isolated
 f1557fb source snapshot, with the two immutable acceptance files from the later
 manual repair. Workspace dependency aliases point into that snapshot, preventing

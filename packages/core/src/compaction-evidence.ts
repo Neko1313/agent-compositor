@@ -8,6 +8,17 @@ type Observation={tool:'read';path:string;offset:number;characters:number;trunca
 const short=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=512;
 const integer=(value:unknown):value is number=>Number.isSafeInteger(value)&&Number(value)>=0;
 
+/** Derive command receipts from structured results, independently of display text. */
+export function toolObservationMetadata(tool:string,ok:boolean,output:unknown):Record<string,unknown>|undefined {
+ if(!['read','write','edit','exec'].includes(tool))return;
+ const metadata:Record<string,unknown>={ok};
+ if(tool==='exec'&&ok){
+  const value=output as any;
+  metadata.command={...(Number.isSafeInteger(value?.exitCode)?{exitCode:value.exitCode}:{}),...(value?.started===true&&typeof value.shellId==='string'?{started:true}:{})};
+ }
+ return metadata;
+}
+
 /** Only host-created receipt messages are replaceable; ordinary text is never parsed. */
 export function isCompactionEvidence(message:ChatMessage):boolean{
  return message.role==='user'&&message.origin==='harness'&&message.content.startsWith(prefix)
@@ -26,8 +37,10 @@ function validate(value:any):Observation|undefined{
  }
 }
 
-function observation(call:ChatToolCall,text:string):Observation|undefined{
+function observation(call:ChatToolCall,text:string,reported:any):Observation|undefined{
  const args=call.args as any;let result:any;
+ if(call.name==='exec'&&reported.command&&typeof reported.command==='object')
+  return validate({tool:'exec',command:args?.command,exitCode:reported.command.exitCode,started:reported.command.started});
  const marker='\n\nFile content (verbatim):\n',index=text.indexOf(marker);
  try{
   if(call.name==='read'&&text.startsWith('Read metadata (JSON):\n')&&index>=0){
@@ -61,7 +74,8 @@ export function compactionEvidence(messages:readonly ChatMessage[],maxTokens:num
   for(const call of message.toolCalls??[])calls.set(call.id,call);
   if(message.role==='tool'&&message.toolCallId){
    const call=calls.get(message.toolCallId);calls.delete(message.toolCallId);
-   if(call&&call.name===message.name&&(message.metadata?.compositorToolResult as any)?.ok===true){const entry=observation(call,message.content);if(entry)add(entry);}
+   const reported=message.metadata?.compositorToolResult as any;
+   if(call&&call.name===message.name&&reported?.ok===true){const entry=observation(call,message.content,reported);if(entry)add(entry);}
   }
  }
  const observations=[...entries.values()];

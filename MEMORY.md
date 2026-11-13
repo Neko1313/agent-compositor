@@ -1,5 +1,43 @@
 # Project memory
 
+## Readable command streams with independent status receipts — 2026-11-13
+
+Builtin exec/exec_output now attach a modelText projection: JSON metadata followed
+by literal stdout/stderr sections marked as untrusted process output. Strip terminal
+escape sequences and visibly escape remaining unsafe controls; retain Unicode,
+newlines, tabs and literal backslash sequences. Raw output/status/duration/job
+metadata remains unchanged. Background launch and nonstandard outputs retain the
+legacy JSON path. The existing 128 KiB model-text limit still applies. Command
+compaction receipts use structured host status, including after journal replay,
+so display text cannot forge success when raw status is missing or nonzero.
+Old journals remain compatible. No event catalog or renderer contract changed.
+
+All 1415 tests pass (three optional skips, 173 files), including 11 new tests for
+controls, projection/raw separation, bounded output, failure receipts, legacy
+replay and resumed sessions; typecheck passes. Canonical core-customization and
+agent-features guides explain the behavior. This backend change needs no PTY
+rendering check. The separate btw synchronization commit d4750f6 passed CI
+43388184701 on both Node versions, docs 43388184762 and preparation 43388184801.
+docs:gen, docs:check (including executable examples and site build), docs:impact
+and diff whitespace checks pass. The impact map also flags architecture and
+workspaces-and-web: their execution boundaries, workspace selection and journal
+contracts are unchanged; presentation details belong in core-customization.
+
+Captured actual failed-test output projects from 12637 JSON bytes to 7090 bytes;
+heuristic tokens 3315 to 1928. This single-output measurement establishes neither
+billing savings nor model-quality improvement. Fresh isolated historical repair
+in /tmp/compositor-selfhost-RcnWsY: zero-model expanded-tool preflight passes,
+negative control 6F/1P, separate manual reference 7P. Live gemma4:31b-cloud through
+loopback Ollama made 30 requests, then failed with output/context limit; final
+output usage was 4096 tokens. It changed only plugins/todos/hooks.ts; independent
+acceptance remains 6F/1P, types pass. Audit checks 807 baseline hashes, all 21
+workspace aliases, frozen files and unchanged Git HEAD. Artifacts and partial
+patch remain under dist/self-host-readable. No repair success is claimed.
+No OpenAI request or spending-guard change; Ollama billing is unavailable.
+Next investigate bounded output-truncation recovery without executing partial
+tool calls. Broad model quality, self-development, onboarding, OpenTUI and 1.0
+remain incomplete.
+
 ## Synchronize btw's held-stream fixture with an actual event — 2026-11-13
 
 0e03507 documentation 43385528494 and release preparation 43385528500 passed.

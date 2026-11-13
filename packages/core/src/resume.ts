@@ -1,6 +1,7 @@
 import type { ChatMessage, ChatToolCall } from "./provider.js";
 import type { SessionEvent } from "@agent-compositor/session";
 import {modelToolText} from './tool-text.js';
+import {toolObservationMetadata} from './compaction-evidence.js';
 
 /**
  * Replay a persisted session's event roll back into a model-ready message
@@ -108,7 +109,7 @@ export function replayTranscript(
         const ok = event.ok === true;
         messages.push({
           role: "tool",
-          ...(['read','write','edit','exec'].includes(String(event.tool))?{metadata:{compositorToolResult:{ok}}}:{}),
+          ...(['read','write','edit','exec'].includes(String(event.tool))?{metadata:{compositorToolResult:toolObservationMetadata(String(event.tool),ok,event.output)}}:{}),
           toolCallId:
             typeof event.callId === "string"
               ? event.callId

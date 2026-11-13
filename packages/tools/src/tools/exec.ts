@@ -1,4 +1,5 @@
 import type { ToolContext, ToolResult, ToolSpec } from "../types.js";
+import {commandModelText} from '../command-text.js';
 
 export interface ExecArgs {
   command: string;
@@ -44,7 +45,8 @@ export const execTool: ToolSpec<ExecArgs, ExecOutcome> = {
         env: args.env,
         background: args.background,
       });
-      return { ok: true, data: outcome };
+      const modelText=commandModelText(outcome);
+      return { ok: true, data: outcome,...(modelText===undefined?{}:{modelText}) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
@@ -83,7 +85,8 @@ export const execOutputTool: ToolSpec<ShellJobArgs, ShellJobOutcome> = {
   async execute(ctx, args): Promise<ToolResult<ShellJobOutcome>> {
     try {
       const outcome = await ctx.request<ShellJobOutcome>("service.shell.execOutput", { id: args.id });
-      return { ok: true, data: outcome };
+      const modelText=commandModelText(outcome);
+      return { ok: true, data: outcome,...(modelText===undefined?{}:{modelText}) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }

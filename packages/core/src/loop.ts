@@ -1,7 +1,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {QueryProgress,queryObservation} from './query-progress.js';
 import {modelToolText} from './tool-text.js';
-import {compactionEvidence,isCompactionEvidence} from './compaction-evidence.js';
+import {compactionEvidence,isCompactionEvidence,toolObservationMetadata} from './compaction-evidence.js';
 import {
   optionLabel, questionSchema, questionnaireSchema, validateQuestionnaireResult,
   type UserQuestionRequest, type UserQuestionAnswer,
@@ -1897,7 +1897,7 @@ export class AgentCore {
       toolCallId: call.id,
       name: call.name,
       content: text,
-      ...(['read','write','edit','exec'].includes(call.name)?{metadata:{compositorToolResult:{ok:error===undefined}}}:{}),
+      ...(['read','write','edit','exec'].includes(call.name)?{metadata:{compositorToolResult:toolObservationMetadata(call.name,error===undefined,result)}}:{}),
     });
   }
 

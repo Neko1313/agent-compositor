@@ -324,7 +324,11 @@ the optional [background-jobs plugin](../plugins/background-jobs/README.md) to
 subscribe automatically: process completion queues one agent follow-up after the
 current turn, or a user-only notification. No model requests are made merely to
 wait. The user can keep chatting; logs and cancellation remain guarded through
-`exec_output` and `exec_kill`. These are live-session jobs; session close stops
+`exec_output` and `exec_kill`. String stdout/stderr are shown to the model as
+separate readable streams with exit/job metadata. Display-only terminal cleanup
+does not alter raw results or verification; running jobs remain unfinished. See
+[model-facing tool text](core-customization.md#model-facing-tool-text).
+These are live-session jobs; session close stops
 them, and a single-shot headless command does not become a daemon.
 
 Headless execution reports a host interruption as unsuccessful (exit code 1) in

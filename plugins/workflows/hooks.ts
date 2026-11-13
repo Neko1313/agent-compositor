@@ -6,6 +6,21 @@ import type { UiTextView } from "@agent-compositor/events";
 import {workflowView,initialViewState,stageAction,type WorkflowViewState} from './view.js';
 
 type Run = { id: string; steps: { prompt: string; result: string }[] };
+// Reject superseded renders and drain submitted frames at the close boundary.
+type RenderState={revision:number;tail:Promise<void>};
+type RenderToken={owner:RenderState;revision:number};
+function renderState($:HooksApi):RenderState {
+  let state=$.state.get<RenderState>('renderLifecycle');
+  if(!state){state={revision:0,tail:Promise.resolve()};$.state.set('renderLifecycle',state);}
+  return state;
+}
+const current=($:HooksApi,token:RenderToken)=>!$.signal.aborted&&$.state.get('open')!==false&&token.owner.revision===token.revision;
+async function publish($:HooksApi,token:RenderToken,view:UiTextView,placement:Parameters<HooksApi['ui']['view']>[3]){
+  if(!current($,token))return;
+  const work=token.owner.tail.then(async()=>{if(current($,token))await $.ui.view('runs','Workflows',view,placement);});
+  token.owner.tail=work.catch(()=>{});
+  await work;
+}
 async function runs($: HooksApi): Promise<Run[]> {
   const root = join(
     $.storage?.paths?.state ?? join($.session.cwd, ".agent-compositor"),
@@ -34,9 +49,10 @@ async function runs($: HooksApi): Promise<Run[]> {
   }
   return result.slice(-100).reverse();
 }
-async function showLegacy($: HooksApi): Promise<void> {
-  const list = await runs($),
-    selected = Math.min(
+async function showLegacy($: HooksApi,token:RenderToken): Promise<void> {
+  const list = await runs($);
+  if(!current($,token))return;
+  const selected = Math.min(
       $.state.get<number>("selected") ?? 0,
       Math.max(0, list.length - 1)
     );
@@ -75,9 +91,7 @@ async function showLegacy($: HooksApi): Promise<void> {
           { text: step.result.slice(0, 2000), tone: "muted" as const },
         ])),
   ];
-  await $.ui.view(
-    "runs",
-    "Workflows",
+  await publish($,token,
     { lines },
     { site: "inspector", size: 0.35, focus: false }
   );
@@ -89,15 +103,19 @@ function context($:HooksApi){$=$.background();return{sessionId:$.session.id,sign
 const viewState=($:HooksApi):WorkflowViewState=>({...initialViewState,...$.state.get<WorkflowViewState>('overview')});
 function updateView($:HooksApi,patch:Partial<WorkflowViewState>){$.state.set('overview',{...viewState($),...patch});}
 async function show($:HooksApi,focus=false){
+  if($.state.get('open')===false||$.signal.aborted)return;
+  const owner=renderState($),token={owner,revision:++owner.revision};
   const engine=engineFor(context($));await engine.load();
-  if($.state.get('legacyView')||!engine.runs.size)return showLegacy($);
-  if(!$.ui.supports?.('table'))return showText($);
-  await $.ui.view('runs','Workflows',workflowView([...engine.runs.values()].reverse(),viewState($),$.ui.supports?.('tabs')===true),{site:'inspector',size:.4,focus});
+  if(!current($,token))return;
+  if($.state.get('legacyView')||!engine.runs.size)return showLegacy($,token);
+  if(!$.ui.supports?.('table'))return showText($,token);
+  await publish($,token,workflowView([...engine.runs.values()].reverse(),viewState($),$.ui.supports?.('tabs')===true),{site:'inspector',size:.4,focus});
 }
-async function showText($:HooksApi){
+async function showText($:HooksApi,token:RenderToken){
   const engine=engineFor(context($));await engine.load();
+  if(!current($,token))return;
   const list=[...engine.runs.values()].reverse();
-  if(!list.length)return showLegacy($);
+  if(!list.length)return showLegacy($,token);
   const id=$.state.get<string>('runId'),run=list.find(r=>r.id===id)??list[0];
   $.state.set('runId',run.id);
   const selected=$.state.get<string>('stageId'),stage=run.stages.find(s=>s.id===selected);
@@ -110,7 +128,7 @@ async function showText($:HooksApi){
     ...(stage?[{text:'',},{text:`Stage: ${stage.title??stage.id}`,bold:true},{text:`Agent: ${stage.agentId??'not started'}`,tone:'muted'},{text:`Depends on: ${(stage.dependsOn??[]).join(', ')||'none'}`,tone:'muted'},...(['failed','stopped'].includes(stage.status!)?[{text:'[ Retry selected stage ]',action:'retry',tone:'accent'}]:[]),{text:stage.prompt},{text:stage.error??stage.output??'Waiting for a result',tone:stage.error?'danger':'text'}]:[]),
     {text:'[ Legacy Python journals ]',action:'legacy',tone:'muted'},
   ];
-  await $.ui.view('runs','Workflows',{lines},{site:'inspector',size:.4,focus:false});
+  await publish($,token,{lines},{site:'inspector',size:.4,focus:false});
 }
 async function watch($:HooksApi){
   $=$.background();
@@ -146,14 +164,14 @@ export default {
   },
   "ui.press": async (event: { site: string; key: string }, $: HooksApi) => {
     if (event.site !== "plugin-workflows-runs") return;
-    if(event.key==='close'){$.state.set('open',false);return;}
+    if(event.key==='close'){$.state.set('open',false);const rendering=renderState($);rendering.revision++;await rendering.tail;return;}
     if(event.key.startsWith('command:')){
       if(event.key!=='command:/workflows'){await $.ui.notify('Usage: /workflows','warn');return;}
       $.state.set('open',true);await watch($);await show($,true);return;
     }
     const engine=engineFor(context($));await engine.load();
     if(event.key==='refresh')await engine.refresh();
-    if(event.key==='legacy'){$.state.set('legacyView',true);await showLegacy($);return;}
+    if(event.key==='legacy'){$.state.set('legacyView',true);await show($);return;}
     if(event.key==='dynamic'){$.state.delete('legacyView');await show($);return;}
     const semantic=$.ui.supports?.('table')===true;
     if(semantic){

@@ -10,6 +10,12 @@ pause/resume/retry/stop. The tool and UI share the selected
 `service.workflow.run` provider, including separately bundled releases.
 Start returns immediately; the conversation stays usable.
 
+Closing the workflow view leaves its stages running. Pending renders are
+invalidated and any already-submitted publication settles before close returns;
+background updates cannot reopen the view or replace a newer render. Reopen
+`/workflows` to inspect current state. Use the explicit Stop workflow action to
+cancel work.
+
 New runs default to `completion: "wake"`: completion or failure queues one
 follow-up in the agent session that started the run, after its current turn.
 The parent can finish its turn or keep talking with the user instead of polling.

@@ -263,6 +263,17 @@ with three optional skips. These checks establish bounded tool behavior, not
 general model competence. See [evaluation guidance](evals.md) and
 [release verification](releases.md).
 
+### Workflow close boundary regression — 2026-11-13
+
+The prepared 0.8.0 source candidate exposed an asynchronous workflow render
+arriving after its view was closed. Render revisions now reject stale work and
+close waits for already-submitted publications. A deterministic regression and
+the required real PTY scenario verify background workers completing while the
+view stays closed, followed by explicit reopening. Source and compiled Linux
+scenarios pass, as do 1313 tests, types, documentation checks and eight installed
+runtime probes. These are local controlled checks; refreshed release CI and
+publication remain required. They do not establish broad model quality or 1.0.
+
 ### Planned OpenTUI migration — 2026-11-13
 
 The user explicitly requested adding migration to OpenTUI to the plan. OpenTUI

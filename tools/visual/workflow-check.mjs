@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import { resolve,join,dirname } from 'node:path';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -39,7 +39,24 @@ try{
  await submit('/workflow-proof');await wait('Dynamic workflows');await click('Workflows');await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Workflows'));
  await wait('Progress');await click('+ Repository audit proof');await click('[ Inspect stages ]');await stageState('Inspect tests','running');await shot('01-running.png');
  await click('[ Pause scheduling ]');await wait('Repository audit proof · paused');await shot('02-paused.png');
- await submit('/workflow-release');await click('Workflows');await stageState('Inspect tests','completed');await stageState('Inspect source','completed');await stageState('Verify combined result','pending');
+ await click('[x]');await page.waitForFunction(()=>!visual.text().split('\n').some(line=>line.includes('│ Workflows')));
+ await submit('/workflow-release');
+ const until=Date.now()+15000;let workersSettled=false;
+ while(Date.now()<until){
+  const directory=join(loaded.state,'workflows','runs');
+  for(const file of await readdir(directory).catch(()=>[])){
+   if(!file.endsWith('.json'))continue;const run=JSON.parse(await readFile(join(directory,file),'utf8'));
+   const workers=run.stages.filter(stage=>['Inspect tests','Inspect source'].includes(stage.title));
+   if(run.title==='Repository audit proof'&&run.status==='paused'&&workers.length===2&&workers.every(stage=>stage.status==='completed'))workersSettled=true;
+  }
+  if(workersSettled)break;await new Promise(done=>setTimeout(done,20));
+ }
+ assert.ok(workersSettled,'Workers must finish while their workflow view is closed');
+ assert.equal(await page.evaluate(()=>visual.text().split('\n').some(line=>line.includes('│ Workflows'))),false,'Background updates must not reopen the workflow view');
+ await shot('02a-closed-after-workers.png');report.checks.push('workflow.closed-during-update');
+ await submit('/workflows');await wait('Dynamic workflows');await click('Workflows');
+ if(!await page.evaluate(()=>visual.text().includes('FULLSCREEN')))await page.keyboard.press('Alt+f');
+ await stageState('Inspect tests','completed');await stageState('Inspect source','completed');await stageState('Verify combined result','pending');
  await click('[ Resume workflow ]');await wait('Repository audit proof · completed');await click('+ Verify combined result');await wait('Combined verification complete');await shot('03-completed.png');
  report.checks.push('Actual workflow tool dynamically expands two parallel workers; mouse pause prevents the downstream stage from starting; resume joins results and exposes detail');
  report.checks.push('workflow.expand-join','workflow.pause-resume','workflow.result-detail');

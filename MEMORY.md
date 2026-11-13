@@ -1,5 +1,27 @@
 # Project memory
 
+## Workflow close/render race fixed before 0.8.0 publication — 2026-11-13
+
+Candidate 4b40b78 is superseded: source CI 43333612935 exposed a workflow
+publication arriving after close returned. Render revisions now invalidate stale
+work after asynchronous loads; publications are serialized and close drains the
+already-submitted frame. Background worker completion leaves the view closed;
+explicit /workflows reopens current state. Worker execution is unaffected.
+A deterministic deferred-publication regression failed before the fix and passes
+after it. Full coverage passes 1313 tests with three optional skips; typecheck
+and docs:check pass. The real source and compiled PTY scenarios now require
+closing during two worker completions, explicit reopening and the existing
+pause/resume/detail/narrow/restart flow. Both pass; compiled checks use six
+loopback requests and zero paid requests. Closed, completed and narrow native
+screenshots were inspected. All eight installed-runtime probes also pass.
+Evidence: dist/release-0.8.0-workflow-fix and
+dist/first-run/release-next-workflow-*.log. The archive contains changed external
+workflow hooks (SHA 29c20c087bf3108afbfcfe97297b12326b9aaba9425fb301207f7ef214d4e20a);
+the host binary SHA alone is unchanged and cannot identify this plugin fix.
+Plugin release metadata must be generated after the Conventional Commit; do not
+hand-bump versions. Refreshed clean-source/native CI and tagged publication are
+still required. No 0.8 tag or public release is claimed by these local checks.
+
 ## Prepare the 0.8.0 host release — 2026-11-13
 
 Generated release PR9 at 7797de5 was independently reproduced from clean a66fcc3

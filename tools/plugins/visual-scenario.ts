@@ -19,7 +19,7 @@ await withCandidate(ctx,async directory=>{
   const workflowOutput=join(ctx.output,'workflow-pty');
   await runBounded('node',['tools/visual/workflow-check.mjs'],{cwd:process.cwd(),env:{...process.env,VISUAL_PLUGIN_DIR:directory,VISUAL_OUTPUT:workflowOutput},timeout:150000,maxBuffer:2000000});
   const workflow=JSON.parse(await readFile(join(workflowOutput,'report.json'),'utf8'));assert.equal(workflow.ok,true);assert.deepEqual(workflow.errors,[]);
-  for(const id of ['workflow.expand-join','workflow.pause-resume','workflow.result-detail','workflow.table.keyboard','workflow.table.filter','workflow.table.narrow','workflow.tabs.keyboard','workflow.tabs.pointer'])assert.ok(workflow.checks.includes(id),'Missing workflow table observation: '+id);
+  for(const id of ['workflow.expand-join','workflow.pause-resume','workflow.result-detail','workflow.table.keyboard','workflow.table.filter','workflow.table.narrow','workflow.tabs.keyboard','workflow.tabs.pointer','workflow.closed-during-update'])assert.ok(workflow.checks.includes(id),'Missing workflow table observation: '+id);
   const identity=JSON.parse(await readFile(join(workflowOutput,'fixture-identity.json'),'utf8'));assert.equal(identity.directory,directory);assert.equal(identity.plugin,name);assert.equal(identity.version,ctx.identity.version);
  }
 });

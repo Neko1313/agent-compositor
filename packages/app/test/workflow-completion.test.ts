@@ -6,7 +6,7 @@ import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 import {WorkflowEngine} from '../../../plugins/workflows/engine.js';
 import {workflowView,stageAction,initialViewState} from '../../../plugins/workflows/view.js';
 import {uiTextViewSchema} from '@agent-compositor/events';
-import workflowHooks from '../../../plugins/workflows/hooks.js';
+import workflowHooks,{dispose as disposeWorkflowViews} from '../../../plugins/workflows/hooks.js';
 const roots:string[]=[],apps:Awaited<ReturnType<typeof buildApp>>[]=[];
 afterEach(async()=>{for(const app of apps.splice(0))await app.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
 async function temp(){const root=await mkdtemp(join(tmpdir(),'workflow-completion-'));roots.push(root);return root;}
@@ -64,6 +64,19 @@ it('navigates live workflow tables without model requests and keeps a closed vie
  oldHost.ui.supports=(feature:string)=>feature==='table';
  await workflowHooks['ui.press']({site:'plugin-workflows-runs',key:'command:/workflows'},oldHost);
  expect(legacy.table).toBeDefined();expect(Object.hasOwn(legacy,'tabs')).toBe(false);
+});
+it('settles an already-started workflow publication before close returns and drops late refreshes',async()=>{
+ const cwd=await temp(),state=new Map<string,unknown>(),views:unknown[]=[];let entered!:()=>void,release!:()=>void;
+ const enteredView=new Promise<void>(done=>{entered=done;}),gate=new Promise<void>(done=>{release=done;}),controller=new AbortController();let hold=false;
+ const api:any={signal:controller.signal,session:{cwd,id:'close-'+cwd},storage:{paths:{state:cwd,project:cwd},config:async()=>({})},state:{get:(key:string)=>state.get(key),set:(key:string,value:unknown)=>state.set(key,value),delete:(key:string)=>state.delete(key)},background:()=>api,ui:{supports:()=>true,view:async(_id:string,_title:string,view:unknown)=>{if(hold){entered();await gate;}views.push(view);}}};
+ const press=(key:string)=>workflowHooks['ui.press']({site:'plugin-workflows-runs',key},api);
+ let refreshing:Promise<unknown>|undefined,closing:Promise<unknown>|undefined;
+ try{
+  await press('command:/workflows');hold=true;refreshing=press('refresh');await enteredView;
+  let closed=false;closing=press('close').then(()=>{closed=true;});await new Promise(done=>setImmediate(done));expect(closed).toBe(false);
+  release();await Promise.all([refreshing,closing]);const count=views.length;await press('refresh');expect(views).toHaveLength(count);
+  hold=false;await press('command:/workflows');expect(views).toHaveLength(count+1);
+ }finally{release();await Promise.allSettled([refreshing,closing]);controller.abort();await disposeWorkflowViews();}
 });
 it('paginates all 500 stages and preserves large results in schema-valid expandable detail lines',()=>{
  const stages=Array.from({length:500},(_,index)=>({id:'stage-'+index,prompt:'p'.repeat(16000),status:'completed' as const,output:'o'.repeat(64000)}));

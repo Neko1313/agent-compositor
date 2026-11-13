@@ -144,6 +144,19 @@ and asks for a real replacement. Unguarded whitespace fallback remains available
 equal literals can legitimately normalize differently spaced source, and the
 resolver still rejects replacements that leave the actual file unchanged.
 
+Malformed `edit.range` objects and a missing hash for a guarded range also fail
+before permission review or file access. Ranges require non-negative safe integer
+`start`/`end` offsets with `end >= start`; they use UTF-16 code units with an
+exclusive end, unlike `read.offset`/`limit`, which use lines. Copy the returned
+anchor rather than calculating offsets from displayed line numbers. JSON-encoded
+range strings are rejected rather than coerced. Corrected calls still require
+ordinary authorization. After a fresh hash is checked, the resolver distinguishes
+zero exact matches, multiple exact matches and an out-of-bounds range. Errors
+report counts/bounds without quoting source or searching outside the selected
+range. Rejections neither write nor create an undo entry; they do not widen the
+range, drop guards or select a replacement automatically. A successful edit
+invalidates the earlier snapshot hash, so later edits may require a fresh read.
+
 ### Permission previews
 
 `tool_help` accepts `name` plus optional `preview` containing proposed arguments:

@@ -556,6 +556,9 @@ different actual spacing. All unchanged file results remain errors. See
 [tool argument admission](core-customization.md#tool-argument-admission).
 
 A missing hash is reported separately from invalid offsets, including for insertions;
+malformed ranges and missing range hashes fail before approval or file access.
+Offsets are UTF-16 code units, end exclusive, not line numbers. Match errors
+distinguish zero matches, multiple matches and bounds beyond the snapshot;
 copy the complete fresh anchor before retrying. The runtime never fills in a
 hash or drops the range automatically. Stale hashes still require a new read,
 and rejected edits do not change the file or add an undo entry. See

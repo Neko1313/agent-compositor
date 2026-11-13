@@ -29,6 +29,12 @@ export function editArgumentError(args:EditArgs):string|undefined {
   if(typeof args.newText!=='string')return'edit.newText must be a string containing the intended replacement.';
   if(args.oldText===args.newText&&(args.strict===true||args.expectedHash!==undefined||args.range!==undefined))
     return'edit.newText is identical to edit.oldText. This exact edit would leave text unchanged. Supply replacement text that implements the intended change; do not repeat identical arguments. No file was read or changed.';
+  if(args.range!==undefined){
+    const range=args.range;
+    if(!range||typeof range!=='object'||Array.isArray(range)||!Number.isSafeInteger(range.start)||!Number.isSafeInteger(range.end)||range.start<0||range.end<range.start)
+      return'edit.range must be an object with non-negative safe integer start/end offsets, with end >= start. Offsets are UTF-16 code units, end exclusive, not line numbers or a JSON-encoded string. Copy the range from the current read/read_symbol edit anchor. No file was read or changed.';
+    if(!args.expectedHash)return'edit: guarded range requires expectedHash. Copy the complete edit anchor (path, expectedHash, range, strict) from read/read_symbol; re-read if the snapshot may have changed.';
+  }
 }
 
 /**

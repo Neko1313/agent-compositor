@@ -8,6 +8,28 @@ const cores:AgentCore[]=[],roots:string[]=[];
 afterEach(async()=>{for(const core of cores.splice(0))await core.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
 async function fixture(){const cwd=await mkdtemp(join(tmpdir(),'tool-validation-'));roots.push(cwd);return cwd;}
 
+it.each(['{"start":1,"end":2}',null,[],{start:1.5,end:2},{start:-1,end:2},{start:3,end:2},{start:0},{start:0,end:Number.MAX_SAFE_INTEGER+1}])('rejects malformed edit ranges before approval or file services: %j',async range=>{
+ const cwd=await fixture();let reviewed=0,asked=0,files=0;
+ const core=new AgentCore({cwd,provider:new ScriptedProvider([]),permissionReview:async()=>{reviewed++;return{};},onApproval:async()=>{asked++;return false;}});cores.push(core);
+ core.host.registerPlugin({name:'measure-range',version:'1.0.0',trust:'trusted'},{'service.file.edit':()=>{files++;}});
+ const args={path:'missing.ts',oldText:'old',newText:'new',range,expectedHash:'0'.repeat(64)};
+ const before=structuredClone(args);
+ for(const [tool,input] of [['edit',args],['tool_help',{name:'edit',preview:args}]] as const)
+  expect(await core.invokeTool(tool,input)).toMatchObject({ok:false,error:expect.stringMatching(/edit.range.*UTF-16/)});
+ expect(args).toEqual(before);expect({reviewed,asked,files}).toEqual({reviewed:0,asked:0,files:0});
+});
+
+it('rejects a missing range hash without asking, then reviews a corrected guarded call normally',async()=>{
+ const cwd=await fixture();let asked=0,files=0;
+ const core=new AgentCore({cwd,provider:new ScriptedProvider([]),onApproval:async()=>{asked++;return false;}});cores.push(core);
+ core.host.registerPlugin({name:'measure-hash',version:'1.0.0',trust:'trusted'},{'service.file.edit':()=>{files++;}});
+ const args={path:'missing.ts',oldText:'old',newText:'new',range:{start:0,end:3}};
+ expect(await core.invokeTool('edit',args)).toMatchObject({ok:false,error:expect.stringContaining('guarded range requires expectedHash')});
+ expect(asked).toBe(0);
+ expect(await core.invokeTool('edit',{...args,expectedHash:'0'.repeat(64)})).toMatchObject({ok:false,error:expect.stringContaining('denied')});
+ expect({asked,files}).toEqual({asked:1,files:0});
+});
+
 it.each([{strict:true},{expectedHash:'0'.repeat(64)},{range:{start:0,end:4}}])('rejects certain no-op edits before review/approval/file services: %j',async anchor=>{
  const cwd=await fixture();let reviewed=0,asked=0,files=0,checks=0;
  const core=new AgentCore({cwd,provider:new ScriptedProvider([]),permissionReview:async()=>{reviewed++;return{};},onApproval:async()=>{asked++;return false;}});cores.push(core);

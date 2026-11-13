@@ -362,6 +362,27 @@ not task-quality improvement. Next investigate the observed edit-argument,
 ambiguous-match and stale-snapshot failures and verify complete repairs. Stable
 1.0, broader model coverage, onboarding and OpenTUI remain incomplete.
 
+Guarded-edit feedback follow-up: malformed ranges/missing guarded hashes now fail
+before approval, and match errors distinguish counts/bounds with explicit UTF-16
+units. Replaying three saved failures on original source confirms that their
+`oldText` matches once when the original read range is retained; operator replay
+is not a model repair. In a fresh Gemma condition the original seven checks reach
+6P/1F with types passing, but the 60-step turn still fails (73 requests). A separate
+bounded continuation also fails at 60 steps (72 more requests), retaining 6P/1F.
+The remaining original failure is project-specific Todos persistence. These are
+partial results, not successful self-development or a causal quality comparison.
+Both episodes audit all 807 tracked files against allowed changes and preserve
+original acceptance files, configuration, Git HEAD and 21 local dependency aliases; see
+`dist/self-host-edit-feedback/`.
+
+The model's patch also hardcodes some invalid-field indices. A separate ten-case
+audit of the original exact-field requirement passes only three cases on that
+patch and all ten on the independent reference. These are separately maintained
+regressions in `packages/app/test/task-plan-validation.test.ts`; they do not alter
+the frozen seven-test diagnostic score. Complete repair must satisfy the actual
+input-validation requirement, not only those seven examples. Repeated invented
+edit ranges and incomplete/generalized repairs remain next investigation targets.
+
 Compositor was asked to repair the actual Todo scope/status defects in an isolated
 f1557fb source snapshot, with the two immutable acceptance files from the later
 manual repair. Workspace dependency aliases point into that snapshot, preventing

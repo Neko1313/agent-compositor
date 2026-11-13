@@ -37,6 +37,17 @@ describe('bounded default read pages',()=>{
     });
 });
 describe('guarded exact editing', () => {
+    it.each(['missing','duplicate','out-of-bounds'] as const)('explains %s guarded matches without writing, then accepts the unchanged read anchor',async mode=>{
+        const cwd=await temp(),ctx=context(cwd),text='// 😀 café\r\nfirst target\r\nsecond target\r\n';await writeFile(join(cwd,'a.ts'),text);
+        const read=await readTool.execute(ctx,{path:'a.ts'});if(!read.ok||!read.data.edit)throw Error('Missing anchor');
+        const anchor=read.data.edit,args={...anchor,oldText:mode==='duplicate'?'target':'second target',newText:'updated'};
+        const range=mode==='missing'?{start:1,end:3}:mode==='out-of-bounds'?{start:0,end:text.length+1}:anchor.range;
+        const result=await editTool.execute(ctx,{...args,range});expect(result.ok).toBe(false);
+        if(!result.ok){expect(result.error).toContain('UTF-16');expect(result.error).toContain('No file was changed');expect(result.error).toContain(mode==='missing'?'0 exact matches':mode==='duplicate'?'2 exact matches':'exceeds');}
+        expect(await readFile(join(cwd,'a.ts'),'utf8')).toBe(text);expect(ctx.undo.pop()).toBeUndefined();
+        expect((await editTool.execute(ctx,{...anchor,oldText:'second target',newText:'updated'})).ok).toBe(true);
+        expect(await readFile(join(cwd,'a.ts'),'utf8')).toBe(text.replace('second target','updated'));
+    });
     it.each(['replace','insert'] as const)('explains a missing hash for a guarded %s and recovers with the read anchor', async mode => {
         const cwd = await temp(), ctx = context(cwd), text = 'export const sum = (a: number, b: number) => a - b;\n';
         await writeFile(join(cwd, 'sum.ts'), text);

@@ -1,5 +1,66 @@
 # Project memory
 
+## Guarded-edit argument admission and actionable match errors — 2026-11-13
+
+Previous dc3d191 passed CI 43391493933 on both Node versions, documentation
+43391494041 and release preparation 43391493948. It exercises bounded recovery,
+but the historical repair remains failed, as recorded below.
+
+Audited the seven failed edit calls from that live run. Three used fresh hashes
+but invented smaller ranges than the latest read anchor (including line-like
+121..131 offsets). Replayed these calls on original source, not the changed model
+checkout: all three have zero exact matches in their selected ranges. Keeping
+oldText/newText/hash/strict unchanged and using the original read range permits
+one exact replacement in each case. This operator diagnostic is not model repair
+or evidence of a task-quality gain. Report/script retained in
+dist/edit-feedback-diagnostic; the model's partial attempt stays untouched.
+
+editArgumentError now rejects malformed range objects and missing guarded hashes
+before descriptor/permission review/approval/file services, including tool_help
+previews. Ranges require safe non-negative integer offsets and end >= start;
+JSON strings/null/arrays are not coerced. Runtime resolver retains snapshot and
+file-bound checks. Guarded match failures distinguish zero/multiple exact matches
+and out-of-bounds ranges, report counts/bounds with explicit UTF-16/end-exclusive
+units and fresh-anchor guidance, and do not quote source or widen/search outside
+the range. Stale errors explain that successful edits invalidate earlier hashes.
+No automatic hash substitution, range removal or target selection. Rejected
+edits leave file/undo untouched; corrected calls take normal permission handling.
+
+Eleven cases first reproduced the admission/match-feedback gaps; twelve added cases now pass;
+full coverage suite 1437 passed, three optional skips, 174 files. Typecheck,
+docs:gen, docs:check (examples/site) and diff checks pass. Canonical agent-features
+and core-customization updated. docs:impact also flags architecture and
+workspaces-and-web; execution ownership and workspace selection are unchanged.
+No event schema, public configuration, tool argument schema or UI code changed.
+
+Fresh feedback condition in /tmp/compositor-selfhost-UWBTdG: zero-model preflight,
+negative 6F/1P, separate manual reference 7P. Initial Gemma turn: 73 requests,
+60-step failure, four compactions, one length recovery, four source files changed;
+independent original acceptance improves to 6P/1F, types pass. Twelve of 21 edits
+fail, including seven invented-range zero matches. This single run does not prove
+a causal quality gain. A separately recorded continuation of session
+521b4076-4ed1-44e6-9057-8fcffd242cdc made 72 more requests/four compactions, then
+also hit 60 steps; still 6P/1F and types pass. It additionally changes the Todos
+README. No continuation success or retroactive success of the first turn claimed.
+Both original immutable files remain untouched. Initial/continuation artifacts,
+patches, comparison and audits retained under dist/self-host-edit-feedback.
+All 807 tracked hashes, unchanged HEAD, configuration and 21 aliases checked;
+only untracked non-ignored file is the operator-created agent-compositor.json.
+
+Source audit found hardcoded task-plan error indices (0/1) in the model patch.
+Independent zero-model audit of ten original exact-invalid-field cases at indices
+0/2/4 plus a later duplicate: model 3P/7F, separate manual reference 10P. It leaves
+the original seven acceptance checks frozen, rather than changing their score.
+Added those ten regression cases separately in task-plan-validation.test.ts so
+future checks do not confuse the original seven passing with full input validation.
+Final full suite with these cases: 1447 passed, three optional skips, 175 files;
+final typecheck, docs:check (including site build) and diff checks pass.
+No model solution, source edit or oracle modification supplied during the run.
+No OpenAI request or spending-guard change; Ollama billing unavailable. Sustained
+self-development, broad model quality, onboarding, OpenTUI and stable 1.0 remain
+incomplete. Next address repeated invented ranges despite explicit feedback and
+task-plan/generalization failures; do not remove snapshot or scope guards.
+
 ## Bounded recovery from provider output truncation — 2026-11-13
 
 The previous readable-command commit 5c32ae8 passed CI 43389789819 on both Node

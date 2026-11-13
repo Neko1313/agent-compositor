@@ -197,7 +197,6 @@ interface EditPayload {
 async function editFile(payload: unknown): Promise<unknown> {
   const p = payload as EditPayload;
   const invalid=editArgumentError(p);if(invalid)throw Error(invalid);
-  if(p.range&&!p.expectedHash)throw Error('edit: guarded range requires expectedHash. Copy the complete edit anchor (path, expectedHash, range, strict) from read/read_symbol; re-read if the snapshot may have changed.');
   if (!p.oldText && !(p.expectedHash && p.range && p.range.start===p.range.end)) throw new Error("edit: oldText must be non-empty outside a guarded insertion");
   const content = await fs.readFile(p.path, "utf8");
 
@@ -207,13 +206,13 @@ async function editFile(payload: unknown): Promise<unknown> {
   };
 
   if(p.expectedHash!==undefined){
-    if(!/^[a-f0-9]{64}$/.test(p.expectedHash)||createHash('sha256').update(content).digest('hex')!==p.expectedHash)throw Error('edit: stale file snapshot; read the symbol/file again before editing');
+    if(!/^[a-f0-9]{64}$/.test(p.expectedHash)||createHash('sha256').update(content).digest('hex')!==p.expectedHash)throw Error('edit: stale file snapshot; read the symbol/file again before editing and copy its current anchor. Earlier successful edits invalidate old snapshot hashes. No file was changed.');
   }
   if(p.range){
-    if(!Number.isSafeInteger(p.range.start)||!Number.isSafeInteger(p.range.end)||p.range.start<0||p.range.end<p.range.start||p.range.end>content.length)throw Error('edit: invalid guarded range');
+    if(p.range.end>content.length)throw Error(`edit.range [${p.range.start}, ${p.range.end}) exceeds snapshot length ${content.length} UTF-16 code units. Offsets are not line numbers. Copy the range from the current read/read_symbol edit anchor. No file was changed.`);
     const chunk=content.slice(p.range.start,p.range.end),count=p.oldText?countOccurrences(chunk,p.oldText):1;
     if(!p.oldText&&chunk)throw Error('edit: insertion requires an empty guarded range');
-    if(!count||(!p.replaceAll&&count!==1))throw Error('edit: text is missing or ambiguous inside the selected range');
+    if(!count||(!p.replaceAll&&count!==1))throw Error(`edit: ${count} exact matches for oldText inside range [${p.range.start}, ${p.range.end}) (UTF-16 code units, end exclusive; not line numbers). ${count===0?'Copy oldText exactly from the selected read and preserve its complete edit anchor.':'Choose more specific oldText inside the read anchor; use replaceAll only if every match in that range is intended.'} No file was changed.`);
     const changed=!p.oldText?p.newText:p.replaceAll?chunk.split(p.oldText).join(p.newText):chunk.replace(p.oldText,()=>p.newText);
     const next=content.slice(0,p.range.start)+changed+content.slice(p.range.end),hashAfter=createHash('sha256').update(next).digest('hex');
     await writeChanged(next);

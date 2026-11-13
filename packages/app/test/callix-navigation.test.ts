@@ -22,7 +22,7 @@ describe('graph query precision and result budgets', () => {
         const source=await readSymbol(graph([selected]),{cwd,action:'read_symbol',pattern:'selected',maxTokens:4096});if(!('content' in source)||!('editRef' in source)||typeof source.editRef!=='string')throw Error('Missing source reference');
         const app=await buildApp({cwd,env:{HOME:cwd},provider:new ScriptedProvider([])});try{
             const core=app.createCore(async()=>true);
-            expect(await core.invokeTool('edit',{path:source.path,editRef:source.editRef,oldText:'return 1',newText:'return 2'})).toMatchObject({ok:true});
+            expect(await core.invokeTool('edit',{editRef:source.editRef,oldText:'return 1',newText:'return 2'})).toMatchObject({ok:true});
             expect(await readFile(join(cwd,'a.ts'),'utf8')).toBe(first.replace('return 1','return 2')+'\nfunction other(){ return 1; }\n');
         }finally{await app.close();}
         const bounded=budgetResult({...source,content:'x'.repeat(10000)},512);expect(bounded.sourceTooLarge).toBe(true);expect(bounded).not.toHaveProperty('edit');expect(bounded).not.toHaveProperty('editRef');
@@ -249,10 +249,10 @@ describe.skipIf(!native)('real Callix navigation and guarded editing', () => {
         expect(source.content).toBe('function price(n:number){ return n * 2; }');
         expect(source.editRef).toEqual(expect.any(String));
         const app = await buildApp({ cwd, env: { HOME: cwd }, provider: new ScriptedProvider([]) }), core = app.createCore(async () => true);
-        const edited = await core.invokeTool('edit', { path:source.path,editRef:source.editRef, oldText: 'n * 2', newText: 'n * 3' });
+        const edited = await core.invokeTool('edit', { editRef:source.editRef, oldText: 'n * 2', newText: 'n * 3' });
         expect(edited.ok).toBe(true);
         expect(await readFile(join(cwd, 'price.ts'), 'utf8')).toContain('function unrelated(n:number){ return n * 2; }');
-        const stale = await core.invokeTool('edit', { path:source.path,editRef:source.editRef, oldText: 'n * 3', newText: 'n * 4' });
+        const stale = await core.invokeTool('edit', { editRef:source.editRef, oldText: 'n * 3', newText: 'n * 4' });
         expect(stale.ok).toBe(false);
         expect(stale.error).toContain('stale');
         const fresh = await query({ cwd, action: 'read_symbol', pattern: id, ...opts });

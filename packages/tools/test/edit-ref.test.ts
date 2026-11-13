@@ -25,6 +25,14 @@ it('works in a fresh tool context without an in-memory anchor cache',async()=>{
  const f=await fixture(),fresh=context(f.cwd),again=await readTool.execute(fresh,{path:'a.ts',offset:3,limit:1});expect(again).toMatchObject({ok:true,data:{editRef:f.editRef}});
  expect((await editTool.execute(fresh,{path:'a.ts',editRef:f.editRef,oldText:'target',newText:'updated'} as any)).ok).toBe(true);
 });
+it('uses the reference path when no redundant path is supplied, without mutating arguments',async()=>{
+ const f=await fixture(),args={editRef:f.editRef,oldText:'target',newText:'updated'},before=structuredClone(args);
+ expect(await editTool.execute(f.ctx,args as any)).toMatchObject({ok:true,data:{path:join(f.cwd,'a.ts'),replacements:1}});
+ expect(args).toEqual(before);expect(await readFile(join(f.cwd,'a.ts'),'utf8')).toBe(f.text.replace('second target','second updated'));
+});
+it.each(['',null,42])('does not replace an explicitly invalid path with a reference path (case %#)',async path=>{
+ const f=await fixture();expect(await editTool.execute(f.ctx,{path,editRef:f.editRef,oldText:'target',newText:'updated'} as any)).toMatchObject({ok:false,error:expect.stringContaining('edit.path')});expect(await readFile(join(f.cwd,'a.ts'),'utf8')).toBe(f.text);
+});
 it('rejects use on a different path even if its entire source has the same hash',async()=>{
  const f=await fixture();await writeFile(join(f.cwd,'other.ts'),f.text);
  expect(await editTool.execute(f.ctx,{path:'other.ts',editRef:f.editRef,oldText:'target',newText:'updated'} as any)).toMatchObject({ok:false,error:expect.stringContaining('path')});

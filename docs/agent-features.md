@@ -551,8 +551,11 @@ access, without normalizing zero to one. Missing-file and directory errors retai
 the underlying error and explain how to discover a real file. No read failure
 creates a replacement file or changes workspace grants.
 
-A guarded `edit` can copy the returned `editRef` verbatim with `path`, exact
-`oldText` and `newText`, avoiding manual offset calculations. The reference carries
+A guarded `edit` can copy the returned `editRef` verbatim with exact
+`oldText` and `newText`, avoiding manual offset calculations and a redundant path.
+The core supplies the encoded path to plugin hooks and policy before execution;
+explicit paths must still select the same file. Without a reference, path remains
+required. The reference carries
 the same snapshot/range guards and works after session resume while the hash still
 matches; it grants no permissions. Alternatively preserve the complete explicit
 anchor returned by `read` or `code_query read_symbol`: `path`, `expectedHash`,

@@ -1,9 +1,9 @@
 import * as path from "node:path";
 import type { ToolContext, ToolResult, ToolSpec } from "../types.js";
-import {decodeEditRef,resolveEditRef} from '../edit-ref.js';
+import {decodeEditRef,resolveEditRef,editTargetPath} from '../edit-ref.js';
 
 export interface EditArgs {
-  path: string;
+  path?: string;
   oldText: string;
   newText: string;
   replaceAll?: boolean;
@@ -26,10 +26,11 @@ export interface EditOutcome {
  * Unguarded whitespace fallback can still normalize actual source in that case.
  */
 export function editArgumentError(args:EditArgs):string|undefined {
-  if(!args||typeof args.path!=='string'||args.path.length===0)return'edit.path must be a non-empty string.';
+  if(!args)return'edit.path must be a non-empty string, or supply a valid editRef.';
+  try{args=resolveEditRef(args);}catch(error){return error instanceof Error?error.message:String(error);}
+  if(typeof args.path!=='string'||args.path.length===0)return'edit.path must be a non-empty string, or supply a valid editRef.';
   if(typeof args.oldText!=='string')return'edit.oldText must be a string containing the current source text.';
   if(typeof args.newText!=='string')return'edit.newText must be a string containing the intended replacement.';
-  try{args=resolveEditRef(args);}catch(error){return error instanceof Error?error.message:String(error);}
   if(args.oldText===args.newText&&(args.strict===true||args.expectedHash!==undefined||args.range!==undefined))
     return'edit.newText is identical to edit.oldText. This exact edit would leave text unchanged. Supply replacement text that implements the intended change; do not repeat identical arguments. No file was read or changed.';
   if(args.range!==undefined){
@@ -48,12 +49,12 @@ export function editArgumentError(args:EditArgs):string|undefined {
  */
 export const editTool: ToolSpec<EditArgs, EditOutcome> = {
   name: "edit",
-  description: "Replace exact text in a file. Prefer path + editRef copied verbatim from read/read_symbol + exact oldText/newText; do not calculate offsets. Alternatively preserve ALL explicit anchor fields: path, expectedHash, range, strict. Replacements that leave text unchanged are rejected. A stale snapshot requires re-reading. oldText must match uniquely inside the selected range unless replaceAll is set. References do not grant permission.",
+  description: "Replace exact text in a file. Prefer editRef copied verbatim from read/read_symbol + exact oldText/newText; path is already in the reference and may be omitted. Do not calculate offsets. Alternatively preserve ALL explicit anchor fields: path, expectedHash, range, strict. Replacements that leave text unchanged are rejected. A stale snapshot requires re-reading. oldText must match uniquely inside the selected range unless replaceAll is set. References do not grant permission.",
   parameters: {
     type: "object",
     properties: {
-      path: { type: "string" },
-      editRef:{type:'string',maxLength:16384,description:'Snapshot/range reference from read/read_symbol. Copy it verbatim with the same path and exact oldText/newText. Replaces manual expectedHash/range/strict fields; conflicting explicit guards are rejected.'},
+      path: { type: "string",description:'Required without editRef. With a reference this may be omitted; an explicit path must resolve to the same file.' },
+      editRef:{type:'string',maxLength:16384,description:'Snapshot/range reference from read/read_symbol. Copy it verbatim with exact oldText/newText. Supplies path and replaces manual expectedHash/range/strict fields; conflicting explicit guards are rejected.'},
       oldText: { type: "string", description: "Current source text to replace, copied exactly from the selected read range." },
       newText: { type: "string", description: "Replacement implementing the intended change. With hash, range or strict matching it must differ from oldText; do not echo the old text unchanged." },
       replaceAll: { type: "boolean" },
@@ -61,15 +62,17 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
       range:{type:"object",properties:{start:{type:"integer",minimum:0},end:{type:"integer",minimum:0}},required:["start","end"],description:"Optional UTF-16 start/end offsets (end exclusive) from the read/read_symbol edit anchor. Requires expectedHash and exact matching."},
       strict:{type:"boolean",description:"Require exact text; disable whitespace-normalized fallback."},
     },
-    required: ["path", "oldText", "newText"],
+    required: ["oldText", "newText"],
+    anyOf:[{type:'object',properties:{path:{type:'string'}},required:['path']},{type:'object',properties:{editRef:{type:'string'}},required:['editRef']}],
   },
-  describe: (args) => ({ tool: "edit", path: path.resolve(args.path) }),
+  describe: (args) => ({ tool: "edit", path: path.resolve(editTargetPath(args)) }),
   validate:editArgumentError,
   async execute(ctx, args): Promise<ToolResult<EditOutcome>> {
     const invalid=editArgumentError(args);if(invalid)return{ok:false,error:invalid};
     try {
       args=resolveEditRef(args);
-      const target = ctx.resolvePath?await ctx.resolvePath(args.path):path.resolve(ctx.cwd,args.path);
+      const selectedPath=editTargetPath(args);
+      const target = ctx.resolvePath?await ctx.resolvePath(selectedPath):path.resolve(ctx.cwd,selectedPath);
       if(args.editRef!==undefined){
         const anchor=decodeEditRef(args.editRef);
         const selected=ctx.resolvePath?await ctx.resolvePath(anchor.path):path.resolve(anchor.path);

@@ -33,6 +33,15 @@ Read permission denials still apply to attachments, and normal tool policy still
 applies to reads, edits, writes, shell commands and network calls. Attaching a
 project does not implicitly approve its mutations.
 
+For built-in `read`, `write` and `edit`, `tool.check` receives the canonical target
+path used by permission evaluation, including when the call uses a symlink,
+workspace alias or snapshot edit reference. An attached workspace therefore does
+not bypass an additional plugin guard that restricts writes to the session's cwd.
+Native file operations also keep the path selected for approval: changing a
+symlink while the approval is pending cannot redirect that operation to another
+file. A changed resolution of the approved canonical path fails before its file
+service call and needs a fresh policy evaluation.
+
 You can also manage the session's selected paths without sending a model request:
 
 ```text

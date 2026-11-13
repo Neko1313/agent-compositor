@@ -153,8 +153,10 @@ A typical semantic edit uses these tools:
 2. `code_query {"action":"read_symbol","pattern":"<id>"}` returns the source
    syntax-node slice, `editRef` and an `edit` object with path, expectedHash, range
    and strict. Older host SDKs without reference support retain the explicit anchor.
-3. Prefer copying `path` and `editRef` verbatim to the normal `edit` tool, adding
-   exact oldText and newText. Do not calculate offsets from line numbers. Without
+3. Prefer copying `editRef` verbatim to the normal `edit` tool, adding exact
+   oldText and newText. The current editor derives its path before plugin guards
+   and policy; older hosts may require the returned path as well, so follow the
+   host's tool schema. Do not calculate offsets from line numbers. Without
    a reference, pass **all** explicit anchor fields. The selected symbol range
    disambiguates identical expressions elsewhere in the file; the reference does
    not authorize an edit or permit dropping guards.

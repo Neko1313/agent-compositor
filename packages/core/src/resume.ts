@@ -92,14 +92,21 @@ export function replayTranscript(
       }
       case "tool.call": {
         if (batchClosed) flushAssistant(); // post-result text becomes its own assistant message
+        const {compositorEditInput:projection,...providerMetadata}=(event.metadata??{}) as Record<string,unknown>;
+        let input=event.input;
+        // Audit records expose the effective target to plugins. Restore the
+        // provider's original reference-only arguments rather than changing its call.
+        if((projection as any)?.version===1&&(projection as any)?.pathFromReference===true&&input&&typeof input==='object'&&!Array.isArray(input)&&typeof (input as any).editRef==='string'&&typeof (input as any).path==='string'){
+          const {path:_derived,...original}=input as Record<string,unknown>;input=original;
+        }
         pendingCalls.push({
           id:
             typeof event.callId === "string"
               ? event.callId
               : `call_${messages.length}_${pendingCalls.length}`,
           name: typeof event.tool === "string" ? event.tool : "unknown",
-          args: event.input,
-          metadata: event.metadata as Record<string, unknown> | undefined,
+          args: input,
+          metadata: Object.keys(providerMetadata).length?providerMetadata:undefined,
         });
         break;
       }

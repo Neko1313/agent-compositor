@@ -426,6 +426,30 @@ refused obligations still receive Do-not-rerun guidance. Four regressions and th
 full 1479-test suite pass. This closes that false-completion path; it does not make
 arbitrary recognized commands a correctness proof or mark the model repair done.
 
+Reference-only target follow-up: `edit` now derives omitted path from `editRef`
+before native pre-tool hooks, rechecks rewritten inputs and supplies canonical
+paths to native file-policy hooks. Provider arguments/metadata survive replay;
+the journal separately records the effective target and host projection marker.
+Real checkpoint/rewind and scope-guard tests pass. Additional regressions reproduce
+symlink guard evasion and native operations following a changed symlink after
+approval. Native execution now stays bound to the approved canonical path and
+rejects a changed resolution before its file service. Full suite: 1494 pass, three
+optional skips; the explicit native/navigation/core run passes all 36 cases.
+
+Two new historical model conditions still fail without editing: Gemma makes 24
+requests then hits bounded empty-completion failure; DeepSeek, using default
+reasoning and request timeout in a separately labeled condition, makes 11 requests
+then fails text summarization. Both retain 6F/1P, pass types and fail all ten
+separate exact-field cases; references pass 7/7 and 10/10. Audits cover all 807
+tracked files, frozen/config inputs, HEAD and 21 local aliases. Artifacts are under
+`dist/self-host-ref-target/` and `dist/self-host-ref-target-deepseek/`. They predate
+the final approval-path binding correction and do not exercise model edit usage.
+
+Content-free DeepSeek stream statistics show summary retries ending in length or
+tool_calls, including the final rejected tool-call finish. No summary tool was
+executed. Investigate text-only request mode and bounded reasoning/output handling
+next; these observations do not establish a completed repair or broad model quality.
+
 Compositor was asked to repair the actual Todo scope/status defects in an isolated
 f1557fb source snapshot, with the two immutable acceptance files from the later
 manual repair. Workspace dependency aliases point into that snapshot, preventing

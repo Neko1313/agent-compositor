@@ -1,5 +1,83 @@
 # Project memory
 
+## Derive reference-only edit targets before hooks and policy — 2026-11-13
+
+75143e2 passed CI 43399771600 on both Node versions, docs 43399771991 and release
+preparation 43399771666. Its standard-reserve historical repair remains incomplete.
+
+Seven failed calls in that run supplied editRef but omitted its redundant path.
+The editor now accepts editRef/oldText/newText alone; explicit path remains valid
+and must resolve to the same file. No-reference calls still require path, and
+explicit empty/null/non-string paths remain errors. Conditional schema alternatives
+are typed object schemas with declared properties (the Gemini Schema reference
+requires type on its Schema objects: https://aistudio.google.com/api-reference/caching).
+This is schema review, not a paid/live Gemini compatibility claim.
+
+Core projects the native editor's encoded path before tool.call, and again after
+interceptor rewrites before admission/descriptor/policy. Checkpoint pre-hooks and
+tool.check see a concrete target. The caller/model argument objects stay unchanged.
+Journal input records the effective target with reserved compositorEditInput v1
+metadata; replay removes only the added path, strips the host marker and preserves
+provider metadata/original model-call arguments. Provider metadata cannot forge
+that marker through the core. It is informational, not authorization. No catalog
+field/schema change. Custom tools retain their own argument/descriptor contracts.
+
+An additional real scope-guard regression exposed a canonical-target gap: a
+symlink inside cwd to an attached authorized root could evade guard-scope's cwd
+jail. Before repair the attempted edit actually succeeded. Native read/write/edit
+tool.check inputs now use the canonical descriptor path already evaluated by
+policy, so aliases cannot hide the target from additional guards. Custom tools
+are unchanged. Canonical workspace guide/core customization describe the contract.
+
+Initial focused run reproduces six failures in reference-only invocation, native
+denial/rewrites, pre-hooks and real checkpoint/rewind; the symlink case separately
+fails before its correction. Nine added cases cover these paths, invalid explicit
+targets, metadata/source-marker integrity and resume. Full suite 1488 passed,
+three optional skips, 179 files. Explicit CALLIX_TEST_BIN run: all 21 Callix
+navigation cases (including two normally skipped native cases) plus nine
+core-reference cases pass. Typecheck/gen/docs:gen/docs:check pass.
+Guidance and Callix README retain older-host path requirements where necessary.
+Architecture ownership and app README terminal controls/config options unchanged;
+the affected canonical tool/workspace guides are updated. No manual versions.
+
+Approval-wait regression additionally reproduced native read/write/edit effects
+following a retargeted argument symlink despite the approved descriptor selecting
+another file. Core now binds native execution arguments to that canonical path
+and checks resolution again in the execution context. A redirected canonical
+path itself fails before the file-service call, rather than selecting the new
+file. Six cases cover argument retargeting and canonical-path replacement across
+all three tools. This is path preflight/execution binding, not new OS isolation.
+Final whole suite after binding correction: 1494 passed, three optional skips,
+179 files. Native-enabled navigation/core run: all 36 pass (21 navigation cases
+including the two real native cases, plus 15 core cases). Final typecheck, gen,
+docs:gen, docs:check (examples/site), docs:impact and diff checks pass.
+
+Two separate fresh historical fixtures retain negative 6F/1P and manual reference
+7P, zero-model preflight, 807 tracked-file hashes, frozen/config inputs, unchanged
+Git HEAD and 21 local aliases. Gemma in /tmp/compositor-selfhost-oR59gy: 24 requests,
+21 steps, one compaction, three empty completion proposals; bounded finish failure,
+no edits, 6F/1P and types pass. Exact-field audit 0P/10F, reference 10P. Artifacts in
+dist/self-host-ref-target. The new editor was not exercised by that model episode.
+
+DeepSeek in /tmp/compositor-selfhost-O1TIuk is a separately labeled model/defaults
+condition: reasoning_effort omitted instead of diagnostic none; provider request
+timeout defaults to 120000ms instead of 45000ms. Same 32768 window, 8192 main output,
+60 steps, 1.2M cumulative tokens and 600000ms whole-turn deadline. 11 requests/five
+main steps, no edits, summary stream failure, 6F/1P and types pass; separate exact
+field audit 0P/10F, reference 10P. Content-free wire statistics record HTTP 200,
+reasoning-field sizes and finish reasons, never reasoning text. Summary requests
+6/8/10 finish length at 2048; retries use 4096; request 11 returns tool_calls. The
+summarizer safely rejects it. OpenAICompat currently ignores delta.reasoning,
+observed in these responses, but that alone is not established as the cause.
+Artifacts under dist/self-host-ref-target-deepseek. Neither run proves task-quality
+improvement, and both predate the final approval-path pinning correction.
+
+Next inspect text-only summarization request mode and bounded handling of
+reasoning/output limits with these wire observations, without executing summary
+tool calls or claiming empty/partial summaries as success. No OpenAI requests or
+spending-guard changes; Ollama billing unavailable. Self-development, broad model
+quality, onboarding, OpenTUI and stable 1.0 remain incomplete.
+
 ## Retain verification obligations across edits — 2026-11-13
 
 8328d46 passed CI 43396980795 on both Node versions, docs 43396981364 and release

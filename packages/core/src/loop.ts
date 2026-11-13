@@ -852,8 +852,9 @@ export class AgentCore {
       ...(this.options.tools ?? builtinTools).filter(t=>t.name!=="tool_help"),
       ...[createToolHelp(()=>this.executionTools,async(spec,args,signal)=>{
         signal.throwIfAborted();
-        const invalid=this.toolArgumentError(spec,args);if(invalid)throw Error(invalid);
-        const descriptor=await this.toolDescriptor(spec,args);
+        const input=this.toolInput(spec,args);
+        const invalid=this.toolArgumentError(spec,input);if(invalid)throw Error(invalid);
+        const descriptor=await this.toolDescriptor(spec,input);
         signal.throwIfAborted();
         const decision=evaluate(descriptor,this.compiledRules,this.approvals);
         return {decision:decision.decision,via:decision.via,scope:'rules-and-session-approvals',executionAuthorized:false,
@@ -905,11 +906,24 @@ export class AgentCore {
     }catch(error){return'Tool argument validation failed: '+String(error).slice(0,4096);}
   }
 
+  private isBuiltinEdit(spec:ToolSpec):boolean {return spec.execute===editTool.execute&&spec.describe===editTool.describe;}
+  private isBuiltinFile(spec:ToolSpec):boolean {return [readTool,writeTool,editTool].some(tool=>spec.execute===tool.execute&&spec.describe===tool.describe);}
+
+  /** Project reference targets before plugins and policy, without mutating requests. */
+  private toolInput(spec:ToolSpec,args:unknown):unknown {
+    if(!this.isBuiltinEdit(spec)||!args||typeof args!=='object'||Array.isArray(args)||(args as any).path!==undefined||typeof (args as any).editRef!=='string')return args;
+    try{
+      const target=editTool.describe(args as any).path;
+      if(typeof target==='string'&&target)return{...args,path:target};
+    }catch{/* Malformed selectors retain their normal admission error. */}
+    return args;
+  }
+
   private async toolDescriptor(spec:ToolSpec,args:unknown):Promise<ToolCallDescriptor> {
+    args=this.toolInput(spec,args);
     const descriptor={...spec.describe(args)};
     if(descriptor.path){
-      const nativeFile=[readTool,writeTool,editTool].some(tool=>spec.execute===tool.execute&&spec.describe===tool.describe);
-      descriptor.path=nativeFile?await this.workspace.resolve((args as any).path,{missing:true}):await this.workspace.canonical(descriptor.path,{missing:true});
+      descriptor.path=this.isBuiltinFile(spec)?await this.workspace.resolve((args as any).path,{missing:true}):await this.workspace.canonical(descriptor.path,{missing:true});
     }
     if(spec.execute===execTool.execute&&spec.describe===execTool.describe){
       const commandCwd=this.workspace.expand((args as any).cwd??this.options.cwd);
@@ -1668,18 +1682,23 @@ export class AgentCore {
         continue;
       }
 
-      let args = call.args ?? {};
+      const suppliedArgs=call.args??{};
+      let args = this.toolInput(spec,suppliedArgs);
+      // Reserve the projection marker for the host; replay restores raw calls.
+      const {compositorEditInput:_source,...providerMetadata}=call.metadata??{};
+      const toolMetadata=args!==suppliedArgs?{...providerMetadata,compositorEditInput:{version:1,pathFromReference:true}}:Object.keys(providerMetadata).length?providerMetadata:undefined;
       // 1) tool.call: a plugin may answer ({result}) or refuse ({deny})
       const intercepted = await this.emit("tool.call", {
         tool: call.name,
         input: args,
         callId: call.id,
-        metadata: call.metadata,
+        metadata: toolMetadata,
       });
       let result: unknown;
       let modelText:string|undefined;
       let denied = false;
       let error: string | undefined;
+      let approvedPath:string|undefined;
 
       const isObject = (v: unknown): v is Record<string, unknown> =>
         typeof v === "object" && v !== null;
@@ -1709,6 +1728,7 @@ export class AgentCore {
           call={...call,name:replacement.name,args:intercepted.input};
           args=intercepted.input ?? {};
         }
+        args=this.toolInput(spec,args);
         error=this.toolArgumentError(spec,args);
         // 2) Recheck policy after waiting for an identical in-flight review.
         while(error===undefined){
@@ -1720,11 +1740,12 @@ export class AgentCore {
           denied=true;error=`denied: tool preflight failed: ${String(caught)}`;
           break;
         }
+        if(this.isBuiltinFile(spec)&&descriptor.path){approvedPath=descriptor.path;args={...(args as Record<string,unknown>),path:approvedPath};}
         let decision = evaluate(descriptor, this.compiledRules, this.approvals);
         let overrideReason: string | undefined;
         const checkRes = await this.emit("tool.check", {
           tool: call.name,
-          input: args,
+          input: this.isBuiltinFile(spec)&&descriptor.path?{...(args as Record<string,unknown>),path:descriptor.path}:args,
           callId: call.id,
           isReadOnly: call.name === "read" || descriptor.readOnly === true,
         });
@@ -1865,6 +1886,14 @@ export class AgentCore {
         if (!denied&&error===undefined) {
           signal.throwIfAborted();
           const ctx = this.buildToolContext(signal);
+          if(approvedPath&&this.isBuiltinFile(spec)&&ctx.resolvePath){
+            const resolvePath=ctx.resolvePath,expected=approvedPath;
+            ctx.resolvePath=async(value,options)=>{
+              const resolved=await resolvePath(value,options);
+              if(resolved!==expected)throw Error('File target changed after permission evaluation. Submit a fresh call for the current target.');
+              return resolved;
+            };
+          }
           try {
             const executed = await spec.execute(ctx, args);
             if (executed.ok){result=executed.data;modelText=executed.modelText;}

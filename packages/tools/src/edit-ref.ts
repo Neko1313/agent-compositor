@@ -26,7 +26,12 @@ export function decodeEditRef(ref:unknown):EditAnchor {
  const anchor={path:values[0],expectedHash:values[1],range:{start:values[2],end:values[3]},strict:true};
  if(!valid(anchor))throw invalid();return anchor;
 }
-export function resolveEditRef<T extends {editRef?:string;expectedHash?:string;range?:{start:number;end:number};strict?:boolean}>(args:T):T {
+export function editTargetPath(args:{path?:string;editRef?:string}):string {
+ const target=args.path===undefined&&args.editRef!==undefined?decodeEditRef(args.editRef).path:args.path;
+ if(typeof target!=='string'||!target)throw Error('edit.path must be a non-empty string, or supply a valid editRef.');
+ return target;
+}
+export function resolveEditRef<T extends {path?:string;editRef?:string;expectedHash?:string;range?:{start:number;end:number};strict?:boolean}>(args:T):T {
  if(args.editRef===undefined)return args;
  const anchor=decodeEditRef(args.editRef);
  for(const field of ['expectedHash','range','strict'] as const){
@@ -34,5 +39,5 @@ export function resolveEditRef<T extends {editRef?:string;expectedHash?:string;r
   const same=field==='range'?given&&typeof given==='object'&&!Array.isArray(given)&&(given as any).start===anchor.range.start&&(given as any).end===anchor.range.end:given===expected;
   if(given!==undefined&&!same)throw Error(`edit.${field} conflicts with editRef. Copy the reference unchanged; do not recompute its guards. Omit redundant explicit guards or supply the same values.`);
  }
- return{...args,expectedHash:anchor.expectedHash,range:anchor.range,strict:true};
+ return{...args,...(args.path===undefined?{path:anchor.path}:{}),expectedHash:anchor.expectedHash,range:anchor.range,strict:true};
 }

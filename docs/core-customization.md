@@ -164,17 +164,26 @@ metadata when it has a complete strict edit anchor. Callix `read_symbol` supplie
 the same field on hosts with the reference encoder. Prefer an edit such as:
 
 ```json
-{"path":"src/total.ts","editRef":"<copy the returned editRef verbatim>","oldText":"a - b","newText":"a + b"}
+{"editRef":"<copy the returned editRef verbatim>","oldText":"a - b","newText":"a + b"}
 ```
 
 The reference carries the original absolute path, full-file SHA-256 and exact
 UTF-16 slice; strict matching is mandatory. Treat its versioned encoding as opaque
-and copy it rather than calculating offsets. `path`, `oldText` and `newText` remain
-required. The resolved target must match the reference's file, even if another
+and copy it rather than calculating offsets. `oldText` and `newText` remain
+required. With a valid reference, `path` may be omitted: the core derives it before
+`tool.call`/`tool.check`, workspace resolution, permission review and execution.
+Both plugin phases receive a concrete target, including checkpoint and scope
+guards. Native `read`/`write`/`edit` checks receive the canonical descriptor path,
+so a symlink or workspace alias cannot disguise the target from `tool.check`
+guards. Custom tools retain their own descriptor/input contracts. Inputs rewritten
+by a plugin are projected again before policy. Without
+a reference, `path` remains required. An explicitly empty, null or non-string path
+is rejected rather than silently replaced. An explicit resolved target must match
+the reference's file, even if another
 file has identical contents. Explicit `expectedHash`/`range`/`strict` fields remain
 supported without a reference; when supplied with one they must agree exactly.
 Conflicting guards, malformed/unsupported references and certain no-op edits fail
-admission and `tool_help` preview before permission review or file access. An
+admission and `tool_help` preview before permission review or the built-in file-edit service. An
 invalid present reference never silently falls back to unguarded editing.
 
 References are portable snapshot selectors, not authenticated capabilities or
@@ -185,6 +194,22 @@ undo remain in force. `replaceAll` affects only the selected range. Edits do not
 expand that range, substitute a current hash or use whitespace fallback. A stale
 reference requires a fresh read. The resolved guards cross the existing
 `service.file.edit` seam; that event's schema is unchanged.
+
+The core does not mutate the caller's argument object. Journal `tool.call.input`
+records the effective input, including a derived path; reserved journal metadata
+`compositorEditInput` version 1 records `pathFromReference: true` for that projection.
+Replay removes only that added path to restore the original model call and strips
+the host marker while retaining provider metadata. The marker is informational,
+never permission evidence, and does not add a catalog field. Custom tools own
+their input contracts; this projection applies to the native builtin editor.
+Older hosts may still require both `path` and `editRef`; follow their tool schema.
+
+Native file execution is bound to the canonical path evaluated by policy, including
+after an approval wait. Retargeting an argument symlink does not redirect the
+approved call. If resolving the approved canonical path itself now selects another
+path, the call fails and requires a fresh request under current policy. This also
+applies to ordinary native reads/writes/edits without references. Snapshot hashes
+and the existing workspace/file-service checks remain in force.
 
 SDK extensions may import `encodeEditAnchor` and `EditAnchor` from
 `@agent-compositor/tools`. The pure encoder accepts a complete strict anchor with

@@ -20,7 +20,7 @@ export interface ReadOutcome {
 export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
   name: "read",
   loopGuard: 'query',
-  description: "Read UTF-8 text, default 200 lines, with a guarded edit anchor. Use offset/limit for targeted ranges; nextOffset continues a truncated page. Prefer copying editRef verbatim to edit with path and exact oldText/newText, without calculating offsets. Explicit edit.path/expectedHash/range/strict remains supported. The anchor covers only the returned range. Files over 2 MiB require targeted search.",
+  description: "Read UTF-8 text, default 200 lines, with a guarded edit anchor. Use offset/limit for targeted ranges; nextOffset continues a truncated page. Prefer copying editRef verbatim to edit with exact oldText/newText; path is encoded and may be omitted. Do not calculate offsets. Explicit edit.path/expectedHash/range/strict remains supported. The anchor covers only the returned range. Files over 2 MiB require targeted search.",
   parameters: {
     type: "object",
     properties: {

@@ -47,6 +47,7 @@ it('normalizes an AppUI composer focus to its last content pane without persisti
   const layout = await connectWindowLayout(storage, {panes: [panes[0]]});
   layout.resize(48, 18);
   expect(layout.snapshot()).toMatchObject({focused: 'session', frames: [{surface: 'session', width: 48, height: 18}]});
+  expect(layout.snapshot().compact).toBe(false);
   expect(storage.saved).toEqual([]);
   layout.act({type: 'workspace', id: 2});
   await layout.disconnect();
@@ -287,21 +288,113 @@ it('grows the focused second side when its first side contains a detached canoni
   expect(saved.children).toEqual([hidden, leaf('tools')]);
 });
 
-it('reports unmeasured, zoomed and compact targets without inventing visible divider geometry', async () => {
+it('reports unmeasured, zoomed and size-limited targets without inventing visible divider geometry', async () => {
   const layout = await connectWindowLayout(memory({windows: state(split('horizontal', .7, leaf('session'), leaf('tools')))}), {panes});
   const hidden = (visibility: string) => {
     expect(layout.snapshot().splitTarget).toEqual({axis: 'horizontal', ratio: .7, focusedChild: 0,
       children: [['session'], ['tools']], visibility});
   };
-  hidden('unmeasured');layout.act({type: 'zoom'});hidden('unmeasured');
-  layout.resize(48, 18);hidden('zoomed');expect(layout.snapshot().frames).toHaveLength(1);
-  layout.act({type: 'zoom'});hidden('compact');expect(layout.snapshot().frames).toHaveLength(1);
-  layout.resize(120, 0);hidden('unmeasured');expect(layout.snapshot().frames).toEqual([]);
+  hidden('unmeasured');expect(layout.snapshot().compact).toBe(false);
+  layout.act({type: 'zoom'});hidden('unmeasured');
+  layout.resize(48, 18);hidden('zoomed');expect(layout.snapshot()).toMatchObject({compact: false, frames: [expect.any(Object)]});
+  layout.act({type: 'zoom'});expect(layout.snapshot()).toMatchObject({compact: false, splitTarget: {visibility: 'visible'}});
+  expect(layout.snapshot().frames).toHaveLength(2);
+  layout.resize(47, 18);hidden('size-limited');expect(layout.snapshot()).toMatchObject({compact: true, frames: [expect.any(Object)]});
+  layout.resize(120, 0);hidden('unmeasured');expect(layout.snapshot()).toMatchObject({compact: false, frames: []});
   layout.resize(120, 30);expect(layout.snapshot().splitTarget?.visibility).toBe('visible');
   layout.act({type: 'zoom'});hidden('zoomed');
   layout.act({type: 'zoom'});expect(layout.snapshot().splitTarget).toMatchObject({visibility: 'visible',
     bounds: {x: 0, y: 0, width: 120, height: 30}, divider: {x: 83, y: 0, width: 2, height: 30}});
   await layout.disconnect();
+});
+
+it('keeps two columns at 60 columns and cancels narrow pointer resizes without rewriting saved ratios', async () => {
+  const storage = memory({windows: state(split('horizontal', .7, leaf('session'), leaf('tools')))});
+  const layout = await connectWindowLayout(storage, {panes});layout.resize(60, 24);
+  expect(layout.snapshot()).toMatchObject({compact: false, frames: [
+    {surface: 'session', x: 0, y: 0, width: 36, height: 24},
+    {surface: 'tools', x: 36, y: 0, width: 24, height: 24},
+  ], splitTarget: {ratio: .7, visibility: 'visible', divider: {x: 35, y: 0, width: 2, height: 24}}});
+  expect(storage.saved).toEqual([]);
+  layout.act({type: 'resize', delta: .05});
+  await expect.poll(() => layout.snapshot().saving).toBe(false);const writes = storage.saved.length;
+  expect(layout.snapshot().splitTarget?.ratio).toBe(.75);
+  expect(layout.snapshot().frames[0].width).toBe(36);
+  for (const viewportChange of [false, true]) {
+    layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: 35, y: 10});
+    expect(layout.snapshot().gesture).toBe('resize');
+    layout.act({type: 'pointer', phase: 'move', x: 30, y: 10});
+    expect(layout.snapshot().splitTarget?.ratio).toBe(.5);expect(layout.snapshot().frames[0].width).toBe(30);
+    if (viewportChange)layout.resize(61, 24);else layout.act({type: 'pointer', phase: 'cancel', x: 0, y: 0});
+    expect(layout.snapshot()).toMatchObject({gesture: undefined, pointer: 'default', compact: false, splitTarget: {ratio: .75}});
+    expect(storage.saved).toHaveLength(writes);
+  }
+  layout.resize(160, 40);
+  expect(layout.snapshot().frames).toEqual([
+    {surface: 'session', x: 0, y: 0, width: 120, height: 40},
+    {surface: 'tools', x: 120, y: 0, width: 40, height: 40},
+  ]);
+  await layout.disconnect();expect(storage.saved).toHaveLength(writes);
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(split('horizontal', .75, leaf('session'), leaf('tools')));
+});
+
+it('keeps and resizes two rows at 38 columns, collapsing toward focus only when their height cannot fit', async () => {
+  const storage = memory({windows: state(split('vertical', .3, leaf('session'), leaf('tools')), 'tools')});
+  const layout = await connectWindowLayout(storage, {panes});layout.resize(38, 24);
+  expect(layout.snapshot()).toMatchObject({compact: false, frames: [
+    {surface: 'session', x: 0, y: 0, width: 38, height: 7},
+    {surface: 'tools', x: 0, y: 7, width: 38, height: 17},
+  ], splitTarget: {ratio: .3, focusedChild: 1, visibility: 'visible', divider: {x: 0, y: 6, width: 38, height: 2}}});
+  layout.act({type: 'resize', delta: .05});
+  expect(layout.snapshot().splitTarget).toMatchObject({ratio: .25, divider: {x: 0, y: 5, width: 38, height: 2}});
+  layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: 10, y: 5});
+  expect(layout.snapshot().gesture).toBe('resize');
+  layout.act({type: 'pointer', phase: 'move', x: 10, y: 12});
+  layout.act({type: 'pointer', phase: 'up', x: 10, y: 12});
+  expect(layout.snapshot().splitTarget).toMatchObject({ratio: .5, divider: {x: 0, y: 11, width: 38, height: 2}});
+  const readable = structuredClone(layout.snapshot().frames);
+  layout.resize(38, 11);
+  expect(layout.snapshot()).toMatchObject({compact: true, frames: [{surface: 'tools', x: 0, y: 0, width: 38, height: 11}]});
+  expect(layout.snapshot().splitTarget).toEqual({axis: 'vertical', ratio: .5, focusedChild: 1,
+    children: [['session'], ['tools']], visibility: 'size-limited'});
+  layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: 10, y: 5});expect(layout.snapshot().gesture).toBeUndefined();
+  layout.act({type: 'cycle'});expect(layout.snapshot().frames[0].surface).toBe('session');
+  layout.act({type: 'direction', key: 'down'});expect(layout.snapshot().frames[0].surface).toBe('tools');
+  layout.resize(38, 24);expect(layout.snapshot().frames).toEqual(readable);
+  layout.act({type: 'zoom'});expect(layout.snapshot()).toMatchObject({compact: false, fullscreen: true});
+  layout.act({type: 'zoom'});layout.act({type: 'workspace', id: 2});
+  expect(layout.snapshot()).toMatchObject({compact: false, frames: [], splitTarget: undefined});
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces.find((space: any) => space.id === 1).tree).toEqual(split('vertical', .5, leaf('session'), leaf('tools')));
+});
+
+it('projects detached nested branches at narrow widths and restores the exact canonical tree after widening and restart', async () => {
+  const tree = split('horizontal', .7, split('vertical', .4, leaf('session'), leaf('late')),
+    split('vertical', .6, leaf('tools'), leaf('inspector')));
+  const storage = memory({windows: state(tree, 'inspector')});
+  const registered = [...panes, {id: 'late', label: 'Late'}, {id: 'inspector', label: 'Inspector'}];
+  const layout = await connectWindowLayout(storage, {panes: registered});layout.detach('late');layout.resize(140, 50);
+  const wide = structuredClone(layout.snapshot().frames);
+  layout.resize(60, 24);
+  expect(layout.snapshot()).toMatchObject({compact: false, splitTarget: {visibility: 'visible',
+    children: [['tools'], ['inspector']], bounds: {x: 36, y: 0, width: 24, height: 24}}});
+  expect(layout.snapshot().frames.map(frame => frame.surface)).toEqual(['session', 'tools', 'inspector']);
+  layout.resize(38, 24);
+  expect(layout.snapshot()).toMatchObject({compact: false, frames: [
+    {surface: 'tools', x: 0, y: 0, width: 38, height: 14},
+    {surface: 'inspector', x: 0, y: 14, width: 38, height: 10},
+  ], splitTarget: {visibility: 'visible', ratio: .6, divider: {x: 0, y: 13, width: 38, height: 2}}});
+  layout.resize(38, 11);
+  expect(layout.snapshot()).toMatchObject({compact: true, frames: [{surface: 'inspector', x: 0, y: 0, width: 38, height: 11}]});
+  expect(layout.snapshot().splitTarget?.visibility).toBe('size-limited');
+  layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: 10, y: 5});expect(layout.snapshot().gesture).toBeUndefined();
+  layout.resize(140, 50);expect(layout.snapshot().frames).toEqual(wide);expect(storage.saved).toEqual([]);
+  layout.register({id: 'late', label: 'Reloaded'});const admitted = structuredClone(layout.snapshot().frames);
+  expect(admitted.map(frame => frame.surface)).toEqual(['session', 'late', 'tools', 'inspector']);
+  await layout.disconnect();expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(tree);
+  const restored = await connectWindowLayout(storage, {panes: registered});restored.resize(140, 50);
+  expect(restored.snapshot().frames).toEqual(admitted);expect(restored.snapshot().focused).toBe('inspector');
+  await restored.disconnect();
 });
 
 it.each([[.05, 24], [.95, 56]])('retains saved ratio %s while reporting its actual minimum-clamped divider', async (ratio, firstWidth) => {
@@ -370,11 +463,11 @@ it('cycles backward through current logical panes while excluding detached, clos
     registered: ['session', 'tools', 'inspector', 'plugin-detached-pane', 'closed', 'remote']});
   const layout = await connectWindowLayout(storage, {panes: [...panes, {id: 'inspector', label: 'Inspector'},
     {id: 'plugin-detached-pane', label: 'Reloading'}, {id: 'closed', label: 'Closed'}, {id: 'remote', label: 'Remote'}]});
-  layout.resize(48, 18);
+  layout.resize(38, 10);
   layout.detach('plugin-detached-pane');
   layout.act({type: 'cycle', reverse: true});
   expect(layout.snapshot()).toMatchObject({workspace: 1, focused: 'inspector',
-    frames: [{surface: 'inspector', width: 48, height: 18}]});
+    compact: true, frames: [{surface: 'inspector', width: 38, height: 10}]});
   layout.act({type: 'cycle', reverse: true});
   expect(layout.snapshot().focused).toBe('tools');
   layout.act({type: 'zoom'});

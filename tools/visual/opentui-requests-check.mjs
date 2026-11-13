@@ -33,9 +33,22 @@ try{
   const wait=value=>page.waitForFunction(value=>window.visual?.text().includes(value),value).catch(error=>{throw Error('Terminal missing '+JSON.stringify(value),{cause:error});});
   const absent=value=>page.waitForFunction(value=>!window.visual?.text().includes(value),value).catch(error=>{throw Error('Terminal retained '+JSON.stringify(value),{cause:error});});
   async function type(value){await page.keyboard.type(value);await wait(value);}
+  async function finderQuery(value,count){
+    await page.keyboard.type(value);
+    await page.waitForFunction(({value,count})=>{
+      const lines=visual.text().split('\n');
+      for(const[row,line]of lines.entries()){
+        const title=line.indexOf('─ Windows ');if(title<0)continue;
+        const left=line.lastIndexOf('┌',title),right=line.indexOf('┐',title);if(left<0||right<0)continue;
+        if(lines[row+1]?.slice(left+1,right).trim()!==value)return false;
+        return count===undefined||lines[row+2]?.slice(left+1,right).trim()===count+' windows · ↑↓ select · Enter open';
+      }
+      return false;
+    },{value,count}).catch(error=>{throw Error('Finder did not show exact query '+JSON.stringify(value)+(count===undefined?'':' with '+count+' results'),{cause:error});});
+  }
   async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await key('End');await key('Control+u');await type(value);await key('Enter');}
-  async function pick(query){await key('F2');await wait('windows · ↑↓ select · Enter open');await type(query);await key('Enter');await absent('windows · ↑↓ select · Enter open');}
+  async function pick(query){await key('F2');await wait('windows · ↑↓ select · Enter open');await finderQuery(query);await key('Enter');await absent('windows · ↑↓ select · Enter open');}
   const sessionFiles=async()=>(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));
   const events=async()=>(await Promise.all((await sessionFiles()).map(async name=>(await readFile(join(launch.state,'sessions',name),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)))).flat();
   const completions=async()=>(await readFile(join(output,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse).filter(row=>row.kind==='completion');
@@ -84,7 +97,7 @@ try{
     throw Error('No focused request window contains '+text);
   }
   async function closedRequest(text){
-    await key('F2');await wait(finderMarker);await type('Questions · request-probe');
+    await key('F2');await wait(finderMarker);await finderQuery('Questions · request-probe',2);
     await click('Questions · request-probe','Closed');await absent(finderMarker);await setZoom(true);await wait(text);
   }
   async function start(mode){await pick('Request controls');await setZoom(true);await click('Start '+mode);}

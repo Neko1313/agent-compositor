@@ -124,11 +124,7 @@ export async function connectWindowLayout(storage: Storage, options: {
     view.focusContent();
     return view;
   };
-  const compact = () => width < 70;
-  const frames = (view = projection()): Frame[] => compact()
-    ? width > 0 && height > 0 && view.ids().includes(view.focused)
-      ? [{surface: view.focused, x: 0, y: 0, width, height}] : []
-    : view.frames(width, height);
+  const frames = (view = projection()): Frame[] => view.frames(width, height);
   function canonicalSplit(projected: Exclude<Tree, {surface: string}>): {node: Exclude<Tree, {surface: string}>; path: number[]} | undefined {
     const target = new Set(leaves(projected));
     const walk = (node: Tree | undefined, path: number[]): ReturnType<typeof canonicalSplit> => {
@@ -156,7 +152,7 @@ export async function connectWindowLayout(storage: Storage, options: {
     if (!selected) return;
     const children: [string[], string[]] = [leaves(selected.projected.children[0]), leaves(selected.projected.children[1])];
     const visibility: WindowSplitTarget['visibility'] = width <= 0 || height <= 0 ? 'unmeasured'
-      : wm.fullscreen ? 'zoomed' : compact() ? 'compact' : 'size-limited';
+      : wm.fullscreen ? 'zoomed' : 'size-limited';
     const geometry = visibility === 'size-limited' ? view.splitGeometry(selected.projected, width, height) : undefined;
     return {
       axis: selected.canonical.axis, ratio: selected.canonical.ratio,
@@ -165,17 +161,18 @@ export async function connectWindowLayout(storage: Storage, options: {
     };
   }
   const separator = (x: number, y: number): ResizeHandle | undefined => {
-    const handle = compact() ? undefined : projection().separator(x, y, width, height);
+    const handle = projection().separator(x, y, width, height);
     if (!handle) return;
     const match = canonicalSplit(handle.node);
     return match ? {...handle, ...match, original: match.node.ratio} : undefined;
   };
   const snapshot = (): WindowLayoutSnapshot => {
-    const view = projection();
+    const view = projection(), visible = frames(view);
     return {
-    revision, width, height, frames: frames(view), focused: view.focused, workspace: wm.workspace,
+    revision, width, height, frames: visible, focused: view.focused, workspace: wm.workspace,
     workspaces: [1, 2, 3, 4, 5, 6, 7, 8, 9], locations: locations(), axis: wm.axis,
-    fullscreen: wm.fullscreen, compact: compact(), saving: pendingWrites > 0, error, pointer, drop,
+    fullscreen: wm.fullscreen, compact: !wm.fullscreen && view.ids().length > 1 && visible.length === 1,
+    saving: pendingWrites > 0, error, pointer, drop,
     splitTarget: splitTarget(view),
     gesture: gesture?.kind,
     dragging: gesture?.kind === 'move' ? gesture.surface : undefined,

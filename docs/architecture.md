@@ -85,6 +85,12 @@ Its copied geometry comes from the readable layout used for pointer hit testing;
 saved proportions remain separate. The renderer uses it for an Arrange cue and
 receives no mutable tree or persistence authority. Hidden targets carry a reason
 without a fabricated divider. This is an in-process frontend adapter capability.
+The adapter uses the same readable projection at every width: a split retains
+both children when each can receive at least 24 columns and 6 rows. Insufficient
+areas collapse to their focused branch without mutating the canonical tree or
+saved ratios. Rendering, split cues and pointer hit testing share that geometry;
+compact metadata describes an actual single-frame size fallback, not a width
+threshold or explicit zoom.
 
 OpenTUI input callbacks are bound to a specific Core generation and captured
 capability origin. Each UI operation has one private request FIFO; retained

@@ -36,7 +36,7 @@ names the selected window and zoom state, with exit, typing
 and Windows access readable at narrow widths. A warm heavy divider and a separate
 target line identify the same nearest split that keyboard actions change. Saved
 proportions stay distinct from minimum-size-clamped cell geometry; hidden targets
-explain zoom, narrow view or size limits instead of highlighting a different
+explain zoom or size limits instead of highlighting a different
 ancestor. The line uses an existing border cell, preserves child titles and adds
 no mouse hit target. Finder and pointer gestures suppress the keyboard cue.
 Its modal input ownership protects
@@ -45,7 +45,10 @@ titles and public command names; its query is bounded to 512 UTF-16 units. Queri
 and private form values stay outside model messages and journals. Route activation
 requires a fresh view from the current owner; cancellation or a new selection
 invalidates an older opening. Navigation preserves the saved window tree, ratios
-and closed-window state. The deterministic preview retains its separate key map.
+and closed-window state. Narrow viewports keep every split that fits the shared
+24-column/6-row minimum child rectangle. Only insufficient split areas collapse
+to their focused branch; a narrow terminal can still show multiple row tiles.
+The deterministic preview retains its separate key map.
 
 Private request windows name the actual requesting plugin. Each UI operation
 keeps its own FIFO and resident native question/form state; background input

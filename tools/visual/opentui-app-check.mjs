@@ -152,7 +152,7 @@ try{
     assert.ok(report.artifact.nativeLibraries.length,'Relocated archive must contain native renderer libraries');
   }
   await page.evaluate(()=>visual.terminal.resize(180,50));
-  await command('/todos');await wait('0/3 complete');await absent('Todos · Working');
+  await command('/todos');await wait('─ Todos · focused');await wait('0/3 complete');await absent('Todos · Working');
   await command('/settings');await wait('Models & providers');await wait('Active: bootstrap · app-start');await absent('Models & providers · Working');
   await main();await submit('APP_QUESTION');await wait('MAIN_QUESTION: choose deployment');
   await click('Edit answer');await click('[ ] Production');await wait('[x] Production');

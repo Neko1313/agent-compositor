@@ -17,7 +17,7 @@ export function splitTargetLabel(layout: WindowLayoutSnapshot, width: number): s
     : target.focusedChild === 0 ? wide ? 'top' : 'up' : wide ? 'bottom' : 'down';
   const hidden = {
     visible: '',
-    'size-limited': wide ? 'hidden by terminal size' : 'small area',
+    'size-limited': wide ? 'hidden by terminal size' : width < 44 ? 'small' : 'small area',
     compact: wide ? 'hidden by narrow view' : 'narrow',
     zoomed: wide ? 'hidden by zoom' : 'zoomed',
     unmeasured: wide ? 'waiting for viewport' : 'wait',

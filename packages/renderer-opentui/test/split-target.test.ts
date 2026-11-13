@@ -24,13 +24,17 @@ it('keeps saved ratios distinct from visible geometry and explains hidden target
 
 it('retains the target side and hidden reason within a 38-column footer', () => {
   for (const axis of ['horizontal', 'vertical'] as const) for (const focusedChild of [0, 1] as const)
-    for (const visibility of ['compact', 'zoomed', 'unmeasured'] as const) {
+    for (const visibility of ['size-limited', 'compact', 'zoomed', 'unmeasured'] as const) {
       const text = splitTargetLabel(state({axis, focusedChild, visibility}), 38);
       expect(text.length).toBeLessThanOrEqual(36);
-      expect(text).toContain(visibility === 'compact' ? 'narrow' : visibility === 'unmeasured' ? 'wait' : 'zoomed');
+      expect(text).toContain(visibility === 'size-limited' ? 'small' : visibility === 'compact' ? 'narrow' : visibility === 'unmeasured' ? 'wait' : 'zoomed');
     }
   expect(splitTargetLabel(state({focusedChild: 1, visibility: 'compact'}), 38))
     .toBe('Target: cols 55/45 · +right · narrow');
+  expect(splitTargetLabel(state({focusedChild: 1, visibility: 'size-limited'}), 38))
+    .toBe('Target: cols 55/45 · +right · small');
+  expect(splitTargetLabel(state({focusedChild: 1, visibility: 'size-limited'}), 48))
+    .toBe('Target: cols 55/45 · +right · small area');
 });
 
 it('distinguishes a lone or empty workspace from a host without target metadata', () => {

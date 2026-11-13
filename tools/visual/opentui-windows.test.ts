@@ -70,7 +70,7 @@ it('ignores stale gesture starts and restores a cancelled resize, including afte
   await layout.disconnect();
 });
 
-it('projects only the focused pane in compact geometry without changing the saved tree', async () => {
+it('keeps readable narrow tiles and collapses only below their minimum without changing the raw saved tree', async () => {
   const storage = memory();
   const layout = await connectWindowLayout(storage, {panes});
   layout.resize(100, 30);
@@ -81,11 +81,18 @@ it('projects only the focused pane in compact geometry without changing the save
   layout.act({type: 'pointer', phase: 'move', x: 2, y: 0});
   expect(layout.snapshot()).toMatchObject({pointer: 'grab', revision});
   layout.resize(48, 14);
-  expect(layout.snapshot()).toMatchObject({compact: true, frames: [{surface: 'main', x: 0, y: 0, width: 48, height: 14}]});
-  layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: 31, y: 4});
+  expect(layout.snapshot()).toMatchObject({compact: false, frames: [
+    {surface: 'main', x: 0, y: 0, width: 24, height: 14}, {surface: 'side', x: 24, y: 0, width: 24, height: 14},
+  ]});
+  layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: 23, y: 4});
+  expect(layout.snapshot().gesture).toBe('resize');
+  layout.act({type: 'pointer', phase: 'cancel', x: 0, y: 0});
+  layout.resize(47, 14);
+  expect(layout.snapshot()).toMatchObject({compact: true, frames: [{surface: 'main', x: 0, y: 0, width: 47, height: 14}]});
+  layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: 23, y: 4});
   expect(layout.snapshot().gesture).toBeUndefined();
   layout.act({type: 'cycle'});
-  expect(layout.snapshot().frames).toEqual([{surface: 'side', x: 0, y: 0, width: 48, height: 14}]);
+  expect(layout.snapshot().frames).toEqual([{surface: 'side', x: 0, y: 0, width: 47, height: 14}]);
   layout.act({type: 'direction', key: 'left'});
   expect(layout.snapshot().focused).toBe('main');
   layout.resize(100, 30);

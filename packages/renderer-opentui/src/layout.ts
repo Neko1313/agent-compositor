@@ -15,6 +15,7 @@ export interface WindowSplitTarget {
   ratio: number;
   focusedChild: 0 | 1;
   children: readonly [readonly string[], readonly string[]];
+  /** Older sources may report compact; the configured host uses size-limited for unreadable splits. */
   visibility: 'visible' | 'size-limited' | 'compact' | 'zoomed' | 'unmeasured';
   bounds?: {x: number; y: number; width: number; height: number};
   divider?: {x: number; y: number; width: number; height: number};
@@ -31,6 +32,7 @@ export interface WindowLayoutSnapshot {
   locations: Readonly<Record<string, number>>;
   axis: 'horizontal' | 'vertical';
   fullscreen: boolean;
+  /** Size fallback: multiple live logical panes project to one frame, without zoom. */
   compact: boolean;
   splitTarget?: WindowSplitTarget;
   pointer: 'default' | 'grab' | 'grabbing' | 'ew-resize' | 'ns-resize';

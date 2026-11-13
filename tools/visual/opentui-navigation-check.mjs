@@ -53,7 +53,22 @@ try{
   const finderMarker='windows · ↑↓ select · Enter open';
   async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await replace(value);await key('Enter');}
-  async function finder(query=''){await key('F2');await wait(finderMarker);if(query)await type(query);}
+  async function finder(query=''){
+    await key('F2');await wait(finderMarker);if(!query)return;
+    await page.keyboard.type(query);
+    // A title in resident tabs is not acknowledgement that Finder painted its
+    // new query. Scope this wait to the actual native input under its header.
+    await page.waitForFunction(query=>{
+      const buffer=visual.terminal.buffer.active,lines=Array.from({length:visual.terminal.rows},(_,y)=>
+        Array.from({length:visual.terminal.cols},(_,x)=>buffer.getLine(y+buffer.viewportY)?.getCell(x)?.getChars()??''));
+      for(const[y,line]of lines.entries()){
+        const title=line.findIndex((_,x)=>Array.from('─ Windows ').every((char,index)=>line[x+index]===char));if(title<0)continue;
+        const x=line.lastIndexOf('┌',title),right=line.findIndex((char,index)=>index>title&&char==='┐');
+        if(x>=0&&right>x
+          &&lines[y+1]?.slice(x+2,right-1).join('').trim()===query)return true;
+      }
+    },query);
+  }
   async function pick(query){await finder(query);await key('Enter');await absent(finderMarker);}
   async function arrange(){await key('Alt+w');await wait('WINDOW MODE');}
   async function leave(){await key('Escape');await absent('WINDOW MODE');}
@@ -114,27 +129,50 @@ try{
     const value=await layout();assert.equal(splitFor(currentTree(value),value.windows.focused),undefined);
     await wait((width>=88?'Next split: ':'Next: ')+(value.windows.axis==='vertical'?'rows':width>=88?'columns':'cols')+' · no resize target');await noDivider();
   }
-  async function nativeFrame(label){
-    const marker=({'Main':'APP_QUESTION','Navigation controls':'Refresh inventory'})[label];assert.ok(marker,'The reference pane needs a unique visible fixture marker');
-    return(await page.waitForFunction(marker=>{
-      const lines=visual.text().split('\n');for(const[row,line]of lines.entries()){
-        const at=line.indexOf(marker);if(at<0)continue;const x=line.lastIndexOf('│',at),right=line.indexOf('│',at);if(x<0||right<0)continue;
-        const top=lines.findLastIndex((line,index)=>index<row&&line[x]==='┌'&&line[right]==='┐');
-        const bottom=lines.findIndex((line,index)=>index>row&&line[x]==='└'&&line[right]==='┘');
-        if(top>=0&&bottom>top)return{x,y:top,width:right-x+1,height:bottom-top+1};
+  async function nativeFrame(label,{width,divider=false}={}){
+    const marker=({'Navigation controls':'Refresh inventory','Models & providers':'Active: bootstrap','Заметки 窗口':'UNICODE_WINDOW'})[label];
+    return(await page.waitForFunction(({label,marker,width,divider})=>{
+      // Native cell coordinates retain Unicode continuation columns that text
+      // offsets omit. The warm target glyph replaces an existing border cell.
+      const buffer=visual.terminal.buffer.active,lines=Array.from({length:visual.terminal.rows},(_,y)=>
+        Array.from({length:visual.terminal.cols},(_,x)=>buffer.getLine(y+buffer.viewportY)?.getCell(x)?.getChars()??''));
+      function frame(x,y,right){
+        const bottom=lines.findIndex((line,index)=>index>y&&['└','┃','━'].includes(line[x])&&['┘','┃','━'].includes(line[right]));
+        if(bottom>y)return{x,y,width:right-x+1,height:bottom-y+1};
       }
-    },marker)).jsonValue();
+      function measured(frame){
+        if(!frame||(width!==undefined&&frame.width!==width))return;
+        if(!divider)return frame;
+        const cells=[];for(let y=0;y<lines.length;y++)for(let x=0;x<lines[y].length;x++){
+          const char=lines[y][x];if(char!=='┃'&&char!=='━')continue;
+          const cell=buffer.getLine(y+buffer.viewportY).getCell(x);
+          cells.push({x,y,char,fg:cell.getFgColor(),bg:cell.getBgColor(),bold:Boolean(cell.isBold())});
+        }
+        return{frame,cells};
+      }
+      for(const[y,line]of lines.entries())for(let x=0;x<line.length;x++)if(line[x]==='┌'){
+        const right=line.findIndex((char,index)=>index>x&&(char==='┐'||char==='┃'));
+        if(right>x&&line.slice(x,right+1).join('').includes('─ '+label+' ')){
+          const result=measured(frame(x,y,right));if(result)return result;
+        }
+      }
+      // SDK omits the complete focused title when it cannot fit. These bounded
+      // fixture bodies remain stable; Main always uses its short visible header.
+      if(!marker)return;
+      for(const[row,line]of lines.entries()){
+        const at=line.findIndex((_,x)=>Array.from(marker).every((char,index)=>line[x+index]===char));if(at<0)continue;
+        const x=Math.max(line.lastIndexOf('│',at),line.lastIndexOf('┃',at));
+        const right=line.findIndex((char,index)=>index>=at&&(char==='│'||char==='┃'));if(x<0||right<0)continue;
+        const top=lines.findLastIndex((line,index)=>index<row&&['┌','┃','━'].includes(line[x])&&['┐','┃','━'].includes(line[right]));
+        if(top>=0){const result=measured(frame(x,top,right));if(result)return result;}
+      }
+    },{label,marker,width,divider})).jsonValue();
   }
-  async function selectedDivider(axis,referenceTitle){
-    const frame=await nativeFrame(referenceTitle),glyph=axis==='horizontal'?'┃':'━';
+  async function selectedDivider(axis,referenceTitle,width){
+    // Frame and cue must come from one native buffer read across terminal resize.
+    const {frame,cells}=await nativeFrame(referenceTitle,{width,divider:true}),glyph=axis==='horizontal'?'┃':'━';
     const expected=axis==='horizontal'?Array.from({length:frame.height},(_,index)=>({x:frame.x-1,y:frame.y+index}))
       :Array.from({length:frame.width},(_,index)=>({x:frame.x+index,y:frame.y-1}));
-    const cells=await page.evaluate(()=>{
-      const result=[];for(let y=0;y<visual.terminal.rows;y++)for(let x=0;x<visual.terminal.cols;x++){
-        const cell=visual.terminal.buffer.active.getLine(y+visual.terminal.buffer.active.viewportY)?.getCell(x),char=cell?.getChars();
-        if(char==='┃'||char==='━')result.push({x,y,char,fg:cell.getFgColor(),bg:cell.getBgColor(),bold:Boolean(cell.isBold())});
-      }return result;
-    });
     assert.deepEqual(cells.map(({x,y})=>({x,y})),expected,'Only the nearest nested divider may carry the target cue');
     for(const cell of cells)assert.deepEqual({char:cell.char,fg:cell.fg,bg:cell.bg,bold:cell.bold},{char:glyph,fg:0xeac280,bg:0x171a20,bold:true});
     return{frame,x:expected[Math.floor(expected.length/2)].x,y:expected[Math.floor(expected.length/2)].y};
@@ -203,6 +241,66 @@ try{
   await pick('/nav-form');await wait('Navigation private form');await wait('FORMvalue');await key('Home');await key('ArrowRight');await type('_');await wait('F_ORMvalue');
   assert.equal(await observe(()=>json(launch.navigation.formCalls),value=>value===1,'The caller must make one actual private form request'),1);
   await arrange();await paste('q');await key('Control+c');await absent('WINDOW MODE');assert.equal(await exists(launch.navigation.formReceipt),false);
+
+  // An ordinary built-in route and the existing Unicode window provide an
+  // isolated two-leaf workspace. No fixture or window-controller mutation is used.
+  const models='plugin-model-selector-models',unicode='plugin-navigation-probe-unicode';
+  const protectedLayout=await layout(),protectedTrees=[1,3].map(id=>protectedLayout.windows.spaces.find(space=>space.id===id)?.tree);
+  await pick('/settings');await wait('Active: bootstrap · app-start');await absent('Models & providers · Working');
+  await arrange();await key('Shift+Digit8');await key('8');await leave();
+  await observe(layout,value=>location(value,models)===8&&value.windows.workspace===8,'Real Arrange input must move the settings window into workspace8');
+  await pick('Заметки');await arrange();await key('Shift+Digit8');await key('8');
+  await observe(layout,value=>location(value,unicode)===8&&value.windows.workspace===8&&value.windows.focused===unicode,'Real Arrange input must move the existing Unicode window into workspace8');
+  await key('b');
+  const pair=await observe(layout,value=>{
+    const tree=currentTree(value);return tree?.axis==='horizontal'&&tree.ratio===.5&&JSON.stringify(tree.children?.map(leaves))===JSON.stringify([[models],[unicode]]);
+  },'The isolated workspace must contain exactly two ordinary windows in an equal column split');
+  const narrowTree=structuredClone(currentTree(pair));
+  await page.evaluate(()=>visual.terminal.resize(60,24));await targetCue(unicode,60);await absent('small area');await absent(' · narrow');
+  const columnFirst=await nativeFrame('Models & providers',{width:30}),columnSecond=await nativeFrame('Заметки 窗口',{width:30});
+  assert.deepEqual({x:columnFirst.x,y:columnFirst.y,width:columnFirst.width+columnSecond.width,height:columnFirst.height},{x:0,y:3,width:60,height:columnSecond.height});
+  assert.equal(columnFirst.x+columnFirst.width,columnSecond.x);assert.equal(columnFirst.y,columnSecond.y);assert.ok(columnFirst.width>=24&&columnSecond.width>=24&&columnFirst.height>=6);
+  const columnDivider=await selectedDivider('horizontal','Заметки 窗口');await capture('03-readable-60-column-tiles');
+  await key('+');await observe(layout,value=>splitFor(currentTree(value),unicode)?.ratio===.45,'Narrow keyboard resize must grow the focused right tile');await targetCue(unicode,60);
+  assert.ok((await nativeFrame('Заметки 窗口')).x<columnSecond.x,'The narrow keyboard ratio change must move the actual visible divider');
+  await key('-');await observe(layout,value=>splitFor(currentTree(value),unicode)?.ratio===.5,'Narrow keyboard resize must restore the exact saved fraction');await targetCue(unicode,60);
+  const heldColumns=await selectedDivider('horizontal','Заметки 窗口');
+  await mouseCells(heldColumns.x,heldColumns.y,'down');await wait('Mouse resize · Esc cancel');await absent('Target:');await noDivider();
+  assert.deepEqual(await nativeFrame('Заметки 窗口'),columnSecond,'A narrow divider hit must keep viewport geometry while the pointer owns input');
+  await mouseCells(heldColumns.x+2,heldColumns.y,'up');
+  const pointerRatio=(heldColumns.x+2-columnFirst.x)/60;
+  await observe(layout,value=>Math.abs(splitFor(currentTree(value),unicode).ratio-pointerRatio)<1e-9,'The painted narrow column divider must commit the real mouse coordinate');await targetCue(unicode,60);
+  const pointerColumns=await selectedDivider('horizontal','Заметки 窗口');await mouseCells(pointerColumns.x,pointerColumns.y,'down');await wait('Mouse resize · Esc cancel');await mouseCells(columnFirst.x+30,pointerColumns.y,'up');
+  await observe(layout,value=>splitFor(currentTree(value),unicode)?.ratio===.5,'A second real pointer drag must restore the equal canonical split');await targetCue(unicode,60);assert.deepEqual(currentTree(await layout()),narrowTree);
+  await mouseCells(columnFirst.x+2,columnFirst.y+1,'down');await mouseCells(columnFirst.x+2,columnFirst.y+1,'up');
+  await observe(layout,value=>value.windows.focused===models,'The first narrow tile must remain independently focusable by its real body hit area');await targetCue(models,60);
+  await key('Tab');await observe(layout,value=>value.windows.focused===unicode,'Arrange Tab must return focus to the second narrow tile');
+  await key('v');await observe(layout,value=>splitFor(currentTree(value),unicode)?.axis==='vertical','v must create the actual narrow row split');
+  await page.evaluate(()=>visual.terminal.resize(38,24));await targetCue(unicode,38);await absent('small');await absent(' · narrow');
+  const rowFirst=await nativeFrame('Models & providers',{width:38}),rowSecond=await nativeFrame('Заметки 窗口',{width:38});
+  assert.equal(rowFirst.x,rowSecond.x);assert.equal(rowFirst.width,38);assert.equal(rowSecond.width,38);assert.equal(rowFirst.y+rowFirst.height,rowSecond.y);assert.ok(rowFirst.height>=6&&rowSecond.height>=6);
+  const rowDivider=await selectedDivider('vertical','Заметки 窗口',38);await capture('03-readable-38-row-tiles');
+  await key('+');await observe(layout,value=>splitFor(currentTree(value),unicode)?.ratio===.45,'Narrow row keyboard resize must grow the focused lower tile');await targetCue(unicode,38);
+  assert.ok((await nativeFrame('Заметки 窗口')).y<rowSecond.y,'The narrow row keyboard ratio change must move the actual divider');
+  await key('-');await observe(layout,value=>splitFor(currentTree(value),unicode)?.ratio===.5,'Row resize must restore the exact saved fraction');await targetCue(unicode,38);
+  const cancelRows=await selectedDivider('vertical','Заметки 窗口',38);await mouseCells(cancelRows.x,cancelRows.y,'down');await wait('Mouse resize · Esc cancel');await noDivider();
+  await mouseCells(cancelRows.x,cancelRows.y+1);await key('Escape');await mouseCells(cancelRows.x,cancelRows.y+1,'up');
+  await absent('Mouse resize');await targetCue(unicode,38);assert.equal(splitFor(currentTree(await layout()),unicode).ratio,.5);assert.deepEqual(await nativeFrame('Заметки 窗口'),rowSecond);
+  const narrowRows=structuredClone(currentTree(await layout()));
+  await page.evaluate(()=>visual.terminal.resize(38,16));await targetCue(unicode,38,'small');await noDivider();await wait('UNICODE_WINDOW');await absent('Active: bootstrap');
+  assert.deepEqual(currentTree(await layout()),narrowRows,'Too little height must project one tile without rewriting the canonical tree or saved ratios');await capture('03-size-limited-38-by-16');
+  await key('Tab');await observe(layout,value=>value.windows.focused===models,'The collapsed workspace must allow focus to its other retained window');await targetCue(models,38,'small');await wait('Active: bootstrap');await absent('UNICODE_WINDOW');
+  assert.deepEqual(currentTree(await layout()),narrowRows);
+  await page.evaluate(()=>visual.terminal.resize(38,24));await targetCue(models,38);await selectedDivider('vertical','Заметки 窗口',38);
+  assert.ok((await nativeFrame('Models & providers')).height>=6&&(await nativeFrame('Заметки 窗口')).height>=6);
+  await page.evaluate(()=>visual.terminal.resize(180,50));await targetCue(models,180);await selectedDivider('vertical','Заметки 窗口',180);assert.deepEqual(currentTree(await layout()),narrowRows);
+  await key('q');await leave();await pick('Заметки');await arrange();await key('b');await key('Shift+Digit3');await key('3');await leave();
+  const narrowRestored=await observe(layout,value=>location(value,models)===undefined&&location(value,unicode)===3&&value.windows.axis===protectedLayout.windows.axis,'Public input must close the auxiliary route and restore the original Unicode workspace and next-split direction');
+  assert.deepEqual([1,3].map(id=>narrowRestored.windows.spaces.find(space=>space.id===id)?.tree),protectedTrees,'Temporary narrow tiling must leave the original canonical Main and Unicode trees exact');
+  assert.equal(await exists(launch.navigation.formReceipt),false);assert.equal(await json(launch.navigation.formCalls),1);await noRequests(1);await noResult('ask_user');
+  report.narrowTiling={columns:{width:60,rows:24,frames:[columnFirst,columnSecond],mouseResize:true,keyboardResize:true},
+    rows:{width:38,rows:24,frames:[rowFirst,rowSecond],mouseCancel:true,keyboardResize:true},
+    fallback:{width:38,rows:16,focusedOnly:true,reason:'size-limited'},canonicalTreePreserved:true,privateFormStillPending:true};
   await main();await wait('NAV_PENDING_DRAFT_47');await pick('Navigation private form');assert.equal(await json(launch.navigation.formCalls),1);
   await type('X');await wait('F_XORMvalue');await capture('03-private-form-return');await key('Alt+Enter');
   const receipt=await observe(()=>json(launch.navigation.formReceipt),value=>value?.action==='save','Only explicit form submission may publish a receipt');assert.equal(receipt.values.name,'F_XORMvalue');
@@ -238,8 +336,8 @@ try{
 
   const pane='plugin-navigation-probe-pane11';
   await page.evaluate(()=>visual.terminal.resize(75,30));await arrange();await targetCue(pane,75,'small area');await noDivider();await capture('05-size-limited-split-target');await leave();
-  await page.evaluate(()=>visual.terminal.resize(48,22));await arrange();await targetCue(pane,48,'narrow');await noDivider();await wait('i type');await wait('Esc exit');await capture('05-arrange-48-columns');await leave();
-  await page.evaluate(()=>visual.terminal.resize(38,20));await arrange();await targetCue(pane,38,'narrow');await noDivider();await wait('Esc exit');await wait('i type');await capture('06-arrange-38-columns');await leave();
+  await page.evaluate(()=>visual.terminal.resize(48,22));await arrange();await targetCue(pane,48,'small area');await noDivider();await wait('i type');await wait('Esc exit');await capture('05-arrange-48-columns');await leave();
+  await page.evaluate(()=>visual.terminal.resize(38,20));await arrange();await targetCue(pane,38,'small');await noDivider();await wait('Esc exit');await wait('i type');await capture('06-arrange-38-columns');await leave();
   const narrowTargets=(await workspaceLine()).match(/\b[1-9](?=[* ])/g);assert.deepEqual(narrowTargets,['1','2','3','4','5','6','7','8','9']);
   await workspaceClick(9);await observe(layout,value=>value.windows.workspace===9,'The ninth workspace mouse target must remain reachable at38 columns');
   await wait('No open windows · F2 Windows');await wait('Empty workspace');await capture('06-empty-workspace-nine-38-columns');
@@ -293,8 +391,9 @@ try{
   const modelBodies=JSON.stringify((await traces()).map(row=>row.body)),sessionText=await journal();for(const value of privateValues){assert.ok(!modelBodies.includes(value));assert.ok(!sessionText.includes(value));}
   assert.ok(!/MaxListenersExceededWarning|Possible EventEmitter memory leak detected/.test(await readFile(join(output,'terminal.ansi'),'utf8')));
   report.customRatio=customRatio;report.sessionId=originalJournal[0].slice(0,-6);report.privacy={finderAndFormAbsentFromModel:true,finderAndFormAbsentFromJournal:true,inputLogExcluded:'Raw input records synthetic test queries and form values'};
-  report.splitTarget={siblings:[pane,partner],ratio:customRatio,visibleAxes:['rows','columns'],hidden:['size-limited','compact','zoomed'],noTarget:['empty','lone'],mouseResize:true};
+  report.splitTarget={siblings:[pane,partner],ratio:customRatio,visibleAxes:['rows','columns'],hidden:['size-limited','zoomed'],noTarget:['empty','lone'],mouseResize:true};
   report.checks.push('Arrange identifies the nearest nested split, grows either focused side and accepts a real painted-divider drag; hidden/no-target states and narrow exits remain honest, and exact geometry, closed windows and the original journal survive restart without private Finder/form text entering model requests or history');
+  report.checks.push('Readable narrow tiling keeps two windows of at least 24×6 cells in columns at 60×24 and rows at 38×24, supports actual divider pointer/keyboard resize, collapses only below the available minimum and preserves pending Main/form editors plus the canonical tree through widening and restart');
   await main();await key('Control+c');await observe(async()=>ptyExit,value=>value===0,'Actual CLI must exit cleanly');report.ptyExitCode=ptyExit;assert.deepEqual(report.errors,[]);report.ok=true;
 }catch(error){report.errors.push(error instanceof Error?error.stack:String(error));if(page){await writeFile(join(output,'failure.txt'),await page.evaluate(()=>window.visual?.text()??'').catch(()=>''));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
   if(launch)await readFile(join(launch.state,'layout.json')).then(data=>writeFile(join(output,'failure-layout.json'),data)).catch(()=>{});

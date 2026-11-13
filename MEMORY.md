@@ -1,5 +1,77 @@
 # Project memory
 
+## Readable OpenTUI tiling on narrow screens — 2026-11-14
+
+Removed the adapter's blanket single-pane rule below 70 columns. Frames, split
+cues and separator hit testing now use the same unchanged WindowManager readable
+projection at every width: each retained child rectangle needs at least 24
+columns and 6 rows. Insufficient split areas collapse toward their focused branch
+without changing the canonical tree or saved ratios; other fitting branches can
+remain visible. Compact metadata means an actual non-zoom single-frame fallback
+from multiple live logical panes. Hidden targets use size-limited, retaining the
+older compact enum for source compatibility. The 38-column reason says small
+so the selected side and reason both fit. The preview shares this geometry while
+keeping its raw storage format and development key map. Ink remains the default.
+
+The real terminal proof temporarily moves ordinary Models & providers and an
+existing Unicode window to workspace 8, using only Finder/Arrange input. It
+measures two 30x17 column tiles at 60x24, two 38x9 row tiles at 38x24 and truthful
+single-frame fallback at 38x16. Actual pointer/keyboard resize, pointer Escape,
+fallback focus, widening and exact original workspace trees are checked while
+Main's selected Production answer/draft and a private native form remain pending.
+The later existing nested .55 split and exact restart/session checks remain.
+
+Harness geometry now reads actual xterm cells, preserving Unicode continuation
+columns and the selected heavy border. Headers are preferred; bounded fixture
+body markers handle SDK-omitted long titles, while Main uses its short header.
+Frame and cue cells/RGB are sampled together and resized row references require
+the measured target width. Earlier source attempts failed on thin-border-only
+parsing, Unicode string offsets and split-frame widening reads. Those folders
+remain failed evidence; the complete passing run is
+dist/opentui-narrow-tiling-source-atomic (seven flows).
+
+Validation: standalone coverage passed 1926 tests, three optional skips, 214
+files; focused windows/navigation passed 63 and footer constraints four. Full
+typecheck, generation and 106-page docs checks/build passed. The relocated Linux
+archive passed 27 actual OpenTUI cases: navigation seven, app six, managers five,
+cancellation three and requests six, all errors:[] and PTY exit 0. Evidence:
+dist/opentui-readable-tiling-native-{navigation,app,managers,cancellation,requests}.
+Ink window controls passed seven cases in dist/ink-readable-tiling-native and the
+complete release smoke passed. A bounded independent Impeccable review inspected
+three initial narrow captures and five final native captures, returning ship for
+this slice. No live-model calls or paid budget were used.
+
+Executable SHA-256:
+9c4e13a342764775eeaf57b8a49d6e98a9b062f4071808c3dbd8bcfab6a2c4c1.
+Renderer SHA-256:
+fcd0bfb56928bffa124b654655d8d4b55b11c3e624058b4e96948c1724b6be1d.
+PATH selects the complete immutable main-20261114-a5d28b70214e-linux-x64 bundle;
+fe255 and all earlier installations remain. Reports:
+dist/opentui-readable-tiling-{artifact,local-install,verification}.json. This is
+a local main build reporting 0.8.0, not a new public host release. The configured
+native frontend still requires compositor --renderer opentui.
+
+Prior 86bed24 main CI (Node 22.19.0/26), docs and plugin release preparation
+passed. Native run 43517787556 passed verification and both Linux platforms but
+failed both macOS jobs; publishing was skipped. macOS ARM began /settings only
+11 ms after /todos Enter, before its requested destination arrived. The harness
+now waits for the actual focused Todos title rather than startup-existing body
+text. macOS Intel sent a Closed click at row 19 while Finder query filtering moved
+that row to 16. Finder helpers now wait for the exact native query field, plus
+two filtered results for that mouse reopen. Command/receipt/privacy/cursor and
+mouse assertions remain. Evidence: dist/remote-darwin-{arm64,x64}-43517787556.
+The old run remains failed; current new-head remote checks are required.
+
+Keep the complete 1.0 goal active. Next WM gate is passive first-publication and
+late autofocus policy. A user-intent epoch must be separate from layout revision
+and Finder-only selection revision; idempotent Main/workspace/navigation actions
+still express intent. Trusted service lineage distinguishes retained background
+publication from ambient launcher ALS, while a current matching F2 slow-route
+attempt still needs its explicit destination. No such focus-policy change is
+implemented here. Selected controllers, appearance/render and wire parity,
+legacy conversation copies, exact delegated-child request attribution, embedded
+CPU onboarding and broad real-model/self-development quality remain open.
+
 ## Independent OpenTUI request windows — 2026-11-14
 
 Ordinary UI operations now own a private FIFO for manual approvals, questions,

@@ -60,7 +60,13 @@ workspace mouse targets at 38 columns, and exact saved split-tree/ratio restorat
 after restart. Arrange checks identify the actual nested keyboard split and its
 painted divider, distinguish saved proportions from cell allocation, exercise both
 focused-child resize directions, and explain hidden or absent targets. Pointer
-resizing still uses the real terminal path. The separate deterministic preview
+resizing still uses the real terminal path. An additional narrow-tiling flow uses
+ordinary settings and Unicode windows on a temporary workspace: two columns fit
+at 60×24, two rows fit at 38×24, and insufficient height at 38×16 projects only
+the focused window. It checks actual minimum 24×6 tile bounds, visible divider
+geometry, pointer and keyboard resize, cancellation, canonical tree preservation,
+and the still-pending Main question and private form. Widening and the final CLI
+restart retain the exact saved tree and fractions. The separate deterministic preview
 retains its development keymap.
 Artifacts default to `dist/visual-opentui-navigation/`; `VISUAL_EXECUTABLE` selects
 a complete extracted native candidate rather than a source override.

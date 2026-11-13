@@ -53,6 +53,6 @@ export const agentInstructions = defineEvent({
 export const agentFinish = defineEvent({
   name:'service.agent.finish',since:'0.11.0',version:1,
   summary:'Evaluate a proposed final answer; return complete or a concrete continuation instruction.',
-  input:z.object({text:z.string(),steps:z.number(),tools:z.array(z.object({name:z.string(),args:z.unknown().optional(),ok:z.boolean(),output:z.unknown().optional()}))}),
+  input:z.object({text:z.string(),steps:z.number(),tools:z.array(z.object({name:z.string(),args:z.unknown().optional(),ok:z.boolean(),output:z.unknown().optional(),denied:z.boolean().optional()}))}),
   responses:[{kind:'value',summary:'Completion decision',schema:z.unknown()}],frozen:true,
 });

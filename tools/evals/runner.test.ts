@@ -20,6 +20,11 @@ it('records a focused coding composition and injects its actual preset',async()=
  expect(result.ok).toBe(true);expect(result.composition).toEqual({tools:['read','edit'],agentHarness:true,instructionsPreset:'coding'});
  expect(provider.requests[0].messages[0].content).toBe(CODING_INSTRUCTIONS);expect(provider.requests[0].tools.map(tool=>tool.name).sort()).toEqual(['edit','read']);
 });
+it('rejects a coding preset with its harness disabled before contacting the model',async()=>{
+ const {ScriptedProvider}=await import('../../packages/core/src/index.js');const provider=new ScriptedProvider([{text:'unused'}]);
+ const result=await runCase({id:'inactive-coding-preset',prompt:'Fix the project.',files:{},expect:{responseIncludes:'unused'}},{model:'scripted',provider,instructionsPreset:'coding'});
+ expect(result.ok).toBe(false);expect(result.error).toContain('Coding instructions preset requires agentHarness: true');expect(provider.requests).toHaveLength(0);
+});
 it('advertises and executes navigation plugin tools in an explicitly selected composition',async()=>{
  const {ScriptedProvider}=await import('../../packages/core/src/index.js');
  const provider=new ScriptedProvider([{toolCalls:[{name:'glob',args:{pattern:'**/*.mjs'}}]},{toolCalls:[{name:'grep',args:{pattern:'SEARCH_EVIDENCE',path:'known.mjs'}}]},{text:'Found known.mjs with SEARCH_EVIDENCE.'}]);

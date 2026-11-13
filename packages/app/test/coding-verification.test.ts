@@ -6,12 +6,17 @@ import {buildApp,type BuiltApp} from '../src/build.js';
 import {ScriptedProvider,type ScriptedStep} from '@agent-compositor/core';
 const roots:string[]=[],apps:BuiltApp[]=[];
 afterEach(async()=>{for(const app of apps.splice(0))await app.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
-async function fixture(script:ScriptedStep[],agent:Record<string,unknown>={instructionsPreset:'coding'},check="import a from 'node:assert/strict';import{readFileSync}from'node:fs';a.equal(readFileSync('result.txt','utf8'),'fixed');console.log('CHECK_OK');"){
- const cwd=await mkdtemp(join(tmpdir(),'coding-verification-'));roots.push(cwd);await writeFile(join(cwd,'verify.mjs'),check);
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness'],agent:{...agent,tools:['write','exec'],builtinTools:['write','exec'],controlTools:[],projectContext:false,skills:false,fileReferences:false},permissions:{rules:[{tool:'write',path:cwd+'/**',decision:'allow'},{tool:'exec',command:'node verify.mjs',decision:'allow'}]}}));
+async function fixture(script:ScriptedStep[],agent:Record<string,unknown>={instructionsPreset:'coding'},check="import a from 'node:assert/strict';import{readFileSync}from'node:fs';a.equal(readFileSync('result.txt','utf8'),'fixed');console.log('CHECK_OK');",checkFile='verify.mjs'){
+ const cwd=await mkdtemp(join(tmpdir(),'coding-verification-'));roots.push(cwd);await writeFile(join(cwd,checkFile),check);
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness'],agent:{...agent,tools:['write','exec'],builtinTools:['write','exec'],controlTools:[],projectContext:false,skills:false,fileReferences:false},permissions:{rules:[{tool:'write',path:cwd+'/**',decision:'allow'},{tool:'exec',command:`node ${checkFile}`,decision:'allow'}]}}));
  const provider=new ScriptedProvider(script),app=await buildApp({cwd,env:{HOME:cwd},provider});apps.push(app);const core=app.createCore(async()=>false);return{core,provider};
 }
 const write={toolCalls:[{name:'write',args:{path:'result.txt',content:'fixed'}}]};
+it('accepts an executed checks.mjs project check without redundant completion retries',async()=>{
+ const f=await fixture([write,{toolCalls:[{name:'exec',args:{command:'node checks.mjs'}}]},{text:'The project checks passed.'}],{instructionsPreset:'coding'},undefined,'checks.mjs');
+ await f.core.submit('Fix the project and run its existing checks');
+ expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(3);
+});
 it('coding preset verifies a write without requiring a saved task plan',async()=>{
  const f=await fixture([write,{text:'Done without a check.'},{toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},{text:'CHECK_OK verified.'}]);
  await f.core.submit('Fix the project and verify it');expect(f.provider.requests).toHaveLength(4);expect(f.core.failure).toBeUndefined();expect(f.provider.requests[2].messages.some(message=>message.content.includes('no successful verification command'))).toBe(true);
@@ -21,6 +26,34 @@ it('keeps unchecked coding changes failed after bounded completion feedback',asy
 });
 it('does not accept a nonzero project check as coding verification',async()=>{
  const f=await fixture([write,{toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},{text:'Passed.'},{text:'Passed.'},{text:'Passed.'}],{instructionsPreset:'coding'},'process.exit(1);');await f.core.submit('Fix and verify');expect(f.core.failure).toContain('Completion checks remain unsatisfied');expect(f.provider.requests).toHaveLength(5);
+ const reminder=f.provider.requests[3].messages.at(-1)?.content??'';
+ expect(reminder).toContain('Rerun unresolved checks only when authorized');expect(reminder).not.toContain('refused by permission policy');
+});
+it('preserves permission denial evidence and avoids telling the model to rerun a refused check',async()=>{
+ const f=await fixture([write,{toolCalls:[{name:'exec',args:{command:'node scratch-check.mjs'}}]},{text:'Changed the file.'},{text:'[verification unavailable] Permission policy refused the scratch check; no verification was executed.'}]);
+ const finishes:any[]=[];f.core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='service.agent.finish')finishes.push(event.input);});
+ await f.core.submit('Fix the project and verify it');
+ expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(4);
+ expect(finishes[0].tools.find((tool:any)=>tool.name==='exec')).toMatchObject({ok:false,denied:true});
+ const reminder=f.provider.requests[3].messages.at(-1)?.content??'';
+ expect(reminder).toContain('refused by permission policy');
+ expect(reminder).toContain('Do not rerun');expect(reminder).toContain('[verification unavailable]');
+ expect(reminder).not.toContain('Rerun unresolved checks');
+});
+it('does not count a different passing check as clearing a permission-blocked verification',async()=>{
+ const f=await fixture([write,{toolCalls:[{name:'exec',args:{command:'node scratch-check.mjs'}}]},{toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},{text:'All checks passed.'},{text:'[verification unavailable] The existing project check passed; the separate scratch check was refused and was not run.'}]);
+ await f.core.submit('Fix the project and verify it');
+ expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(5);
+ const reminder=f.provider.requests[4].messages.at(-1)?.content??'';
+ expect(reminder).toContain('refused by permission policy');
+ expect(f.provider.requests.flatMap(request=>request.messages).filter(message=>message.role==='user'&&message.origin==='harness').some(message=>message.content.includes('Rerun unresolved checks'))).toBe(false);
+});
+it('does not carry a refused verification across a later edit',async()=>{
+ const f=await fixture([write,{toolCalls:[{name:'exec',args:{command:'node scratch-check.mjs'}}]},write,{text:'Done.'},{toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},{text:'The final edit passed its check.'}]);
+ await f.core.submit('Fix the project and verify the final edit');
+ expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(6);
+ const reminder=f.provider.requests[4].messages.at(-1)?.content??'';
+ expect(reminder).toContain('no successful verification command');expect(reminder).not.toContain('refused by permission policy');
 });
 it.each([{instructionsPreset:'general'},{instructionsPreset:'coding',verifyCompletion:false}])('preserves the general preset and explicit verification opt-out: %j',async agent=>{
  const f=await fixture([write,{text:'Saved.'}],agent);await f.core.submit('Save this text');expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(2);

@@ -376,7 +376,8 @@ an explicitly selected `service.agent.finish` provider can replace the policy.
 
 A recognized check must follow the latest successful built-in edit. Foreground
 `exec` and configured `project_check` runs require exit code zero. Common check
-names include test, typecheck, check, lint, build, verify, pytest, vitest and ci.
+names include test, typecheck, check, checks (including `node checks.mjs`), lint,
+build, verify, pytest, vitest and ci.
 Starting a background shell is insufficient: a matching later `exec_output` must
 report `done: true` and exit code zero, without successful cancellation. Read the
 actual terminal result before reporting that a background check passed.
@@ -388,6 +389,16 @@ check name, and explicit working-directory argument. A successful rerun of the
 same check resolves its failure. Background attempts remain unresolved while
 running or cancelled; observations from an older attempt cannot replace a newer
 result. This does not infer equivalence between differently written commands.
+
+Permission refusal is not an executed failing check. The core preserves optional
+`denied: true` on the tool records passed to `service.agent.finish` (catalog 0.29);
+older records may omit it. When a recognized verification call after the latest
+edit was refused, the default completion feedback explicitly forbids rerunning
+that call or bypassing the refusal. Independently authorized checks can supply
+additional evidence, but do not turn the refused check into a pass. Explain the
+remaining limitation with `[verification unavailable]` rather than claiming all
+checks passed. Execution failures without refusal retain the usual repair and
+authorized rerun guidance.
 
 The existing bounded completion-feedback loop remains in force; repeated missing
 verification leaves the turn failed with saved progress. A concrete reason with

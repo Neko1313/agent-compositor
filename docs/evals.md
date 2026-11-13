@@ -37,6 +37,9 @@ npm run eval -- --baseline dist/evals/report.json --output dist/evals-next
 `--timeout` sets the deadline in milliseconds. The JSON report includes rubric
 checks, pass rates per model, latency, usage, request counts, and baseline
 regressions. `tools/evals/*.ts` is included in the standard typecheck command.
+Programmatic coding-preset trials must also enable `agentHarness: true` in
+`runCase`; the runner rejects an inactive coding preset before contacting the
+model. A configured preset name alone does not establish that its policy ran.
 Each result also includes `permissionDiagnostics`: denied agent calls, repeated
 identical denied calls, unmatched denied results and event/call references for
 inspection. Identity compares the tool and every argument value, ignoring JSON

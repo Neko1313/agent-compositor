@@ -50,6 +50,14 @@ describe("event catalog", () => {
         expect(signature.input.required??[]).not.toContain('profile');
         signature.input=structuredClone(signature.input);delete signature.input.properties.profile;
       }
+      // Reviewed additive 0.29: finish policies can distinguish permission
+      // refusal from execution failure; old callers may omit this evidence.
+      if(name==='service.agent.finish'){
+        const tool=signature.input.properties.tools.items;
+        expect(tool.properties.denied).toEqual({type:'boolean'});
+        expect(tool.required??[]).not.toContain('denied');
+        signature.input=structuredClone(signature.input);delete signature.input.properties.tools.items.properties.denied;
+      }
       // Reviewed additive change in 0.24: omitted scrollKeys preserves the
       // existing input/non-input key routes; only an explicit mode changes them.
       if(name==='service.ui.view'){

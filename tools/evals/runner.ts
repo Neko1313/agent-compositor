@@ -54,6 +54,8 @@ export async function runCase(
     answer = "";
   const started = Date.now();
   try {
+    if(options.instructionsPreset==='coding'&&!options.agentHarness)
+      throw Error('Coding instructions preset requires agentHarness: true; otherwise its policy is not active');
     for (const [file, text] of Object.entries(test.files)) {
       if (file.includes("..") || file.startsWith("/"))
         throw Error("Invalid fixture path");

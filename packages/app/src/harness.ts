@@ -3,15 +3,18 @@ import { atomicJson, type ProjectStorage } from '@agent-compositor/config';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ToolSpec } from '@agent-compositor/tools';
+const checkName=/\b(test|typecheck|checks?|lint|build|verify|pytest|vitest|ci)\b/;
+function checkCommand(tool:any):unknown {
+    return tool.name==='project_check'&&tool.args?.action==='run'?tool.args?.name:tool.name==='exec'?tool.args?.command:undefined;
+}
 /** Each attempted check needs current passing evidence after the latest edit. */
 export function successfulVerification(tools:any[]):boolean {
-    const checkName=/\b(test|typecheck|check|lint|build|verify|pytest|vitest|ci)\b/;
     let lastEdit=-1;tools.forEach((tool,index)=>{if(tool.ok&&['write','edit'].includes(tool.name))lastEdit=index;});
     const checks=new Map<string,{attempt:number;passed:boolean}>();
     const jobs=new Map<string,{key:string;attempt:number;killed:boolean}>();
     tools.forEach((tool,index)=>{
         if(index<=lastEdit)return;
-        const command=tool.name==='project_check'&&tool.args?.action==='run'?tool.args?.name:tool.name==='exec'?tool.args?.command:undefined;
+        const command=checkCommand(tool);
         if(typeof command==='string'&&checkName.test(command)){
             const key=JSON.stringify([tool.name,tool.args?.cwd??'',command.trim()]);
             checks.set(key,{attempt:index,passed:tool.ok===true&&tool.output?.started!==true&&tool.output?.exitCode===0});
@@ -96,7 +99,13 @@ export function harnessControls(storage: ProjectStorage, config: Record<string, 
                 // The second proposal can explicitly explain why automated checks do not apply.
                 // This is a reminder, not a claim that arbitrary test output proves correctness.
                 if (edits.length && (lastPlan || config.verifyCompletion === true || config.instructionsPreset === 'coding') && !checks && !e.text.includes('[verification unavailable]') && !e.text.includes('[checks not applicable]'))
-                    return { value: { complete: false, continue: 'Files changed but no successful verification command is recorded for every attempted check. A failed, running or cancelled check is not cleared by an earlier success or a different check. Rerun unresolved checks and inspect their output. If unavailable or inapplicable, give the concrete reason and include [verification unavailable] or [checks not applicable] in the final report. Do not claim tests passed without evidence.' } };
+                {
+                    const lastEdit=e.tools.findLastIndex((tool:any)=>tool.ok&&['write','edit'].includes(tool.name));
+                    const refused=e.tools.slice(lastEdit+1).some((tool:any)=>{const command=checkCommand(tool);return tool.denied===true&&typeof command==='string'&&checkName.test(command);});
+                    return { value: { complete: false, continue: refused
+                        ? 'One or more verification calls after the latest edit were refused by permission policy. Do not rerun those calls or bypass the refused effects through another tool. Use independently authorized checks where useful, and explain the remaining limitation with [verification unavailable] in the final report. A refused check was not executed and must not be reported as passed.'
+                        : 'Files changed but no successful verification command is recorded for every attempted check. A failed, running or cancelled check is not cleared by an earlier success or a different check. Rerun unresolved checks only when authorized and inspect their output. If unavailable or inapplicable, give the concrete reason and include [verification unavailable] or [checks not applicable] in the final report. Do not claim tests passed without evidence.' } };
+                }
                 return { value: { complete: true } };
             },
         } };

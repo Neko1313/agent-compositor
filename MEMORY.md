@@ -1,5 +1,53 @@
 # Project memory
 
+## Completion checks recognize checks.mjs and preserve refusal evidence — 2026-11-13
+
+Real coding diagnostics exposed a harness false negative: Gemma successfully
+fixed the checkout fixture and ran node checks.mjs, but completion retried twice
+and failed because the check-name heuristic matched check, not checks. Added
+plural recognition with an actual app/exec regression that fails before the fix
+and completes without extra model requests after it. Exit-code, post-edit,
+per-check and background-job requirements remain intact; graders are unchanged.
+
+Core finish records now retain optional denied evidence in service.agent.finish.
+Catalog 0.29 is an additive optional field, with the frozen 0.17 compatibility
+test proving the remaining shape unchanged. Refusal-specific completion feedback
+forbids rerunning refused effects and requests an explicit verification limitation;
+it no longer groups permission refusal with execution failures requiring reruns.
+Other passing checks cannot clear a refused check. Tests cover actual execution
+failure, permission refusal, a separate passing check and stale refusal after a
+new edit. Canonical core-customization/eval guides and generated schemas updated;
+architecture, capability inventory and terminal controls are unchanged.
+
+Caught an experiment configuration error during trajectory review: initial
+coding-preset and coding-controlled-before/after runs set instructionsPreset but
+omitted agentHarness:true, so they never installed coding instructions/finish
+policy. Preserve their artifacts but invalidate coding-policy conclusions
+(dist/check-discovery/inactive-coding-trials.json). The runner now rejects this
+combination before contacting a model; its existing positive test proves actual
+coding-instruction injection. Do not describe those invalid controlled trials
+as evidence for either wording variant.
+
+Corrected agent-harness-enabled two-task/two-model/two-repeat runs scored 4/8
+before checks-name repair (Gemma 0/4, DeepSeek 4/4) and 7/8 after it (Gemma 4/4,
+DeepSeek 3/4). Both use the refusal-feedback candidate, original user prompts,
+rules, artifact/original-check/independent graders, 24 steps/80000 tokens and
+180s. Before-run source receipt: coding-preset-enabled-source.json. Reports and
+source/report hashes: dist/check-discovery/completion-repair-decision.json.
+The deterministic regression establishes the false-negative repair; small known
+task repeats do not establish general/model-independent quality or causal gains
+for greeting recovery/refusal feedback. Remaining DeepSeek failure preserves
+package.json and passes executed/original tests but fails the independent
+optional-prefix check for a blank name. A successful Gemma row still repeats an
+exact denied call. Preserve both facts rather than treating 7/8 as complete.
+
+Final coverage suite: 1324 passed/three optional skips, 162 files. Types, full
+documentation checks and deterministic 5/5 eval pass. Restricted generator/impact
+attempts lacked IPC/child-process permission; process-capable reruns passed.
+No OpenAI call/guard mutation; Ollama billing unavailable. Public 0.8.0 assets
+remain unchanged. Broad 1.0, refusal recovery, model/API retention, embedded CPU
+onboarding and the planned OpenTUI frontend remain incomplete.
+
 ## Separate task success from denial-count diagnostics — 2026-11-13
 
 Follow-up discovery experiments at ffd0b6d kept the public 0.8.0 runtime unchanged.

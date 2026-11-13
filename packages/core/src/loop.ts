@@ -54,7 +54,7 @@ import type {
 interface UserToolOperation {
   command?:boolean;
   id:string;callId:string;tool:string;owner?:string;controller:AbortController;signal:AbortSignal;
-  tools:ToolSpec[];messages:ChatMessage[];records:Array<{name:string;args:unknown;ok:boolean;output?:unknown}>;
+  tools:ToolSpec[];messages:ChatMessage[];records:Array<{name:string;args:unknown;ok:boolean;output?:unknown;denied?:boolean}>;
   tokens:number;usage:{inputTokens:number;outputTokens:number};promise:Promise<unknown>;
 }
 
@@ -185,7 +185,7 @@ export class AgentCore {
 
   private messages: ChatMessage[] = [];
   private baseInstructions = "";
-  private turnToolRecords:Array<{name:string;args:unknown;ok:boolean;output?:unknown}>=[];
+  private turnToolRecords:Array<{name:string;args:unknown;ok:boolean;output?:unknown;denied?:boolean}>=[];
   private queryObservations=new WeakMap<object,string>();
   private contextSource = "fallback";
   private contextWindow = 32768;
@@ -1779,7 +1779,7 @@ export class AgentCore {
   }
 
   private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false):Promise<void> {
-    const record={name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result};
+    const record={name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result,...(denied?{denied:true}:{})};
     this.executionRecords.push(record);
     await this.emit("tool.result", {
       callId: call.id,

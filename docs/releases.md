@@ -2,6 +2,9 @@
 
 ## 0.8.0 changes and migration
 
+[Download v0.8.0](https://github.com/Neko1313/agent-compositor/releases/tag/v0.8.0),
+published from `4b5b297` on 2026-11-13 for all four declared native platforms.
+
 Version 0.8.0 combines guided first-run profile/plugin setup, immediate controls,
 recoverable conversation views, independent agent conversation tabs, saved agent
 activity, interactive agent/workflow tables and process CPU/memory charts.

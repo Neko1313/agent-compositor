@@ -1,5 +1,48 @@
 # Project memory
 
+## Public v0.8.0 delivery verified; two-family diagnostic remains incomplete — 2026-11-13
+
+Tagged workflow 43346528810 completed source verification, all four native
+build/install jobs and publication successfully. Public v0.8.0 is latest,
+non-draft/non-prerelease, published 2026-11-13T01:48:11Z with exactly six uploaded
+assets. Remote annotated tag object 2fad6aac41e4937613d8caeebb2bb37374cd6e39 peels
+to 4b5b2972b23b0a8c20c813f076b14ba601d77849. No existing tag/assets were replaced.
+All six public assets were downloaded; the four archives and installer match
+SHA256SUMS, and GitHub asset digests/sizes match downloaded bytes. All 32 tagged
+installed-runtime reports pass the independent audit. Public Linux's 4487
+shipping files, executable bits and symlink targets match the verified candidate
+and exercised local archive. Public Linux archive SHA is
+baa2f9afbceef5a5b22c87a5e50966f8997f525d67f463cdbc7616c2482ef0f8;
+binary SHA fab67b86ab91102edb5c862d1869f03c498c591d9b987b908062bd9bf62d62d4.
+
+The actual public 0.7.4→public 0.8.0 isolated installer upgrade passes versioned
+and latest installs, preserved private settings/plugin state/draft/old binary,
+the original session journal prefix and resumed original task/answer. Exactly
+two loopback completions, no paid provider; owned temporary state was removed.
+Public integrity, workflow, checksums, copied reports, shipping comparison and
+upgrade receipt are under dist/release-0.8.0-public. Canonical release/readiness
+guidance now distinguishes published 0.8 from the still-open stable 1.0 gates.
+
+While native publication ran, the unchanged two-task coding suite ran twice on
+Gemma4:31b-cloud and DeepSeek-v4.1-flash:1017-cloud through existing Ollama. Each
+scores 3/4 (6/8 overall) with identical frozen criteria, 24-step/80000-token turn
+bounds and 180-second deadlines. One Gemma greeting run passes artifact/original
+checks but repeats a denied scratch-test command three times and never runs an
+allowed project check. It truthfully reports the execution restriction. Core
+already appends denial/no-retry guidance; do not claim that guidance is missing.
+One DeepSeek greeting run passes every oracle and real verification, but its next
+request cannot fit the remaining turn allowance before cleanup/terminal completion.
+This is a turn-token budget, not the model context-window capacity or a price
+limit. Neither failure was reclassified or rerun away. Known small tasks are not
+an unseen benchmark or proof of arbitrary-model development quality.
+Source 6d8b222 has runtime source byte-equal to v0.8.0; report/suite/runner/grader
+hashes and full traces are preserved in dist/evals-v080-cross-model. No OpenAI
+profile/request or spending-guard mutation occurred; Ollama monetary billing is
+unavailable. Next quality work should address permission-aware verification
+discovery and efficient terminal completion under the existing bounds, preserving
+the failed baseline. Broader real self-development, long-running/model-family
+coverage, embedded CPU onboarding and planned OpenTUI migration remain active.
+
 ## v0.8.0 tagged after exact candidate gates — 2026-11-13
 
 Annotated v0.8.0 points to 4b5b2972b23b0a8c20c813f076b14ba601d77849 and

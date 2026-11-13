@@ -68,112 +68,105 @@ them. Prioritize approval behavior and conversation recovery, then the common
 command/view contracts and onboarding. Deterministic checks do not substitute
 for independent review of the complete real terminal flows.
 
-Current source implements catalog 0.25 immediate commands independently of views,
+Version 0.8.0 ships catalog 0.25 immediate commands independently of views,
 headless `/auto on|off|status`, an explicitly requested `/auto history` view and
-idempotent `/chat` restoration. Actual PTY checks cover a held model, unchanged
-draft, repeated restoration, workspace return, narrow history scrolling and
-restart. Core checks cover owner dispatch, failure isolation, tool permissions,
-auxiliary usage, cancellation, unload and shutdown bounds. This is source-runtime
-evidence; the immutable public 0.7.4 archive does not include these new contracts.
-Embedded inference-assisted onboarding and further table/drill-down work remain
-open. The development `resources` plugin provides a first standalone non-model
-window: live process CPU/RSS charts, pause/manual sampling and bounded in-memory
-history. It includes in-process agents but excludes child shells and model servers;
-per-agent attribution and broader resource integrations remain open. The development agent overview now
-uses catalog 0.27 semantic tables with expandable workspace/limits/activity,
-state filters and responsive stacked fields. This is an initial reusable table
-contract. The development workflows plugin adopts it for paginated run/stage
-views, expandable results and state filters, preserving pause/resume and legacy
-journals. The development UI now has reusable catalog 0.28 tabs for agent and
-workflow state filters, with mouse/keyboard selection and narrow wrapping.
-Per-agent conversation tabs now preserve separate drafts and histories, support
-button/Enter submission and grouped navigation through all sixteen allowed agents,
-and restore the selected pane with committed messages after restart. Source tests
-and a compiled Linux x64 PTY scenario cover these paths with a loopback provider.
-Saved activity now exposes persisted per-agent prompts, turn lifecycle/usage and
-tool arguments/results/errors through filtered, paginated expandable records.
-Refresh reads an explicit snapshot through the configured session repository.
-Tests verify restart and complete long-record access. An extracted Linux x64 host
-passes eight real-PTY history checks with an actual read tool call, a held main
-stream and saved output restored after restart. Broader native UI coverage and
-real-model verification of these newer views remain separate gates. Local extracted Linux
-x64 archive checks now cover the agent overview with a held main model and the
-bundled workflow table through bounded loopback providers. They exposed and fixed
-host `/agents` immediate registration and explicit focus of existing/reopened
-panes. Other native platforms and actual terminal graphics remain separate gates.
-The newer source adds `/btw` side conversations
-through catalog 0.26: an independent persisted agent with its own Reply field,
-immediate opening/reopening, separate draft, focused-agent cancellation and
-restart history. Source integration and real PTY checks cover those paths with
-a held main model. It preserves the notification-only mode as `/btw --once`.
-Native release/platform checks and fresh live classification/development gates
-remain separate; this is not a published feature or a 1.0 readiness claim.
+idempotent `/chat` restoration. Real PTY checks cover a held model, unchanged
+draft, repeated restoration, workspace return, narrow history and restart.
+Core checks cover owner dispatch, failure isolation, tool permissions, auxiliary
+usage, cancellation, unload and shutdown bounds.
 
-The current auto-review source also validates structured `approved: true|false|null`
-decisions. Task-context low/medium approvals can proceed; refusals stop the call
-without repeating a manual approval; uncertainty and review failures remain
-manual. Deterministic integration checks cover the real hook/core handoff,
-explicit host denies, audit failure, disable and interruption. The live reference
-matrix includes a bounded CI action and requires refusal of injected deletion
-claims. On source 703f87d, full Linux source certification passes all 24 reference
-cases on gemma4:31b-cloud, including three repetitions each of the CI, missing
-effects and injected deletion cases. An initial run had confused missing effects
-with a concrete violation; clarified reviewer instructions fixed that diagnostic
-without changing its oracles. This result is scoped to the declared reference,
-not arbitrary models. Final-source identities, other platform/archive gates and
-publication remain separate. Ordinary clarification questions remain human decisions.
-After generated metadata preparation, source b8d71b1 (the identical tree merged
-as 6a3fd53) passes the full Linux source release-stage certification for
-auto-approve 1.4.1, workflows 1.6.1, btw 2.0.0 and plugin-author 1.4.0. Their live
-reference matrices pass 24/21/24/21 cases respectively, with unchanged oracles
-and three repetitions. This is one-reference source evidence; native archives,
-final source identity and broad development/model quality remain separate gates.
-The plain/headless source now also preserves independent controls in pasted input,
+The bundled `resources` plugin provides a standalone non-model window with live
+process CPU/RSS charts, pause/manual sampling and bounded in-memory history.
+It includes in-process agents; child shells, model servers, per-agent attribution
+and broader resource integrations remain open. Agent and workflow views use
+catalog 0.27 semantic tables and catalog 0.28 tabs: expandable details, state
+filters, paginated stages/results, keyboard/mouse navigation and narrow stacked
+fields. Workflow pause/resume and legacy journals remain available. Closing the
+workflow view leaves stages running, rejects stale renders and allows explicit reopening.
+
+Per-agent conversation tabs preserve separate drafts and histories, provide
+button/Enter submission and navigation through all sixteen allowed agents, and
+restore the selected pane with committed messages after restart. Unsent drafts
+survive navigation but do not survive restart. Saved activity exposes persisted
+prompts, turn lifecycle/usage and tool arguments/results/errors through filtered,
+paginated expandable records read through the configured session repository.
+Linux PTY checks cover an actual read tool call, a held main stream and restored
+saved output. Full native UI coverage on other platforms and actual terminal
+graphics remain separate gates from native installer/protocol checks.
+
+`/btw` opens an independent persisted agent with its own Reply field, immediate
+reopening, separate draft, focused-agent cancellation and restart history.
+`/btw --once` preserves notification-only behavior. Both modes ship in 0.8.0;
+the bundled btw package is version 2.0.0. Source integrations and compiled Linux
+PTY scenarios cover these flows while a main model is held.
+
+Auto-review validates structured `approved: true|false|null` decisions.
+Task-context low/medium approvals can proceed; refusals stop the call without
+another manual question; uncertainty and review failures remain manual. Explicit
+host denies remain binding. Missing targets/effects require uncertainty rather
+than a fabricated violation. Full Linux source release-stage certification on
+exact release source `4b5b297` passes the declared gemma4:31b-cloud matrices for
+auto-approve 1.4.1, workflows 1.6.1, btw 2.0.0 and plugin-author 1.4.0:
+24/21/24/21 cases, unchanged oracles and three repetitions. This is one-reference
+evidence. Ordinary clarification questions remain human decisions; arbitrary
+model classification quality is not established.
+
+The plain/headless interface preserves independent controls in pasted input,
 queues Enter follow-ups, reserves Tab for steering, drains accepted commands on
-EOF, and consumes human dialog answers separately from model prompts. Command
-notifications and auxiliary usage appear in headless results; reported command
-errors fail that invocation. Installed Linux archive checks include a real raw
-PTY approval and actual CLI exit. These are local transport/protocol checks;
-live-model development, native side-conversation UI and other-platform evidence
-for this newer source remain separate requirements.
+EOF and consumes human dialog answers separately from model prompts. Command
+notifications and auxiliary usage appear in headless results; command errors
+fail that invocation. Installed-runtime checks cover actual raw PTY approval,
+interruption and CLI exit on all four declared platforms.
 
-The current development source also provides a deterministic optional `/setup`
-guide for first launch without a configured model. It configures an existing/new
-provider through a short private editor, suggests explicit optional plugin choices,
+The optional first-launch `/setup` guide requires no configured model. It offers
+a short private provider editor, suggests explicit optional plugin choices,
 preserves installed pins, applies reload through the normal UI path and returns
-to the first task without losing a draft. A real source PTY flow verifies automatic
-offer, persisted skip/completion, masked/private credentials, actual selected-plugin
-installation and activation, narrow layout and one first task through a saved
-loopback connection. The same eleven checks also pass against the compiled app
-from a locally built and extracted Linux x64 archive (source e60ce22); screenshots
-cover the private form, narrow guide and first task. No model is called during
-setup itself. Other native platforms and embedded CPU-model quality remain open.
-The local Linux x64 archive additionally passes installed-binary approval,
-refusal and binding host-deny checks using its bundled reviewer and a local
-protocol fixture. The maintained release smoke now requires this check on every
-declared release platform. Other platforms have not yet run this new check;
-this does not close the live-model classification gate.
+to the first task without losing a draft. Eleven compiled Linux PTY checks cover
+the automatic offer, persisted skip/completion, masked/private credentials,
+selected-plugin installation/activation, narrow layout and one first task through
+a saved loopback connection. Embedded CPU inference-assisted onboarding and its
+model quality remain open.
 
-### 0.8.0 candidate preparation — 2026-11-13
+### 0.8.0 publication — 2026-11-13
 
-Generated plugin release PR9 was independently reproduced and merged after its
-matching CI/docs checks. The host now prepares 0.8.0 with generated changelog and
-documented `/btw --once` migration. The complete local Linux archive passes eight
-runtime probes and real PTY setup, conversation-tab and workflow-table scenarios,
-including narrow layouts, private profile setup, plugin activation, independent
-drafts, parent wake and restart history. Screenshots were visually inspected.
+[v0.8.0](https://github.com/Neko1313/agent-compositor/releases/tag/v0.8.0) is
+published from `4b5b2972b23b0a8c20c813f076b14ba601d77849`.
+[Candidate verification](https://github.com/Neko1313/agent-compositor/actions/runs/43345109570)
+and [tagged publication](https://github.com/Neko1313/agent-compositor/actions/runs/43346528810)
+passed source checks and native build/install jobs on Linux x64/ARM64 and macOS
+x64/ARM64. All 32 tagged installed-runtime reports were independently audited.
+Matching Node 22/26 CI passed; coverage passes 1315 tests with three optional skips.
+All 4487 Linux candidate shipping files match the locally exercised archive,
+including executable bits and symlink targets. Real setup, conversation-tab and
+workflow PTY scenarios pass with inspected narrow/restored/completed screenshots.
+All six public assets were downloaded; the four archives and installer match
+published checksums and all available GitHub asset digests match the downloaded
+bytes. The public Linux distribution has the same 4487 shipping files as the
+verified candidate. An isolated public 0.7.4→public 0.8.0 installer upgrade
+preserves settings, plugin state, draft, old executable and the old session's
+journal prefix; the new host resumes its original task/answer. Versioned and
+latest installs both pass. The upgrade uses two bounded loopback completions,
+not a live provider. Public integrity evidence is retained under
+`dist/release-0.8.0-public`.
+This intermediate release does not close the stable 1.0 gates.
 
-An actual checksum-verified public 0.7.4 installation upgrades to this local
-candidate while retaining settings, plugin state and the old binary. The new
-host resumes its old session with the original task/answer and journal prefix.
-This is a local-candidate upgrade check, not a public 0.8.0 download check.
-Candidate coverage passes 1312 tests with three optional skips. Its clean
-committed native matrix and tagged publication are still required.
+### Two-family coding diagnostic — 2026-11-13
 
-Prior runtime [run 43329351577](https://github.com/Neko1313/agent-compositor/actions/runs/43329351577)
-at `a66fcc3` passed all four native platforms; all 32 installed-runtime reports
-were independently checked. These remain separate from the newer versioned
-candidate. None of these deterministic checks closes the broad live-model gates.
+The unchanged two-task coding suite ran twice each on gemma4:31b-cloud and
+DeepSeek-v4.1-flash:1017-cloud through the existing Ollama service, using the 0.8.0
+runtime code. Both score 3/4, for 6/8 overall. One Gemma run repairs the artifact
+but repeats a denied scratch-test command instead of running the existing allowed
+project checks. One DeepSeek run passes all artifact/original-check oracles but
+cannot admit its next request within the declared 80000-token turn allowance
+before terminal completion.
+Neither failure is reclassified as success. Trace/report/task/runner/grader hashes
+are retained under `dist/evals-v080-cross-model`.
+
+These are known small tasks, not held-out general development benchmarks or a
+broad model-independence claim. The original criteria and limits were unchanged.
+No OpenAI profile/request or spending-guard change was used; Ollama monetary
+billing is unavailable. Denial recovery, efficient completion and broader real
+project/self-development coverage remain open.
 
 ### Finite-query repetition recovery — 2026-11-13
 
@@ -183,11 +176,10 @@ Callix glob/grep opt in; polling remains unchanged. New observations, other
 operations, steering and context replacement permit fresh investigation. The
 recent window is bounded; see [exact rules](core-customization.md#repeated-query-recovery).
 
-1312 tests pass with three optional skips. The final Linux archive passes eight
-runtime probes, including real read/grep journal evidence for bounded refusal
-and recovery after a new observation. The prior archive fails the new probe.
-Other-platform evidence is pending. The previous `9cb714b` release run failed before
-native builds on two integration-test synchronization issues, now corrected.
+The 0.8.0 tagged native matrix passes the query probe on all four platforms,
+including real read/grep journal evidence for bounded refusal and recovery after
+a new observation. The earlier archive failed the new probe. Final coverage
+passes 1315 tests with three optional skips.
 
 Two prototype CPU greeting attempts still score 0/2 with 17 admitted requests.
 Neither reaches the reminder threshold, so this is not a measured recovery or
@@ -201,11 +193,9 @@ The default file-edit resolver rejects a replacement whose actual resulting text
 is unchanged, before writing or adding undo state. Useful whitespace normalization
 still works when identical arguments change the actual file. Five regression
 cases cover exact/normalized single/all replacements and an empty guarded
-insertion; 1296 tests pass with three optional skips. The installed Linux archive
-passes a six-response discovery/read/no-change-edit probe and the six other
-runtime probes; the prior archive fails the new no-change check. The expanded
-probe is required in the native matrix, with its new cross-platform results still
-pending. These establish tool behavior, not autonomous model correctness.
+insertion. The six-response discovery/read/no-change-edit probe passes on all
+four platforms in the 0.8.0 tagged matrix; the earlier archive fails its no-change
+check. These establish tool behavior, not autonomous model correctness.
 
 Two subsequent known greeting diagnostics still score 0/2 with 21 admitted local
 requests. One guarded edit introduces invalid syntax and fails completion checks;
@@ -223,10 +213,11 @@ The successful attempt performed a guarded edit, ran the real project checks
 and passed independent behavior checks while preserving protected files. Across
 the four attempts, 42 local completions were admitted; no paid request occurred.
 
-The failures expose repeated successful read/search loops and an identical-text
-edit reported as successful, followed by failing verification. Completion remained
-failed. These are concrete harness/tool recovery gaps, not evidence that directory
-context alone supplies reliable coding. Prompts, source hashes, budgets, failures
+Those historical failures exposed repeated successful read/search loops and an
+identical-text edit reported as successful, followed by failing verification.
+Completion remained failed. The later query/no-change protections have separate
+regressions; these original runs do not prove that directory context alone
+supplies reliable coding. Prompts, source hashes, budgets, failures
 and cleanup are retained; this is not an unseen benchmark or an unchanged-prompt
 comparison. See [local evaluation controls](evals.md).
 
@@ -245,14 +236,8 @@ built-in edit requires current passing evidence; another passing command does
 not hide a failure. Actual process tests and the installed Linux archive prove
 refusal after pass/fail and recovery after a third successful check. The native
 release probe now requires all four unchecked/checked/regressed/recovered cases.
-Coverage passes 1289 tests with three optional skips. These policy checks do not
-establish live model quality or stable 1.0 readiness.
-
-The previous f14d3ce cross-platform build run failed in its verification job on
-the project-checks expiry/recovery test, before native jobs started. The test's
-artificial 100 ms expiry limit is now restored to the normal plugin limit before
-filesystem refresh. The subsequent successful run above supplies the new
-cross-platform evidence for that runtime change.
+The same four scenarios pass on all platforms in the published 0.8.0 matrix.
+These policy checks do not establish live model quality or stable 1.0 readiness.
 
 ### Navigation composition and discovery recovery diagnostic — 2026-11-13
 
@@ -266,11 +251,9 @@ The case, independent grader and request/context/output limits are unchanged.
 Read now exposes its integer, 1-based pagination limits and rejects invalid
 values with specific recovery guidance. Empty file/text searches and invalid
 directories explain how to discover actual paths without inventing them. The
-installed Linux archive passes a five-response loopback recovery probe and all
-six existing runtime probes. The new probe is mandatory in the native release
-matrix; its other-platform results remain pending. Coverage passes 1286 tests
-with three optional skips. These checks establish bounded tool behavior, not
-general model competence. See [evaluation guidance](evals.md) and
+six-response discovery/read/no-change-edit probe passes on every native platform
+in the 0.8.0 release. These checks establish bounded tool behavior, not general
+model competence. See [evaluation guidance](evals.md) and
 [release verification](releases.md).
 
 ### Workflow close boundary regression — 2026-11-13
@@ -280,21 +263,21 @@ arriving after its view was closed. Render revisions now reject stale work and
 close waits for already-submitted publications. A deterministic regression and
 the required real PTY scenario verify background workers completing while the
 view stays closed, followed by explicit reopening. Source and compiled Linux
-scenarios pass, as do 1313 tests, types, documentation checks and eight installed
-runtime probes. These are local controlled checks; refreshed release CI and
-publication remain required. They do not establish broad model quality or 1.0.
+scenarios pass. These are controlled checks; the published 0.8.0 matrix now
+supplies all four native build/install gates and final coverage of 1315 tests.
+They do not establish broad model quality or 1.0.
 
 Follow-up Node 22 CI found premature acknowledgement when a background refresh
 superseded a navigation render. The queue now covers loading and publication and
 navigation waits for the replacement frame. A deterministic regression fails on
-the prior implementation; the new source passes all 1314 tests and the real PTY
-workflow scenario. Compiled/native CI for this follow-up remains pending.
+the prior implementation. The fixed queue is included in 0.8.0 and passes the
+real PTY workflow scenario and final native matrix.
 
 The refreshed local Linux archive also passes the real workflow PTY scenario and
 all eight installed-runtime probes. Its closed, completed and narrow screenshots
 were inspected. Source workflow certification passes all bindings and 21/21 live
-reference tasks on gemma4:31b-cloud. This supersedes the earlier local archive
-evidence; the final generated versions and four-platform release CI remain gates.
+reference tasks on gemma4:31b-cloud. Generated workflows 1.6.1 ships in 0.8.0;
+public shipping files match the exercised Linux archive.
 
 ### Planned OpenTUI migration — 2026-11-13
 
@@ -370,13 +353,13 @@ and [coding completion checks](core-customization.md#coding-completion-checks).
 | Gate | Required evidence | Current assessment |
 | --- | --- | --- |
 | Real development | Repeated end-to-end bug fixes, feature work, refactoring and plugin development on realistic repositories; independent behavior checks, preserved user changes and successful project verification | Live Compositor-authored fixes, a guided plugin review and a multi-file form refactor have independent artifact checks. The form episode also exposed a harness typing defect and reported it truthfully. Sustained self-hosted development and broader task coverage remain unverified. |
-| Model independence | Contract tests for every supported protocol, plus repeated real-model development runs across different model families. Unknown capabilities, invalid tool calls and weak tool use must degrade with bounded recovery | HTTP fixtures cover the supported transports. Saved-profile OpenAI evaluations are available. A broad live quality matrix remains incomplete. |
-| Tool cooperation | File discovery, semantic/text navigation, precise edits, test execution, shell jobs and delegation reach verified artifacts without unnecessary retries or denied-action bypass | Individual tools and regression suites exist. End-to-end efficiency and recovery need wider scenario evidence. |
+| Model independence | Contract tests for every supported protocol, plus repeated real-model development runs across different model families. Unknown capabilities, invalid tool calls and weak tool use must degrade with bounded recovery | HTTP fixtures cover the supported transports. The 0.8.0 known-task diagnostic scores 6/8 across Gemma and DeepSeek, with both families scoring 3/4. Saved-profile OpenAI evaluations are available. Broad live model quality remains incomplete. |
+| Tool cooperation | File discovery, semantic/text navigation, precise edits, test execution, shell jobs and delegation reach verified artifacts without unnecessary retries or denied-action bypass | Individual tools and regression suites exist. The 0.8.0 two-family diagnostic exposes repeated denied scratch-test execution and a turn token allowance refusal before completion. End-to-end efficiency and recovery need wider evidence. |
 | Long-running execution | Context pressure/compaction, interruption, steering, queued work, restart/resume and failures at effect boundaries preserve the task, scope and truthful completion state | One live known task passed process-death/resume/explicit-compaction checks. A second known task recovered from a failed summary and passed three automatic compactions in a configured 8192-token window with independent artifact checks. A controlled live API truncation probe also passed. Multi-hour development and broader repositories remain required. |
 | Extension quality | A developer creates, installs, enables, configures, updates and removes a useful composite plugin through Compositor. Public APIs remain compatible; disposal/reload and custom storage work in native archives | Git review passed source and exact archive certification on all four native platforms at c98b3ce. Project checks 0.1.1 passed the same platform scope at f102fef after fixing macOS project-path aliases. A completed autonomous initial plugin delivery and broader extension coverage remain required. |
 | User workflow | The real terminal supports keyboard/mouse navigation, concurrent plugin/settings work and pending approvals/questions, with cancellation and narrow-window behavior verified | Real PTY scenarios cover concurrent management and a complete 48×18 question/management/answer flow with draft preservation. Broader daily-use and terminal coverage remain incomplete. |
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
-| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.7.4](https://github.com/Neko1313/agent-compositor/releases/tag/v0.7.4), revision 973012a, passed candidate and tagged four-platform build/install checks. It repairs canonical custom-tool permission targets, closed-plugin operation cleanup and opt-in editable-view paging. Public Linux 0.7.3→0.7.4 upgrade preserved state and the previous binary; installed context and background/replay probes passed. These establish this release checkpoint; broader 1.0 gates remain open. |
+| Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.8.0](https://github.com/Neko1313/agent-compositor/releases/tag/v0.8.0), revision 4b5b297, passes candidate and tagged four-platform build/install checks, all 32 tagged runtime reports and checksum verification of all six public assets. Public Linux 0.7.4→0.8.0 upgrade preserves settings, prior binary and session context. Setup, independent conversation tabs and workflow PTY evidence matches public shipping files. Broader 1.0 gates remain open. |
 
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,

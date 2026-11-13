@@ -36,6 +36,12 @@ A successful tool result may include optional `modelText` with its structured
 See [presentation bounds and journal compatibility](core-customization.md#model-facing-tool-text)
 before using it; omitted text preserves the legacy representation.
 
+Tools may provide a pure synchronous `validate(args)` callback returning an error
+string or `undefined`. The host checks detached effective arguments after tool
+rewrites and before permission review or execution. Validators neither perform
+effects nor grant authority; retain execution-time safeguards. See
+[argument admission and compatibility](core-customization.md#tool-argument-admission).
+
 ## Finite query tools
 
 Tools may opt in to repeated-observation recovery with `loopGuard: "query"` on

@@ -48,6 +48,8 @@ export interface ToolSpec<Args = unknown, Result = unknown> {
   loopGuard?: 'query';
   /** JSON-schema-ish shape for the model; loose by design (renderers display it) */
   parameters: Record<string, unknown>;
+  /** Pure synchronous argument check, before descriptor/policy/execution. No effects or mutation. */
+  validate?(args: Args): string | undefined;
   /** reduce a call to what permission rules match on */
   describe(args: Args): ToolCallDescriptor;
   execute(ctx: ToolContext, args: Args): Promise<ToolResult<Result>>;

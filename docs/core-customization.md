@@ -115,6 +115,30 @@ Each refused proposal remains a separate failed tool result and counts toward
 existing recovery limits. This suppresses duplicate approval work; it does not
 make a model select an authorized alternative or finish an unverified task.
 
+### Tool argument admission
+
+`ToolSpec.validate?(args)` optionally returns a non-empty error string or
+`undefined`. It is a pure synchronous argument check without a `ToolContext`:
+perform no effects, model calls or filesystem access. The host supplies detached
+arguments, so mutation cannot rewrite the descriptor or executed call. Exceptions,
+asynchronous returns and malformed results become failed tool calls.
+
+Execution validates the effective tool and arguments after `tool.call` rewrites,
+before descriptor resolution, `tool.check`, permission review or approval. An
+argument error is not a permission denial or an authorization grant; corrected
+arguments still take the complete ordinary policy path. Hook-supplied results
+retain their existing ownership instead of executing the target tool. Optional
+`tool_help` previews run the same validator without running the proposed action.
+Existing tools without validators keep their previous behavior. Execution-time
+checks remain necessary, including file hashes and confinement; the built-in
+editor also validates in its direct tool/service entry points.
+
+For `edit`, identical `oldText`/`newText` is rejected early when a hash, range or
+strict matching makes the operation exact. The error identifies `edit.newText`
+and asks for a real replacement. Unguarded whitespace fallback remains available:
+equal literals can legitimately normalize differently spaced source, and the
+resolver still rejects replacements that leave the actual file unchanged.
+
 ### Permission previews
 
 `tool_help` accepts `name` plus optional `preview` containing proposed arguments:
@@ -129,7 +153,7 @@ the same descriptor preflight as execution, including canonical file paths and
 built-in read-only shell classification. It does not execute the proposed tool,
 invoke its `tool.call`/`tool.check` hooks, run automatic review, ask a human or
 create approvals. Rule bodies/reasons are not returned. Unknown tools, malformed
-preview requests and descriptor-preflight failures return errors. This preflight
+preview requests, argument-validator failures and descriptor-preflight failures return errors. This preflight
 does not replace the target tool's complete execution-time argument validation.
 
 This is a snapshot, not authorization: actual execution repeats preflight and

@@ -1,5 +1,59 @@
 # Project memory
 
+## Reject certain no-op edits before permission review — 2026-11-13
+
+All 13 previous literal-identity edits carried expectedHash, so they were exact
+operations even with strict:false. Do not reject every equal oldText/newText:
+unguarded whitespace fallback legitimately changes differently spaced source,
+and its regression must remain. Added optional pure synchronous ToolSpec.validate
+(string error or undefined), run on detached effective arguments after tool.call
+rewrites and before descriptor/tool.check/review/approval/execution. Invalid calls
+are failed arguments, not permission denials or grants. Corrected calls still
+take all normal guards. Preview uses the same callback; thrown/bad/async callback
+results fail without execution. Async rejection is consumed, not left unhandled.
+Hook-supplied results retain their ownership. No event schema/version changes.
+
+Edit validates required string fields and rejects literal identity only with a
+hash/range/strict exact mode, identifying edit.newText and requesting a real
+replacement. Both direct tool and default service protect their own entry points.
+Actual unchanged-file rejection, hash/range/staleness and unguarded normalization
+remain. New schema descriptions clarify old/new roles. On-demand guidance now
+distinguishes stale snapshots (reread) from argument errors (correct arguments),
+instead of instructing a reread after every error. This guidance refinement came
+after the live episode; it made zero tool_help calls and supplies no live gain
+claim. Core regressions exercise early rejection without filesystem services or
+review/approval, normal permissions on correction, preview, normalization, argument
+and tool-name rewrites, detached mutation and malformed validator containment.
+
+Continued the same failed Gemma session with the prior explicit continuation
+prompt and separate 60-step/1.2m allowance. 82 requests, seven compactions, six
+successful edits and four early identity validation errors; the invalid calls
+trigger zero target checks/reviews. It still hits the step limit, with 5F/2P and
+type errors. Not a paired comparison: starting source is the later partial patch.
+Do not attribute fewer no-ops or general quality gains to this change. The model
+adds a root property to the wrong core context and leaves other original defects.
+No operator repair or reference solution supplied; no model patch enters main.
+Evidence, actual runtime source copies/hashes, starting/final patches, trajectory,
+validation-analysis.json and isolation-audit.json are under
+dist/self-host-task-state/attempt-edit-validation-gemma-resume. All 807 tracked
+fixture files checked: only six allowed source paths differ; tests/config/Git
+HEAD/workspace aliases remain intact. Preserve the failed checkout for diagnosis.
+
+Prior c4e0ba6 CI 43376927259, docs 43376927153 and release preparation 43376927096
+all passed. No OpenAI use or budget mutation; Ollama monetary billing unavailable.
+Canonical agent-features/core-customization/readiness updated. Backend/tool-schema
+behavior only, no rendering or UI interaction change. Full 1.0, broad model quality,
+self-development, onboarding and OpenTUI remain open. Future real self-development
+experiments should inspect the complete coding tool composition (including existing
+semantic navigation/project-check plugins) rather than infer readiness from the
+current explicitly focused read/edit/exec/glob/grep/plan/todo/help diagnostic set.
+
+Final validation: coverage suite 1393 passes/three optional skips in 170 files;
+full typecheck and docs:check/site build pass, docs:gen produces no changes.
+Canonical plugin-standard links the optional validator contract. Architecture,
+workspace grants and UI flows are unchanged, so their guides need no new steps.
+Logs: /tmp/compositor-edit-validation-*.log. No full suite overlapped model work.
+
 ## Preserve tool observations independently of compaction summaries — 2026-11-13
 
 Added an internal bounded compaction record of tool-reported read paths/offsets,

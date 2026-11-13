@@ -852,6 +852,7 @@ export class AgentCore {
       ...(this.options.tools ?? builtinTools).filter(t=>t.name!=="tool_help"),
       ...[createToolHelp(()=>this.executionTools,async(spec,args,signal)=>{
         signal.throwIfAborted();
+        const invalid=this.toolArgumentError(spec,args);if(invalid)throw Error(invalid);
         const descriptor=await this.toolDescriptor(spec,args);
         signal.throwIfAborted();
         const decision=evaluate(descriptor,this.compiledRules,this.approvals);
@@ -872,6 +873,19 @@ export class AgentCore {
   }
 
   /** Shared preflight prevents tool-help previews from using different rule dimensions. */
+  private toolArgumentError(spec:ToolSpec,args:unknown):string|undefined {
+    if(!spec.validate)return;
+    try{
+      const result=spec.validate(structuredClone(args));
+      if(result===undefined)return;
+      if(typeof result==='string'&&result.trim())return result.slice(0,4096);
+      // A JavaScript extension can violate the synchronous contract. Consume a
+      // rejected thenable rather than leaving an unhandled rejection behind.
+      if(result&&typeof (result as any).then==='function')void Promise.resolve(result).catch(()=>{});
+      return'Tool argument validator must return a non-empty error string or undefined.';
+    }catch(error){return'Tool argument validation failed: '+String(error).slice(0,4096);}
+  }
+
   private async toolDescriptor(spec:ToolSpec,args:unknown):Promise<ToolCallDescriptor> {
     const descriptor={...spec.describe(args)};
     if(descriptor.path){
@@ -1668,8 +1682,9 @@ export class AgentCore {
           call={...call,name:replacement.name,args:intercepted.input};
           args=intercepted.input ?? {};
         }
+        error=this.toolArgumentError(spec,args);
         // 2) Recheck policy after waiting for an identical in-flight review.
-        while(true){
+        while(error===undefined){
         let descriptor: ToolCallDescriptor;
         try {
           descriptor = await this.toolDescriptor(spec,args);
@@ -1820,7 +1835,7 @@ export class AgentCore {
         }
 
         // 3) execute through the $ service chain
-        if (!denied) {
+        if (!denied&&error===undefined) {
           signal.throwIfAborted();
           const ctx = this.buildToolContext(signal);
           try {

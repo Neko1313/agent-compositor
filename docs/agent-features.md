@@ -543,8 +543,15 @@ the underlying error and explain how to discover a real file. No read failure
 creates a replacement file or changes workspace grants.
 
 A guarded `edit` must preserve the complete anchor returned by `read` or
-`code_query read_symbol`: `path`, `expectedHash`, `range` and `strict`. A missing
-hash is reported separately from invalid offsets, including for insertions;
+`code_query read_symbol`: `path`, `expectedHash`, `range` and `strict`.
+With hash/range/strict,
+identical `oldText` and `newText` fail before permission review or file access,
+with an error identifying `edit.newText`. Supply text that implements the change.
+Unguarded whitespace-normalized matching can still use equal literals to change
+different actual spacing. All unchanged file results remain errors. See
+[tool argument admission](core-customization.md#tool-argument-admission).
+
+A missing hash is reported separately from invalid offsets, including for insertions;
 copy the complete fresh anchor before retrying. The runtime never fills in a
 hash or drops the range automatically. Stale hashes still require a new read,
 and rejected edits do not change the file or add an undo entry. See

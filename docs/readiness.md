@@ -377,6 +377,16 @@ model-authored patch was applied to the main checkout. Evidence is retained in
 and the failed initial/continuation results remain visible. Next investigate
 repeated failed edits and preservation of useful implementation progress.
 
+One later Gemma continuation uses early argument admission: four identical exact
+edits are rejected before `tool.check` or permission review, preserving whitespace
+normalization for unguarded calls. It still reaches 60 steps with five acceptance
+failures and failing types. Its six allowed source changes remain isolated; tests,
+configuration, Git HEAD and workspace dependency aliases are intact. This is a
+separate continuation from a later partial patch, not a paired comparison or a
+successful repair. Evidence is in
+`dist/self-host-task-state/attempt-edit-validation-gemma-resume/`. The new validator
+improves admission semantics; broad live model repair quality remains unproven.
+
 ### Offline CPU coding diagnostic — 2026-11-13
 
 The maintained local CPU evaluator verifies an existing pinned Qwen cache, owns

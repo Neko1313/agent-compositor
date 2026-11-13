@@ -5,6 +5,7 @@ import {backgroundScope,type ShellStatus} from './background.js';
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { TodoItem } from "./tools/todo.js";
+import {editArgumentError} from './tools/edit.js';
 
 /**
  * Default resolvers for the service.* events our tools emit. Registered at
@@ -195,6 +196,7 @@ interface EditPayload {
 
 async function editFile(payload: unknown): Promise<unknown> {
   const p = payload as EditPayload;
+  const invalid=editArgumentError(p);if(invalid)throw Error(invalid);
   if(p.range&&!p.expectedHash)throw Error('edit: guarded range requires expectedHash. Copy the complete edit anchor (path, expectedHash, range, strict) from read/read_symbol; re-read if the snapshot may have changed.');
   if (!p.oldText && !(p.expectedHash && p.range && p.range.start===p.range.end)) throw new Error("edit: oldText must be non-empty outside a guarded insertion");
   const content = await fs.readFile(p.path, "utf8");

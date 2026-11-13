@@ -20,6 +20,17 @@ export interface EditOutcome {
   undo?:Omit<EditArgs,"path">;
 }
 
+/** Exact edits cannot change text when their literal replacement is identical.
+ * Unguarded whitespace fallback can still normalize actual source in that case.
+ */
+export function editArgumentError(args:EditArgs):string|undefined {
+  if(!args||typeof args.path!=='string'||args.path.length===0)return'edit.path must be a non-empty string.';
+  if(typeof args.oldText!=='string')return'edit.oldText must be a string containing the current source text.';
+  if(typeof args.newText!=='string')return'edit.newText must be a string containing the intended replacement.';
+  if(args.oldText===args.newText&&(args.strict===true||args.expectedHash!==undefined||args.range!==undefined))
+    return'edit.newText is identical to edit.oldText. This exact edit would leave text unchanged. Supply replacement text that implements the intended change; do not repeat identical arguments. No file was read or changed.';
+}
+
 /**
  * Surgical edit. Semantics harvested from Claude Code / the kimi fork:
  *  - exact match required; empty or ambiguous (multi without replaceAll) → error
@@ -33,8 +44,8 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
     type: "object",
     properties: {
       path: { type: "string" },
-      oldText: { type: "string" },
-      newText: { type: "string" },
+      oldText: { type: "string", description: "Current source text to replace, copied exactly from the selected read range." },
+      newText: { type: "string", description: "Replacement implementing the intended change. With hash, range or strict matching it must differ from oldText; do not echo the old text unchanged." },
       replaceAll: { type: "boolean" },
       expectedHash:{type:"string",description:"SHA-256 of the UTF-8 file snapshot in the edit anchor from read or code_query read_symbol; required with range and rejects stale edits."},
       range:{type:"object",properties:{start:{type:"integer",minimum:0},end:{type:"integer",minimum:0}},required:["start","end"],description:"Optional UTF-16 start/end offsets (end exclusive) from the read/read_symbol edit anchor. Requires expectedHash and exact matching."},
@@ -43,7 +54,9 @@ export const editTool: ToolSpec<EditArgs, EditOutcome> = {
     required: ["path", "oldText", "newText"],
   },
   describe: (args) => ({ tool: "edit", path: path.resolve(args.path) }),
+  validate:editArgumentError,
   async execute(ctx, args): Promise<ToolResult<EditOutcome>> {
+    const invalid=editArgumentError(args);if(invalid)return{ok:false,error:invalid};
     try {
       const target = ctx.resolvePath?await ctx.resolvePath(args.path):path.resolve(ctx.cwd,args.path);
       const outcome = await ctx.request<EditOutcome>("service.file.edit", {

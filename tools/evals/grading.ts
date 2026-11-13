@@ -1,11 +1,23 @@
 import {evaluationEnvironment} from './environment.js';
 import {execFile} from 'node:child_process';
-import {promisify} from 'node:util';
+import {promisify,isDeepStrictEqual} from 'node:util';
 import {lstat,readFile,writeFile,rm} from 'node:fs/promises';
 import {join,dirname,extname} from 'node:path';
 import {randomUUID} from 'node:crypto';
 
 export interface EvalCheck {name:string;ok:boolean;detail?:string}
+export interface PermissionPreviewExpectation {tool:string;args:Record<string,unknown>;decision:'allow'|'ask'|'deny'}
+/** Correlate actual host results; a final-answer claim or unrelated result is insufficient. */
+export function gradePermissionPreviews(events:any[],expected:PermissionPreviewExpectation[]):EvalCheck[] {
+  const calls=new Map(events.filter(e=>e.kind==='catalog'&&e.event==='tool.call'&&e.input.tool==='tool_help'&&!e.input.operationId)
+    .map(e=>[e.input.callId,e.input.input]));
+  return expected.map(want=>({name:`permission preview: ${want.tool} ${JSON.stringify(want.args)} → ${want.decision}`,ok:events.some(e=>{
+    if(e.kind!=='catalog'||e.event!=='tool.result'||e.input.tool!=='tool_help'||e.input.operationId||e.input.ok!==true)return false;
+    const call=calls.get(e.input.callId) as any,permission=e.input.output?.permission;
+    return call?.name===want.tool&&isDeepStrictEqual(call.preview,want.args)&&permission?.decision===want.decision&&
+      permission.scope==='rules-and-session-approvals'&&permission.executionAuthorized===false;
+  })}));
+}
 export interface ProjectExpectations {
   preserve?:string[];
   originalChecks?:string[];

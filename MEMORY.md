@@ -1,5 +1,52 @@
 # Project memory
 
+## Non-executing permission previews; automatic hint rejected — 2026-11-13
+
+Added optional tool_help {name,preview:{...proposed arguments}} in AgentCore.
+It returns current rules/session-approval decision/via with an explicit static
+scope and executionAuthorized:false. It does not execute the target, request
+human/automatic review, create approvals or invoke target tool.call/tool.check
+hooks. Core shares descriptor preflight with actual execution (canonical paths
+and built-in read-only shell classification); execution still rechecks rewrites,
+guards and review. No rule bodies/reasons are exposed. Full execution-time
+argument validation is not promised by a static preview. Standalone createToolHelp
+embedders opt into the additive callback. Help resolves the effective operation's
+toolset and finite help/preview results use existing repeated-query bounds.
+
+Tests prove no execution/review/questions, real automatic review on later actual
+execution, revoked approvals, dynamic guards, denied argument rewrites, file
+confinement, invalid requests and bounded identical preview loops. The focused
+eval composition now retains explicitly requested control helpers rather than
+silently disabling tool_help. Event-correlated preview grading rejects unrelated,
+failed, wrongly scoped or purported-authorizing results and excludes independent
+user operations. New permission-cases.json adds explicit preview-only and real
+refusal→existing-check scenarios with independent filesystem markers/preservation.
+Frozen coding tasks/graders remain unchanged.
+
+Scripted feature preflight passes 2/2; two repeats each on Gemma and DeepSeek
+through existing Ollama pass 8/8 at dist/evals-permission-preview-live. These are
+explicitly guided feature cases, not proof of spontaneous recovery. Original
+coding prompts with enabled coding harness score 7/8 (Gemma 3/4, DeepSeek 4/4),
+with zero permission-preview calls and a repeated-denial verification failure.
+An automatic capability-gated denial-footer hint then scores 5/8, also zero
+preview calls; two Gemma attempts hit the existing 80000-token turn allowance.
+Small known-task runs do not establish a causal regression, but provide no basis
+to promote the hint. Removed it and its candidate-only tests; the restored core
+hash exactly matches the earlier no-hint tested source. Keep the explicit usable
+capability without claiming ordinary autonomous refusal recovery is fixed.
+Evidence/report/source hashes: dist/check-discovery/permission-preview-decision.json;
+all source reports remain frozen. Candidate hint's 1341-test pass did not justify
+its promotion. Retained no-hint coverage passes 1339 tests/three optional skips,
+164 files; types, original deterministic 5/5 smoke and documentation checks pass.
+
+Canonical capability/core-customization/evaluation guides updated; no new event,
+platform, workspace grants or installation UI. No OpenAI requests/spending-guard
+mutation; Ollama monetary billing unavailable. Next investigate enforcement of
+already-refused identical proposals within one model turn (without caching
+allows or hiding new user authorization), rather than more speculative footer
+text. Broader model quality, self-development, onboarding/OpenTUI and stable 1.0
+remain active and incomplete.
+
 ## Completion checks recognize checks.mjs and preserve refusal evidence — 2026-11-13
 
 Real coding diagnostics exposed a harness false negative: Gemma successfully

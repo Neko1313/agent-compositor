@@ -489,6 +489,9 @@ model must substitute real returned values. Plugins can override guidance with
 `ToolSpec.usage: {when, avoid?, examples: [{purpose, args}]}`. Guidance is not
 copied into every repeated declaration. Existing `service.agent.instructions`
 and materialized Harness² `toolguide.md` remain ways to tune general behavior.
+For a proposed call, `tool_help` can also preview current rule/session-approval
+decisions without executing or requesting approval. This never grants permission;
+real execution rechecks guards and review. See [permission previews](core-customization.md#permission-previews).
 The default policy favors narrow read/search, guarded edits, bounded delegation,
 minimal polling and stopping equivalent retries after a permission denial. The coding
 preset also requires a recognized successful check after the latest built-in

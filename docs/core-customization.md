@@ -86,6 +86,36 @@ controls. `submit` and `steer` dispatch them outside the prompt queue;
 Owner cancellation, auxiliary usage accounting and teardown remain independent
 of the active turn. See the [command contract](plugin-standard.md#immediate-user-commands).
 
+### Permission previews
+
+`tool_help` accepts `name` plus optional `preview` containing proposed arguments:
+
+```json
+{"name":"exec","preview":{"command":"npm test"}}
+```
+
+The returned `permission` contains `decision` (`allow`, `ask` or `deny`), `via`,
+`scope: "rules-and-session-approvals"` and `executionAuthorized: false`. It uses
+the same descriptor preflight as execution, including canonical file paths and
+built-in read-only shell classification. It does not execute the proposed tool,
+invoke its `tool.call`/`tool.check` hooks, run automatic review, ask a human or
+create approvals. Rule bodies/reasons are not returned. Unknown tools, malformed
+preview requests and descriptor-preflight failures return errors. This preflight
+does not replace the target tool's complete execution-time argument validation.
+
+This is a snapshot, not authorization: actual execution repeats preflight and
+policy checks, applies argument rewrites and plugin guards, and performs review
+when needed. `ask` means further review, which can be automatic; a questionnaire
+answer cannot substitute for execution approval. Revoked approvals or later
+policy/guard changes still block a previously allowed proposal. Preview an
+independently authorized alternative rather than retrying refused effects.
+
+The helper respects the effective tool composition, including independent user
+operations. Embedders using `createToolHelp` outside AgentCore must explicitly
+provide its optional preview callback; without it the ordinary help schema and
+behavior remain available. Repeated identical help/preview observations use the
+existing [query recovery bounds](#repeated-query-recovery).
+
 ## Replace execution strategies
 
 `service.shell.jobs` inspects core-owned background shell metadata, and

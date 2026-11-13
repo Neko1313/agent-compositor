@@ -1,6 +1,6 @@
 import {builtinTools} from '../../packages/tools/src/index.js';
 import {evaluationEnvironmentOverlay} from './environment.js';
-import {gradeProject} from './grading.js';
+import {gradeProject,gradePermissionPreviews} from './grading.js';
 import {permissionDiagnostics} from './permission-diagnostics.js';
 import {estimateTokens} from "../../packages/context/src/index.js";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
@@ -78,7 +78,7 @@ export async function runCase(
             })),
           ],
         },
-        ...((options.tools||options.instructionsPreset||options.fileReferences!==undefined)?{agent:{...(options.tools?{tools:options.tools,builtinTools:options.tools.filter(name=>builtinTools.some(tool=>tool.name===name)),controlTools:[],skills:false,projectContext:false,fileReferences:false}:{}),...(options.fileReferences!==undefined?{fileReferences:options.fileReferences}:{}),instructionsPreset:options.instructionsPreset}}:{}),
+        ...((options.tools||options.instructionsPreset||options.fileReferences!==undefined)?{agent:{...(options.tools?{tools:options.tools,builtinTools:options.tools.filter(name=>builtinTools.some(tool=>tool.name===name)),controlTools:options.tools.filter(name=>['tool_help','task','ask_user','ask_questions'].includes(name)),skills:false,projectContext:false,fileReferences:false}:{}),...(options.fileReferences!==undefined?{fileReferences:options.fileReferences}:{}),instructionsPreset:options.instructionsPreset}}:{}),
         compaction: { enabled: false },
       })
     );
@@ -149,6 +149,8 @@ export async function runCase(
         .length;
     transcript=[...core.getMessages()];
     const exp = test.expect;
+    if(exp.permissionPreviews)checks.push(...gradePermissionPreviews(events,exp.permissionPreviews));
+    if(exp.maxDenials!==undefined)checks.push({name:'bounded permission denials',ok:events.filter(e=>e.kind==='catalog'&&e.event==='tool.result'&&!e.input.operationId&&e.input.denied===true).length<=exp.maxDenials});
     if (exp.responseIncludes)
       checks.push({
         name: "evidence answer",

@@ -845,7 +845,14 @@ export class AgentCore {
   ): ToolSpec<unknown, unknown>[] {
     const tools = [
       ...(this.options.tools ?? builtinTools).filter(t=>t.name!=="tool_help"),
-      ...[createToolHelp(()=>this.toolSpecs),taskTool,askTool,askQuestionsTool]
+      ...[createToolHelp(()=>this.executionTools,async(spec,args,signal)=>{
+        signal.throwIfAborted();
+        const descriptor=await this.toolDescriptor(spec,args);
+        signal.throwIfAborted();
+        const decision=evaluate(descriptor,this.compiledRules,this.approvals);
+        return {decision:decision.decision,via:decision.via,scope:'rules-and-session-approvals',executionAuthorized:false,
+          notice:'Snapshot only. Actual execution rechecks policy, tool rewrites, plugin guards and approval review. Ask means further review, not necessarily human confirmation. Preview does not execute, request approval or grant permission.'};
+      }),taskTool,askTool,askQuestionsTool]
         .filter(tool=>!this.options.controlTools || this.options.controlTools.includes(tool.name)),
       ...extraTools,
     ];
@@ -857,6 +864,20 @@ export class AgentCore {
     ).map(tool=>overrides.get(tool.name) ?? tool)
       .filter(tool=>!this.options.toolNames || this.options.toolNames.includes(tool.name))
       .map(tool=>({...tool,parameters:structuredClone(tool.parameters)}));
+  }
+
+  /** Shared preflight prevents tool-help previews from using different rule dimensions. */
+  private async toolDescriptor(spec:ToolSpec,args:unknown):Promise<ToolCallDescriptor> {
+    const descriptor={...spec.describe(args)};
+    if(descriptor.path){
+      const nativeFile=[readTool,writeTool,editTool].some(tool=>spec.execute===tool.execute&&spec.describe===tool.describe);
+      descriptor.path=nativeFile?await this.workspace.resolve((args as any).path,{missing:true}):await this.workspace.canonical(descriptor.path,{missing:true});
+    }
+    if(spec.execute===execTool.execute&&spec.describe===execTool.describe){
+      const commandCwd=this.workspace.expand((args as any).cwd??this.options.cwd);
+      descriptor.readOnly=!(args as any).env&&!(args as any).background&&await isReadOnlyShell((args as any).command,commandCwd,this.workspace.rootFor(commandCwd)??this.options.cwd,{...process.env,...this.options.toolEnv?.()});
+    }
+    return descriptor;
   }
 
   /** Idle-only composition update: hooks, tools and future children stay in sync. */
@@ -1631,13 +1652,7 @@ export class AgentCore {
         // 2) permissions via tool.check (chain may override with {decision})
         let descriptor: ToolCallDescriptor;
         try {
-          descriptor = spec.describe(args);
-          if (descriptor.path) {
-            const selected=spec;
-            const nativeFile=[readTool,writeTool,editTool].some(tool=>selected.execute===tool.execute&&selected.describe===tool.describe);
-            descriptor.path=nativeFile?await this.workspace.resolve((args as any).path,{missing:true}):await this.workspace.canonical(descriptor.path,{missing:true});
-          }
-          if(spec.execute===execTool.execute && spec.describe===execTool.describe){const commandCwd=this.workspace.expand((args as any).cwd??this.options.cwd);descriptor.readOnly=!(args as any).env&&!(args as any).background&&await isReadOnlyShell((args as any).command,commandCwd,this.workspace.rootFor(commandCwd)??this.options.cwd,{...process.env,...this.options.toolEnv?.()});}
+          descriptor = await this.toolDescriptor(spec,args);
         } catch (caught) {
           signal.throwIfAborted();
           await this.finishToolCall(call,args,undefined,`denied: tool preflight failed: ${String(caught)}`,true);

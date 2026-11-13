@@ -53,6 +53,23 @@ results for new plugins; separate training examples and held-out cases with
 `split`. Do not optimize a harness against test answers or copy grading data into
 the execution workspace.
 
+The separate permission-preview feature suite checks inspecting rules without
+execution and recovering from one real refusal by previewing/running an existing
+authorized check:
+
+```sh
+npm run eval -- --suite tools/evals/permission-cases.json --output dist/evals-permissions
+```
+
+`permissionPreviews` expectations correlate an actual successful `tool_help`
+result with the exact proposed tool/arguments and its returned decision/scope;
+they require `executionAuthorized: false`. `maxDenials` bounds refused agent
+calls. Independent graders check execution markers and preserved fixtures,
+rather than trusting the final response. These explicitly guided feature cases
+are separate from unchanged-prompt coding/recovery benchmarks. Focused `runCase`
+compositions retain explicitly selected control helpers such as `tool_help`;
+omitted helpers remain excluded.
+
 CI collects JUnit and Cobertura reports, enforces coverage floors (lines 80%,
 statements 70%, functions 70%, branches 60%), validates the catalog, and runs the
 deterministic eval and Bun proxy smoke checks. Reports are retained as artifacts.

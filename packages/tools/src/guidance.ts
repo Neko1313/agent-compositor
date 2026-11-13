@@ -37,20 +37,27 @@ export const toolUsage: Record<string, ToolUsage> = {
     mcp_call: recipe('Call a configured MCP server tool using its actual discovered schema.', 'Never invent tool names; MCP can have external effects and requires permissions.', 'Discover configured tools', { action: 'list' }),
     checkpoint: recipe('Inspect recorded local checkpoints; restoration is an interactive operation.', 'Restoration can overwrite work and does not undo external side effects.', 'List available checkpoints', { action: 'list' }),
 };
-export function createToolHelp(tools: () => ToolSpec[]): ToolSpec {
+export function createToolHelp(tools: () => ToolSpec[], preview?: (tool: ToolSpec, input: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>): ToolSpec {
     return {
         name: 'tool_help',
-        description: 'Get on-demand tool usage, pitfalls and argument examples. Specify name for details; omit it for the available tool index. Examples are templates, not executed calls.',
-        parameters: { type: 'object', properties: { name: { type: 'string' } }, additionalProperties: false },
+        loopGuard: 'query',
+        description: 'Get on-demand tool usage, pitfalls and argument examples. Specify name for details; omit it for the available tool index. Examples are templates, not executed calls.' + (preview ? ' Optional preview: pass name and preview containing proposed tool arguments to inspect current rules/session approvals without executing or asking for approval. This is not authorization; execution still checks plugins and review.' : ''),
+        parameters: { type: 'object', properties: { name: { type: 'string' }, ...(preview ? { preview: { type: 'object', additionalProperties: true, description: 'Proposed arguments for the named tool. Preview rules/session approvals only; never executes the tool or grants authorization.' } } : {}) }, additionalProperties: false },
         describe: () => ({ tool: 'tool_help' }),
-        async execute(_ctx, args: any) {
+        async execute(ctx, args: any) {
             const available = tools();
+            const wantsPreview = !!args && Object.hasOwn(args, 'preview');
+            if (wantsPreview && (!preview || typeof args.name !== 'string' || !args.name || !args.preview || typeof args.preview !== 'object' || Array.isArray(args.preview)))
+                return { ok: false, error: 'Permission preview requires host support, a tool name and an argument object.' };
             if (!args?.name)
                 return { ok: true, data: available.map(t => ({ name: t.name, when: (t.usage ?? toolUsage[t.name])?.when ?? t.description })) };
             const tool = available.find(t => t.name === args.name);
             if (!tool)
                 return { ok: false, error: 'Unknown or unavailable tool' };
-            return { ok: true, data: { name: tool.name, description: tool.description, usage: tool.usage ?? toolUsage[tool.name] ?? { when: tool.description, examples: [] }, parameters: tool.parameters } };
+            ctx.signal.throwIfAborted();
+            const permission = wantsPreview ? await preview!(tool, args.preview, ctx.signal) : undefined;
+            ctx.signal.throwIfAborted();
+            return { ok: true, data: { name: tool.name, description: tool.description, usage: tool.usage ?? toolUsage[tool.name] ?? { when: tool.description, examples: [] }, parameters: tool.parameters, ...(wantsPreview ? { permission } : {}) } };
         }
     };
 }

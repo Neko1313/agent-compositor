@@ -7,18 +7,20 @@ const checkName=/\b(test|typecheck|checks?|lint|build|verify|pytest|vitest|ci)\b
 function checkCommand(tool:any):unknown {
     return tool.name==='project_check'&&tool.args?.action==='run'?tool.args?.name:tool.name==='exec'?tool.args?.command:undefined;
 }
-/** Each attempted check needs current passing evidence after the latest edit. */
-export function successfulVerification(tools:any[]):boolean {
+/** Non-refused check attempts remain obligations; evidence must follow the latest edit. */
+function verificationState(tools:any[]):{complete:boolean;refused:boolean} {
     let lastEdit=-1;tools.forEach((tool,index)=>{if(tool.ok&&['write','edit'].includes(tool.name))lastEdit=index;});
-    const checks=new Map<string,{attempt:number;passed:boolean}>();
+    const checks=new Map<string,{attempt:number;passed:boolean;denied:boolean}>();
     const jobs=new Map<string,{key:string;attempt:number;killed:boolean}>();
     tools.forEach((tool,index)=>{
-        if(index<=lastEdit)return;
         const command=checkCommand(tool);
         if(typeof command==='string'&&checkName.test(command)){
             const key=JSON.stringify([tool.name,tool.args?.cwd??'',command.trim()]);
-            checks.set(key,{attempt:index,passed:tool.ok===true&&tool.output?.started!==true&&tool.output?.exitCode===0});
-            if(tool.ok&&tool.name==='exec'&&tool.output?.started===true&&typeof tool.output.shellId==='string')
+            // A pre-edit refusal alone creates no execution obligation. It must
+            // not erase an earlier actual attempt of the same check, either.
+            if(index<=lastEdit&&tool.denied===true&&!checks.has(key))return;
+            checks.set(key,{attempt:index,passed:index>lastEdit&&tool.ok===true&&tool.denied!==true&&tool.output?.started!==true&&tool.output?.exitCode===0,denied:tool.denied===true});
+            if(tool.ok&&tool.denied!==true&&tool.name==='exec'&&tool.output?.started===true&&typeof tool.output.shellId==='string')
                 jobs.set(tool.output.shellId,{key,attempt:index,killed:false});
             return;
         }
@@ -26,11 +28,12 @@ export function successfulVerification(tools:any[]):boolean {
         const job=jobs.get(tool.args?.id);if(!job)return;
         const check=checks.get(job.key);if(check?.attempt!==job.attempt)return;
         if(tool.name==='exec_kill'&&tool.output?.killed===true){job.killed=true;check.passed=false;}
-        if(tool.name==='exec_output'&&!job.killed&&tool.output?.id===tool.args.id&&tool.output?.done===true)
+        if(tool.name==='exec_output'&&job.attempt>lastEdit&&!job.killed&&tool.output?.id===tool.args.id&&tool.output?.done===true)
             check.passed=tool.output.exitCode===0;
     });
-    return checks.size>0&&[...checks.values()].every(check=>check.passed);
+    return{complete:checks.size>0&&[...checks.values()].every(check=>check.passed),refused:[...checks.values()].some(check=>!check.passed&&check.denied)};
 }
+export function successfulVerification(tools:any[]):boolean {return verificationState(tools).complete;}
 /** A durable plan is distinct from a model's private reasoning. */
 export function harnessControls(storage: ProjectStorage, config: Record<string, any>, sessionId: () => string, core?:()=>import("@agent-compositor/core").AgentCore) {
     const tool: ToolSpec<any, any> = { name: 'task_plan', description: 'Save/update the current task goal, acceptance criteria and progress. Use for substantial tasks and checkpoints before stopping at a budget boundary. Preserve unresolved tasks; cite real tool evidence for completed items.',
@@ -101,16 +104,14 @@ export function harnessControls(storage: ProjectStorage, config: Record<string, 
                 if (lastPlan?.tasks?.some((t: any) => ['pending', 'running', 'in_progress'].includes(t.status)))
                     return { value: { complete: false, continue: 'Your task plan still has unfinished work. Complete it or mark a concrete blocker with evidence using task_plan before finishing.' } };
                 const edits = e.tools.filter((t: any) => t.ok && ['write', 'edit'].includes(t.name));
-                const checks = successfulVerification(e.tools);
+                const verification = verificationState(e.tools);
                 // The second proposal can explicitly explain why automated checks do not apply.
                 // This is a reminder, not a claim that arbitrary test output proves correctness.
-                if (edits.length && (lastPlan || config.verifyCompletion === true || config.instructionsPreset === 'coding') && !checks && !e.text.includes('[verification unavailable]') && !e.text.includes('[checks not applicable]'))
+                if (edits.length && (lastPlan || config.verifyCompletion === true || config.instructionsPreset === 'coding') && !verification.complete && !e.text.includes('[verification unavailable]') && !e.text.includes('[checks not applicable]'))
                 {
-                    const lastEdit=e.tools.findLastIndex((tool:any)=>tool.ok&&['write','edit'].includes(tool.name));
-                    const refused=e.tools.slice(lastEdit+1).some((tool:any)=>{const command=checkCommand(tool);return tool.denied===true&&typeof command==='string'&&checkName.test(command);});
-                    return { value: { complete: false, continue: refused
-                        ? 'One or more verification calls after the latest edit were refused by permission policy. Do not rerun those calls or bypass the refused effects through another tool. Use independently authorized checks where useful, and explain the remaining limitation with [verification unavailable] in the final report. A refused check was not executed and must not be reported as passed.'
-                        : 'Files changed but no successful verification command is recorded for every attempted check. A failed, running or cancelled check is not cleared by an earlier success or a different check. Rerun unresolved checks only when authorized and inspect their output. If unavailable or inapplicable, give the concrete reason and include [verification unavailable] or [checks not applicable] in the final report. Do not claim tests passed without evidence.' } };
+                    return { value: { complete: false, continue: verification.refused
+                        ? 'One or more unresolved verification calls were refused by permission policy. Do not rerun those calls or bypass the refused effects through another tool. Use independently authorized checks where useful, and explain the remaining limitation with [verification unavailable] in the final report. A refused check was not executed and must not be reported as passed.'
+                        : 'Files changed but no successful verification command is recorded for every attempted check. A failed, running or cancelled check is not cleared by an earlier success or a different check. Earlier executed checks need fresh results after the latest edit; editing does not erase those obligations. Rerun unresolved checks only when authorized and inspect their output. If unavailable or inapplicable, give the concrete reason and include [verification unavailable] or [checks not applicable] in the final report. Do not claim tests passed without evidence.' } };
                 }
                 return { value: { complete: true } };
             },

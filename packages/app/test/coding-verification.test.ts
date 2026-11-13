@@ -6,10 +6,11 @@ import {buildApp,type BuiltApp} from '../src/build.js';
 import {ScriptedProvider,type ScriptedStep} from '@agent-compositor/core';
 const roots:string[]=[],apps:BuiltApp[]=[];
 afterEach(async()=>{for(const app of apps.splice(0))await app.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
-async function fixture(script:ScriptedStep[],agent:Record<string,unknown>={instructionsPreset:'coding'},check="import a from 'node:assert/strict';import{readFileSync}from'node:fs';a.equal(readFileSync('result.txt','utf8'),'fixed');console.log('CHECK_OK');",checkFile='verify.mjs'){
+async function fixture(script:ScriptedStep[],agent:Record<string,unknown>={instructionsPreset:'coding'},check="import a from 'node:assert/strict';import{readFileSync}from'node:fs';a.equal(readFileSync('result.txt','utf8'),'fixed');console.log('CHECK_OK');",checkFile='verify.mjs',extraChecks:Record<string,string>={}){
  const cwd=await mkdtemp(join(tmpdir(),'coding-verification-'));roots.push(cwd);await writeFile(join(cwd,checkFile),check);
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness'],agent:{...agent,tools:['write','exec'],builtinTools:['write','exec'],controlTools:[],projectContext:false,skills:false,fileReferences:false},permissions:{rules:[{tool:'write',path:cwd+'/**',decision:'allow'},{tool:'exec',command:`node ${checkFile}`,decision:'allow'}]}}));
- const provider=new ScriptedProvider(script),app=await buildApp({cwd,env:{HOME:cwd},provider});apps.push(app);const core=app.createCore(async()=>false);return{core,provider};
+ for(const [file,text] of Object.entries(extraChecks))await writeFile(join(cwd,file),text);
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['agent-harness'],agent:{...agent,tools:['write','exec'],builtinTools:['write','exec'],controlTools:[],projectContext:false,skills:false,fileReferences:false},permissions:{rules:[{tool:'write',path:cwd+'/**',decision:'allow'},...[checkFile,...Object.keys(extraChecks)].map(file=>({tool:'exec',command:`node ${file}`,decision:'allow'}))]}}));
+ const provider=new ScriptedProvider(script),app=await buildApp({cwd,env:{HOME:cwd},provider});apps.push(app);const core=app.createCore(async()=>false);return{core,provider,cwd};
 }
 const write={toolCalls:[{name:'write',args:{path:'result.txt',content:'fixed'}}]};
 it('accepts an executed checks.mjs project check without redundant completion retries',async()=>{
@@ -94,4 +95,45 @@ it('keeps each attempted check unresolved until that check succeeds again',async
  expect(verified([test,start,lint])).toBe(false);expect(verified([start,lint,done])).toBe(true);
  expect(verified([start,bad,done])).toBe(false);
  expect(verified([start,{name:'write',ok:true},done])).toBe(false);
+});
+
+it('retains executed check obligations across edits instead of allowing an unrelated check to replace them',async()=>{
+ const {successfulVerification:verified}=await import('../src/harness.js');
+ const edit={name:'edit',ok:true},run=(command:string,exitCode:number)=>({name:'exec',ok:true,args:{command},output:{exitCode}});
+ const test=run('npm test',0),bad=run('npm test',1),lint=run('npm run lint',0);
+ expect(verified([bad,edit,lint])).toBe(false);
+ expect(verified([test,edit,lint])).toBe(false);
+ expect(verified([bad,edit,lint,test])).toBe(true);
+ const project={name:'project_check',ok:true,args:{action:'run',name:'test'},output:{exitCode:1}};
+ expect(verified([project,edit,lint])).toBe(false);
+ expect(verified([project,edit,lint,{...project,output:{exitCode:0}}])).toBe(true);
+});
+
+it('keeps pre-edit background executions stale and does not promote denied-only checks into old execution obligations',async()=>{
+ const {successfulVerification:verified}=await import('../src/harness.js');
+ const edit={name:'write',ok:true},lint={name:'exec',ok:true,args:{command:'npm run lint'},output:{exitCode:0}};
+ const start={name:'exec',ok:true,args:{command:'npm test'},output:{started:true,shellId:'old'}};
+ const done={name:'exec_output',ok:true,args:{id:'old'},output:{id:'old',done:true,exitCode:0}};
+ expect(verified([start,edit,done,lint])).toBe(false);
+ expect(verified([start,edit,done,lint,{...start,output:{started:true,shellId:'new'}},{...done,args:{id:'new'},output:{id:'new',done:true,exitCode:0}}])).toBe(true);
+ const denied={name:'exec',ok:false,denied:true,args:{command:'npm test'}};
+ expect(verified([denied,edit,lint])).toBe(true);
+ expect(verified([{...start,output:{exitCode:1}},denied,edit,lint])).toBe(false);
+});
+
+it('continues after a different check passes until the earlier executed test is rerun on the repaired file',async()=>{
+ const verify={toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},lint={toolCalls:[{name:'exec',args:{command:'node lint.mjs'}}]};
+ const f=await fixture([verify,write,lint,{text:'Everything passed.'},verify,{text:'Both checks passed on the final file.'}],undefined,undefined,undefined,{'lint.mjs':"console.log('LINT_OK');"});
+ await writeFile(join(f.cwd,'result.txt'),'broken');await f.core.submit('Fix the file and verify the final result');
+ expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(6);
+ expect(f.provider.requests[4].messages.at(-1)?.content).toContain('Earlier executed checks need fresh results');
+});
+
+it('does not instruct a refused rerun when an earlier executed obligation survives another edit',async()=>{
+ const verify={toolCalls:[{name:'exec',args:{command:'node verify.mjs'}}]},lint={toolCalls:[{name:'exec',args:{command:'node lint.mjs'}}]};
+ const f=await fixture([verify,verify,write,lint,{text:'Everything passed.'},{text:'[verification unavailable] The original test failed and its rerun was refused. Only lint passed after the fix.'}],undefined,undefined,undefined,{'lint.mjs':"console.log('LINT_OK');"});
+ let attempts=0;f.core.host.registerPlugin({name:'refuse-rerun',version:'1.0.0',trust:'trusted'},{'tool.check':(e:any)=>{if(e.tool==='exec'&&e.input?.command==='node verify.mjs'&&++attempts===2)return{decision:'deny',reason:'Explicit refusal'};}});
+ await writeFile(join(f.cwd,'result.txt'),'broken');await f.core.submit('Fix and verify without bypassing refusals');
+ expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(6);expect(attempts).toBe(2);
+ const reminder=f.provider.requests[5].messages.at(-1)?.content??'';expect(reminder).toContain('refused by permission policy');expect(reminder).toContain('Do not rerun');expect(reminder).not.toContain('Rerun unresolved checks');
 });

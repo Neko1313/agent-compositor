@@ -406,6 +406,26 @@ ceilings or explicit overrides. Next evaluate that separately labeled default
 reserve condition without raising the cumulative task allowance or rewriting the
 failed diagnostic's result. Stable 1.0 and the broader remaining scope stay open.
 
+The separately labeled standard-reserve run sends 60 main requests with an 8192
+limit and 21 summary requests with a 2048 limit under the same 1.2M cumulative
+allowance. It reaches 60 steps, with nine compactions and one length recovery:
+5P/2F on the original suite, 10P/0F on the separate exact-field audit, but failing
+types. Four source files change; all 807 baseline files, frozen inputs/config,
+HEAD and 21 workspace aliases are audited. Artifacts remain under
+`dist/self-host-default-output/`. The task is still incomplete; this is not a
+causal comparison with earlier random model runs. Seven of 20 edit attempts fail
+because the model omits path while supplying a reference that already encodes it;
+effective-path derivation before permission review is the next concrete tool issue.
+
+An independent deterministic regression also exposed a completion-policy hole:
+an edit erased earlier executed-check obligations, so unrelated passing lint
+could hide an earlier failed test. The policy now retains non-refused attempts
+within the turn and requires each same check to pass after the latest edit.
+Pre-edit refusal-only checks retain their prior exception, while mixed executed/
+refused obligations still receive Do-not-rerun guidance. Four regressions and the
+full 1479-test suite pass. This closes that false-completion path; it does not make
+arbitrary recognized commands a correctness proof or mark the model repair done.
+
 Compositor was asked to repair the actual Todo scope/status defects in an isolated
 f1557fb source snapshot, with the two immutable acceptance files from the later
 manual repair. Workspace dependency aliases point into that snapshot, preventing

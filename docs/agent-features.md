@@ -381,9 +381,14 @@ step/token limits and tool permissions still apply. This reminder does not
 repeat a completed tool automatically. The default also refuses to finish a
 current plan with pending/running items. For planned edits it requests a successful verification command (exit 0),
 or an explicit `[verification unavailable]` / `[checks not applicable]` report.
-Every recognized check attempted after the latest built-in edit needs a current
-passing result. A failed rerun supersedes an earlier pass, and a different passing
-check cannot hide an unresolved failure or running/cancelled check. Identity uses
+Recognized execution attempts remain obligations across subsequent built-in edits
+in the same turn: each needs a passing result after the latest edit. An edit does
+not clear an earlier failure or make an earlier pass fresh; a different passing
+check cannot hide an unresolved failure or running/cancelled check. A check started
+in the background before an edit remains stale even if it completes afterwards.
+A pre-edit permission refusal alone does not create an execution obligation or
+erase an earlier attempt; unresolved refusals still forbid rerunning or bypassing
+the refused effect. Identity uses
 the tool, exact trimmed command/check name and explicit working-directory argument;
 rerun the same check to resolve its failure.
 `agent.verifyCompletion=true` extends that reminder to unplanned file edits;

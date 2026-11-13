@@ -630,18 +630,24 @@ Starting a background shell is insufficient: a matching later `exec_output` must
 report `done: true` and exit code zero, without successful cancellation. Read the
 actual terminal result before reporting that a background check passed.
 
-Every recognized check attempted after that edit must have a current successful
-result. A failed rerun invalidates its earlier success; passing a different check
-does not clear it. Check identity uses the tool, exact trimmed command or configured
+Recognized check attempts that were not refused by permission policy remain
+verification obligations throughout the current turn, including attempts before
+the latest edit. Each needs a current successful result after that edit. Editing
+does not erase an earlier failed check or make an earlier pass fresh; passing a
+different check does not clear it. Check identity uses the tool, exact trimmed command or configured
 check name, and explicit working-directory argument. A successful rerun of the
 same check resolves its failure. Background attempts remain unresolved while
 running or cancelled; observations from an older attempt cannot replace a newer
-result. This does not infer equivalence between differently written commands.
+result. A background attempt started before the latest edit remains stale even if
+its output arrives afterwards. This does not infer equivalence between differently
+written commands or prove that the recognized command tests the right behavior.
 
 Permission refusal is not an executed failing check. The core preserves optional
 `denied: true` on the tool records passed to `service.agent.finish` (catalog 0.29);
-older records may omit it. When a recognized verification call after the latest
-edit was refused, the default completion feedback explicitly forbids rerunning
+older records may omit it. A refusal-only check from before the latest edit does
+not itself create an old execution obligation. It also cannot erase a prior
+non-refused attempt of that check. When an unresolved verification call was refused,
+the default completion feedback explicitly forbids rerunning
 that call or bypassing the refusal. Independently authorized checks can supply
 additional evidence, but do not turn the refused check into a pass. Explain the
 remaining limitation with `[verification unavailable]` rather than claiming all

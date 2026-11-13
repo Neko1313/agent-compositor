@@ -1,5 +1,57 @@
 # Project memory
 
+## Retain verification obligations across edits — 2026-11-13
+
+8328d46 passed CI 43396980795 on both Node versions, docs 43396981364 and release
+preparation 43396980864. Its failed reference diagnostic remains a failure.
+
+Found a separate completion hole: successfulVerification skipped every record
+before the latest edit. An executed failing test, another edit, then unrelated
+passing lint could therefore satisfy verification without rerunning the test.
+An earlier pass was similarly erased as an obligation. Two new regression cases
+fail before repair. Internal verificationState now retains recognized non-refused
+attempts across edits within the current turn, requiring each same check identity
+to pass after the latest edit. Background starts before that edit stay stale even
+when output arrives later. Foreground/project_check identities, newer-attempt
+protection, cancellation and the requirement for some current passing evidence
+remain intact. No state/obligations carry to another user turn.
+
+Preserved the existing refusal exception: a permission-refused-only check before
+the latest edit creates no old execution obligation. Refusal cannot erase an
+earlier non-refused attempt of that same check. An unresolved refused attempt
+still produces Do-not-rerun feedback, never authorized-rerun guidance. Tests use
+real subprocess checks to cover repair/other-lint/required-rerun and mixed actual
+failure/refusal/edit. Existing opt-outs, explicit limitation markers and two-round
+completion bound remain unchanged. No automatic commands, new approval flow,
+configuration, schemas or UI code. Four added regressions; full suite 1479 passed,
+three optional skips, 178 files; typecheck passes. Canonical agent-features and
+core-customization explain the stronger same-turn obligation.
+docs:gen, docs:check (examples/site), docs:impact and diff checks pass. Architecture
+ownership and app README terminal commands/configuration are unchanged; the
+completion policy belongs in the two updated canonical guides.
+
+Separate standard-output historical diagnostic in /tmp/compositor-selfhost-pBknxr:
+fresh negative 6F/1P, manual reference 7P, zero-model expanded-tool preflight.
+Removed diagnostic reserveOutput/provider ceiling 4096; actual 60 main requests
+use 8192, 21 summary requests use 2048. Same 32768 window, 60-step/1.2M cumulative
+token bound, exact Gemma model, permissions, prompt and immutable original files.
+81 requests, nine compactions, one length recovery, then step limit. Independent
+original acceptance 5P/2F, typecheck fails in app harness (implicit any) and Todos
+hooks (missing path import). Separate exact-field audit: target/reference both
+10P. This is not a successful repair or a paired causal comparison. Four source
+files changed; audit checks all 807 baseline hashes, configuration, unchanged HEAD,
+21 local aliases and frozen inputs. Only untracked file is operator-created config.
+Preserved patch, trajectory, exact requested output limits, comparison and audits
+under dist/self-host-default-output. This run preceded the verification fix.
+
+Of 20 edit attempts, 18 use references; seven fail for omitted path even though
+the reference encodes it. Next remove that redundant-input failure while deriving
+the effective target before workspace/permission review, never at effect time
+alone. Two legacy unguarded edits also occur; references do not replace actual
+authorization or guarantee model use. No OpenAI request/spending-guard change;
+Ollama billing unavailable. Self-development, broad quality, onboarding, OpenTUI
+and stable 1.0 remain incomplete.
+
 ## Portable snapshot edit references — 2026-11-13
 
 Previous 0feafc3 passed CI 43393831652 on both Node versions, docs 43393831723 and

@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Native compositor plugins plus explicitly portable Claude-format examples. See docs/marketplace.md for runtime compatibility.",
-    "version": "1.0.10"
+    "version": "1.0.11"
   },
   "plugins": [
     {
       "name": "auto-approve",
       "source": "./plugins/auto-approve",
       "description": "Opt-in task-context review for console, plugin, MCP and workflow actions, with structured approval/refusal/uncertainty and binding host denies.",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "compositor": {
         "format": "native"
       }
@@ -255,7 +255,7 @@
       "name": "workflows",
       "source": "./plugins/workflows",
       "description": "Replaceable dynamic background workflows with persistent dependency stages, bounded parallelism, expansion, conditional branches, pause/resume/retry and Python/Monty journal compatibility.",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "compositor": {
         "format": "native"
       }

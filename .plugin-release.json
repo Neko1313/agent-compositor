@@ -4,8 +4,8 @@
   "repository": "Neko1313/agent-compositor",
   "plugins": {
     "auto-approve": {
-      "version": "1.4.0",
-      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
+      "version": "1.4.1",
+      "commit": "53b22e35f5705235b87165bac8198e36e6206de1"
     },
     "background-jobs": {
       "version": "0.1.0",
@@ -108,8 +108,8 @@
       "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
     },
     "workflows": {
-      "version": "1.6.0",
-      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
+      "version": "1.6.1",
+      "commit": "53b22e35f5705235b87165bac8198e36e6206de1"
     },
     "git-review": {
       "version": "0.1.0",
@@ -133,7 +133,7 @@
     }
   },
   "catalog": {
-    "version": "1.0.10",
-    "digest": "dd8ba5c424b658936475ca45552a8e43f2135ae2e529300dc92f16890e332af5"
+    "version": "1.0.11",
+    "digest": "e4c74d9e80755c19f8b96ff6005e66559f8878198cb2cfe82f2549afe6755036"
   }
 }

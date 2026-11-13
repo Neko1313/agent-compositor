@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.1
+
+<!-- plugin-release:auto:start -->
+- settle pending renders when closing views ([dff160d](https://github.com/Neko1313/agent-compositor/commit/dff160de00d8961f0c23bd249e521857d5f20cc2))
+- await superseding navigation renders ([703f87d](https://github.com/Neko1313/agent-compositor/commit/703f87ddac6c6acd0a432904741d871932d7e5c9))
+<!-- plugin-release:auto:end -->
+
 ## 1.6.0
 
 <!-- plugin-release:auto:start -->

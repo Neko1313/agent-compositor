@@ -445,7 +445,11 @@ constraints, decisions, paths, verification and next actions. Segment packing
 uses the same Unicode-aware token estimate as context pressure and reserves
 space for instructions. Summaries and merge requests ask for concise progress
 notes with explicit size targets; raw file contents and repetitive records are
-omitted. When a segment reaches its output limit, only
+omitted. If a merge fails to shrink its input, one additional correction round
+per compaction supplies the rejected length and a concrete shorter target.
+It uses the same owning model and budget. A second non-shrinking result or an
+empty correction stops compaction and preserves the original history; summaries
+are never silently cut to fit. When a segment reaches its output limit, only
 that segment is retried with a doubled allowance, capped at 8192 tokens or a
 quarter of the configured context window, whichever is smaller. This permits at
 most three attempts per segment through the owning model and budget. Partial
@@ -520,7 +524,11 @@ See [coding completion checks](core-customization.md#coding-completion-checks)
 for opt-out, replacement policies and explicit limitations.
 
 `read.offset` uses 1-based integer lines (omit it or use 1 to start); `read.limit`
-is an integer from 1 to 10000. Ordinary source is presented to the model with
+is an integer from 1 to 10000, defaulting to 200 lines from the requested offset.
+Truncated results include `nextOffset` for the next page; use targeted search to
+locate relevant sections instead of repeatedly reading a large file from its start.
+An explicit limit can request a larger range. The edit anchor covers exactly the
+returned content, including on later pages. Ordinary source is presented to the model with
 literal line breaks and separate JSON anchor metadata; callers/UI retain the
 structured result. See [model-facing tool text](core-customization.md#model-facing-tool-text).
 The model-facing schema matches these existing

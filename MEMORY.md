@@ -1,5 +1,60 @@
 # Project memory
 
+## Bounded read pages and summary-merge recovery — 2026-11-13
+
+Ran real Compositor against an isolated historical f1557fb repository snapshot,
+with the two final Todo scope/status acceptance files frozen. Remapped every
+workspace alias into the snapshot, with separate third-party links/caches, so
+current manually fixed packages cannot supply a false pass. Negative control:
+six failures/one pass. Separate manual reference: seven passes. Fixture Git is
+local with no remotes. Initial preparation committed successfully but exceeded
+its stdout buffer; recovered the same clean checkout and controls without rerun.
+
+Four DeepSeek-v4.1-flash:1017-cloud runs through loopback Ollama made no edits.
+Baseline (240k cumulative tokens): 21 requests, budget failure. Default paged
+reads (same limits): 20 requests, budget failure. Separate repository-sized 1.2m
+condition: 23 requests, nonreducing-summary failure. After bounded summary merge
+correction (same larger condition): 88 total requests, five compactions, 51 reads
+across 17 paths, no edits, 60-step failure. Final independent tests still fail
+six/seven; types alone passing is not a task success. No failures were reclassified.
+The model did not receive the reference solution or credit for manual fixes. Conditions
+and hashes are in dist/self-host-task-state/comparison.json; preserve trajectories,
+frozen acceptance hashes, source snapshots and original negative results. The
+larger allowance and model variation do not prove causal quality improvement.
+
+Changed the default service reader from up to 10000 lines to 200 from the requested
+offset. Explicit limits 1..10000 remain supported. Truncated results provide
+nextOffset; guarded anchors cover only the exact returned source. LF/CRLF/Unicode,
+later pages, exact exhaustion and explicit larger limits have regressions. Two
+new pagination cases fail on the old reader in the separate reference; the explicit
+range case passes there. Existing model-text/anchor checks remain intact.
+summarizeChunks now allows one correction round per compaction for a nonshrinking
+merge, providing actual lengths and a shorter target through the same owning
+callback and budget. Empty or repeated nonshrinking output fails while preserving
+the original transcript; no silent summary truncation or renewal on later passes.
+This repair is manually authored; the live run's successful compactions alone do
+not prove the new correction path was used. Deterministic tests cover that path.
+
+Prior main 3df8a39 CI 43369282617, documentation 43369282621 and release preparation
+43369282547 all completed successfully. No OpenAI use or budget mutation; Ollama
+monetary billing unavailable. This change affects no UI layout and requires backend
+tests, not the PTY bench. Canonical agent-features/core-customization/readiness
+updated; workspaces-and-web scope/attachment contracts are unaffected. No event
+schema, CLI or manifest input changed. Sustained self-development, model quality,
+onboarding, OpenTUI and full 1.0 remain incomplete. The second live summary falsely
+labels AGENTS.md and documentation.md as unread despite earlier successful reads;
+the fifth says default resolvers are not fully located after earlier summaries
+identified the global Todo variable. Summaries also speculate incorrectly about
+project persistence as a separate root cause. Next investigate a bounded, factual
+tool-evidence/progress record that survives compaction, without promoting model
+speculation into authoritative state, retaining the real task/tests.
+
+Final validation: 1380 tests pass with three optional skips across 168 files,
+full typecheck and docs:check/site build pass; docs:gen produces no changes.
+Final isolation audit confirms all 807 tracked fixture files, Git HEAD, runtime
+config and workspace aliases unchanged; only the operator-created untracked
+agent-compositor.json remains. Logs are /tmp/compositor-context-recovery-*.log.
+
 ## Isolate Todo owners and normalize active-state inputs — 2026-11-13
 
 New regressions expose six failures on f1557fb: the process-global default Todo

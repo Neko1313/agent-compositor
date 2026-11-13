@@ -121,6 +121,25 @@ it('packs ASCII and Unicode summary segments by estimated tokens, not tiny chara
   if(content.startsWith('a'))expect(requests).toHaveLength(1);
  }
 });
+it('recovers one nonreducing summary merge with explicit length feedback',async()=>{
+ const {summarizeChunks}=await import('../src/index.js'),requests:string[]=[];
+ const result=await summarizeChunks([msg('assistant','a'.repeat(6000))],async text=>{requests.push(text);return requests.length<3?'x'.repeat(1500):'Keep the user task, implement the pending repair, then rerun failed checks.';},2048);
+ expect(result).toContain('pending repair');expect(requests).toHaveLength(3);
+ expect(requests[2]).toContain('failed to reduce 1500 characters');expect(requests[2]).toContain('within 750 characters');
+});
+it.each(['nonreducing','empty'])('preserves the original transcript when the single correction is %s',async mode=>{
+ const {summarizeChunks}=await import('../src/index.js');let calls=0;
+ const messages=[msg('system','Keep scope'),msg('user','The exact user request'),msg('assistant','a'.repeat(6000))];
+ const result=await compactTranscript(messages,(middle)=>summarizeChunks(middle,async()=>{calls++;return calls===3&&mode==='empty'?'':'x'.repeat(1500);},2048),{keepTail:0,preserveLastUser:true});
+ expect(calls).toBe(3);expect(result.messages).toBe(messages);expect(result.foldedCount).toBe(0);expect(result.summary).toBe('');
+ expect(result.failure).toContain(mode==='empty'?'Empty compaction summary':'after one correction');
+});
+it('does not renew the correction allowance on a later merge pass',async()=>{
+ const {summarizeChunks}=await import('../src/index.js');let calls=0;
+ const messages=[msg('user','Keep this task'),msg('assistant','a'.repeat(6000))];
+ const result=await compactTranscript(messages,middle=>summarizeChunks(middle,async()=>{calls++;return'x'.repeat(calls<=2?4000:2000);},2048),{keepTail:0,preserveLastUser:true});
+ expect(calls).toBe(4);expect(result.messages).toBe(messages);expect(result.failure).toContain('did not reduce context');
+});
 it('keeps capacity resolution separate from explicit budget reconfiguration',()=>{
  const budget=new TokenBudget({contextWindow:8192,reserveOutput:900,reserveSystem:0});
  budget.applyCapacity({contextWindow:4096,maxOutputTokens:128});expect(budget.outputReserve).toBe(128);

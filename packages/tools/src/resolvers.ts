@@ -157,13 +157,14 @@ async function readFileRange(payload: unknown): Promise<unknown> {
   const end =
     p.limit !== undefined
       ? Math.min(start + p.limit, lines.length)
-      : Math.min(lines.length, MAX_FILE_LINES);
+      : Math.min(start + 200, lines.length);
   const content=lines.slice(start,end).join("\n"),startOffset=start===0?0:Math.min(raw.length,lines.slice(0,start).join("\n").length+1);
   return {
     edit:{path:p.path,expectedHash:createHash("sha256").update(bytes).digest("hex"),range:{start:startOffset,end:startOffset+content.length},strict:true},
     content,
     totalLines: lines.length,
     truncated: end < lines.length,
+    ...(end < lines.length ? {nextOffset:end+1} : {}),
   };
 }
 

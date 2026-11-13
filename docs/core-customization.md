@@ -214,6 +214,10 @@ tool batch; compaction never re-executes its effects. Embedders using
 `compactTranscript` can opt into this selection with `maxTailTokens` and
 `preserveLastUser`; omitting them retains its original tail-selection behavior.
 Failed, empty or non-shrinking summaries leave the original messages intact.
+`summarizeChunks` permits one correction round for a non-shrinking merge before
+failing, with explicit length feedback and a shorter target. This adds at most
+one merge round per compaction, through the same caller-supplied callback;
+it neither truncates a candidate nor substitutes an empty successful summary.
 Summarizer callbacks also receive optional `ctx.userRequest`, the latest user
 message's text supplied separately from the messages being folded. Existing
 callbacks can ignore it. The default model summarizer includes that exact text

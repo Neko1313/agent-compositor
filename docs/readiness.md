@@ -334,6 +334,34 @@ The prior chat estimates were preliminary effort ranges, not a release deadline.
 This migration extends the 1.0 usability scope and does not change the authorized
 live-model spending limit or interrupt the current approval-work fixes.
 
+### Historical self-hosting repair diagnostic — 2026-11-13
+
+Compositor was asked to repair the actual Todo scope/status defects in an isolated
+f1557fb source snapshot, with the two immutable acceptance files from the later
+manual repair. Workspace dependency aliases point into that snapshot, preventing
+the current fixed packages from accidentally satisfying its tests. The negative
+control fails six of seven checks; a separate manually repaired reference passes
+all seven. This is a known historical task, not an unseen benchmark.
+
+Four live DeepSeek-v4.1-flash runs through loopback Ollama failed without editing
+source. The first two exhausted a 240000 cumulative-token allowance; default
+200-line read pages did not establish a task-quality gain. A separate 1200000-token
+condition failed when a summary merge did not shrink. After adding one bounded
+merge correction round, the same larger-limit condition completed five
+compactions but reached its 60-step limit with 51 reads across 17 paths and no
+edit. The independent acceptance checks still fail six of seven. These are
+failures, not self-development success; model variation and the changed allowance
+do not establish a causal quality improvement.
+
+The default reader now returns 200 lines with a continuation offset, retaining
+explicit larger ranges and exact edit anchors. Summary correction preserves the
+original transcript on repeated failure. Both mechanisms have deterministic
+regressions. Next investigate repeated research after compaction and validate
+actual source edits and verification on the unchanged task. Evidence is in
+`dist/self-host-task-state/`, including all four trajectories and a comparison.
+No OpenAI request or spending-guard change occurred; Ollama monetary billing is
+unavailable. Stable 1.0 and sustained self-hosted development remain open.
+
 ### Offline CPU coding diagnostic — 2026-11-13
 
 The maintained local CPU evaluator verifies an existing pinned Qwen cache, owns

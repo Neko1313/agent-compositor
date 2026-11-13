@@ -12,18 +12,19 @@ export interface ReadOutcome {
   totalLines: number;
   edit?:{path:string;expectedHash:string;range:{start:number;end:number};strict:boolean};
   truncated: boolean;
+  nextOffset?:number;
 }
 
 export const readTool: ToolSpec<ReadArgs, ReadOutcome> = {
   name: "read",
   loopGuard: 'query',
-  description: "Read UTF-8 text with a line range and a guarded edit anchor. Pass edit.path/expectedHash/range/strict to edit with exact oldText/newText. The anchor covers only the returned range. Files over 2 MiB require targeted search.",
+  description: "Read UTF-8 text, default 200 lines, with a guarded edit anchor. Use offset/limit for targeted ranges; nextOffset continues a truncated page. Pass edit.path/expectedHash/range/strict to edit with exact oldText/newText. The anchor covers only the returned range. Files over 2 MiB require targeted search.",
   parameters: {
     type: "object",
     properties: {
       path: { type: "string" },
       offset: { type: "integer", minimum: 1, description: "1-based start line; omit or use 1 for the first line" },
-      limit: { type: "integer", minimum: 1, maximum: 10000, description: "Maximum lines to return (1..10000)" },
+      limit: { type: "integer", minimum: 1, maximum: 10000, description: "Maximum lines to return (1..10000); default 200" },
     },
     required: ["path"],
   },

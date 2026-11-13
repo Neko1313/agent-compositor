@@ -10,6 +10,32 @@ afterEach(async () => { for (const p of roots.splice(0))
 async function temp() { const p = await mkdtemp(join(tmpdir(), 'navigation-edit-')); roots.push(p); return p; }
 function context(cwd: string): ToolContext { const handlers = new Map<string, (p: any) => Promise<any>>(); registerDefaultResolvers({ on: (s, h) => { handlers.set(s, h); } }, { root: cwd }); return { cwd, signal: new AbortController().signal, undo: new UndoStore(), request: async (s, p) => handlers.get(s)!(p) }; }
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+describe('bounded default read pages',()=>{
+    it.each(['\n','\r\n'])('continues pages with literal text and exact edit ranges (%j)',async newline=>{
+        const cwd=await temp(),ctx=context(cwd),text=Array.from({length:450},(_,i)=>`Line ${i+1}: 😀`).join(newline);
+        await writeFile(join(cwd,'large.txt'),text);
+        let offset=1,previousEnd=0;
+        for(const count of [200,200,50]){
+            const read=await readTool.execute(ctx,{path:'large.txt',offset});if(!read.ok)throw Error(read.error);
+            const expected=text.split('\n').slice(offset-1,offset-1+count).join('\n');
+            expect(read.data.content).toBe(expected);expect(read.data.edit?.expectedHash).toBe(sha(text));
+            expect(read.data.edit?.range).toEqual({start:previousEnd,end:previousEnd+expected.length});
+            expect(text.slice(read.data.edit!.range.start,read.data.edit!.range.end)).toBe(expected);
+            expect(read.data.truncated).toBe(count===200);
+            expect(read.data.nextOffset).toBe(count===200?offset+count:undefined);
+            previousEnd+=expected.length+1;offset+=count;
+        }
+    });
+    it('honors an explicit larger range and does not mistake exactly 200 lines for truncation',async()=>{
+        const cwd=await temp(),ctx=context(cwd),text=Array.from({length:450},(_,i)=>String(i)).join('\n');
+        await writeFile(join(cwd,'large.txt'),text);
+        expect(await readTool.execute(ctx,{path:'large.txt',limit:450})).toMatchObject({ok:true,data:{content:text,totalLines:450,truncated:false}});
+        await writeFile(join(cwd,'exact.txt'),text.split('\n').slice(0,200).join('\n'));
+        const exact=await readTool.execute(ctx,{path:'exact.txt'});expect(exact).toMatchObject({ok:true,data:{totalLines:200,truncated:false}});
+        if(exact.ok)expect(exact.data).not.toHaveProperty('nextOffset');
+        expect(await readTool.execute(ctx,{path:'large.txt',offset:999})).toMatchObject({ok:true,data:{content:'',truncated:false}});
+    });
+});
 describe('guarded exact editing', () => {
     it.each(['replace','insert'] as const)('explains a missing hash for a guarded %s and recovers with the read anchor', async mode => {
         const cwd = await temp(), ctx = context(cwd), text = 'export const sum = (a: number, b: number) => a - b;\n';

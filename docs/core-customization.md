@@ -115,6 +115,15 @@ controls. `submit` and `steer` dispatch them outside the prompt queue;
 Owner cancellation, auxiliary usage accounting and teardown remain independent
 of the active turn. See the [command contract](plugin-standard.md#immediate-user-commands).
 
+When a tool needs human approval, the host's `AgentCoreOptions.onApproval`
+callback receives a copy of its effective `input` after tool-call rewrites and
+native path resolution. This lets a renderer show the content of a proposed
+write or the exact shell command and supplied options. The permission
+`descriptor` contains the fields used for rule matching. In particular,
+its command tokens can lose quoting present in the original shell text.
+Attachment requests can omit `input`. The callback can return a boolean
+for a one-call decision. Its abort signal identifies requests that have expired.
+
 ### Repeated approval refusals
 
 Within a model turn, a completed approval refusal is remembered for an identical

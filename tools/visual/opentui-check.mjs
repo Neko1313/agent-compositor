@@ -73,6 +73,16 @@ try {
     await page.mouse.click(point.x, point.y);
   }
   async function capture(name) {
+    // Capture the painted terminal after xterm has applied the observed cells.
+    await page.evaluate(() => new Promise((done, fail) => {
+      const timer = setTimeout(() => { subscription.dispose(); fail(Error('Terminal paint timeout')); }, 5000);
+      const subscription = visual.terminal.onRender(() => {
+        subscription.dispose();
+        clearTimeout(timer);
+        requestAnimationFrame(() => requestAnimationFrame(done));
+      });
+      visual.terminal.refresh(0, visual.terminal.rows - 1);
+    }));
     await page.locator('#terminal').screenshot({ path: join(output, name) });
     report.screenshots.push(name);
   }
@@ -104,6 +114,105 @@ try {
   })).jsonValue();
   report.checks.push('A 228×228 Kitty image beside the editor displays changing pixels over a transparent background');
   await capture('01-main-ready.png');
+
+  const { cwd } = JSON.parse(await readFile(join(output, 'fixture-launch.json'), 'utf8'));
+  const mainFile = join(cwd, 'main-note.txt'), sideFile = join(cwd, 'side-note.txt');
+  const absent = file => assert.rejects(readFile(file), {code: 'ENOENT'});
+  const beforeDecision = async () => { await absent(mainFile); await absent(sideFile); };
+  async function requestWrite(file) {
+    await type('request write');
+    await page.keyboard.press('Enter');
+    await wait('Approval required');
+    await wait('Tool: write');
+    await wait('Reason: Write the requested preview note');
+    await wait(file);
+    await wait('Alt+Y Allow once');
+    await wait('Alt+N Deny');
+    await beforeDecision();
+  }
+  await requestWrite(mainFile);
+  await type('yn');
+  await page.keyboard.press('Enter');
+  await type(' kept');
+  await wait('yn kept');
+  await capture('approval-main-pending.png');
+  await page.keyboard.press('F3');
+  await wait('Message Side…');
+  assert.ok(!(await screen()).includes('Approval required'));
+  await requestWrite(sideFile);
+  await type('Side approval draft');
+  await wait('Main · Approval');
+  await wait('Side · Approval');
+  await page.evaluate(() => visual.terminal.resize(48, 18));
+  await page.waitForFunction(() => visual.terminal.cols === 48 && visual.terminal.rows === 18 &&
+    visual.graphics.active === 0 && ['Main · Approval', 'Side · Approval', 'F4 Workflows',
+      'Alt+Y Allow once', 'Alt+N Deny', 'Side approval draft'].every(label => visual.text().includes(label)));
+  await capture('approval-both-narrow.png');
+  await page.evaluate(() => visual.terminal.resize(100, 30));
+  await wait('Ctrl+C quit');
+  await page.keyboard.press('F4');
+  await wait('Preview workflow');
+  assert.ok(!(await screen()).includes('Approval required'));
+  await page.keyboard.press('Alt+y');
+  await page.keyboard.press('Enter');
+  await wait('Workflow: Preview workflow');
+  await capture('approval-workflow.png');
+  await click('Preview workflow');
+  await page.waitForFunction(() => !visual.text().includes('Workflow: Preview workflow'));
+  await beforeDecision();
+  report.checks.push('Both writes stay pending during literal y/n, Enter, agent switches and workflow input, including Alt+Y on the workflow tab');
+
+  await page.keyboard.press('F2');
+  await wait('yn kept');
+  await wait(mainFile);
+  assert.ok(!(await screen()).includes('Side approval draft'));
+  assert.ok(!(await screen()).includes(sideFile));
+  await page.keyboard.press('Alt+n');
+  await wait('Write denied');
+  await wait('Main · Ready');
+  await wait('yn kept');
+  await wait('Side · Approval');
+  await beforeDecision();
+  report.checks.push('Alt+N denies only the visible Main request, preserves its draft and leaves both target files absent');
+
+  await click('F3 Side');
+  await wait('Side approval draft');
+  await wait(sideFile);
+  await page.evaluate(() => visual.terminal.resize(48, 18));
+  await page.waitForFunction(() => visual.terminal.cols === 48 && visual.terminal.rows === 18 &&
+    visual.graphics.active === 0 && ['Approval required', 'Tool: write', 'Alt+Y Allow once', 'Alt+N Deny', 'Side approval draft']
+      .every(label => visual.text().includes(label)));
+  await capture('approval-side-narrow.png');
+  await page.keyboard.press('PageDown');
+  await wait('Approved by Side');
+  await wait('Alt+Y Allow once');
+  await wait('Alt+N Deny');
+  await capture('approval-side-arguments.png');
+  await page.keyboard.press('PageUp');
+  await wait('Tool: write');
+  await wait('Side approval draft');
+  await beforeDecision();
+  await click('Alt+Y Allow once');
+  await wait('Write completed');
+  await wait('Side · Ready');
+  await wait('Side approval draft');
+  assert.ok(!(await screen()).includes('Approval required'));
+  await absent(mainFile);
+  const written = await readFile(sideFile, 'utf8');
+  assert.equal(written, 'Approved by Side\n');
+  report.approvalFiles = {'main-note.txt': {exists: false}, 'side-note.txt': {content: written}};
+  await capture('approval-side-completed.png');
+  report.checks.push('At 48×18 PgDn reaches the write content and PgUp restores its tool, with decision buttons and draft visible. Clicking Allow once writes the expected Side file and leaves the denied Main file absent');
+
+  // Clear these single-line approval drafts through the native editor before the streaming scenario.
+  await page.keyboard.press('Control+u');
+  await wait('Message Side…');
+  await page.keyboard.press('F2');
+  await wait('yn kept');
+  await page.keyboard.press('Control+u');
+  await wait('Message Main…');
+  await page.evaluate(() => visual.terminal.resize(100, 30));
+  await wait('PgUp/PgDn history');
   await type('hold main');
   await page.keyboard.press('Enter');
   await wait('Main is working');
@@ -188,12 +297,30 @@ try {
   await wait(sideReply);
   report.checks.push('Enter expands the selected workflow, clicks collapse and expand its row at 100×30 and 48×18, and F3 restores the Side draft');
 
+  // Repeat the allowed write with observable existing content, and quit while approval is pending.
+  const sentinel = 'Preserve this existing Side file\n';
+  await writeFile(sideFile, sentinel);
+  await page.keyboard.press('Control+u');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Control+u');
+  await wait('Message Side…');
+  await page.keyboard.type('request write');
+  await page.waitForFunction(() => visual.text().split('\n').slice(-5).some(row => row.includes('request write')));
+  await page.keyboard.press('Enter');
+  await wait('Side · Approval');
+  await wait('Tool: write');
+  await wait('Main · Running');
+  await capture('approval-pending-exit.png');
+  assert.equal(await readFile(sideFile, 'utf8'), sentinel);
   const [exit] = await Promise.all([
     socket.waitForEvent('framereceived', { predicate: frame => JSON.parse(String(frame.payload)).type === 'exit', timeout }),
     page.keyboard.press('Control+c'),
   ]);
   report.ptyExitCode = JSON.parse(String(exit.payload)).code;
   assert.equal(report.ptyExitCode, 0);
+  assert.equal(await readFile(sideFile, 'utf8'), sentinel);
+  await absent(mainFile);
+  report.checks.push('Allow once requests approval again on a later turn. Ctrl+C during that review preserves the pre-existing file');
   const inputs = (await readFile(join(output, 'input.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
   assert.ok(inputs.some(event => event.type === 'resize' && event.cols === 48 && event.rows === 18));
   assert.ok(inputs.some(event => event.type === 'input' && event.data === '\x03'));

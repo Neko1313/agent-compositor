@@ -21,4 +21,4 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
 }
 export type {PluginTableSource} from './table.js';
 export type {ComposerMedia} from './ghost.js';
-export type {ConversationSession, ConversationSnapshot, Message} from './session.js';
+export type {ConversationSession, ConversationSnapshot, ConversationApproval, Message} from './session.js';

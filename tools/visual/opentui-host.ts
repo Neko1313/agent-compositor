@@ -1,3 +1,4 @@
+import type {createApprovalInbox} from './opentui-approvals.js';
 import type {AgentCore, ChatMessage} from '@agent-compositor/core';
 import type {ConversationSession, ConversationSnapshot, Message, PluginTableSource} from '@agent-compositor/renderer-opentui';
 import {uiTextViewSchema} from '@agent-compositor/events';
@@ -13,17 +14,18 @@ function conversation(messages: readonly ChatMessage[]): Message[] {
   return visible;
 }
 
-export function connectConversation(core: AgentCore, label: string): ConversationSession & {disconnect(): void} {
+export function connectConversation(core: AgentCore, label: string, inbox?: ReturnType<typeof createApprovalInbox>): ConversationSession & {disconnect(): void} {
   const listeners = new Set<() => void>();
-  let state: ConversationSnapshot = {messages: conversation(core.getMessages()), running: core.getState() === 'running'};
+  let state: ConversationSnapshot = {messages: conversation(core.getMessages()), running: core.getState() === 'running', approval: inbox?.snapshot()};
   let committed = state.messages;
   let streaming = '';
   let disconnected = false;
   function update(next: ConversationSnapshot) {
     if (disconnected) return;
-    state = next;
+    state = {...next, approval: inbox?.snapshot()};
     for (const listener of listeners) listener();
   }
+  const offInbox = inbox?.subscribe(() => update(state));
   const unsubscribe = core.subscribe(event => {
     if (event.kind === 'text') {
       streaming += event.delta;
@@ -48,14 +50,14 @@ export function connectConversation(core: AgentCore, label: string): Conversatio
     }
   });
   return {
-    id: core.sessionId, label,
+    id: core.sessionId, label, answerApproval: inbox?.answer,
     subscribe(callback) { listeners.add(callback); return () => { listeners.delete(callback); }; },
     snapshot: () => state,
     submit(text) {
       if (disconnected || !text.trim()) return;
       void core.submit(text).catch(error => update({...state, running: core.getState() === 'running', error: String(error)}));
     },
-    disconnect() { disconnected = true; unsubscribe(); listeners.clear(); },
+    disconnect() { disconnected = true; offInbox?.(); unsubscribe(); listeners.clear(); inbox?.close(); },
   };
 }
 

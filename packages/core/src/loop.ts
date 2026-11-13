@@ -103,6 +103,8 @@ export interface AgentCoreOptions {
   onApproval?: (req: {
     tool: string;
     descriptor: ToolCallDescriptor;
+    /** Effective arguments for the renderer to display. Attachments may omit these. */
+    input?: unknown;
     reason?: string;
     signal?: AbortSignal;
   }) => Promise<
@@ -1887,7 +1889,8 @@ export class AgentCore {
                 try {
                   return await this.onApproval!({
                     tool: call.name,
-                    descriptor,
+                    descriptor: structuredClone(descriptor),
+                    input: structuredClone(args),
                     reason: reviewReason ?? decision.rule?.reason,
                     signal,
                   });

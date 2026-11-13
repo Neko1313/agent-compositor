@@ -1313,7 +1313,8 @@ export class AppUI {
       this.cancelDrag();
       const native=new ApprovalDialog(req);
       let dialog:ControllerDialog<typeof req>;
-      try{dialog=new ControllerDialog(this.core.host.controllers.create('approval',{...req,signal:undefined},()=>({
+      const controllerRequest = {tool: req.tool, descriptor: req.descriptor, reason: req.reason, signal: undefined};
+      try{dialog=new ControllerDialog(this.core.host.controllers.create('approval',controllerRequest,()=>({
         render:({columns,rows})=>({lines:native.visible(columns,rows)}),handle:input=>native.handle(input as Extract<WireMessage,{type:'input'}>['data']),
         preferredRows:columns=>native.rows(columns).length,pointer:row=>native.interactiveRow(row)?'pointer':'default',
       }),()=>this.draw()),req);}catch{resolve(false);return;}

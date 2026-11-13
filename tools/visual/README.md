@@ -117,6 +117,12 @@ input. The scenario exercises native text editing, keyboard and mouse tab
 switching, independent drafts, workflow row expansion, terminal resizing and
 Ctrl+C cleanup. Set `VISUAL_OUTPUT` to choose a capture directory.
 
+The same browser scenario issues real `write` tool calls from both agents.
+It checks the workspace on disk before and after answering, scrolls through the
+arguments in a 48×18 terminal, visits Workflows with both requests pending and
+exits while a later request is unanswered. The report and screenshots include
+the state of each conversation, the observed file contents and PTY exit code.
+
 `npm run visual:opentui-ghost` checks transfers on a PTY that
 answers the Kitty capability probe. It compares decoded RGBA frame bytes and
 ordering with the bundled idle and thinking animations. This verifies the

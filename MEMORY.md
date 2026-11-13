@@ -1,5 +1,25 @@
 # Project memory
 
+## OpenTUI approvals across active conversations — 2026-11-13
+
+The initial OpenTUI prototype at 19ef4cb passed remote CI, documentation and
+release preparation. Its source preview now exposes manual one-call decisions.
+Each conversation owns a queue with independent IDs, abort handling and a
+shutdown path that denies outstanding requests. The card shows the effective
+tool, matching descriptor, reason and arguments. A review stays pending across
+tab changes. Enter, editing a draft, and shortcuts in the Workflows view cannot
+approve a hidden card. A fresh call requires a fresh one-time decision.
+
+The host onApproval callback receives a detached copy of effective tool input
+for review. The Ink extension approval controller still receives its existing
+identity/descriptor/reason context. Linux browser-backed PTY evidence includes
+independent file checks for simultaneous allow/deny on separate agents,
+scrolling narrow arguments, repeated write asking again, and shutdown with an
+unanswered request. See tools/visual/opentui-check.mjs and docs/02-ui.md.
+Deployment of a production OpenTUI shell, plugin management, settings,
+question handling, session recovery, multi-platform testing, and the broader
+autonomous coding gates are still open.
+
 ## First OpenTUI conversation and workflow prototype — 2026-11-13
 
 The private renderer-opentui workspace runs under Bun. From a source checkout

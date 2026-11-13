@@ -16,6 +16,8 @@ const cwd = await mkdtemp(join(tmpdir(), 'compositor-visual-'));
 const workspaceHome=process.env.VISUAL_WORKSPACES?await mkdtemp(join(tmpdir(),'compositor-project-home-')):cwd;
 const output = resolve(process.env.VISUAL_OUTPUT ?? join(root, 'dist/visual-proof'));
 await mkdir(output, { recursive: true });
+if (process.env.VISUAL_OPENTUI === '1')
+  await writeFile(join(output, 'fixture-launch.json'), JSON.stringify({cwd}));
 await writeFile(join(output, 'terminal.ansi'), '');
 await writeFile(join(output, 'input.jsonl'), '');
 if(process.env.VISUAL_PERFORMANCE)await writeFile(join(output,'terminal.events.jsonl'),'');

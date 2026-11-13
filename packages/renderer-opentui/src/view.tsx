@@ -1,9 +1,9 @@
 /** @jsxImportSource @opentui/react */
 import { MouseButton, RGBA, TextAttributes, type KeyBinding, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
 import { useKeyboard, useTerminalDimensions } from '@opentui/react';
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Ghost, type ComposerMedia } from './ghost.js';
-import type { ConversationSession } from './session.js';
+import type { ConversationApproval, ConversationSession } from './session.js';
 import { PluginTable, type PluginTableSource } from './table.js';
 
 const color = {
@@ -57,8 +57,64 @@ function useSessionSubscription(session: ConversationSession) {
 }
 
 function SessionTab({ session, ...tab }: Omit<TabProps, 'label'> & { session: ConversationSession }) {
-  const running = useSyncExternalStore(useSessionSubscription(session), () => session.snapshot().running);
-  return <Tab {...tab} label={running ? `${session.label} · Running` : session.label} />;
+  const status = useSyncExternalStore(useSessionSubscription(session), () => {
+    const { approval, running } = session.snapshot();
+    return approval ? ' · Approval' : running ? ' · Running' : '';
+  });
+  return <Tab {...tab} label={session.label + status} />;
+}
+
+// Keep control and bidirectional formatting characters visible in the action being reviewed.
+function approvalText(value: string) {
+  return value.replace(/[\p{Cc}\p{Bidi_Control}\p{Zl}\p{Zp}]/gu, char =>
+    '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'));
+}
+
+const approvalActions = [
+  { key: 'y', label: 'Alt+Y Allow once', allow: true },
+  { key: 'n', label: 'Alt+N Deny', allow: false },
+] as const;
+
+function ApprovalCard({ request, session, height }: {
+  request: ConversationApproval;
+  session: ConversationSession;
+  height: number;
+}) {
+  const scroller = useRef<ScrollBoxRenderable>(null);
+  useKeyboard(key => {
+    if (key.name === 'pageup' || key.name === 'pagedown') {
+      key.preventDefault();
+      scroller.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
+      return;
+    }
+    if (!key.meta || key.ctrl || key.shift || key.super || key.hyper) return;
+    const action = approvalActions.find(action => action.key === key.name);
+    if (!action || !session.answerApproval) return;
+    key.preventDefault();
+    if (!key.repeated) session.answerApproval(request.id, action.allow);
+  });
+  return (
+    <box flexDirection="column" flexShrink={0} paddingX={1} border borderColor={color.running}
+      backgroundColor={color.panel} title=" Approval required " titleColor={color.running}>
+      <scrollbox ref={scroller} maxHeight={Math.max(1, Math.min(12, Math.floor(height / 3)))}
+        focusable={false} scrollX={false} scrollY contentOptions={{ minHeight: 0 }}>
+        <text wrapMode="word" fg={color.text} attributes={TextAttributes.BOLD}>{`Tool: ${approvalText(request.tool)}`}</text>
+        {request.reason && <text wrapMode="word" fg={color.text}>{`Reason: ${approvalText(request.reason)}`}</text>}
+        {request.details.map(({ label, value }, index) =>
+          <text key={index} wrapMode="word" fg={color.text}>{`${approvalText(label)}: ${approvalText(value)}`}</text>
+        )}
+      </scrollbox>
+      <box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>
+        {session.answerApproval ? approvalActions.map(action => (
+          <box key={action.key} height={1} paddingX={1} backgroundColor={color.rule} onMouseDown={event => {
+            if (event.button === MouseButton.LEFT) session.answerApproval?.(request.id, action.allow);
+          }}>
+            <text selectable={false} fg={color.text} attributes={TextAttributes.BOLD}>{action.label}</text>
+          </box>
+        )) : <text fg={color.muted}>Waiting for host decision</text>}
+      </box>
+    </box>
+  );
 }
 
 function Conversation({ sessions, selected, animations, composerMedia, visible }: {
@@ -74,11 +130,17 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
   const { width, height } = useTerminalDimensions();
   const wide = width >= 60;
   const editorHeight = height >= 20 ? 4 : 2;
-  const inputHint = state.running ? 'Draft while running · Ctrl+J newline' : 'Enter send · Ctrl+J newline';
-  const fullHint = `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
+  const busy = state.running || Boolean(state.approval);
+  const inputHint = state.approval ? 'PgUp/PgDn details · Ctrl+J newline' :
+    busy ? 'Draft while running · Ctrl+J newline' : 'Enter send · Ctrl+J newline';
+  const fullHint = state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
+
+  useLayoutEffect(() => {
+    if (visible && state.approval) history.current?.scrollTo(Infinity);
+  }, [visible, selected.id, state.approval?.id]);
 
   useKeyboard(key => {
-    if (visible && (key.name === 'pageup' || key.name === 'pagedown')) {
+    if (visible && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
       key.preventDefault();
       history.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
     }
@@ -86,7 +148,8 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
 
   function send() {
     const input = editor.current;
-    if (!input || selected.snapshot().running) return;
+    const current = selected.snapshot();
+    if (!input || current.running || current.approval) return;
     const text = input.plainText;
     if (!text.trim()) return;
     selected.submit(text);
@@ -98,7 +161,7 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
     <box visible={visible} flexDirection="column" flexGrow={1} minHeight={0}>
       <scrollbox key={selected.id} ref={history} flexGrow={1} flexBasis={0} minHeight={0}
         focusable={false} scrollX={false} stickyScroll stickyStart="bottom"
-        contentOptions={{ paddingX: 1, paddingY: 1, gap: 1 }}>
+        contentOptions={{ paddingX: 1, paddingY: state.approval ? 0 : 1, gap: 1 }}>
         {state.messages.length === 0 && !state.error && <text fg={color.muted}>No messages yet</text>}
         {state.messages.map((message, index) => (
           <box key={index} flexShrink={0} flexDirection="column">
@@ -111,8 +174,10 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
         {state.error && <text wrapMode="word" fg={color.error}>{`Error: ${state.error}`}</text>}
       </scrollbox>
 
+      {visible && state.approval && <ApprovalCard key={`${selected.id}:${state.approval.id}`}
+        request={state.approval} session={selected} height={height} />}
       <box border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
-        title={` ${selected.label} · ${state.running ? 'Running' : 'Ready'} `}
+        title={` ${selected.label} · ${state.approval ? 'Draft' : state.running ? 'Running' : 'Ready'} `}
         backgroundColor={composerBackground} flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
         {/* Keeping each native editor mounted preserves its draft, cursor, selection and undo stack. */}
         {sessions.map(session => (
@@ -124,11 +189,11 @@ function Conversation({ sessions, selected, animations, composerMedia, visible }
             keyBindings={editorKeys} onSubmit={session === selected ? send : undefined} />
         ))}
         <Ghost media={composerMedia} enabled={visible && animations && wide && height >= 20} active={state.running} />
-        <box height={1} paddingX={1} backgroundColor={state.running ? color.panel : color.accent}
+        <box height={1} paddingX={1} backgroundColor={busy ? color.panel : color.accent}
           onMouseDown={event => {
             if (event.button === MouseButton.LEFT) send();
           }}>
-          <text selectable={false} fg={state.running ? color.muted : color.background}
+          <text selectable={false} fg={busy ? color.muted : color.background}
             attributes={TextAttributes.BOLD}>Send</text>
         </box>
       </box>
@@ -168,7 +233,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   });
   return (
     <box width="100%" height="100%" backgroundColor={color.background} paddingX={1} flexDirection="column">
-      <box flexDirection="row" flexWrap="wrap" gap={1} flexShrink={0} border={['bottom']} borderColor={color.rule}>
+      <box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0} border={['bottom']} borderColor={color.rule}>
         {sessions.map((session, index) => (
           <SessionTab key={session.id} session={session} index={index}
             selected={!tableVisible && session === selected} onSelect={() => selectSession(session)} />

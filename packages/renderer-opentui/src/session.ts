@@ -1,8 +1,16 @@
 export type Message = {role: 'user' | 'assistant'; text: string};
+export interface ConversationApproval {
+  id: string;
+  tool: string;
+  reason: string;
+  details: readonly {label: string; value: string}[];
+}
+
 export interface ConversationSnapshot {
   messages: readonly Message[];
   running: boolean;
   error?: string;
+  approval?: ConversationApproval;
 }
 
 /** The renderer subscribes to the session it displays. The host owns its lifetime. */
@@ -12,4 +20,5 @@ export interface ConversationSession {
   snapshot(): ConversationSnapshot;
   subscribe(callback: () => void): () => void;
   submit(text: string): void;
+  answerApproval?(id: string, allow: boolean): void;
 }

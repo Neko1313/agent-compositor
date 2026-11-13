@@ -335,6 +335,14 @@ the original Ghost images. The browser and byte-level checks emulate Kitty
 protocol support. Native terminal coverage, additional protocols, the full
 plugin view contract and packaged releases remain outstanding.
 
+A follow-up Linux PTY run exercised concurrent permission requests from two
+agents. It verified per-chat badges, full argument inspection in a narrow
+terminal, switching to Workflows and returning with drafts intact, a one-time
+allow and a denial. Independent file checks verified that only the selected
+write took effect. A repeat requested permission again, and closing the
+preview while it waited preserved the preexisting file. Settings, plugin
+management and agent questions still need OpenTUI integration.
+
 Initial technical references are the official [OpenTUI components](https://opentui.com/docs/components/),
 [image](https://opentui.com/docs/components/image/),
 [video](https://opentui.com/docs/components/video/) and

@@ -103,6 +103,7 @@ export class NativeProvider implements ModelProvider {
         ...(caching === "conversation" ? { cache_control: { type: "ephemeral" } } : {}),
         system: caching && system ? [{type:"text",text:system,cache_control:{type:"ephemeral"}}] : system,
         messages: merged,
+        ...(request.toolChoice === 'none' ? {tool_choice: {type: 'none'}} : {}),
         tools: request.tools.map((t, i) => ({
           name: t.name,
           description: t.description,
@@ -166,6 +167,7 @@ export class NativeProvider implements ModelProvider {
               },
             ]
           : undefined,
+        ...(request.toolChoice === 'none' ? {toolConfig: {functionCallingConfig: {mode: 'NONE'}}} : {}),
         generationConfig: {
           maxOutputTokens: request.maxOutputTokens ?? c.maxOutputTokens ?? 8192,
           ...(c.reasoningEffort
@@ -230,6 +232,7 @@ export class NativeProvider implements ModelProvider {
                 })),
               ]
         ),
+        ...(request.toolChoice === 'none' ? {tool_choice: 'none'} : {}),
         tools: request.tools.map((t) => ({
           type: "function",
           name: t.name,

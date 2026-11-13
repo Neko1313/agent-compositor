@@ -468,7 +468,10 @@ that segment is retried with a doubled allowance, capped at 8192 tokens or a
 quarter of the configured context window, whichever is smaller. This permits at
 most three attempts per segment through the owning model and budget. Partial
 summaries are discarded; cancellation, provider errors and streams lacking a
-completion event do not trigger this retry. System instructions
+completion event do not trigger this retry. Summary requests explicitly disable
+tool use. Any returned tool call fails compaction without executing the call or
+replacing the original history, even if followed by a normal completion event;
+these responses do not trigger the output-limit retry. System instructions
 and recent complete tool-call/result groups survive when they fit the retained
 tail budget. Oversized recent groups can be folded into the summary as a whole;
 their calls/effects are not retried. The latest user request remains verbatim

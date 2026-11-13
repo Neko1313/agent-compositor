@@ -203,6 +203,7 @@ export class OpenAICompatProvider implements ModelProvider {
           : {}),
         messages: req.messages.map(toWire),
         tools: req.tools.length ? req.tools.map(toWireTool) : undefined,
+        ...(req.toolChoice === 'none' ? {tool_choice: 'none'} : {}),
         ...(this.config.reasoningEffort
           ? { reasoning_effort: this.config.reasoningEffort }
           : {}),

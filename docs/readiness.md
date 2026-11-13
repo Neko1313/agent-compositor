@@ -447,8 +447,16 @@ the final approval-path binding correction and do not exercise model edit usage.
 
 Content-free DeepSeek stream statistics show summary retries ending in length or
 tool_calls, including the final rejected tool-call finish. No summary tool was
-executed. Investigate text-only request mode and bounded reasoning/output handling
-next; these observations do not establish a completed repair or broad model quality.
+executed. The default summarizer now requests explicit disabled-tool mode through
+all four bundled protocols and rejects tool events even with a misleading `stop`
+or `length` finish. Local protocol and compaction-retention tests pass; the full
+suite passes 1514 tests with three optional skips. A proposed live replay of the
+saved transcript was rejected by automatic approval review because that context
+could be relayed through Ollama to a cloud model with unverified handling and
+billing. No replay request ran. Obtain explicit approval for that payload/egress
+before replaying it, then investigate provider compliance and bounded
+reasoning/output handling. These observations do not establish a completed
+repair or broad model quality.
 
 Compositor was asked to repair the actual Todo scope/status defects in an isolated
 f1557fb source snapshot, with the two immutable acceptance files from the later

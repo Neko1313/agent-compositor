@@ -54,6 +54,8 @@ export type ProviderEvent =
 export interface CompletionRequest {
   messages: ChatMessage[];
   tools: ToolDecl[];
+  /** Request a text-only response. Callers must still reject unexpected tool events. */
+  toolChoice?: "none";
   signal: AbortSignal;
   model?: string;
   profile?: string;

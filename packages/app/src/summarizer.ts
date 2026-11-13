@@ -14,16 +14,20 @@ export function createSummarizer(stream: (request: CompletionRequest) => AsyncIt
         let outputLimit = Math.min(2048, Math.floor(size / 8));
         for (;;) {
             signal.throwIfAborted();
-            let text = '', finish: Extract<ProviderEvent,{type:'finish'}> | undefined;
-            for await (const event of stream({ signal, tools: [], maxOutputTokens: outputLimit, messages: [
+            let text = '', toolCall = false, finish: Extract<ProviderEvent,{type:'finish'}> | undefined;
+            for await (const event of stream({ signal, tools: [], toolChoice: 'none', maxOutputTokens: outputLimit, messages: [
                     ...reference,
                     { role: 'user', content: segment },
                 ] })) {
                 if (event.type === 'text_delta')
                     text += event.text;
                 if (event.type === 'finish') finish = event;
+                if (event.type === 'tool_call') toolCall = true;
             }
             signal.throwIfAborted();
+            // Drain usage, but never treat a tool-bearing response as a summary,
+            // including when the provider reports stop or truncation afterward.
+            if (toolCall) throw Error('Summary response contained an unexpected tool call');
             if (finish?.reason === 'stop') return text;
             // Reasoning can consume a small output allowance before producing a
             // complete summary. Retry only this segment, with bounded extra space.

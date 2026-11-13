@@ -1,5 +1,42 @@
 # Project memory
 
+## Explicit text-only summary requests and tool-event rejection — 2026-11-13
+
+7ac62fb passed CI 43408642452 (both Node versions), docs 43408642480 and
+release preparation 43408642381. The preceding turn only verified the existing
+OpenTUI plan; it made no new implementation progress. Continued the actual
+DeepSeek compaction failure investigation rather than repeating that status.
+
+CompletionRequest now accepts optional toolChoice: "none". The default
+summarizer sets it alongside tools: []; bundled Chat Completions/Responses,
+Anthropic and Gemini adapters encode their documented disabled-tool modes.
+Omission preserves existing wire behavior. Protocol references were checked:
+https://developers.openai.com/api/docs/guides/function-calling,
+https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools,
+https://googleapis.github.io/js-genai/release_docs/enums/types.FunctionCallingConfigMode.html.
+Ollama's current compatibility page lists tool_choice, but that does not prove
+the installed server/model honors it. No actual provider acceptance claim.
+
+The summarizer also rejects any tool_call event even when followed by stop or
+length. It drains usage before rejecting, never executes auxiliary calls and
+never retries tool-bearing output. Existing bounded length-only retry, abort
+and original-context retention remain. Tests cover all four protocols with
+no tools/declared tools and omitted/none choices, misleading finish reasons,
+stream draining and unchanged transcript after failed real compaction callback.
+Full coverage: 1514 passed, 3 optional skips, 180 files; typecheck, gen,
+docs:gen and docs:check passed. Canonical behavior guides updated. No plugin
+version/catalog changes, renderer changes or model-budget changes.
+
+A proposed bounded summary-only replay of the saved DeepSeek failure was
+rejected by automatic approval review before shell execution: the saved
+repository/tool context could reach a cloud model via Ollama, and destination
+ownership, handling and billing were unverified. No replay request or diagnostic
+script was executed/created by that rejected command. Do not work around this
+rejection; obtain explicit user approval for this payload/egress before a live
+replay. Existing failed runs stay failures. Text-only serialization is verified
+locally, not a proven fix for DeepSeek's task quality. Stable 1.0, self-development,
+onboarding and OpenTUI remain incomplete; the goal stays active.
+
 ## Derive reference-only edit targets before hooks and policy — 2026-11-13
 
 75143e2 passed CI 43399771600 on both Node versions, docs 43399771991 and release

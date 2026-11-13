@@ -375,6 +375,17 @@ user message is pinned outside the folded history. It distinguishes the request
 from examples, scaffolds and earlier assistant proposals instead of inferring
 that the task or its authorization is missing from a partial segment. This is
 context for summarization, not a new tool-execution instruction.
+Every default summary request declares no tools and sets
+`CompletionRequest.toolChoice: "none"`. Bundled adapters encode this as the
+provider's explicit disabled-tool mode: `tool_choice: "none"` for Chat
+Completions/Responses, `{type: "none"}` for Anthropic, and
+`toolConfig.functionCallingConfig.mode: "NONE"` for Gemini. Omitting the new
+optional field preserves the provider's normal behavior. Custom adapters should
+honor it; compatibility endpoints may still violate the request, so the default
+summarizer rejects any tool-call event even if the final reason is `stop` or
+`length`. It drains the stream for usage accounting, executes no summary tool
+calls and does not retry a tool-bearing response. Only output-limit truncation
+without tool events uses the existing bounded increase in output allowance.
 The reference and framing count toward the auxiliary context bound. If they
 leave too little space for a bounded summary, no auxiliary call starts and the
 original transcript is retained with a visible compaction failure. Attachments

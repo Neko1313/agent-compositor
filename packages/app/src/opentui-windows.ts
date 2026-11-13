@@ -193,7 +193,7 @@ export async function connectWindowLayout(storage: Storage, options: {
     if (frame.y + frame.height - y <= Math.min(3, frame.height / 4)) return 'bottom';
     return 'center';
   }
-  function changeSplit(type: 'orient' | 'swap' | 'resize', delta = 0) {
+  function changeSplit(action: {type: 'orient' | 'swap'} | Extract<WindowLayoutAction, {type: 'axis' | 'resize'}>) {
     const view = projection();
     const nearest = (node?: Tree): Exclude<Tree, {surface: string}> | undefined => {
       if (!node || 'surface' in node) return;
@@ -202,9 +202,13 @@ export async function connectWindowLayout(storage: Storage, options: {
     };
     const split = nearest(view.tree);
     const canonical = split && canonicalSplit(split)?.node;
-    if (type === 'orient') {view.orient(); wm.axis = view.axis; if (canonical && split) canonical.axis = split.axis;}
-    else if (type === 'swap') {if (canonical) canonical.children = [canonical.children[1], canonical.children[0]];}
-    else {view.resize(delta); if (canonical && split) canonical.ratio = split.ratio;}
+    if (action.type === 'orient' || action.type === 'axis') {
+      if (action.type === 'axis') view.setSplitAxis(action.axis);
+      else view.orient();
+      wm.axis = view.axis;
+      if (canonical && split) canonical.axis = split.axis;
+    } else if (action.type === 'swap') {if (canonical) canonical.children = [canonical.children[1], canonical.children[0]];}
+    else if (action.type === 'resize') {view.resize(action.delta); if (canonical && split) canonical.ratio = split.ratio;}
   }
   function point(action: Extract<WindowLayoutAction, {type: 'pointer'}>) {
     const {x, y} = action;
@@ -352,17 +356,19 @@ export async function connectWindowLayout(storage: Storage, options: {
           wm.focused = action.id;
           break;
         case 'cycle': {
-          const ids = view.ids();
-          wm.focused = ids[(ids.indexOf(view.focused) + 1) % ids.length] ?? 'input';
+          view.cycle(action.reverse);
+          wm.focused = view.focused;
           break;
         }
-        case 'orient': changeSplit('orient'); break;
-        case 'swap': changeSplit('swap'); break;
+        case 'axis':
+          if (action.axis !== 'horizontal' && action.axis !== 'vertical') return;
+          changeSplit(action); break;
+        case 'orient': case 'swap': changeSplit({type: action.type}); break;
         case 'zoom': if (view.ids().length) wm.fullscreen = !wm.fullscreen; break;
         case 'close': wm.focused = view.focused; wm.close(); break;
         case 'resize':
           if (!Number.isFinite(action.delta) || Math.abs(action.delta) > 1) return;
-          changeSplit('resize', action.delta); break;
+          changeSplit(action); break;
         case 'direction': {
           const source = view.focused;
           view.direction(action.key, width, height);

@@ -424,8 +424,15 @@ release CI now requires the actual relocated application flow on all four
 declared platforms. Adding that gate does not establish that its first remote
 matrix has passed.
 
-Remaining frontend gates include the discoverable Arrange/window finder,
-selected replacement controllers, full appearance/render overrides, legacy
+The production OpenTUI frontend also exposes stable Arrange and searchable
+Windows navigation over the same host window tree. Its native search and
+resident editors preserve independent draft/form state; the deterministic
+preview retains its separate development keymap. Verification must include
+actual batched keyboard/paste, protected questions/approvals, live route
+replacement and narrow terminal geometry, not only host parser tests.
+
+Remaining frontend gates include selected replacement controllers,
+full appearance/render overrides, legacy
 conversation copies, complete wire-protocol parity and independent request
 windows for UI-tool approvals/questions that currently share Main's inbox.
 Immediate command cancellation must also propagate to its exact internal tool

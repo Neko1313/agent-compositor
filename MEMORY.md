@@ -1,5 +1,69 @@
 # Project memory
 
+## Stable OpenTUI window navigation — 2026-11-14
+
+The active 1.0 goal remains the complete original scope. This next application
+frontend increment adds stable Alt+w Arrange, F2 / /windows and Alt+0 Main;
+window/form publication no longer changes the control keys. Only the configured
+application supplies the optional WindowNavigationSource. Deterministic previews
+retain their older F-key map. The host reuses windowControl and the existing
+WindowManager; explicit split axes and reverse cycling preserve projected and
+detached canonical branches. Native editors stay resident through navigation.
+
+The private native finder searches safe window titles/public declared commands,
+bounded to 512 UTF-16 units. Main, live/closed views and forms, refreshable routes
+and unavailable detached owners remain distinct. Source generation and current
+metadata invalidate stale choices; ordinary body updates preserve snapshot
+identity and manual list scrolling. A separate selection revision records only
+explicit user navigation. A slow route retains finder ownership until its
+verified destination is focused. Per-choice cancellation prevents late focus or
+first-window creation without disabling existing background updates.
+
+Prepended native key/paste capture commits focus synchronously. Arrange consumes
+typing/paste, and Ctrl+C leaves navigation before a form or Main can be cancelled.
+Finder uses native cursor/undo/paste input; underlying model/form controls reject
+input. A full-viewport backdrop and explicit z-index keep the finder above views
+replaced during reload. The one-row window strip hides its scrollbar so it does
+not consume the labels. Arrange names Tiled/Zoomed state before the selected
+window and keeps exits visible at narrow widths.
+
+Local source verification passed six actual PTY flows: 12 panes/private Unicode
+search and batched /windows+paste; protected questions; closed Main with the same
+journal; independent form/cursor; write approval denied only by explicit Alt+N;
+cancelled/refreshed routes and reload; 48/38-column modes and exact restart tree
+with ratio 0.55. Evidence: dist/opentui-navigation-source-complete. Full coverage
+passed 1849 tests, three optional skips, 209 files; typecheck, generation and
+documentation checks passed. A fresh independent Impeccable review inspected all
+seven captures and returned ship for this slice; the documenter maintained the
+existing terminal principles. No new branding, assets or web-detector claim.
+
+Current native candidate is recorded in dist/opentui-navigation-final-artifact.json:
+executable a67eb8d7efcddd5b1a09fcecef4b780bf6a43d21b4bdedf4b0130f088df3c80f,
+renderer 1900364ade81d58d24af29689530882bd7891befe1f91d24d7e86ce833393430.
+The relocated Linux candidate passed all 17 native cases under CI=1:
+dist/opentui-navigation-native-final (six),
+dist/opentui-app-navigation-native-current (six), and
+dist/opentui-managers-navigation-native (five). The complete installer/runtime
+release smoke also passed. The superseded profile folder without the -current
+suffix retains the diagnostic old Alt+Right-resize harness failure; the corrected
+test uses Arrange + and retains exact ratio/restart assertions. Final local
+installation and new-head remote native matrix remain to verify. No
+paid/live-model budget was used.
+
+Prior foundation fixes 334fbc6 and 9afc0b3 passed remote main CI/docs/preparation.
+Build-only run 43486921311 passed Linux x64/arm64 and macOS arm64, plus x64 macOS
+runtime smoke and all six profile cases. Its x64 manager check failed because a
+stale prior Unzoom caused the harness to skip zooming a newly admitted form;
+there was no Zoom click in the input log. Current helpers enter Arrange and
+observe its fresh Tiled/Zoomed state before deciding, rather than trusting an old
+frame or asynchronously persisted layout. New feature/native evidence must not
+be replaced by declaring that older failed matrix successful.
+
+Ink remains the default. Custom private controllers, full render/appearance and
+wire parity, legacy conversation copies, exact immediate-command internal tool
+cancellation, independent UI-tool request inboxes, embedded CPU onboarding and
+broad live-model/self-development quality remain 1.0 gates.
+
 ## Opt-in OpenTUI application host — 2026-11-14
 
 The default frontend remains Ink, including its discoverable Arrange mode and

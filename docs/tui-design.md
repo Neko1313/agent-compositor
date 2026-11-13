@@ -16,7 +16,7 @@ is under `.impeccable/critique/`; it records provenance and all ten scores.
 
 | Segment | Principle and implementation |
 |---|---|
-| Windows/workspaces | Project each saved split into readable child rectangles (24 columns, 6 rows). Collapse toward content focus only when both children cannot fit. Ratios and trees stay unchanged, directional keys reach hidden panes, and widening restores geometry. Composer focus preserves fullscreen. The shipping Arrange mode exposes the key map beside the selected window; the Windows finder identifies open/closed views and workspaces, and restores the existing conversation identity. |
+| Windows/workspaces | Project each saved split into readable child rectangles (24 columns, 6 rows). Collapse toward content focus only when both children cannot fit. Ratios and trees stay unchanged, directional keys reach hidden panes, and widening restores geometry. Composer focus preserves fullscreen. Arrange exposes the key map beside the selected window; the Windows finder identifies open/closed views and workspaces, and restores the existing conversation identity. Navigation keeps resident drafts, form cursors and undo state intact. |
 | Transcript/Markdown/tools | Keep the verified message hierarchy, Markdown and compact tool states. Prefer whole-word wrapping even when the previous word occupies less than half a row. Keep literal command/input characters distinct from rendered assistant Markdown. |
 | Composer/slash/status | Name an approval or question explicitly. Show waiting status and interaction-specific shortcuts. Keep the hint row when context details do not fit. Toolbar hitboxes only exist for visible complete labels; wrapped workspace tabs retain mouse access. |
 | History | Keep local search/preview/resume and current/archive markers. Call an empty current session New chat. Pin the search-field label; scroll long values inside its remaining width, rather than dropping the label or placeholder beginning. |
@@ -24,6 +24,17 @@ is under `.impeccable/critique/`; it records provenance and all ten scores.
 | Questions/approvals | Shift+Tab reverses navigation; text fields have real cursor editing and horizontal viewports. Approval identity and scopes stay pinned while all action details scroll. Enter defaults to deny; Y/A/P/N and mouse controls remain explicit. |
 | Placement | Use visible focus, reversed Tab, field-specific guidance and safe Escape. Closing an in-flight save does not claim to cancel its side effect. Preserve user-controlled placement and plugin overrides. |
 | Todos/agents/workflows/mascot | Apply readable projection, whole-word wrapping, action navigation and overflow cues through shared contracts. Preserve task order, independent agent behavior, workflow lifecycle and supplied mascot assets. |
+
+The [configured OpenTUI frontend](02-ui.md#experimental-opentui-application-frontend)
+keeps Alt+W Arrange, F2 Windows and Alt+0 Main stable as its window strip scrolls
+horizontally. Arrange names the selected window and zoom state, with exit, typing
+and Windows access readable at narrow widths. Its modal input ownership protects
+resident editors and pending questions/approvals. The native finder searches only
+titles and public command names; its query is bounded to 512 UTF-16 units. Queries
+and private form values stay outside model messages and journals. Route activation
+requires a fresh view from the current owner; cancellation or a new selection
+invalidates an older opening. Navigation preserves the saved window tree, ratios
+and closed-window state. The deterministic preview retains its separate key map.
 
 ## Shared plugin contract
 

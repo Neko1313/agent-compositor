@@ -560,7 +560,8 @@ it('keeps /windows and the actual native placement editor out of model prompts, 
   await mkdir(join(f.cwd, '.agent-compositor'), {recursive: true});
   await writeFile(file, '// Keep this user comment\n{"agent":{"maxSteps":11}}\n');
   await f.host.submit('/windows');
-  expect(f.host.session.snapshot().notice).toContain('searchable window finder is not yet available');
+  expect(f.host.navigation.snapshot().mode).toBe('finder');
+  f.host.navigation.handle({kind: 'key', key: 'escape'});
   expect(f.host.session.isImmediateCommand!('/windows')).toBe(true);
   await f.host.submit('/settings');
   await expect.poll(() => f.find('plugin-model-selector-models')?.snapshot().busy).toBe(false);
@@ -741,4 +742,123 @@ it('forgets a retained but unpublished owner when a later reload actually disabl
   expect(forgotten.registered).not.toContain(id);
   expect(JSON.stringify(forgotten.windows)).not.toContain(id);
   expect(f.requests).toHaveLength(0);
+});
+
+it('navigates real pending questions and private forms without changing their decisions or the main conversation identity', async () => {
+  const f = await fixture();
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const question = f.host.session.snapshot().interaction!, sessionId = f.host.core.sessionId;
+  const {form} = await connection(f);
+  const request = form.snapshot().form!;
+  const nav = f.host.navigation;
+  nav.toggleArrange();
+  for (const key of ['y', 'n']) expect(nav.handle({kind: 'key', key})).toBe(true);
+  expect(nav.handle({kind: 'paste', text: 'q'})).toBe(true);
+  nav.handle({kind: 'key', key: 'c', modifiers: ['ctrl']});
+  expect(nav.snapshot().mode).toBe('normal');
+  expect(f.host.session.snapshot().interaction?.id).toBe(question.id);
+  expect(form.snapshot().form?.id).toBe(request.id);
+  nav.openFinder(); nav.changeQuery('New provider connection', nav.snapshot().revision);
+  expect(nav.snapshot().entries).toHaveLength(1);
+  nav.choose(form.id, nav.snapshot().revision);
+  expect(f.layout.snapshot().focused).toBe(form.id);
+  nav.toggleArrange(); nav.handle({kind: 'key', key: 'q'}); nav.handle({kind: 'key', key: 'escape'});
+  expect(f.layout.snapshot().locations[form.id]).toBeUndefined();
+  expect(form.snapshot().form?.id).toBe(request.id);
+  nav.openFinder(); nav.changeQuery('New provider connection', nav.snapshot().revision);
+  expect(nav.snapshot().entries[0]).toMatchObject({id: form.id, state: 'closed'});
+  nav.choose(form.id, nav.snapshot().revision);
+  expect(f.layout.snapshot().focused).toBe(form.id);
+  nav.handle({kind: 'key', key: '0', modifiers: ['alt']});
+  nav.toggleArrange(); nav.handle({kind: 'key', key: 'q'}); nav.handle({kind: 'key', key: 'escape'});
+  expect(f.layout.snapshot().locations.session).toBeUndefined();
+  await f.host.submit('/windows'); nav.changeQuery('Main', nav.snapshot().revision);
+  nav.choose('session', nav.snapshot().revision);
+  expect(f.host.core.sessionId).toBe(sessionId);
+  expect(f.layout.snapshot().focused).toBe('session');
+  expect(f.host.session.snapshot().interaction?.id).toBe(question.id);
+  expect(f.requests).toHaveLength(1);
+  expect(f.host.core.getMessages().filter(message => message.role === 'user').map(message => message.content)).toEqual(['Ask before continuing']);
+  nav.openFinder(); nav.changeQuery('PRIVATE_FINDER_QUERY_SENTINEL', nav.snapshot().revision);
+  expect(JSON.stringify(f.events)).not.toContain('PRIVATE_FINDER_QUERY_SENTINEL');
+  expect(JSON.stringify(await f.app.store.load(sessionId, f.cwd))).not.toContain('PRIVATE_FINDER_QUERY_SENTINEL');
+  nav.handle({kind: 'key', key: 'escape'});
+  form.cancelForm!(request.id);
+  f.host.session.cancelInteraction!(question.id); await main;
+});
+
+it('awaits an actual unopened route destination and cancels late publication without blocking existing background producers', async () => {
+  const f = await fixture({plugins: [{name: 'navigation-probe', commands: [
+    {name: '/nav-slow', description: 'Delayed UI route', ui: {site: 'slow'}},
+  ], source: `export default {'ui.press':async(event,$)=>{
+    if(event.site!=='plugin-navigation-probe-slow'||event.key!=='command:/nav-slow')return;
+    const detached=$.background();
+    await new Promise(resolve=>setTimeout(resolve,80));
+    await detached.ui.view('slow','Slow destination',{lines:[{text:'Fresh route destination'}]},{focus:true});
+    await detached.ui.view('existing','Existing background',{lines:[{text:'Authorized background update'}]},{focus:$.signal.aborted});
+    await detached.storage.set('late','finished','project');
+  }};`}]});
+  await f.host.core.host.emit('service.ui.view', {plugin: 'navigation-probe', id: 'existing', title: 'Existing background',
+    view: {lines: [{text: 'Before update'}]}, placement: {focus: false}});
+  const nav = f.host.navigation;
+  nav.openFinder(); nav.changeQuery('/nav-slow', nav.snapshot().revision);
+  expect(nav.snapshot().entries).toContainEqual(expect.objectContaining({id: 'plugin-navigation-probe-slow', state: 'available'}));
+  nav.handle({kind: 'key', key: 'enter'});
+  expect(nav.snapshot()).toMatchObject({mode: 'finder', opening: 'plugin-navigation-probe-slow'});
+  // This packet belongs to the finder input, never to the previous Main draft.
+  expect(nav.handle({kind: 'key', key: 'x', text: 'x'})).toBe(false);
+  nav.changeQuery('/nav-slowx', nav.snapshot().revision);
+  nav.handle({kind: 'key', key: 'escape'});
+  await expect.poll(() => f.app.storage.read('navigation-probe', 'late', 'project', f.host.core.sessionId)).toBe('finished');
+  expect(f.find('plugin-navigation-probe-slow')).toBeUndefined();
+  expect(f.layout.snapshot().locations['plugin-navigation-probe-slow']).toBeUndefined();
+  expect(f.find('plugin-navigation-probe-existing')?.snapshot().view?.lines[0].text).toBe('Authorized background update');
+  expect(f.layout.snapshot().focused).toBe('session');
+  expect(f.host.core.getMessages()).toEqual([]);
+  nav.openFinder(); nav.changeQuery('/nav-slow', nav.snapshot().revision); nav.handle({kind: 'key', key: 'enter'});
+  expect(nav.snapshot().mode).toBe('finder');
+  await expect.poll(() => nav.snapshot().mode).toBe('normal');
+  expect(f.layout.snapshot().focused).toBe('plugin-navigation-probe-slow');
+  expect(f.find('plugin-navigation-probe-slow')?.snapshot().view?.lines[0].text).toBe('Fresh route destination');
+  expect(f.requests).toHaveLength(0);
+});
+
+it('withdraws unloaded route choices and fails closed for retained views without a declared refresh route', async () => {
+  const f = await fixture({plugins: [{name: 'navigation-owned', commands: [
+    {name: '/nav-owned', description: 'Owned UI route', ui: {site: 'main'}},
+  ], source: 'export default {};'}]});
+  const nav = f.host.navigation;
+  nav.openFinder(); nav.changeQuery('/nav-owned', nav.snapshot().revision);
+  const stale = nav.snapshot().revision;
+  expect(nav.snapshot().entries).toHaveLength(1);
+  f.host.core.host.unregisterPlugin('navigation-owned');
+  expect(nav.snapshot().entries).toHaveLength(0);
+  nav.choose('plugin-navigation-owned-main', stale);
+  expect(nav.snapshot().mode).toBe('finder');
+  nav.handle({kind: 'key', key: 'escape'});
+  f.host.core.host.registerPlugin({name: 'unrouted-view', version: '1.0.0', trust: 'trusted'}, {});
+  await f.host.core.host.emit('service.ui.view', {plugin: 'unrouted-view', id: 'panel', title: 'No refresh route', view: {lines: []}});
+  await f.host.core.host.emit('service.ui.remove', {plugin: 'unrouted-view', id: 'panel'});
+  nav.openFinder(); nav.changeQuery('No refresh route', nav.snapshot().revision);
+  expect(nav.snapshot().entries[0]).toMatchObject({state: 'unavailable'});
+  nav.handle({kind: 'key', key: 'enter'});
+  expect(nav.snapshot().mode).toBe('finder');
+  expect(f.find('plugin-unrouted-view-panel')).toBeUndefined();
+  expect(f.requests).toHaveLength(0);
+});
+
+it('keeps window inventory snapshots stable through background view content updates', async () => {
+  const f = await fixture();
+  f.host.core.host.registerPlugin({name: 'frame-proof', version: '1.0.0', trust: 'trusted'}, {});
+  const publish = (text: string) => f.host.core.host.emit('service.ui.view', {plugin: 'frame-proof', id: 'main', title: 'Stable window', view: {lines: [{text}]}, placement: {focus: false}});
+  await publish('Frame one');
+  const nav = f.host.navigation;
+  nav.openFinder(); nav.changeQuery('Stable window', nav.snapshot().revision);
+  const before = nav.snapshot();
+  await publish('Frame two');
+  expect(f.find('plugin-frame-proof-main')?.snapshot().view?.lines[0].text).toBe('Frame two');
+  expect(nav.snapshot()).toBe(before);
+  nav.select('plugin-frame-proof-main', nav.snapshot().revision);
+  expect(nav.snapshot().selectionRevision).toBeGreaterThan(before.selectionRevision!);
 });

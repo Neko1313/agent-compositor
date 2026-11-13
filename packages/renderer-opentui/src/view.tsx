@@ -11,6 +11,8 @@ import type { ConversationApproval, ConversationSession } from './session.js';
 import { PluginTable, type PluginTableSource } from './table.js';
 import {SurfaceView} from './surface-view.js';
 import type {UiSurfaceRegistry,UiSurfaceSource} from './surface.js';
+import type {WindowNavigationSource,WindowNavigationSnapshot} from './navigation.js';
+import {WindowFinder} from './navigation-view.js';
 
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
@@ -31,13 +33,15 @@ interface TabProps {
   index: number;
   selected: boolean;
   onSelect(): void;
+  showShortcut?:boolean;
+  id?:string;
 }
 
-function Tab({ label, index, selected, onSelect }: TabProps) {
-  const shortcut = index < 11 ? `F${index + 2} ` : '';
+function Tab({ label, index, selected, onSelect,showShortcut=true,id }: TabProps) {
+  const shortcut = showShortcut&&index < 11 ? `F${index + 2} ` : '';
   return (
     <box
-      paddingX={1} height={1} maxWidth="100%"
+      id={id} paddingX={1} height={1} maxWidth="100%"
       backgroundColor={selected ? color.accent : color.panel}
       onMouseDown={event => {
         if (event.button === MouseButton.LEFT) onSelect();
@@ -262,13 +266,15 @@ const controls = ['cycle', 'orient', 'swap', 'zoom', 'close'] as const;
 
 const noSurfaces:readonly UiSurfaceSource[]=[];
 const emptyRegistry:UiSurfaceRegistry={snapshot:()=>noSurfaces,subscribe:()=>()=>{}};
+const normalNavigation:WindowNavigationSnapshot={revision:0,mode:'normal',query:'',entries:[]};
+const emptyNavigation:Pick<WindowNavigationSource,'snapshot'|'subscribe'>={snapshot:()=>normalNavigation,subscribe:()=>()=>{}};
 
 function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSource}){
   const state=useSyncExternalStore(source.subscribe,source.snapshot);
   return <Tab {...tab} label={state.title+(state.form?' · Form':state.busy?' · Working':'')} />;
 }
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry }: {
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
@@ -276,7 +282,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   pluginManager?: PluginManagerSource;
   windowLayout: WindowLayoutSource;
   surfaces?:UiSurfaceRegistry;
+  navigation?:WindowNavigationSource;
 }) {
+  const navigationState=useSyncExternalStore((navigation??emptyNavigation).subscribe,(navigation??emptyNavigation).snapshot);
   const published=useSyncExternalStore(surfaces.subscribe,surfaces.snapshot);
   const panes: Pane[] = sessions.map(session => ({ id: session.paneId ?? 'session:' + session.id, label: session.label, session }));
   if (workflowTable) panes.push({ id: 'workflows', label: 'Workflows' });
@@ -286,6 +294,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   const layout = useSyncExternalStore(windowLayout.subscribe, windowLayout.snapshot);
   const renderer = useRenderer();
   const viewport = useRef<BoxRenderable>(null);
+  const tabStrip=useRef<ScrollBoxRenderable>(null);
   const workspaceButtons = useRef(new Map<number, BoxRenderable>());
   const nativeGestureHeld = useRef(false);
   const normalPointerUp = useRef(false);
@@ -293,8 +302,12 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   const controlStart = Math.max(6, panes.length + 2);
   // Commit native widget focus before the parser delivers the next key in a batch.
   const act = useCallback((action: WindowLayoutAction) => {
+    if(navigation?.snapshot().mode==='finder')return;
     flushSync(() => windowLayout.act(action));
-  }, [windowLayout]);
+  }, [windowLayout,navigation]);
+  useLayoutEffect(()=>{
+    if(navigation)tabStrip.current?.scrollChildIntoView('window-tab-'+layout.focused);
+  },[navigation,layout.focused,published.length]);
   useLayoutEffect(() => windowLayout.subscribe(() => {
     if (windowLayout.snapshot().gesture) {nativeGestureHeld.current = true; return;}
     if (!nativeGestureHeld.current) return;
@@ -319,6 +332,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   }, [windowLayout, width, height]);
 
   useKeyboard(key => {
+    if(key.defaultPrevented||navigation)return;
     if (windowLayout.snapshot().gesture && isWindowGestureCancelKey(key)) {
       key.preventDefault();
       act({type: 'pointer', phase: 'cancel', x: 0, y: 0});
@@ -331,6 +345,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   });
 
   function pointer(phase: 'down' | 'move' | 'up', event: MouseEvent) {
+    if(navigation?.snapshot().mode==='finder')return;
     const bounds = viewport.current;
     if (!bounds || (phase !== 'move' && event.button !== MouseButton.LEFT)) return;
     const state = windowLayout.snapshot();
@@ -355,16 +370,30 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       <text selectable={false} fg={color.muted}>{label}</text>
     </box>;
   }
+  function navigationButton(label:string,active:boolean,run:()=>void){
+    return <box height={1} paddingX={1} backgroundColor={active?color.accent:color.panel}
+      onMouseDown={event=>{if(event.button===MouseButton.LEFT)flushSync(run);}}>
+      <text selectable={false} fg={active?color.background:color.text}>{label}</text>
+    </box>;
+  }
+  const tabs=panes.map((pane,index)=>{
+    const props={index,id:'window-tab-'+pane.id,showShortcut:!navigation,
+      selected:layout.focused===pane.id&&layout.locations[pane.id]===layout.workspace,
+      onSelect:()=>act({type:'open',id:pane.id})};
+    return pane.session?<SessionTab key={pane.id} session={pane.session} {...props}/>
+      :pane.surface?<SurfaceTab key={pane.id} source={pane.surface} {...props}/>
+      :<Tab key={pane.id} label={pane.label} {...props}/>;
+  });
   return <box width="100%" height="100%" backgroundColor={color.background} flexDirection="column">
-    <box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>
-      {panes.map((pane, index) => {
-        const props = { index, selected: layout.focused === pane.id && layout.locations[pane.id] === layout.workspace,
-          onSelect: () => act({ type: 'open', id: pane.id }) };
-        return pane.session ? <SessionTab key={pane.id} session={pane.session} {...props} />
-          : pane.surface?<SurfaceTab key={pane.id} source={pane.surface} {...props}/>
-          : <Tab key={pane.id} label={pane.label} {...props} />;
-      })}
-    </box>
+    {navigation&&<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
+      {navigationButton(width>=42?(navigationState.mode==='arrange'?'Alt+W Type':'Alt+W Arrange'):(navigationState.mode==='arrange'?'Type':'Arrange'),navigationState.mode==='arrange',()=>navigation.toggleArrange())}
+      {navigationButton(width>=42?'F2 Windows':'Windows',navigationState.mode==='finder',()=>navigation.openFinder())}
+      {navigationButton(width>=42?'Alt+0 Main':'Main',false,()=>{navigation.handle({kind:'key',key:'0',modifiers:['alt']});})}
+    </box>}
+    {navigation?<scrollbox ref={tabStrip} height={1} flexShrink={0} scrollX scrollY={false} focusable={false}
+      horizontalScrollbarOptions={{visible:false}}
+      contentOptions={{flexDirection:'row',columnGap:1}}>{tabs}</scrollbox>
+      :<box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>{tabs}</box>}
     <box flexDirection="row" columnGap={1} height={1} flexShrink={0} paddingX={1}>
       <text fg={color.muted}>WS</text>
       {layout.workspaces.map(id => <box key={id} height={1} paddingX={1}
@@ -387,14 +416,15 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       {/* Keep one resident native editor per stable pane, independent of tree topology and workspace. */}
       {panes.map(pane => {
         const frame = layout.frames.find(frame => frame.surface === pane.id);
-        const focused = Boolean(frame) && layout.focused === pane.id && !layout.gesture;
+        const focused = Boolean(frame) && layout.focused === pane.id && !layout.gesture&&navigationState.mode==='normal';
         // The host can change focus before React has committed the next widget tree.
         const isVisible = () => {
           const current = windowLayout.snapshot();
-          return !current.gesture && current.frames.some(frame => frame.surface === pane.id);
+          return (!navigation||navigation.snapshot().mode==='normal')&&!current.gesture&&current.frames.some(frame=>frame.surface===pane.id);
         };
         const isActive = () => windowLayout.snapshot().focused === pane.id && isVisible();
-        return <Tile key={pane.id} pane={pane} frame={frame} focused={focused}
+        return <Tile key={pane.id} pane={pane} frame={frame}
+          focused={Boolean(frame)&&layout.focused===pane.id&&!layout.gesture&&navigationState.mode!=='finder'}
           drop={layout.drop?.surface === pane.id ? layout.drop.edge : undefined}>
           {(width, height) => pane.session
             ? <Conversation selected={pane.session} animations={animations} composerMedia={composerMedia}
@@ -408,8 +438,18 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         </Tile>;
       })}
       {!layout.frames.length && <text fg={color.muted}>Empty workspace · open a pane above</text>}
+      {navigation&&navigationState.mode==='finder'&&<box position="absolute" left={0} top={0} width={layout.width} height={layout.height} zIndex={100}
+        onMouseDown={event=>{event.preventDefault();event.stopPropagation();}}
+        onMouseUp={event=>event.stopPropagation()} onMouseMove={event=>event.stopPropagation()} onMouseDrag={event=>event.stopPropagation()}>
+        <WindowFinder source={navigation} width={layout.width} height={layout.height}/>
+      </box>}
     </box>
-    <box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
+    {navigation?<box flexDirection="column" paddingX={1} flexShrink={0}>
+      {navigationState.mode==='arrange'?<>
+        <text fg={color.accent} attributes={TextAttributes.BOLD} truncate>{'WINDOW MODE · '+(layout.fullscreen?'Zoomed':'Tiled')+' · '+(navigationState.focusedLabel??'Empty workspace')}</text>
+        <text fg={color.text} truncate>{width>=88?'h/j/k/l focus · Shift move · b columns · v rows · +/− resize · f zoom · q close · 1–9 workspace · w windows · i type · Esc exit':width>=48?'h/j/k/l focus · Shift move · b/v split · +/− size · w windows · i type · Esc exit':'Esc exit · i type · w windows'}</text>
+      </>:<text fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':width>=88?'Alt+W Arrange · F2 Windows · Alt+0 Main · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'Alt+W Arrange · F2 Windows · Alt+0 Main'}</text>}
+    </box>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {controls.map((type, index) => layoutButton('F' + (controlStart + index) + ' ' +
         (type === 'zoom' && layout.fullscreen ? 'Unzoom' : controlLabels[index]), { type }))}
       {width >= 88 && <>
@@ -419,6 +459,6 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         {layoutButton('+', { type: 'resize', delta: .05 })}
         <text fg={color.muted}>Alt+←/→ resize</text>
       </>}
-    </box>
+    </box>}
   </box>;
 }

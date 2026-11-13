@@ -98,7 +98,13 @@ renderer-neutral conversation snapshots and semantic plugin sources. The host
 retains provider/session/permission ownership and the same tiling engine; the
 renderer receives views and revision-checked actions. Explicit UI operations
 own separate abort signals and private form windows, so they can coexist with a
-pending model question. This adapter is still migrating toward the full
+pending model question. An optional host-owned window-navigation source exposes
+stable Arrange actions and a private, revision-checked window inventory. Native
+input capture commits focus before subsequent keys/paste, while resident editors
+remain mounted. Opening a declared UI route retains navigation ownership until
+its current surface or form is ready; changing selection cancels that opening.
+The deterministic preview omits this capability and keeps its development keys.
+This adapter is still migrating toward the full
 replacement and wire-protocol coverage described above; Ink remains the default.
 
 Streaming text updates are composed on a 16 ms timer instead of rebuilding the

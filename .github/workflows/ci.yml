@@ -55,6 +55,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-managers
+      - name: Check stable OpenTUI window navigation
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-navigation
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -93,6 +97,7 @@ jobs:
             dist/visual-opentui-ghost/report.json
             dist/visual-opentui-app/
             dist/visual-opentui-managers/
+            dist/visual-opentui-navigation/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

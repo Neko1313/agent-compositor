@@ -4,6 +4,7 @@ import {workspaceReply} from './workspaces-sample.ts';
 import {authorReply} from './author-sample.ts';
 import {uxTool,uxReply} from './ux-sample.ts';
 import {seedHistory,historyReply} from './history-sample.ts';
+import {seedOpenTuiNavigationFixture} from './opentui-navigation-fixture.mjs';
 import {questionsSample,questionsReply} from './questions-sample.ts';
 import {markdownSample} from './markdown-sample.ts';
 import {storagePaths} from '../../packages/config/src/storage.ts';
@@ -192,7 +193,8 @@ const server = Bun.serve({
       const prompt=body.messages?.filter(message=>message.role==='user').at(-1)?.content??'';
       const credential=authorization==='Bearer '+appUiKey?'ui':authorization==='Bearer '+appBootKey?'bootstrap':'unexpected';
       appReceipt({kind:'completion',number:++appRequests,model:body.model,credential,authorizationHash:new Bun.CryptoHasher('sha256').update(authorization).digest('hex'),body});
-      if(appRequests>12||credential==='unexpected'||!['APP_QUESTION','APP_HOLD','APP_RESTORED'].includes(prompt))return new Response('Unexpected isolated app request',{status:400});
+      const allowed=['APP_QUESTION','APP_HOLD','APP_RESTORED',...(process.env.VISUAL_OPENTUI_NAVIGATION?['APP_APPROVAL']:[])];
+      if(appRequests>12||credential==='unexpected'||!allowed.includes(prompt))return new Response('Unexpected isolated app request',{status:400});
       if(prompt==='APP_HOLD'){
         const data=`data: ${JSON.stringify({choices:[{delta:{content:'APP_MODEL_HELD'},finish_reason:null}]})}\n\n`;
         return new Response(new ReadableStream({start(controller){
@@ -201,7 +203,10 @@ const server = Bun.serve({
         }}),{headers:{'content-type':'text/event-stream'}});
       }
       const answer=body.messages?.filter(message=>message.role==='tool'&&message.tool_call_id==='app-main-question').at(-1)?.content;
-      const delta=prompt==='APP_RESTORED'?{content:'APP_RESTORED: '+(answer?.includes('Production')?'Production retained':'missing answer')}
+      const approval=body.messages?.filter(message=>message.role==='tool'&&message.tool_call_id==='app-navigation-write').at(-1)?.content;
+      const delta=prompt==='APP_APPROVAL'?(approval?{content:'APP_APPROVAL_SETTLED: '+(/denied|cancel|Permission/i.test(approval)?'denied':'unexpected')}
+        :{tool_calls:[{index:0,id:'app-navigation-write',type:'function',function:{name:'write',arguments:JSON.stringify({path:'navigation-approval.txt',content:'MUST_REQUIRE_EXPLICIT_APPROVAL\n'})}}]})
+        :prompt==='APP_RESTORED'?{content:'APP_RESTORED: '+(answer?.includes('Production')?'Production retained':'missing answer')}
         :answer?{content:'APP_ANSWER_RECEIVED: '+(answer.includes('Production')?'Production':'unexpected')+'; model='+body.model}
         :{tool_calls:[{index:0,id:'app-main-question',type:'function',function:{name:'ask_user',arguments:JSON.stringify({question:'MAIN_QUESTION: choose deployment',options:['Preview','Production'],allowOther:false})}}]};
       const tool=Boolean(delta.tool_calls);
@@ -331,7 +336,8 @@ if(process.env.VISUAL_OPENTUI_APP){
  const baseUrl=`http://127.0.0.1:${server.port}/app-model/${token}/v1`;
  await mkdir(paths.state,{recursive:true});await mkdir(paths.home,{recursive:true});
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['network-proxy','todos','slash-commands','model-selector','provider-auth','session-manager',
-  ...(process.env.VISUAL_OPENTUI_MANAGERS?['extension-manager','marketplace-manager','local-flow-probe']:[])],agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
+  ...(process.env.VISUAL_OPENTUI_MANAGERS?['extension-manager','marketplace-manager','local-flow-probe']:[]),
+  ...(process.env.VISUAL_OPENTUI_NAVIGATION?['navigation-probe']:[])],agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
  await writeFile(join(paths.state,'providers.json'),JSON.stringify({profiles:{bootstrap:{type:'openai-compat',baseUrl,model:'app-start',contextWindow:65536,timeoutMs:300000}}}));
  await writeFile(join(paths.state,'model.json'),JSON.stringify('bootstrap'));
  await writeFile(join(paths.home,'credentials.json'),JSON.stringify({bootstrap:{accessToken:appBootKey}}),{mode:0o600});
@@ -340,6 +346,7 @@ if(process.env.VISUAL_OPENTUI_APP){
  appLaunch={cwd:paths.project,state:paths.state,home:paths.home,baseUrl,launches:[],mode:executable?'binary':'source',
   ...(executable?{executable,sha256:new Bun.CryptoHasher('sha256').update(await readFile(executable)).digest('hex')}:{}),
   providerOverride:false,environmentProviderOverride:false};
+ if(process.env.VISUAL_OPENTUI_NAVIGATION)appLaunch.navigation=await seedOpenTuiNavigationFixture(cwd,paths);
  if(process.env.VISUAL_OPENTUI_MANAGERS){
   const catalogRoot=join(cwd,'local-flow-catalog'),source=join(catalogRoot,'plugins/local-flow-probe');
   await mkdir(join(catalogRoot,'.claude-plugin'),{recursive:true});await mkdir(source,{recursive:true});

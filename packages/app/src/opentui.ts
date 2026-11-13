@@ -34,9 +34,10 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
     }).catch(error=>{startupFailure=error;stop.abort(error);});
     await runOpenTuiRenderer([current.session],{
       stdin,stdout,environment:Object.fromEntries(Object.entries(env).filter((entry):entry is [string,string]=>entry[1]!==undefined)),
-      signal:stop.signal,windowLayout:windows,surfaces:current.surfaces,composerMedia:current.composerMedia,
+      signal:stop.signal,windowLayout:windows,surfaces:current.surfaces,composerMedia:current.composerMedia,navigation:current.navigation,
       animations:env.AGENT_GRAPHICS!=='off'&&!env.NO_COLOR&&env.AGENT_REDUCED_MOTION!=='1',
       onCtrlC:()=>{
+        if(current.navigation.handle({kind:'key',key:'c',modifiers:['ctrl']}))return 'handled';
         const focused=windows.snapshot().focused;
         const surface=current.surfaces.snapshot().find(source=>source.id===focused);
         const form=surface?.snapshot().form;

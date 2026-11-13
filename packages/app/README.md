@@ -189,8 +189,11 @@ waits for a human answer. This is distinct from `npm run opentui:preview`, which
 uses isolated deterministic demonstration sessions.
 
 See the [application frontend guide](../../docs/02-ui.md#experimental-opentui-application-frontend)
-for controls, private-form behavior and current migration limits. Ink remains
-the default; the following Arrange/window-finder controls describe that frontend.
+for controls, private-form behavior and current migration limits. Its stable
+Alt+W Arrange, F2 Windows and Alt+0 Main controls retain resident native editors
+while windows move, close or change workspace. Search includes current forms and
+declared plugin UI routes; it stays outside model messages and journals.
+Ink remains the default; the following detailed controls describe that frontend.
 `--renderer` requires a TTY and is not accepted with `--plain` or `--prompt`.
 
 ## Tiling windows

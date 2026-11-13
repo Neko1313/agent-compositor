@@ -107,11 +107,17 @@ try{
   const completions=async()=>(await traces()).filter(row=>row.kind==='completion');
   const sessionFiles=async()=>(await readdir(join(launch.state,'sessions'))).filter(file=>file.endsWith('.jsonl'));
   const events=async()=>{const rows=await Promise.all((await sessionFiles()).map(async file=>(await readFile(join(launch.state,'sessions',file),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)));return rows.flat();};
-  async function main(){await key('F2');await page.waitForFunction(()=>visual.text().includes('─ Main · focused'));}
+  async function main(){await key('Alt+0');await page.waitForFunction(()=>visual.text().includes('─ Main · focused'));}
   async function submit(value){await main();await wait('Message Main…');await type(value);await key('Enter');}
   async function command(value){await main();await replace(value);await key('Enter');}
-  async function zoom(){await click('Zoom');await observe(layout,value=>value.windows.fullscreen,'Zoom must update real saved layout');}
-  async function unzoom(){await click('Unzoom');await observe(layout,value=>!value.windows.fullscreen,'Unzoom must update real saved layout');}
+  async function setZoom(enabled){
+    await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
+    if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
+    await wait('WINDOW MODE · '+(enabled?'Zoomed':'Tiled'));
+    await observe(layout,value=>value.windows.fullscreen===enabled,'Arrange zoom must update real saved layout');
+    await key('Escape');await absent('WINDOW MODE');}
+  async function zoom(){await setZoom(true);}
+  async function unzoom(){await setZoom(false);}
   async function focusTab(label){await click(label,{top:true});}
   async function privateChannels(){
     const ansi=await readFile(join(output,'terminal.ansi'),'utf8');
@@ -240,7 +246,7 @@ try{
   await observe(traces,rows=>rows.some(row=>row.kind==='hold-aborted'),'Ctrl+X must cancel actual held HTTP request');
   report.checks.push('A real HTTP stream stays active while another UI form opens; interrupting Main leaves that independently owned form available to cancel');
 
-  await focusTab('Todos');await click('Close');
+  await focusTab('Todos');await key('Alt+w');await wait('WINDOW MODE');await key('q');await key('Escape');await absent('WINDOW MODE');
   const closedTodos=await observe(layout,value=>!Object.keys(value.windows.spaces.reduce((all,space)=>{
     const visit=node=>{if(node?.surface)all[node.surface]=space.id;else node?.children?.forEach(visit);};visit(space.tree);return all;},{})).some(id=>id.includes('todos')),'Todos must remain closed');
   assert.ok(closedTodos.registered.some(id=>id.includes('todos')));
@@ -248,8 +254,9 @@ try{
     const find=node=>{if(!node||node.surface)return;const child=node.children.find(child=>JSON.stringify(child).includes('"session"'));return child?find(child)??node:undefined;};
     return find(value.windows.spaces.find(space=>space.id===value.windows.workspace)?.tree);
   };
-  await main();const previousRatio=mainSplit(await layout()).ratio;await key('Alt+ArrowRight');
-  const beforeRestart=await observe(layout,value=>mainSplit(value)?.ratio!==previousRatio,'Real layout must retain the adjusted nearest-split ratio');
+  await main();const previousRatio=mainSplit(await layout()).ratio;await key('Alt+w');await wait('WINDOW MODE');await key('+');
+  await observe(layout,value=>mainSplit(value)?.ratio!==previousRatio,'Real layout must retain the adjusted nearest-split ratio');
+  await key('Escape');await absent('WINDOW MODE');const beforeRestart=await layout();
   await writeFile(join(output,'before-restart-layout.json'),JSON.stringify(beforeRestart,null,2));
   const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');
   await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0&&visual.text().includes('Message Main…'),generation);

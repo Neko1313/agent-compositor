@@ -144,6 +144,62 @@ it('changes the nearest visible split while retaining hidden owner subtrees and 
   expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(split('vertical', .75, leaf('tools'), hidden));
 });
 
+it('sets the nearest projected split explicitly without changing detached branches, other workspaces or ratios', async () => {
+  const hidden = split('horizontal', .4, leaf('session'), leaf('plugin-detached-pane'));
+  const inner = split('vertical', .35, leaf('tools'), leaf('inspector'));
+  const remote = split('vertical', .3, leaf('remote-a'), leaf('remote-b'));
+  const storage = memory({windows: {...state(split('horizontal', .7, hidden, inner)),
+    spaces: [{id: 1, tree: split('horizontal', .7, hidden, inner), focus: 'session'},
+      {id: 2, tree: remote, focus: 'remote-a'}]}, registered: ['session', 'tools', 'inspector', 'plugin-detached-pane', 'remote-a', 'remote-b']});
+  const registered = [...panes, {id: 'inspector', label: 'Inspector'},
+    {id: 'plugin-detached-pane', label: 'Reloading'}, {id: 'remote-a', label: 'Remote A'}, {id: 'remote-b', label: 'Remote B'}];
+  const layout = await connectWindowLayout(storage, {panes: registered});
+  layout.resize(140, 50);
+  layout.detach('plugin-detached-pane');
+  layout.act({type: 'focus', id: 'tools'});
+  layout.act({type: 'axis', axis: 'horizontal'});
+  await expect.poll(() => layout.snapshot().saving).toBe(false);
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(split('horizontal', .7,
+    hidden, split('horizontal', .35, leaf('tools'), leaf('inspector'))));
+  const writes = storage.saved.length;
+  layout.act({type: 'axis', axis: 'horizontal'});
+  expect(storage.saved).toHaveLength(writes);
+  expect(layout.snapshot().focused).toBe('tools');
+  layout.act({type: 'focus', id: 'session'});
+  layout.act({type: 'axis', axis: 'vertical'});
+  expect(layout.snapshot().axis).toBe('vertical');
+  expect(layout.snapshot().frames.some(frame => frame.surface === 'plugin-detached-pane')).toBe(false);
+  layout.register({id: 'plugin-detached-pane', label: 'Reloaded'}, {workspace: 9, site: 'inspector'});
+  await layout.disconnect();
+  const expected = split('vertical', .7, hidden, split('horizontal', .35, leaf('tools'), leaf('inspector')));
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(expected);
+  expect(storage.saved.at(-1).windows.spaces[1].tree).toEqual(remote);
+  const restored = await connectWindowLayout(storage, {panes: registered});
+  restored.resize(140, 50);
+  expect(restored.snapshot()).toMatchObject({axis: 'vertical', focused: 'session',
+    locations: {'plugin-detached-pane': 1, 'remote-a': 2, 'remote-b': 2}});
+  expect(restored.snapshot().frames).toEqual(layout.snapshot().frames);
+  await restored.disconnect();
+});
+
+it('sets the opening axis on a lone or empty projected workspace without mutating an unavailable split', async () => {
+  const hidden = split('horizontal', .4, leaf('session'), leaf('plugin-detached-pane'));
+  const storage = memory({windows: state(hidden), registered: ['session', 'plugin-detached-pane']});
+  const layout = await connectWindowLayout(storage, {panes: [panes[0], {id: 'plugin-detached-pane', label: 'Reloading'}]});
+  layout.resize(120, 40);
+  layout.detach('plugin-detached-pane');
+  layout.act({type: 'axis', axis: 'vertical'});
+  expect(layout.snapshot()).toMatchObject({axis: 'vertical', focused: 'session'});
+  layout.act({type: 'workspace', id: 3});
+  layout.act({type: 'axis', axis: 'horizontal'});
+  expect(layout.snapshot()).toMatchObject({axis: 'horizontal', workspace: 3, frames: []});
+  layout.register({id: 'new-a', label: 'New A'}, {focus: true});
+  layout.register({id: 'new-b', label: 'New B'}, {focus: true});
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces.find((space: any) => space.id === 1).tree).toEqual(hidden);
+  expect(storage.saved.at(-1).windows.spaces.find((space: any) => space.id === 3).tree.axis).toBe('horizontal');
+});
+
 it('maps native resize handles to retained tree paths and preserves late owner placement after pointer resizing', async () => {
   const hidden = split('vertical', .4, leaf('session'), leaf('plugin-late-pane'));
   const storage = memory({windows: state(split('horizontal', .7, hidden, leaf('tools'))), views: []});
@@ -175,6 +231,41 @@ it('cycles and moves only registered panes without losing their unavailable sibl
   await layout.disconnect();
   expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(split('horizontal', .7,
     split('vertical', .4, leaf('tools'), leaf('plugin-late-pane')), leaf('session')));
+});
+
+it('cycles backward through current logical panes while excluding detached, closed and other-workspace identities', async () => {
+  const tree = split('horizontal', .7, split('vertical', .4, leaf('session'), leaf('plugin-detached-pane')),
+    split('vertical', .6, leaf('tools'), leaf('inspector')));
+  const storage = memory({windows: {...state(tree), spaces: [{id: 1, tree, focus: 'session'},
+    {id: 2, tree: leaf('remote'), focus: 'remote'}]},
+    registered: ['session', 'tools', 'inspector', 'plugin-detached-pane', 'closed', 'remote']});
+  const layout = await connectWindowLayout(storage, {panes: [...panes, {id: 'inspector', label: 'Inspector'},
+    {id: 'plugin-detached-pane', label: 'Reloading'}, {id: 'closed', label: 'Closed'}, {id: 'remote', label: 'Remote'}]});
+  layout.resize(48, 18);
+  layout.detach('plugin-detached-pane');
+  layout.act({type: 'cycle', reverse: true});
+  expect(layout.snapshot()).toMatchObject({workspace: 1, focused: 'inspector',
+    frames: [{surface: 'inspector', width: 48, height: 18}]});
+  layout.act({type: 'cycle', reverse: true});
+  expect(layout.snapshot().focused).toBe('tools');
+  layout.act({type: 'zoom'});
+  layout.resize(140, 50);
+  layout.act({type: 'cycle', reverse: true});
+  expect(layout.snapshot()).toMatchObject({focused: 'session', fullscreen: true});
+  layout.act({type: 'cycle', reverse: false});
+  expect(layout.snapshot().focused).toBe('tools');
+  layout.act({type: 'cycle'});
+  expect(layout.snapshot().focused).toBe('inspector');
+  layout.act({type: 'workspace', id: 2});
+  layout.act({type: 'cycle', reverse: true});
+  expect(layout.snapshot()).toMatchObject({workspace: 2, focused: 'remote'});
+  layout.act({type: 'workspace', id: 3});
+  layout.act({type: 'cycle', reverse: true});
+  expect(layout.snapshot()).toMatchObject({workspace: 3, focused: 'input', frames: []});
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(tree);
+  expect(storage.saved.at(-1).windows.spaces[0].focus).toBe('inspector');
+  expect(storage.saved.at(-1).registered).toContain('closed');
 });
 
 it('excludes transient form identities from every persisted tree and closed inventory while leaving them usable in process', async () => {

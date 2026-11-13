@@ -31,11 +31,11 @@ TypeScript suite and coverage checks. For terminal behavior, follow
 [evaluation guidance](evals.md) for scripted versus live model evidence and
 [plugin certification](plugin-testing.md) for extension release requirements.
 
-The Node 26 CI job also runs `npm run visual:opentui-app` and
-`npm run visual:opentui-managers` with the bench's Chromium browser. Native
-release jobs repeat those commands against an archive
+The Node 26 CI job also runs `npm run visual:opentui-app`,
+`npm run visual:opentui-managers` and `npm run visual:opentui-navigation`
+with the bench's Chromium browser. Native release jobs repeat those commands against an archive
 extracted outside the checkout on each declared platform, retaining its report,
-terminal captures and executable/asset identities. The command uses isolated
+terminal captures and executable/asset identities. Each scenario uses isolated
 profiles and a local HTTP fixture; no live API key or paid request is required.
 
 ## Update documentation with behavior

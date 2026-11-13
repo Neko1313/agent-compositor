@@ -102,11 +102,17 @@ try{
   const completions=async()=>(await traces()).filter(row=>row.kind==='completion');
   const location=(value,id)=>value.windows.spaces.find(space=>leaves(space.tree).includes(id))?.id;
   const exists=file=>stat(file).then(()=>true,error=>{if(error.code!=='ENOENT')throw error;return false;});
-  async function main(){await key('F2');await wait('─ Main · focused');}
+  async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await replace(value);await key('Enter');}
   async function focusTab(label){await click(label,{top:true});}
-  async function zoom(){await wait(' · Form');if(!(await screen()).includes('Unzoom'))await click('Zoom',{footer:true});await wait('Unzoom');}
-  async function unzoom(){if((await screen()).includes('Unzoom')){await click('Unzoom',{footer:true});await page.waitForFunction(()=>!visual.text().includes('Unzoom'));}}
+  async function setZoom(enabled){
+    await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
+    if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
+    await wait('WINDOW MODE · '+(enabled?'Zoomed':'Tiled'));
+    await observe(layout,value=>value.windows.fullscreen===enabled,'Arrange zoom must update real saved layout');
+    await key('Escape');await absent('WINDOW MODE');}
+  async function zoom(){await wait(' · Form');await setZoom(true);}
+  async function unzoom(){await setZoom(false);}
   async function field(title,label){const lines=(await paneText(title)).split('\n'),index=lines.findIndex(line=>line.includes(label));
     assert.ok(index>=0,'Visible field required: '+label);return lines[index+1].replace(/[│]/g,'').trim();}
   async function select(title,label,value){for(let index=0;index<12;index++){
@@ -124,9 +130,9 @@ try{
   if(launch.executable){assert.equal(hash(await readFile(launch.executable)),launch.sha256);const renderer=join(dirname(launch.executable),'node_modules/@agent-compositor/renderer-opentui/index.js');
     report.executable={path:launch.executable,sha256:launch.sha256};report.renderer={path:renderer,sha256:hash(await readFile(renderer))};}
   await page.evaluate(()=>visual.terminal.resize(180,50));
-  await command('/windows');await waitMain('searchable window finder is not yet available in OpenTUI');await noUnexpectedModelRequests(0);
+  await command('/windows');await wait('Search window or command…');await key('Escape');await absent('Search window or command…');await noUnexpectedModelRequests(0);
   await command('/todos');await wait('0/3 complete');await absent('Todos · Working');
-  await command('/proxy status');await wait('Proxy disabled');await absent('Network proxy · Working');await click('Close',{footer:true});
+  await command('/proxy status');await wait('Proxy disabled');await absent('Network proxy · Working');await focusTab('Network proxy');await key('Alt+w');await wait('WINDOW MODE');await key('q');await key('Escape');await absent('WINDOW MODE');
   await observe(layout,value=>value.registered.includes('plugin-network-proxy-network')&&location(value,'plugin-network-proxy-network')===undefined,'Network proxy must be deliberately closed before reload');
   await command('/plugins');await wait('Browse marketplace');await absent('Extensions · Working');
   await main();await type('APP_QUESTION');await key('Enter');await wait('MAIN_QUESTION: choose deployment');
@@ -162,14 +168,14 @@ try{
   await formButton(title,'Apply');
   await observe(layout,value=>location(value,todo)===2,'Apply must relocate Todos to workspace 2');
   assert.equal(await exists(launch.managers.placement),false,'Apply must not persist a project placement rule');
-  await absent('Unzoom');await zoom();await wait('Applied for this run.');await tab(2);await select(title,'Workspace','Workspace 3');await tab();await replace('0.4');
+  await observe(layout,value=>!value.windows.fullscreen,'A fresh Apply form must leave the settled form zoom');await zoom();await wait('Applied for this run.');await tab(2);await select(title,'Workspace','Workspace 3');await tab();await replace('0.4');
   await formButton(title,'Save rule');
   const savedRule=await observe(()=>readFile(launch.managers.placement,'utf8').then(parseJsonc),value=>value.ui?.rules?.some(rule=>rule.match.plugin==='todos'&&rule.workspace===3),'Save must write the canonical placement rule');
   const rule=savedRule.ui.rules.find(rule=>rule.match.plugin==='todos'&&rule.match.surface==='tasks');
   assert.deepEqual(rule,{site:'sidebar',workspace:3,size:.4,relativeTo:'session',focus:false,match:{plugin:'todos',surface:'tasks'}});
   await observe(layout,value=>location(value,todo)===3,'Saved rule must also relocate the actual pane');
   const beforeCancel=await readFile(launch.managers.placement,'utf8');
-  await absent('Unzoom');await zoom();await wait('Rule saved. Placement applied.');await tab(2);await select(title,'Workspace','Workspace 4');await capture('03-placement-private');
+  await observe(layout,value=>!value.windows.fullscreen,'A fresh Save form must leave the settled form zoom');await zoom();await wait('Rule saved. Placement applied.');await tab(2);await select(title,'Workspace','Workspace 4');await capture('03-placement-private');
   await formButton(title,'Cancel');await absent('Arrange plugin windows · Form');
   assert.equal(await readFile(launch.managers.placement,'utf8'),beforeCancel);assert.equal(location(await layout(),todo),3);
   await unzoom();await main();await wait(draft);await click('Edit answer');await wait('[x] Production');await noUnexpectedModelRequests(1);
@@ -187,7 +193,7 @@ try{
 
   await unzoom();await main();const beforeRestart=await layout();await writeFile(join(output,'before-restart-layout.json'),JSON.stringify(beforeRestart,null,2));
   const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');
-  await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0&&visual.text().includes('F2 Main'),generation);
+  await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0&&visual.text().includes('Main'),generation);
   await wait('LOCAL_FLOW_PROBE_LOADED');await focusTab('Todos');await wait('0/3 complete');
   const restored=await observe(layout,value=>value.windows.workspace===3&&location(value,todo)===3,'Saved rule must restore Todos on workspace 3');
   assert.ok(restored.registered.includes('plugin-network-proxy-network'));assert.equal(location(restored,'plugin-network-proxy-network'),undefined);

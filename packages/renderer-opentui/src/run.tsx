@@ -1,13 +1,14 @@
 /** @jsxImportSource @opentui/react */
-import {createCliRenderer} from '@opentui/core';
-import {createRoot} from '@opentui/react';
+import {createCliRenderer,type KeyEvent,type PasteEvent} from '@opentui/core';
+import {createRoot,flushSync} from '@opentui/react';
 import {ConversationView} from './view.js';
 import type {ComposerMedia} from './ghost.js';
 import type {PluginTableSource} from './table.js';
 import type {PluginManagerSource} from './plugins.js';
 import type {ConversationSession} from './session.js';
-import type {WindowLayoutSource} from './layout.js';
+import {isWindowGestureCancelKey,type WindowLayoutSource} from './layout.js';
 import type {UiSurfaceRegistry} from './surface.js';
+import type {WindowNavigationInput,WindowNavigationSource} from './navigation.js';
 import {useKeyboard} from '@opentui/react';
 
 // Closed windows keep native widgets resident. The host admits at most 256
@@ -20,6 +21,7 @@ export interface OpenTuiOptions {
   workflowTable?: PluginTableSource;
   pluginManager?: PluginManagerSource;
   surfaces?: UiSurfaceRegistry;
+  navigation?:WindowNavigationSource;
   composerMedia?: ComposerMedia;
   windowLayout: WindowLayoutSource;
   stdin?: NodeJS.ReadStream;
@@ -40,6 +42,33 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     exitOnCtrlC:!options.onCtrlC, kittyImageTransport: 'zlib'});
   const abort=()=>renderer.destroy();
   options.signal?.addEventListener('abort',abort,{once:true});
+  const captureKey=(key:KeyEvent)=>{
+    if(key.defaultPrevented||!options.navigation)return;
+    let consumed=false;
+    flushSync(()=>{
+      if(options.windowLayout.snapshot().gesture&&isWindowGestureCancelKey(key)){
+        options.windowLayout.act({type:'pointer',phase:'cancel',x:0,y:0});consumed=true;return;
+      }
+      const legacy=/^\x1b([!@#$%^&*(])$/.exec(key.sequence);
+      const input:WindowNavigationInput={kind:'key',key:legacy?String('!@#$%^&*('.indexOf(legacy[1])+1):key.name,
+        text:key.sequence,modifiers:[...(key.ctrl?['ctrl']:[]),...(key.meta||key.option||legacy?['alt']:[]),
+          ...(key.shift||legacy?['shift']:[]),...(key.super?['super']:[]),...(key.hyper?['hyper']:[])],repeated:key.repeated};
+      consumed=options.navigation!.handle(input);
+    });
+    if(consumed){key.preventDefault();key.stopPropagation();}
+  };
+  const capturePaste=(event:PasteEvent)=>{
+    if(event.defaultPrevented||!options.navigation)return;
+    // Paste belongs to native editors in normal/finder modes. Arrange ignores it.
+    // A /windows submission and its following paste can share one parser packet.
+    // Commit the newly focused native query field before paste is dispatched.
+    let consumed=false;
+    flushSync(()=>{
+      if(options.navigation!.snapshot().mode==='arrange')consumed=options.navigation!.handle({kind:'paste',text:''});
+    });
+    if(consumed){event.preventDefault();event.stopPropagation();}
+  };
+  if(options.navigation){renderer.keyInput.prependListener('keypress',captureKey);renderer.keyInput.prependListener('paste',capturePaste);}
   function Desktop(){
     useKeyboard(key=>{
       if(key.defaultPrevented||!options.onCtrlC||!key.ctrl||key.meta||key.name!=='c')return;
@@ -47,7 +76,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
       if(!key.repeated&&options.onCtrlC()==='exit')renderer.destroy();
     });
     return <ConversationView sessions={sessions} workflowTable={options.workflowTable}
-      pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces}
+      pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
       animations={options.animations??true} composerMedia={options.composerMedia} />;
   }
   try {
@@ -57,12 +86,14 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     await renderer.closed;
   } finally {
     options.signal?.removeEventListener('abort',abort);
+    if(options.navigation){renderer.keyInput.off('keypress',captureKey);renderer.keyInput.off('paste',capturePaste);}
     renderer.destroy();
     await renderer.closed;
   }
 }
 export const runOpenTuiRenderer=runConversationPrototype;
 export type {UiSurfaceRegistry,UiSurfaceSource,UiSurfaceSnapshot} from './surface.js';
+export type {WindowNavigationSource,WindowNavigationSnapshot,WindowNavigationEntry,WindowNavigationInput} from './navigation.js';
 export type {PluginTableSource} from './table.js';
 export type {PluginManagerSource, PluginManagerSnapshot, PluginManagerRow, PluginManagerAction} from './plugins.js';
 export type {ComposerMedia} from './ghost.js';

@@ -31,7 +31,9 @@ export interface WindowLayoutSnapshot {
 
 export type WindowLayoutAction =
   | {type: 'open' | 'focus'; id: string}
-  | {type: 'cycle' | 'orient' | 'swap' | 'zoom' | 'close'}
+  | {type: 'cycle'; reverse?: boolean}
+  | {type: 'axis'; axis: 'horizontal' | 'vertical'}
+  | {type: 'orient' | 'swap' | 'zoom' | 'close'}
   | {type: 'resize'; delta: number}
   | {type: 'direction'; key: WindowDirection; move?: boolean}
   | {type: 'workspace' | 'moveWorkspace'; id: number}

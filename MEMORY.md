@@ -1,5 +1,42 @@
 # Project memory
 
+## Final Linux candidate verified; synchronize Callix analysis fixtures — 2026-11-13
+
+Source d897d6a contains committed background/watchdog test repairs and refreshed
+generated host notes. Plugin preparation is a no-op; versions stay auto-approve
+1.4.1, workflows 1.6.1, catalog 1.0.11. All four changed model-dependent packages
+pass full Linux release-stage source certification on that exact workspace:
+auto/workflows/btw/plugin-author live reference matrices are 24/21/24/21, all
+with the declared gemma4:31b-cloud policy, three repeats and unchanged oracles.
+No OpenAI request/budget change. Ollama billing is unavailable, not zero.
+
+A complete local d897d6a Linux archive passes setup (11 observations), independent
+conversation tabs (9), workflow PTY (15), all eight installed-runtime probes and
+an actual-public-0.7.4 to local-0.8 upgrade. Old session context/journal prefix,
+private settings, plugin state, draft and old executable survive; versioned and
+latest installs both work. Setup/narrow, restored conversation and completed
+workflow screenshots were inspected. Reports, copied source certificates and
+archive/binary hashes are bound in dist/release-0.8.0-d897/integrity.json.
+Archive SHA 8f26f6c75bae70ca06ae7aa4930c12bbdfe61fafad936287e8f3936ee3bf8415.
+These are local candidate bytes, not public 0.8 assets or a broad quality claim.
+
+Build-only CI 43343937711 failed verification before native jobs in Callix's
+source-change test: its fake returned after 150 ms, before the parent wrote the
+new source. It could legitimately produce the old graph. A file barrier now
+holds the captured old graph until the edit is complete. Related in-flight
+status and shared-cancellation fixtures use the same explicit release rather
+than 500/200 ms windows; real timeout tests keep their original deadlines.
+Consumers abort/drain in finally. No production indexing code changed.
+Focused suite passes 18 tests/two native-option skips; all three controlled
+cases pass five repeats. Full coverage passes 1315 tests/three optional skips,
+types pass. A restricted local attempt could not exercise child processes and
+loopback correctly; its failures are retained separately, while the authorized
+process-capable run passes in release-next-callix-final-test-ci-verified.log.
+Do not attribute those environment failures to the application or relax its
+assertions. This is internal test synchronization: canonical user behavior,
+configuration and extension contracts are unchanged. New committed candidate
+CI/native gates remain required before tagging; no 0.8 tag/publication exists.
+
 ## PR10 merged; replace elapsed-time background test synchronization — 2026-11-13
 
 Generated PR10 b8d71b1 was reproduced from clean 53b22e3: all seven files match

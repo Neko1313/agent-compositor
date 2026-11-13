@@ -14,7 +14,7 @@ afterEach(async () => { for (const p of roots.splice(0))
 async function temp() { const p = await mkdtemp(join(tmpdir(), 'callix-navigation-')); roots.push(p); return p; }
 const node = (id: string, name: string, path = 'a.ts', line = 1) => ({ id, name, qualified_name: `${path}.${name}`, kind: 'function', file_path: path, span: [line, 1, line, 12] });
 function graph(nodes: any[]): Graph { return { schema_version: 1, nodes, relations: [], metadata: { resolver_status: 'degraded' } }; }
-async function fake(root: string, g: Graph, delay = 0) { await mkdir(join(root, '.agent-compositor'), { recursive: true }); const exe = join(root, '.agent-compositor', `fake-${Math.random()}.mjs`); await writeFile(exe, `#!/usr/bin/env node\nimport{appendFileSync}from'node:fs';appendFileSync('.agent-compositor/calls','1\\n');setTimeout(()=>console.log(${JSON.stringify(JSON.stringify(g))}),${delay});`, { mode: 0o700 }); return exe; }
+async function fake(root: string, g: Graph, delay = 0, release?: string) { await mkdir(join(root, '.agent-compositor'), { recursive: true }); const exe = join(root, '.agent-compositor', `fake-${Math.random()}.mjs`); await writeFile(exe, `#!/usr/bin/env node\nimport{appendFileSync,existsSync}from'node:fs';appendFileSync('.agent-compositor/calls','1\\n');const output=()=>console.log(${JSON.stringify(JSON.stringify(g))});const release=${JSON.stringify(release)};if(release){const timer=setInterval(()=>{if(existsSync(release)){clearInterval(timer);output();}},5);}else setTimeout(output,${delay});`, { mode: 0o700 }); return exe; }
 describe('graph query precision and result budgets', () => {
     it('disambiguates identical names using exact paths/IDs and indexes reverse impact with cycle bounds', () => {
         const g = graph([node('a', 'work', 'a.ts'), node('b', 'work', 'nested/a.ts'), node('c', 'caller', 'caller.ts')]);
@@ -151,16 +151,19 @@ describe('index freshness and ownership', () => {
     it('reports cold and in-flight status without starting or waiting for analysis', async () => {
         const cwd = await temp();
         await writeFile(join(cwd, 'a.ts'), 'function a(){}');
-        const executable = await fake(cwd, graph([node('a', 'a')]), 500);
+        const release='.agent-compositor/release-analysis',controller=new AbortController();
+        const executable = await fake(cwd, graph([node('a', 'a')]), 0,release);
         const options = {cwd,settings:{executable}};
         expect(await query({...options,action:'status'})).toMatchObject({available:true,state:'not-indexed'});
         await expect(readFile(join(cwd,'.agent-compositor/calls'))).rejects.toThrow();
-        const indexing = indexProject(cwd,false,undefined,options);
-        await vi.waitFor(async()=>expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n'));
-        expect(await query({...options,action:'status'})).toMatchObject({state:'indexing'});
-        await indexing;
-        expect(await query({...options,action:'status'})).toMatchObject({state:'ready',nodes:1});
-        expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n');
+        const indexing = indexProject(cwd,false,controller.signal,options);
+        try{
+            await vi.waitFor(async()=>expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n'));
+            expect(await query({...options,action:'status'})).toMatchObject({state:'indexing'});
+            await writeFile(join(cwd,release),'ready');await indexing;
+            expect(await query({...options,action:'status'})).toMatchObject({state:'ready',nodes:1});
+            expect(await readFile(join(cwd,'.agent-compositor/calls'),'utf8')).toBe('1\n');
+        }finally{controller.abort();await indexing.catch(()=>{});}
     });
     it('does not rebuild a semantic graph after documentation or diagnostic-output changes', async () => {
         const cwd = await temp();
@@ -181,13 +184,16 @@ describe('index freshness and ownership', () => {
     it('shares a build between cancelled and live consumers without cancelling the survivor', async () => {
         const cwd = await temp();
         await writeFile(join(cwd, 'a.ts'), 'function a(){}');
-        const executable = await fake(cwd, graph([node('a', 'a')]), 200), one = new AbortController(), two = new AbortController();
+        const release='.agent-compositor/release-analysis';
+        const executable = await fake(cwd, graph([node('a', 'a')]), 0,release), one = new AbortController(), two = new AbortController();
         const first = indexProject(cwd, false, one.signal, { settings: { executable } }).then(() => null, e => e), second = indexProject(cwd, false, two.signal, { settings: { executable } });
-        await vi.waitFor(async () => expect(await readFile(join(cwd, '.agent-compositor/calls'), 'utf8')).toBe('1\n'));
-        one.abort();
-        expect(String(await first)).toContain('cancelled');
-        expect((await second).graph.nodes[0].id).toBe('a');
-        expect(await readFile(join(cwd, '.agent-compositor/calls'), 'utf8')).toBe('1\n');
+        try{
+            await vi.waitFor(async () => expect(await readFile(join(cwd, '.agent-compositor/calls'), 'utf8')).toBe('1\n'));
+            one.abort();expect(String(await first)).toContain('cancelled');
+            await writeFile(join(cwd,release),'ready');
+            expect((await second).graph.nodes[0].id).toBe('a');
+            expect(await readFile(join(cwd, '.agent-compositor/calls'), 'utf8')).toBe('1\n');
+        }finally{one.abort();two.abort();await Promise.allSettled([first,second]);}
     });
     it('does not reuse a disk graph from a different executable configuration and filters ignored graph files', async () => {
         const cwd = await temp(), cache = await temp();
@@ -203,12 +209,15 @@ describe('index freshness and ownership', () => {
         await mkdir(join(cwd, '.agent-compositor'));
         await writeFile(join(cwd, 'a.ts'), 'before');
         const executable = join(cwd, '.agent-compositor/fake.mjs');
-        await writeFile(executable, `#!/usr/bin/env node\nimport{readFileSync,appendFileSync}from'node:fs';const name=readFileSync('a.ts','utf8');appendFileSync('.agent-compositor/calls','1\\n');setTimeout(()=>console.log(JSON.stringify({schema_version:1,nodes:[{id:name,name,qualified_name:name,kind:'function',file_path:'a.ts'}],relations:[],metadata:{}})),150);`, { mode: 0o700 });
-        const work = indexProject(cwd, false, undefined, { settings: { executable } });
-        await vi.waitFor(async () => expect(await readFile(join(cwd, '.agent-compositor/calls'), 'utf8')).toBe('1\n'));
-        await writeFile(join(cwd, 'a.ts'), 'after');
-        expect((await work).graph.nodes[0].id).toBe('after');
-        expect(await readFile(join(cwd, '.agent-compositor/calls'), 'utf8')).toBe('1\n1\n');
+        await writeFile(executable, `#!/usr/bin/env node\nimport{readFileSync,appendFileSync,existsSync}from'node:fs';const name=readFileSync('a.ts','utf8');appendFileSync('.agent-compositor/calls','1\\n');const timer=setInterval(()=>{if(existsSync('.agent-compositor/release-analysis')){clearInterval(timer);console.log(JSON.stringify({schema_version:1,nodes:[{id:name,name,qualified_name:name,kind:'function',file_path:'a.ts'}],relations:[],metadata:{}}));}},5);`, { mode: 0o700 });
+        const controller=new AbortController(),work = indexProject(cwd, false, controller.signal, { settings: { executable } });
+        try{
+            await vi.waitFor(async () => expect(await readFile(join(cwd, '.agent-compositor/calls'), 'utf8')).toBe('1\n'));
+            await writeFile(join(cwd, 'a.ts'), 'after');
+            await writeFile(join(cwd,'.agent-compositor/release-analysis'),'ready');
+            expect((await work).graph.nodes[0].id).toBe('after');
+            expect(await readFile(join(cwd, '.agent-compositor/calls'), 'utf8')).toBe('1\n1\n');
+        }finally{controller.abort();await work.catch(()=>{});}
     });
 });
 const native = process.env.CALLIX_TEST_BIN;

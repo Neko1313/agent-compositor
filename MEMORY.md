@@ -1,5 +1,20 @@
 # Project memory
 
+## Synchronize btw's held-stream fixture with an actual event — 2026-11-13
+
+0e03507 documentation 43385528494 and release preparation 43385528500 passed.
+CI 43385528447: Node 22.19.0 passed; Node 26 job 131752968265 failed only the first
+btw-conversation case. Its one-second vi.waitFor saw zero provider requests at
+line 20. The log does not establish why startup took that time. Replaced that
+clock assumption with the actual MAIN_HELD assistant event, racing early main
+termination to report core.failure, then retaining the request-count assertion.
+All isolation, side-session, follow-up and restart assertions and the overall
+test deadline remain unchanged. All five btw cases pass locally. This is a test
+synchronization change, not a claim that a production lifecycle race was fixed.
+No public behavior/config/commands changed; no canonical user-guide update needed.
+CI failure excerpt retained in dist/command-output-diagnostic/ci-node26-failure.log.
+Command-output presentation work remains a separate uncommitted change at this point.
+
 ## Expanded coding composition and disk-tool contract completion — 2026-11-13
 
 New isolated f1557fb snapshot in /tmp/compositor-selfhost-T3FZat with 807 tracked

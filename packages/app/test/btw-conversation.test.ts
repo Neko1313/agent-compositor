@@ -16,8 +16,12 @@ it('opens and continues an independent btw agent while the main model is held, t
   const core=app.createCore(async()=>true);const notices:unknown[]=[],views:any[]=[];core.subscribe(e=>{if(e.kind==='catalog'&&['ui.notification','plugin.fault'].includes(e.event))notices.push(e.input);if(e.kind==='catalog'&&e.event==='ui.surface')views.push(e.input);});await core.start();
   await expect(core.host.emit('service.agent.open',{prompt:'NOT_USER_AUTHORIZED'})).rejects.toThrow('explicit user invocation');
   expect(provider.requests).toHaveLength(0);
+  let mainEntered!:()=>void;const entered=new Promise<void>(resolve=>{mainEntered=resolve;});
+  core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='assistant.text'&&event.input.text==='MAIN_HELD')mainEntered();});
   main=core.submit('MAIN_TASK_MUST_STAY_SEPARATE');
-  await vi.waitFor(()=>expect(provider.requests).toHaveLength(1));
+  // Synchronize with the actual held stream, not a one-second filesystem/startup assumption.
+  await Promise.race([entered,main.then(()=>{throw Error('Main turn ended before the held stream: '+(core.failure??'no failure recorded'));})]);
+  expect(provider.requests).toHaveLength(1);
   await core.invokeCommand('/btw SIDE_QUESTION');
   await vi.waitFor(()=>expect(provider.requests,JSON.stringify(notices)).toHaveLength(2));
   const records=JSON.parse(await readFile(join(app.storage.paths.state,'agents.json'),'utf8'));

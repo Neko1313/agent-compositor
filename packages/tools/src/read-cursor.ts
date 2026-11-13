@@ -25,12 +25,12 @@ export function decodeReadCursor(token:unknown):ReadCursor {
  return{path,offset:offset??undefined,limit:limit??undefined,index,hash};
 }
 
-/** Cursor positions and edit anchors use UTF-16; page limits count code points. */
-export function readPageEnd(text:string,start:number,count:number):number {
+/** Cursor positions use UTF-16; pages preserve code points within a byte bound. */
+export function readPageEnd(text:string,start:number,count:number,maxBytes=16000):number {
  let end=start,bytes=0;
  for(let n=0;n<count&&end<text.length;n++){
   const point=text.codePointAt(end)!,size=point<=0x7f?1:point<=0x7ff?2:point<=0xffff?3:4;
-  if(bytes+size>16000)break;
+  if(bytes+size>maxBytes)break;
   bytes+=size;end+=point>0xffff?2:1;
  }
  return end;

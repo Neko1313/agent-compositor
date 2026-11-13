@@ -106,6 +106,30 @@ A missing search directory/filter retains ENOENT and explains using the default
 cwd or an existing attached project. It does not silently substitute a directory,
 retry the operation or grant new filesystem access.
 
+The native project-text backend returns long-line previews around the first occurrence, bounded to
+2000 UTF-8 bytes without splitting a Unicode code point. `textTruncated` marks
+an excerpt; `textOffset` is its zero-based UTF-16 position in the line and
+`column` is the first match's one-based UTF-16 column. Regex byte locations are
+converted before those fields are returned. A preview is not guarded edit source.
+Copy the result's `readArgs` object into `read` to inspect that location directly,
+including in an attached project. It supplies the canonical absolute path and
+line window, with a snapshot cursor when the preview starts inside the line.
+Then use the read result's `editRef` for an exact edit. A changed search view
+invalidates the cursor; rerun the search or read the indicated line window.
+These selectors grant no permission: the read and edit retain normal checks.
+Short complete lines keep their existing `path`/`line`/`text` result shape.
+Regex search uses raw UTF-8 bytes (`rg --encoding none`) so a UTF-8 BOM remains
+part of the same source view used by `read`; columns and snapshot hashes include
+it. Native text search skips NUL/binary and non-UTF-8 files, matching native read
+support; an unrelated invalidly encoded file cannot poison a regex result page.
+This refines the previous NUL-only filtering and BOM-transcoding behavior.
+Inherited ripgrep configuration is disabled; it cannot change the source view
+through preprocessing, encoding or multiline options.
+Use the discovery layer's `.agentignore`, `.geminiignore` or project/Git ignore
+rules for exclusions rather than ripgrep-specific configuration.
+Callers needing other encodings should supply a compatible query/read provider.
+Third-party query providers can return different optional navigation fields.
+
 To replace the backend, install a plugin declaring
 `"provides":["service.project.query"]` and implementing that event. Set the
 application configuration:

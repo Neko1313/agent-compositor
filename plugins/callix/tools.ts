@@ -73,7 +73,7 @@ export default [
     description:
       action === "glob"
         ? "Find project files by glob, respecting ignore rules."
-        : "Search project text; literal by default.",
+        : "Search project text; literal by default. When a result includes readArgs, copy it into read for guarded edit source; preview text is not an edit anchor.",
     parameters: {
       type: "object",
       properties: {

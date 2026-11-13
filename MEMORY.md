@@ -1,5 +1,52 @@
 # Project memory
 
+## Dense search previews hand off directly to guarded reads — 2026-11-13
+
+6d2901c passed CI 43416587987 on both Node versions, docs 43416587986 and
+release preparation 43416588108. The preceding turn made concrete bounded-read
+progress. Continued offline while cloud transcript replay approval remains
+pending; no endpoint, user key or budget guard was used.
+
+Reproduced five failed cases and one passing short-line control in the original
+search code: grep returned only the first 2000 UTF-16 units, hiding far-end
+matches, and supplied no direct read handoff. Native long-line results now show
+a first-match-centered preview capped at 2000 UTF-8 bytes without splitting code
+points. textTruncated marks an excerpt, textOffset is its zero-based UTF-16 line
+position, and column is the first match's one-based UTF-16 column. Short complete
+UTF-8 lines retain path/line/text. Internal readView bookkeeping is not returned.
+
+Long results supply readArgs with canonical absolute path, line window and small
+page size. A preview starting inside a line includes a read cursor bound to that
+line's returned content. Copying readArgs uses the ordinary native reader and
+its current exact editRef; the preview itself grants no editing/file permission.
+Changed views fail stale. No new service.project.query or service.file.read
+event input fields or catalog changes. Existing scan/file/count/time budgets
+remain. The shared code-point paging helper now accepts an internal byte bound;
+native read keeps its existing 16000-byte default.
+
+BOM regression exposed ripgrep's automatic transcoding: its column was off by
+one and its view hash differed from native read. Regex now uses --encoding none
+and --no-config to pin raw UTF-8, including BOM, and prevent inherited rg config
+from enabling preprocessing/multiline/other source transformations. Non-UTF-8
+files are skipped like NUL/binary files; a reproduced malformed-encoding file
+no longer poisons a regex page with otherwise valid matches. These intentional
+encoding/configuration changes need an incompatible-behavior Conventional Commit.
+Updated Callix's canonical guide, tool guidance, integration files and the read
+guide link. Checked rg --help and the primary encoding reference:
+https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md#file-encoding.
+
+Fifteen unit cases cover literal/regex, ASCII/emoji/CJK, odd surrogate positions,
+CRLF/later lines, BOM, stale views, invalid encoding and inherited rg config.
+Four actual app-loop cases copy real grep results into read and editRef calls,
+then independently compare the entire resulting file. They use deterministic
+provider fixtures, default search budgets and disabled graph background work;
+this is not live-model authorship or quality evidence. Callix's declared matrix
+passes 45 tests with three optional skips. Full coverage passes 1606 tests,
+three optional skips, 188 files; typecheck, gen, docs:gen and docs:check pass.
+No manual version/catalog/changelog edits or UI changes. Workspace attachment and
+permission rules remain unchanged. Stable 1.0, real self-development/model quality,
+onboarding and OpenTUI remain incomplete; keep the original goal active.
+
 ## Dense file reads with bounded, stateless continuation — 2026-11-13
 
 70ce384 passed CI 43413635254 on both Node versions, docs 43413635233 and

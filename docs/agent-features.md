@@ -567,6 +567,10 @@ a large file from its start. The edit anchor covers exactly the
 returned content, including on later pages. Ordinary source is presented to the model with
 literal line breaks and separate JSON anchor metadata; callers/UI retain the
 structured result. See [model-facing tool text](core-customization.md#model-facing-tool-text).
+Native text-search results can include ready `readArgs` for a match deep inside
+a long line. Copy those into `read`, then use its exact edit anchor; the search
+preview itself is not guarded source. See the
+[search-to-edit workflow](../plugins/callix/README.md) for fields and limits.
 The model-facing schema matches these existing
 runtime bounds. Invalid pagination is rejected with a clear error before path
 access, without normalizing zero to one. Missing-file and directory errors retain

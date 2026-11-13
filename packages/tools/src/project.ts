@@ -3,6 +3,8 @@ import { promisify } from 'node:util';
 import { readdir, realpath, readFile, stat } from 'node:fs/promises';
 import { resolve, join, dirname, sep } from 'node:path';
 import ignore from 'ignore';
+import {encodeReadCursor,readHash,readPageEnd,type ReadCursor} from './read-cursor.js';
+import type {ReadArgs} from './tools/fs.js';
 const exec = promisify(execFile);
 const excluded = /(^|\/)(\.git|node_modules|dist|build|coverage|\.agent-compositor)(\/|$)/;
 export async function confinedPath(root: string, value: string, missing = false): Promise<string> {
@@ -87,6 +89,18 @@ export interface ProjectQuery {
     limit?: number;
     offset?: number;
 }
+interface TextMatch {
+    path:string;line:number;text:string;column?:number;textOffset?:number;textTruncated?:boolean;readArgs?:ReadArgs;
+    readView?:Omit<ReadCursor,'path'>;
+}
+function textMatch(path:string,line:number,text:string,index:number):TextMatch {
+    if(Buffer.byteLength(text,'utf8')<=2000)return{path,line,text};
+    let start=Math.max(0,index-256);
+    if(start>0&&/[\uD800-\uDBFF]/.test(text[start-1])&&/[\uDC00-\uDFFF]/.test(text[start]))start--;
+    const end=readPageEnd(text,start,2000,2000);
+    return{path,line,text:text.slice(start,end),column:index+1,textOffset:start,textTruncated:true,
+        readView:{offset:line,limit:1,index:start,hash:readHash(text)}};
+}
 export async function queryProject(raw: unknown, signal?: AbortSignal): Promise<any> {
     const args = raw as ProjectQuery;
     if (typeof args.pattern !== 'string' || args.pattern.length > 1000 || !['glob', 'grep'].includes(args.action))
@@ -103,11 +117,7 @@ export async function queryProject(raw: unknown, signal?: AbortSignal): Promise<
         const found = files.filter(file => glob(args.pattern).test(file));
         return { files: found.slice(offset, offset + limit), total: found.length, offset, truncated: found.length > offset + limit,...(!found.length&&offset===0?{hint:"No files returned for this pattern/filter. Use glob pattern **/* from a known project directory to discover actual paths; do not invent a filename."}:{}) };
     }
-    const matches: Array<{
-        path: string;
-        line: number;
-        text: string;
-    }> = [];
+    const matches:TextMatch[] = [];
     let scannedFiles = 0,scannedBytes=0,scanLimited=false;const scan={skip:offset};const deadline=Date.now()+10000;
     if (args.regex) {
         const safe: string[] = [];
@@ -118,7 +128,7 @@ export async function queryProject(raw: unknown, signal?: AbortSignal): Promise<
             if(size!==undefined&&size<=1024*1024){
                 if(scannedBytes+size>32*1024*1024){scanLimited=true;break;}scannedBytes+=size;
                 const bytes = await readFile(await confinedPath(args.cwd, f)).catch(() => null);
-                if (bytes && !bytes.includes(0))
+                if (bytes && !bytes.includes(0) && Buffer.from(bytes.toString('utf8'),'utf8').equals(bytes))
                     safe.push(f);
             }
         }
@@ -141,13 +151,14 @@ export async function queryProject(raw: unknown, signal?: AbortSignal): Promise<
                 if (info.size > 1024 * 1024)
                     continue;
                 if(scannedBytes+info.size>32*1024*1024){scanLimited=true;break;}scannedBytes+=info.size;
-                const text = await readFile(path, 'utf8');
-                if (text.includes('\0'))
+                const bytes = await readFile(path),text=bytes.toString('utf8');
+                if (bytes.includes(0)||!Buffer.from(text,'utf8').equals(bytes))
                     continue;
                 for (const [index, line] of text.split('\n').entries()) {
-                    if(line.includes(args.pattern)&&scan.skip>0){scan.skip--;continue;}
-                    if (line.includes(args.pattern))
-                        matches.push({ path: file, line: index + 1, text: line.slice(0, 2000) });
+                    const matchIndex=line.indexOf(args.pattern);
+                    if(matchIndex>=0&&scan.skip>0){scan.skip--;continue;}
+                    if (matchIndex>=0)
+                        matches.push(textMatch(file,index+1,line,matchIndex));
                     if (matches.length >= limit + 1)
                         break;
                 }
@@ -157,13 +168,26 @@ export async function queryProject(raw: unknown, signal?: AbortSignal): Promise<
                     throw e;
             }
         }
-    return { matches: matches.slice(0, limit), offset, truncated: matches.length > limit, scannedFiles,scannedBytes,...(scanLimited?{scanLimited:true,hint:"Scan cap reached; narrow the path or pattern"}:!matches.length&&offset===0?{hint:"No text matches returned. Try a shorter literal source fragment or use glob pattern **/* to discover filenames before reading; an empty text search does not identify a file to open."}:{}) };
+    const selected:TextMatch[]=[],paths=new Map<string,string>();
+    for(const match of matches.slice(0,limit)){
+        signal?.throwIfAborted();
+        const {readView,...result}=match;
+        if(readView){
+            let path=paths.get(match.path);
+            if(path===undefined){path=await realpath(await confinedPath(args.cwd,match.path));paths.set(match.path,path);}
+            result.readArgs={path,offset:match.line,limit:1,maxChars:2000,...(readView.index>0?{cursor:encodeReadCursor({path,...readView})}:{})};
+        }
+        selected.push(result);
+    }
+    return { matches: selected, offset, truncated: matches.length > limit, scannedFiles,scannedBytes,...(scanLimited?{scanLimited:true,hint:"Scan cap reached; narrow the path or pattern"}:!matches.length&&offset===0?{hint:"No text matches returned. Try a shorter literal source fragment or use glob pattern **/* to discover filenames before reading; an empty text search does not identify a file to open."}:{}) };
 }
 /** Streaming rg prevents a small result limit from buffering the whole repository. */
-async function regexSearch(args: ProjectQuery, files: string[], matches: any[], max: number, signal?: AbortSignal,scan={skip:0},timeoutMs=10000): Promise<void> {
+async function regexSearch(args: ProjectQuery, files: string[], matches: TextMatch[], max: number, signal?: AbortSignal,scan={skip:0},timeoutMs=10000): Promise<void> {
     return new Promise((accept, reject) => {
         signal?.throwIfAborted();
-        const proc = spawn('rg', ['--json', '--sort', 'path', '--no-messages', '-e', args.pattern, '--', ...files], { cwd: args.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+        // Pin the raw UTF-8 view used by read; user rg config can enable
+        // transcoding, multiline output or preprocessors with different content.
+        const proc = spawn('rg', ['--no-config', '--json', '--encoding', 'none', '--sort', 'path', '--no-messages', '-e', args.pattern, '--', ...files], { cwd: args.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
         let buffer = '', stderr = '', failure: Error | undefined, limited = false;
         const stop = () => proc.kill('SIGTERM');
         const abort = () => { failure = Error('Search cancelled'); stop(); };
@@ -179,7 +203,11 @@ async function regexSearch(args: ProjectQuery, files: string[], matches: any[], 
                 const item = JSON.parse(line);
                 if (item.type === 'match') {
                     if(scan.skip>0){scan.skip--;continue;}
-                    matches.push({ path: item.data.path.text, line: item.data.line_number, text: item.data.lines.text.slice(0, 2000).replace(/\n$/, '') });
+                    const text=item.data.lines.text.replace(/\n$/, ''),start=item.data.submatches[0].start,bytes=Buffer.from(text,'utf8');
+                    if(!Number.isSafeInteger(start)||start<0||start>bytes.length)throw Error('Invalid search location');
+                    const prefix=bytes.subarray(0,start).toString('utf8');
+                    if(!Buffer.from(prefix,'utf8').equals(bytes.subarray(0,start)))throw Error('Invalid search UTF-8 boundary');
+                    matches.push(textMatch(item.data.path.text,item.data.line_number,text,prefix.length));
                     if (matches.length >= max) {
                         limited = true;
                         stop();

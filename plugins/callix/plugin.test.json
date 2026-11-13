@@ -8,7 +8,8 @@
         "packages/app/test/callix.test.ts",
         "packages/app/test/callix-navigation.test.ts",
         "packages/app/test/callix-background.test.ts",
-        "packages/app/test/callix-distribution.test.js"
+        "packages/app/test/callix-distribution.test.js",
+        "packages/app/test/search-read-edit.test.ts"
       ]
     }
   ],

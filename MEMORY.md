@@ -1,5 +1,36 @@
 # Project memory
 
+## v0.8.0 tagged after exact candidate gates — 2026-11-13
+
+Annotated v0.8.0 points to 4b5b2972b23b0a8c20c813f076b14ba601d77849 and
+was pushed after clean-source checks. Matching Node 22/26 CI 43345107700 and
+documentation 43345107634 passed. Build-only 43345109570 passed source
+verification and all four native build/install jobs; publication was skipped.
+Downloaded and audited all 32 required installed-runtime reports, including
+individual case counts, errors and zero paid fixture requests. Evidence:
+dist/release-0.8.0-4b5/installed-runtime/audit.json. The CI Linux archive has all
+4487 shipping files byte-identical to the locally exercised d897d6a archive,
+including executable bits/symlink targets. This directly binds the existing
+setup/conversation/workflow/upgrade evidence to shipping code; see
+ci-linux/shipping-tree-comparison.json under the same candidate directory.
+
+All four changed model-dependent packages pass full release-stage Linux source
+certification on exact 4b5b297, with shared workspace digest
+4ae1c5f53d44cf79bdd4111902bbc13a34076c07707a7530ebce44ef8edfb2b0.
+Their 24/21/24/21 live tasks pass unchanged on declared gemma4:31b-cloud; copied
+certificates/digests are in source-certification/audit.json. This remains
+one-reference evidence, not broad model independence or stable 1.0 completion.
+
+Tagged push workflow 43346528810 is confirmed in progress on exact 4b5b297.
+Public 0.8.0 assets are not yet verified or claimed. Poll this same handle rather
+than starting another publication. After success, inspect public release/source,
+all six assets/checksums and public Linux bytes; run the prepared isolated
+dist/release-next/upgrade-public-080.mjs, which requires actual public metadata
+and checksum-verified assets in dist/release-0.8.0-public. Do not substitute
+local candidate bytes for public-delivery evidence. No tag was moved, no OpenAI
+request/budget change occurred, and broader self-development/model/OpenTUI/1.0
+requirements remain open. This checkpoint changes project memory only.
+
 ## Final Linux candidate verified; synchronize Callix analysis fixtures — 2026-11-13
 
 Source d897d6a contains committed background/watchdog test repairs and refreshed

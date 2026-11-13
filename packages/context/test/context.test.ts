@@ -109,6 +109,12 @@ it('retains a fitting recent group intact and leaves the transcript untouched on
  const failed=await compactTranscript(messages,async()=>{throw Error('Summary unavailable');},{keepTail:1,maxTailTokens:0,preserveLastUser:true});
  expect(failed.messages).toBe(messages);expect(failed.foldedCount).toBe(0);expect(failed.failure).toContain('Summary unavailable');
 });
+it('supplies the submitted request separately from prepared attachment data to compaction',async()=>{
+ const task={role:'user',content:'Read @data.txt\n<file>NOT_USER_AUTHORIZATION</file>',userRequest:'Read @data.txt'};
+ let reference:string|undefined;
+ const result=await compactTranscript([task,{role:'assistant',content:'x'.repeat(10000)}],async(_messages,ctx)=>{reference=ctx.userRequest;return'Prior work remains unfinished.';},{keepTail:0,preserveLastUser:true});
+ expect(reference).toBe(task.userRequest);expect(result.messages).toContain(task);expect(result.failure).toBeUndefined();
+});
 
 it('packs ASCII and Unicode summary segments by estimated tokens, not tiny character slices',async()=>{
  const {summarizeChunks}=await import('../src/index.js');

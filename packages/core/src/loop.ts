@@ -650,6 +650,9 @@ export class AgentCore {
     return !this.hasActiveOperations && (this.state !== "running" || this.inPromptHook);
   }
   async *streamModel(request: CompletionRequest): AsyncIterable<ProviderEvent> {
+    // Preserve provenance in host state, not as an undeclared provider field.
+    if(request.messages.some(message=>Object.hasOwn(message,'userRequest')))
+      request={...request,messages:request.messages.map(({userRequest:_original,...message})=>message)};
     const operation=this.userOperation.getStore();
     if(operation)request={...request,signal:AbortSignal.any([request.signal,operation.signal])};
     if(!request.profile && this.options.modelProfile) request={...request,profile:this.options.modelProfile};
@@ -841,7 +844,9 @@ export class AgentCore {
 
   private latestUserTask():string|undefined {
     const operation=this.userOperation.getStore();if(operation)return `User tool operation: ${operation.tool}`;
-    for(let i=this.messages.length-1;i>=0;i--)if(this.messages[i].role==="user"&&this.messages[i].origin!=="harness")return this.messages[i].content.slice(0,2000);
+    for(let i=this.messages.length-1;i>=0;i--)if(this.messages[i].role==="user"&&this.messages[i].origin!=="harness"){
+      const message=this.messages[i];return typeof message.userRequest==='string'?message.userRequest:message.content;
+    }
     return undefined;
   }
 
@@ -1063,7 +1068,8 @@ export class AgentCore {
       return;
     }
     this.steerQueue.push(text);
-    await this.emit("prompt.steer", { turnId: this.currentTurnId ?? "", text });
+    const turnId=this.currentTurnId??'';
+    await this.emit("prompt.steer", { turnId, text },undefined,{turnId});
   }
 
   /** Stop the running turn or pause accepted automatic work before it starts. */
@@ -1138,7 +1144,7 @@ export class AgentCore {
     this.inPromptHook = true;
     let submitted: unknown;
     try {
-      submitted = await this.emit("prompt.submit", { text },undefined,origin?{origin}:undefined);
+      submitted = await this.emit("prompt.submit", { text },undefined,{...(origin?{origin}:{}),turnId});
     } finally {
       this.inPromptHook = false;
     }
@@ -1162,7 +1168,7 @@ export class AgentCore {
       const images = (prepared as {images?:ChatMessage["images"]}).images;
       this.options.initialImages = [...(this.options.initialImages ?? []), ...(images ?? [])];
     } else throw new Error("Context preparation must return text or {text,images} in {value}");
-    await this.emit("context.prepared", {text:promptText,images:this.options.initialImages});
+    await this.emit("context.prepared", {text:promptText,images:this.options.initialImages},undefined,{turnId});
     await this.resolveTools();
     const behavior = (await this.emit("service.agent.instructions", {})) as {value?:string};
     this.baseInstructions = typeof behavior?.value === "string" ? behavior.value : "";
@@ -1170,6 +1176,7 @@ export class AgentCore {
     this.messages.push({
       role: "user",
       content: promptText,
+      ...(!origin&&promptText!==text?{userRequest:text}:{}),
       ...(origin?{origin}:{}),
       ...(this.options.initialImages?.length
         ? { images: this.options.initialImages }
@@ -2019,7 +2026,7 @@ export class AgentCore {
     input: Record<string, unknown>,
     signal?:AbortSignal,
     // Host provenance is journal metadata, not a plugin-writable prompt field.
-    journalMeta?:{origin:"harness"}
+    journalMeta?:{origin?:"harness";turnId?:string}
   ): Promise<unknown> {
     const operation=this.userOperation.getStore();
     if(operation)input={...input,operationId:operation.id};

@@ -44,6 +44,11 @@ async function fixture(config: any = {}, answer: any = allowed) {
                 throw Error('audit unavailable'); } }, ui: { view: async () => { } } };
     return { $, state, calls, failAudit: () => auditFails = true };
 }
+it('does not clip an oversized task to manufacture a reviewable authorization prefix',async()=>{
+ const f=await fixture({}, {approved:true,risk:'low',reason:'Must not be used'});
+ const result=await review['service.permission.review']({tool:'ci_check',input:{},context:{task:'Inspect only. '+'x'.repeat(25000)+' Do not run CI.'}},f.$);
+ expect(result).toMatchObject({value:{decision:'ask',risk:'unknown'}});expect(f.calls).toHaveLength(0);
+});
 it.each([
     [true, 'medium', 'allow'], [false, 'high', 'deny'], [null, 'unknown', 'ask'],
     [true, 'high', 'ask'], [true, 'unknown', 'ask'],

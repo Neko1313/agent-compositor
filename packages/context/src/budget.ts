@@ -24,6 +24,8 @@ export interface MessageLike {
   images?: { data: string }[];
   role: string;
   content: string;
+  /** Host-preserved submitted request before context preparation, if different. */
+  userRequest?: string;
   toolCalls?: { name: string; args: unknown }[];
 }
 

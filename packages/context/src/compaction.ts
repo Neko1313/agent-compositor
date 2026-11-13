@@ -83,7 +83,8 @@ export async function compactTranscript(
 
   let summary: string;
   try {
-    summary = await summarize(middle, { signal, ...(lastUser>=0?{userRequest:messages[lastUser].content}:{}) });
+    const request=lastUser>=0?messages[lastUser]:undefined;
+    summary = await summarize(middle, { signal, ...(request?{userRequest:typeof request.userRequest==='string'?request.userRequest:request.content}:{}) });
     signal.throwIfAborted();
     if (!summary?.trim()) throw Error("Empty summary");
   } catch (error) {

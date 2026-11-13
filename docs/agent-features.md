@@ -74,7 +74,16 @@ The plugin examines the exact arguments, descriptor, registered description and
 parameter schema, plus bounded task context. Every model-facing tool is eligible:
 arbitrary console commands, MCP, workflows and custom plugins are not excluded
 by name. Already permitted actions avoid a paid review; only ask decisions enter
-the reviewer. The reviewer returns exactly three fields:
+the reviewer.
+
+Task context preserves the complete submitted text, including restrictions beyond
+2000 characters, rather than treating attached file contents or a rewritten
+template as the user's request. Delegated reviews also receive the complete
+parent request. The existing 24000-character serialized review-input bound still
+applies: oversized input goes to manual review without clipping the task or
+sending an auxiliary model request.
+
+The reviewer returns exactly three fields:
 
 ```json
 {"approved":true,"risk":"medium","reason":"The user requested this bounded project CI check."}

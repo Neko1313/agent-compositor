@@ -33,6 +33,11 @@ export function replayTranscript(
   /** an assistant message with toolCalls was emitted and its results landed —
    * the next tool.call belongs to a NEW assistant message */
   let batchClosed = false;
+  let submitted:ChatMessage|undefined;
+  const submittedTurns=new Map<string,ChatMessage>(),deferredSteers=new Map<string,ChatMessage[]>();
+  const recordedTurns=new Set(events.filter(e=>e.type==='prompt.submit'&&typeof e.turnId==='string').map(e=>e.turnId as string));
+  const seenTurns=new Set<string>();
+  const resetPreparation=()=>{submitted=undefined;submittedTurns.clear();};
 
   const flushAssistant = () => {
     if (pendingText || pendingCalls.length > 0) {
@@ -52,6 +57,7 @@ export function replayTranscript(
     if(typeof event.operationId==='string' && ['tool.call','tool.result'].includes(event.type))continue;
     switch (event.type) {
       case "context.restored": {
+        resetPreparation();
         if (Array.isArray(event.messages))
           messages.splice(
             0,
@@ -65,8 +71,9 @@ export function replayTranscript(
         break;
       }
       case "context.prepared": {
-        const last = messages[messages.length - 1];
+        const last = (typeof event.turnId==='string'?submittedTurns.get(event.turnId):undefined)??submitted??messages[messages.length - 1];
         if (last?.role === "user" && typeof event.text === "string") {
+          if(last.origin!=='harness'&&typeof last.userRequest!=='string'&&last.content!==event.text)last.userRequest=last.content;
           last.content = event.text;
           last.images = event.images as ChatMessage["images"];
         }
@@ -79,11 +86,29 @@ export function replayTranscript(
       case "prompt.steer": {
         flushAssistant();
         batchClosed = false;
-        messages.push({
+        const message:ChatMessage={
           role: "user",
           content: typeof event.text === "string" ? event.text : "",
           ...(event.type==='prompt.submit'&&event.origin==='harness'?{origin:'harness' as const}:{}),
-        });
+        };
+        const turnId=typeof event.turnId==='string'?event.turnId:undefined;
+        if(event.type==='prompt.submit'){
+          // A steer can be journaled while submission hooks are still pending.
+          // New host records correlate preparation without changing hook fields.
+          if(turnId===undefined){for(const waiting of deferredSteers.values())messages.push(...waiting);deferredSteers.clear();}
+          messages.push(message);submitted=message;
+          if(turnId!==undefined){seenTurns.add(turnId);submittedTurns.set(turnId,message);messages.push(...(deferredSteers.get(turnId)??[]));deferredSteers.delete(turnId);}
+        }else if(turnId!==undefined&&recordedTurns.has(turnId)&&!seenTurns.has(turnId)){
+          const waiting=deferredSteers.get(turnId)??[];waiting.push(message);deferredSteers.set(turnId,waiting);
+        }else messages.push(message);
+        break;
+      }
+      case 'turn.complete':
+      case 'turn.failed': {
+        flushAssistant();
+        for(const waiting of deferredSteers.values())messages.push(...waiting);
+        deferredSteers.clear();
+        resetPreparation();
         break;
       }
       case "assistant.text": {
@@ -129,6 +154,7 @@ export function replayTranscript(
         break;
       }
       case "context.compacted": {
+        resetPreparation();
         if (Array.isArray(event.messages)) {
           messages.splice(
             0,
@@ -162,6 +188,7 @@ export function replayTranscript(
     }
   }
   flushAssistant();
+  for(const waiting of deferredSteers.values())messages.push(...waiting);
   // Close every exchange before another user/assistant message. A crash may
   // follow tool admission or only some results of a parallel batch. Never
   // replay an unknown effect merely to reconstruct a valid provider request.

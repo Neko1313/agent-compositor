@@ -5,7 +5,8 @@
     {
       "layer": "integration",
       "files": [
-        "packages/app/test/auto-generic.test.ts"
+        "packages/app/test/auto-generic.test.ts",
+        "packages/app/test/request-review.test.ts"
       ]
     }
   ],

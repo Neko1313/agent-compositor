@@ -14,6 +14,8 @@ export interface ChatMessage {
   /** Host-generated continuation feedback, not a new user task. */
   origin?: "harness";
   content: string;
+  /** Original submitted text before host preparation, when it differs from content. Not a wire field. */
+  userRequest?: string;
   images?: { mimeType: string; data: string }[];
   metadata?: Record<string, unknown>;
   toolCallId?: string;

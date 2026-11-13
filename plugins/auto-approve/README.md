@@ -29,6 +29,10 @@ dialog; `null` returns to manual approval. High/unknown-risk approvals, malforme
 responses, timeouts and unavailable audit storage remain manual. Legacy
 `decision/risk/reason` responses still allow only low risk. Neither form creates
 standing approval for subsequent calls. Normal clarification questions are unaffected.
+The host supplies the complete submitted request and delegated parent request,
+preserving late restrictions separately from prepared attachment data. Review
+input is still bounded to 24000 serialized characters; oversized context remains
+manual instead of being truncated into a misleading authorization prefix.
 Use `/auto off` to return subsequent proposals to human decisions; it cannot
 override a host permission-rule deny.
 

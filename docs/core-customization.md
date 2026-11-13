@@ -80,6 +80,23 @@ are bounded to 1000 characters. Permission-rule denies run first and skip review
 automatic verdicts never create session/project approval entries. See the
 [auto review protocol](agent-features.md#auto-review).
 
+When host preparation rewrites or expands a submitted request, the user-role
+message keeps optional host-only `userRequest` with the submitted text; `content`
+remains the prepared model input. Permission review and delegated `parentTask`
+use the complete submitted request, without a 2000-character prefix cut. Default
+compaction supplies the same original text as its separate task reference.
+Attachments and rewritten templates therefore do not become claimed user
+authorization. A delegated request still cannot expand its parent's scope.
+The core omits `userRequest` from model-stream request objects; bundled adapters
+also omit it on the wire when used directly. Custom adapters used outside the
+core should do the same. Context snapshots should retain this field. Legacy messages fall
+back to their complete recorded content when no original request is available.
+
+The journal reconstructs the field from existing submit/prepared records, and
+new records add host-only turn correlation metadata. Steering that arrives while
+submission/preparation is pending keeps its own user message instead of being
+overwritten by the prepared body. Hook event input schemas are unchanged.
+
 `AgentCoreOptions.userCommands` supplies the currently loaded immediate user
 controls. `submit` and `steer` dispatch them outside the prompt queue;
 `invokeCommand` explicitly attempts this path and returns false if unregistered.
@@ -367,8 +384,9 @@ messages without hiding ordinary user text that quotes their contents.
 failing, with explicit length feedback and a shorter target. This adds at most
 one merge round per compaction, through the same caller-supplied callback;
 it neither truncates a candidate nor substitutes an empty successful summary.
-Summarizer callbacks also receive optional `ctx.userRequest`, the latest user
-message's text supplied separately from the messages being folded. Existing
+Summarizer callbacks also receive optional `ctx.userRequest`, the latest
+submitted request supplied separately from the prepared messages being folded
+(or recorded user content for legacy messages). Existing
 callbacks can ignore it. The default model summarizer includes that exact text
 as a labeled reference in every segment and merge request, including when the
 user message is pinned outside the folded history. It distinguishes the request

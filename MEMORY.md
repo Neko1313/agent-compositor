@@ -1,5 +1,51 @@
 # Project memory
 
+## Complete submitted requests remain distinct from prepared context — 2026-11-13
+
+7b63ba5 passed CI 43419817306 on both Node versions, docs 43419817470 and
+release preparation 43419817423. The preceding goal turn made concrete search/
+read/edit cooperation progress. Continued offline while explicit cloud transcript
+replay approval stays pending; no model endpoint, API key or budget guard used.
+
+Context investigation found a concrete authorization loss: latestUserTask cut
+user content at 2000 characters and used prepared file/template text as the task.
+Five negative regressions failed on the old core. User-role messages now retain
+optional host-only userRequest when preparation differs from the submitted text.
+Review task and delegated parentTask use the complete original text; default
+compaction supplies it as the separate request reference. Unmodified messages
+need no duplicate field. Legacy messages without an original fall back to full
+recorded content. This does not turn a delegated task into human authorization.
+
+Replay derives the original from submit/prepared records and snapshots retain
+the field. New host journal metadata correlates submit/prepared/steer records by
+turn ID without changing hook input schemas. A steer can be persisted before a
+slow submission hook finishes or during preparation; replay keeps that steering
+as its own user message and prepares the submitted message, preserving live order.
+Legacy uncorrelated steering remains supported. The core strips userRequest
+before model-stream service/provider dispatch, while host state retains it.
+All four bundled HTTP adapters also omit it when called directly; custom
+adapters used outside the core must do the same.
+
+The auto plugin's existing 24000-character serialized input bound remains. A
+large task is not clipped to manufacture a reviewable prefix: it returns manual
+review without an auxiliary request. No permissions were relaxed, refusals still
+bind, and no standing approvals or new review budget were introduced.
+
+Evidence: complete late CI restrictions, attached false authorization, template
+rewrites, delegated boundaries, JSON replay/resume, both asynchronous steering
+races, original-request compaction and four protocol wire fixtures. A real app/
+auto-plugin test with a deterministic provider and an actual file reference
+denies the late-forbidden CI effect without another human question. This is
+contract evidence, not a real-model quality evaluation. Full coverage passes
+1621 tests with three optional skips across 191 files; typecheck, gen, docs:gen
+and docs:check pass. The declared auto-approve matrix passes 40 tests. Updated
+canonical core/auto guides and the plugin's integration list; no manual version,
+catalog or changelog edits. UI controls, profiles and architecture ownership are
+unchanged. This does not yet fix static attachment budgeting/silent attachment
+clipping or oversized project-instruction handling. Stable 1.0, broad real-model
+self-development/quality, onboarding and OpenTUI remain incomplete; keep the full
+original goal active.
+
 ## Dense search previews hand off directly to guarded reads — 2026-11-13
 
 6d2901c passed CI 43416587987 on both Node versions, docs 43416587986 and

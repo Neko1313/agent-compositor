@@ -1,5 +1,45 @@
 # Project memory
 
+## PR10 merged; replace elapsed-time background test synchronization — 2026-11-13
+
+Generated PR10 b8d71b1 was reproduced from clean 53b22e3: all seven files match
+byte-for-byte (dist/release-next/generated-pr10-final-review.json). Matching
+Node 22/26 CI 43338294836 and documentation 43338298246 passed. Normal merge
+with --match-head-commit created 6a3fd53; no admin override or manual versions.
+Prepared auto-approve 1.4.1, workflows 1.6.1 and development catalog 1.0.11.
+The merged tree exactly matches b8d71b1. On that committed tree, release-stage
+Linux source certification passes all bindings for auto-approve, workflows, btw
+and plugin-author, including 24/21/24/21 live reference tasks respectively.
+All use the declared gemma4:31b-cloud task sets, repeats and thresholds. Reports
+are preserved in dist/release-0.8.0-pr10/source-certification. Billing is unavailable
+from Ollama; no OpenAI request/budget change or public tag occurred.
+
+Build-only candidate 43338568278 failed verification before native jobs: the
+background burst test expected the main model to have started after 200 ms but
+observed zero calls. Replaced fixed worker sleeps and that timer with a shared
+completion file: wait for actual main-stream entry, release both workers, wait
+for both delivered subscriptions, then release the main stream. Require one
+coalesced follow-up containing both shell IDs and at most one model stream.
+Finally always releases the held provider. An initial local fixture incorrectly
+queried status with invokeTool while busy, which correctly rejects that call;
+use the public independent invokeUserTool path instead. Its initial timeout is
+retained in release-next-background-burst-gated.log; corrected focused tests pass.
+Five independent focused burst repeats pass. The first full suite exposed an
+unrelated test watchdog mismatch: CLI negative tests allowed children 10/20
+seconds, but Vitest's default five seconds could end the test before child exit
+and cleanup assertions. Their outer test deadlines now allow 15/25 seconds;
+child watchdogs and ENOENT/preservation/cleanup assertions are unchanged. This
+sets test-runner bounds, not application limits. The corrected focused suite
+passes 15 tests and full coverage passes 1315 tests/three optional skips across
+161 files. Types and docs:check also pass. Evidence:
+dist/first-run/release-next-final-source-test-ci-green.log and
+release-next-final-watchdogs-focused.log; the initial full-suite failure remains
+in release-next-final-source-test-ci.log. No paid-model traffic was used.
+This changes test synchronization only; no public behavior/config/extension
+contract or operational limit changed, so canonical user guides need no new
+instructions. A fresh committed build-only run remains required; do not retry
+the known timer-based candidate as a substitute for fixing its synchronization.
+
 ## Reference certification and immediate-command cancellation seam — 2026-11-13
 
 On clean source 703f87d, full Linux release-stage certifications pass for

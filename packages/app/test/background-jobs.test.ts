@@ -36,12 +36,20 @@ it('lets the user converse during a background task and supports notification-on
 });
 it('queues completion after an active turn and coalesces a burst without concurrent model streams',async()=>{
  let release!:()=>void;const gate=new Promise<void>(r=>{release=r;});
- let active=0,maxActive=0,calls=0;
- const provider={async *complete(request:any){calls++;active++;maxActive=Math.max(maxActive,active);try{if(calls===1)await gate;yield{type:'text_delta' as const,text:'done'};yield{type:'finish' as const,reason:'stop' as const};}finally{active--;}}};
+ let active=0,maxActive=0,calls=0;const prompts:string[]=[];
+ const provider={async *complete(request:any){calls++;prompts.push(request.messages.filter((message:any)=>message.role==='user').at(-1)?.content??'');active++;maxActive=Math.max(maxActive,active);try{if(calls===1)await gate;yield{type:'text_delta' as const,text:'done'};yield{type:'finish' as const,reason:'stop' as const};}finally{active--;}}};
  const f=await setup('wake',provider as any);
- await launch(f.core,'sleep 0.1');await launch(f.core,'sleep 0.1');
- const running=f.core.submit('Continue talking');await new Promise(r=>setTimeout(r,200));expect(calls).toBe(1);
- release();await running;expect(calls).toBe(2);expect(maxActive).toBe(1);
+ const ids=[await launch(f.core,'while [ ! -f burst-completion ]; do sleep 0.01; done',30000),await launch(f.core,'while [ ! -f burst-completion ]; do sleep 0.01; done',30000)];
+ const running=f.core.submit('Continue talking');
+ try{
+  // Hold both workers until the foreground model has actually entered its stream.
+  await poll(async()=>calls===1);expect(prompts[0]).toBe('Continue talking');
+  await writeFile(join(f.cwd,'burst-completion'),'ready');
+  await poll(async()=>{const results=await Promise.all(ids.map(id=>f.core.invokeUserTool('background_jobs',{action:'status',id})));return results.every(result=>result.ok&&(result.output as any)?.done&&(result.output as any)?.subscription?.delivery==='delivered');});
+  expect(calls).toBe(1);expect(active).toBe(1);
+  release();await running;expect(calls).toBe(2);expect(maxActive).toBe(1);
+  for(const id of ids)expect(prompts[1]).toContain(id);
+ }finally{release();await running;}
 });
 it('handles completion before subscribe, ignores untrusted output in wake messages and honors unsubscribe',async()=>{
  const f=await setup('wake');await f.app.storage.configure('background-jobs.json',{autoSubscribe:false});

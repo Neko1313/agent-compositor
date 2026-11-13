@@ -122,6 +122,12 @@ with a concrete violation; clarified reviewer instructions fixed that diagnostic
 without changing its oracles. This result is scoped to the declared reference,
 not arbitrary models. Final-source identities, other platform/archive gates and
 publication remain separate. Ordinary clarification questions remain human decisions.
+After generated metadata preparation, source b8d71b1 (the identical tree merged
+as 6a3fd53) passes the full Linux source release-stage certification for
+auto-approve 1.4.1, workflows 1.6.1, btw 2.0.0 and plugin-author 1.4.0. Their live
+reference matrices pass 24/21/24/21 cases respectively, with unchanged oracles
+and three repetitions. This is one-reference source evidence; native archives,
+final source identity and broad development/model quality remain separate gates.
 The plain/headless source now also preserves independent controls in pasted input,
 queues Enter follow-ups, reserves Tab for steering, drains accepted commands on
 EOF, and consumes human dialog answers separately from model prompts. Command

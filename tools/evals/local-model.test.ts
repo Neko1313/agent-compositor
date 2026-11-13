@@ -21,15 +21,16 @@ it('blocks model/origin changes before transport and forbids redirect following'
  await send('http://127.0.0.1:12345/v1/chat/completions',{method:'POST',body:JSON.stringify({model:'local:only'}),redirect:'follow'});expect(transport.mock.calls[0][1]!.redirect).toBe('error');
  expect(()=>localCompletionFetch('http://model.example:12345','local')).toThrow('loopback');
 });
+// Each CLI child owns its own watchdog; the test must allow that watchdog and cleanup.
 it('refuses an existing output directory before running a case or altering evidence',async()=>{
  const {execFile}=await import('node:child_process'),{promisify}=await import('node:util'),{readFile,readdir}=await import('node:fs/promises');
  const output=await mkdtemp(join(tmpdir(),'cpu-existing-output-'));roots.push(output);await writeFile(join(output,'sentinel'),'preserve');
  await expect(promisify(execFile)(process.execPath,['--import','tsx','tools/evals/local-cpu.ts','--output',output,'--cache',join(output,'missing-cache')],{cwd:process.cwd(),timeout:10000})).rejects.toMatchObject({code:1});
  expect(await readFile(join(output,'sentinel'),'utf8')).toBe('preserve');expect(await readdir(output)).toEqual(['sentinel']);
-});
+},15000);
 it('retains setup failure and cleanup evidence when the pinned cache is unavailable',async()=>{
  const {execFile}=await import('node:child_process'),{promisify}=await import('node:util'),{readFile}=await import('node:fs/promises');
  const root=await mkdtemp(join(tmpdir(),'cpu-setup-failure-'));roots.push(root);const output=join(root,'fresh');
  await expect(promisify(execFile)(process.execPath,['--import','tsx','tools/evals/local-cpu.ts','--output',output,'--cache',join(root,'missing')],{cwd:process.cwd(),timeout:20000})).rejects.toMatchObject({code:1});
  expect(JSON.parse(await readFile(join(output,'report.json'),'utf8'))).toMatchObject({completed:false,results:[],error:expect.stringContaining('ENOENT')});expect(JSON.parse(await readFile(join(output,'cleanup.json'),'utf8'))).toEqual({serverStarted:false});
-});
+},25000);

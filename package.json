@@ -32,6 +32,7 @@
     "visual:opentui-windows": "node tools/visual/opentui-windows-check.mjs",
     "visual:opentui-inputs": "node tools/visual/opentui-inputs-check.mjs",
     "visual:check": "node tools/visual/check.mjs",
+    "visual:windows": "node tools/visual/window-controls-check.mjs",
     "eval": "bun tools/evals/run.ts",
     "eval:ollama": "bun tools/evals/run.ts --models gemma4:31b-cloud,deepseek-v4.1-flash:1017-cloud",
     "harness2:check": "python3 tools/evals/harness2_adapter.py --check",

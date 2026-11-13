@@ -16,7 +16,7 @@ is under `.impeccable/critique/`; it records provenance and all ten scores.
 
 | Segment | Principle and implementation |
 |---|---|
-| Windows/workspaces | Project each saved split into readable child rectangles (24 columns, 6 rows). Collapse toward content focus only when both children cannot fit. Ratios and trees stay unchanged, directional keys reach hidden panes, and widening restores geometry. Composer focus preserves fullscreen. |
+| Windows/workspaces | Project each saved split into readable child rectangles (24 columns, 6 rows). Collapse toward content focus only when both children cannot fit. Ratios and trees stay unchanged, directional keys reach hidden panes, and widening restores geometry. Composer focus preserves fullscreen. The shipping Arrange mode exposes the key map beside the selected window; the Windows finder identifies open/closed views and workspaces, and restores the existing conversation identity. |
 | Transcript/Markdown/tools | Keep the verified message hierarchy, Markdown and compact tool states. Prefer whole-word wrapping even when the previous word occupies less than half a row. Keep literal command/input characters distinct from rendered assistant Markdown. |
 | Composer/slash/status | Name an approval or question explicitly. Show waiting status and interaction-specific shortcuts. Keep the hint row when context details do not fit. Toolbar hitboxes only exist for visible complete labels; wrapped workspace tabs retain mouse access. |
 | History | Keep local search/preview/resume and current/archive markers. Call an empty current session New chat. Pin the search-field label; scroll long values inside its remaining width, rather than dropping the label or placeholder beginning. |

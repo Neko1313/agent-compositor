@@ -111,7 +111,9 @@ describe("workspace bar", () => {
     key("t", ["meta"]); const second = ui.windows.ids();
     click(1); expect(ui.windows.workspace).toBe(1); expect(ui.windows.ids()).toEqual(["session", "tools"]);
     click(3); expect(ui.windows.workspace).toBe(1); // space between labels
-    click(25); expect(ui.windows.workspace).toBe(1);
+    const bar=messages.filter(m=>m.type==='render'&&m.surface==='status').at(-1);
+    const status=bar?.type==='render'?bar.grid?.[0].map(cell=>cell.ch).join('')??'':'';
+    click(status.indexOf('Ready')); expect(ui.windows.workspace).toBe(1);
     click(5); expect(ui.windows.ids()).toEqual(second);
     key("1", ["meta"]); expect(ui.windows.workspace).toBe(1);
     ui.close();

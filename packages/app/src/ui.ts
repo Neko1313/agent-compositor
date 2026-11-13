@@ -14,6 +14,7 @@ import {
   type Placement,
 } from "./placement.js";
 import { WindowManager, type ResizeHandle, type DropEdge } from "./windows.js";
+import { windowControl } from "./window-controls.js";
 import {
   hello,
   answerHello,
@@ -157,7 +158,10 @@ export class AppUI {
   private reloading = false;
   private inputTitle = "Message";
   private statusNavigationRows = 1;
-  private statusActionsVisible = true;
+  private statusButtons: {label: string; command: string; start: number; end: number}[] = [];
+  private windowMode = false;
+  private windowPicker?: {query: string; selected?: string; offset: number; previous: {workspace: number; focus: string; fullscreen: boolean}};
+  private pickerHits = new Map<number, string>();
   private approval?: {
     dialog: ControllerDialog<Parameters<NonNullable<AgentCoreOptions["onApproval"]>>[0]>;
     resolve: (
@@ -313,6 +317,11 @@ export class AppUI {
   /** Host management does not enter the model prompt queue or borrow its tool turn. */
   private managementCommand(text:string):boolean {
     const command=text.trim().split(/\s+/)[0];
+    if(command==='/windows'){
+      if(text.trim()===command)this.openWindowPicker();
+      else {this.transcript.push({kind:'notice',text:'Usage: /windows'});this.draw();}
+      return true;
+    }
     if(command==='/reload'&&this.reload){
       this.pendingReload=true;
       if(this.core.getState()==='running')this.transcript.push({kind:'notice',text:'Plugin changes queued. They will apply when the agent and queued prompts finish.'});
@@ -356,6 +365,156 @@ export class AppUI {
     if(workspace!==undefined)this.windows.switchTo(workspace);
     if(!this.windows.has(id))this.windows.open(id);
     this.windows.focused=id;this.selectMainConversation();this.draw();
+  }
+  private openWindowPicker():void {
+    if(this.form||this.panel)return;
+    this.cancelDrag();this.editorCapture=undefined;
+    const previous=this.windowPicker?.previous??{workspace:this.windows.workspace,focus:this.windows.focused,fullscreen:this.windows.fullscreen};
+    this.windowPicker={query:'',selected:this.windows.focused,offset:0,previous};
+    this.draw();
+  }
+  private closeWindowPicker():void {
+    const previous=this.windowPicker?.previous;
+    this.windowPicker=undefined;
+    if(previous){
+      if(this.windows.workspace!==previous.workspace)this.windows.switchTo(previous.workspace);
+      if(previous.focus==='input'||this.windows.ids().includes(previous.focus))this.windows.focused=previous.focus;
+      this.windows.fullscreen=previous.fullscreen&&this.windows.ids().length>0;
+    }
+  }
+  private windowEntries() {
+    const entries=new Map([...this.panes].map(([id,pane])=>[id,{id,title:pane.title,kind:pane.kind,command:undefined as string|undefined}]));
+    for(const command of this.commandList())if(command.ui){
+      const entry=entries.get(command.ui.site);
+      if(entry)entry.command??=command.name;
+      else entries.set(command.ui.site,{id:command.ui.site,title:command.name,kind:'plugin',command:command.name});
+    }
+    const query=this.windowPicker?.query.toLocaleLowerCase()??'';
+    return [...entries.values()].map(entry=>({...entry,workspace:this.windows.workspaceOf(entry.id)}))
+      .filter(entry=>(entry.title+' '+entry.kind+' '+(entry.command??'')).toLocaleLowerCase().includes(query))
+      .sort((a,b)=>Number(b.workspace===this.windows.workspace)-Number(a.workspace===this.windows.workspace)
+        ||Number(a.workspace===undefined)-Number(b.workspace===undefined)
+        ||(a.workspace??0)-(b.workspace??0));
+  }
+  private windowPickerRows(width:number,height:number):Row[] {
+    const picker=this.windowPicker!;
+    const entries=this.windowEntries();
+    const index=Math.max(0,entries.findIndex(entry=>entry.id===picker.selected));
+    const room=Math.max(1,height-4);
+    picker.offset=Math.max(0,Math.min(picker.offset,index,Math.max(0,entries.length-room)));
+    if(index>=picker.offset+room)picker.offset=index-room+1;
+    const query=Array.from(picker.query).slice(-Math.max(1,width-8)).join('');
+    const rows:Row[]=[{text:'Find: '+query+'▏',tone:'accent'},
+      {text:entries.length+' windows · Enter opens · Esc returns',tone:'muted'},{text:''}];
+    this.pickerHits.clear();
+    for(const [offset,entry]of entries.slice(picker.offset,picker.offset+room).entries()){
+      const selected=picker.offset+offset===index;
+      const place=entry.workspace===undefined?'Closed':'WS '+entry.workspace;
+      const suffix='  '+place;
+      const title=Array.from(clean(entry.title));
+      const available=Math.max(1,width-suffix.length-2);
+      const shown=title.length>available?title.slice(0,Math.max(0,available-1)).join('')+'…':title.join('');
+      this.pickerHits.set(rows.length,entry.id);
+      rows.push({text:(selected?'› ':'  ')+shown+suffix,tone:selected?'accent':'text',selected,bold:selected});
+    }
+    if(!entries.length)rows.push({text:'No matching windows. Backspace changes the search.',tone:'muted'});
+    else if(entries.length>room)rows.push({text:`${picker.offset+1}-${Math.min(entries.length,picker.offset+room)}/${entries.length} · ↑↓ or PgUp/PgDn`,tone:'muted'});
+    return rows;
+  }
+  private openWindow(id:string):void {
+    const entry=this.windowEntries().find(entry=>entry.id===id);
+    if(!entry)return;
+    this.windowPicker=undefined;this.windowMode=false;
+    if(entry.workspace===undefined&&entry.command){this.managementCommand(entry.command);this.draw();return;}
+    if(!this.panes.has(id))return;
+    this.closedPluginWindows.delete(id);
+    if(entry.workspace!==undefined&&entry.workspace!==this.windows.workspace)this.windows.switchTo(entry.workspace);
+    this.windows.open(id);
+    if(entry.kind==='session')this.selectMainConversation();
+    this.draw();
+  }
+  /** Local window navigation never reaches an editor, model prompt or decision controller. */
+  private routeWindowInput(data:Extract<WireMessage,{type:'input'}>['data']):boolean {
+    const meta=data.kind==='key'&&data.modifiers?.includes('meta')&&!data.modifiers.some(m=>!['meta','shift'].includes(m));
+    const nativeInput=!this.form&&!this.panel&&this.editor?.isDefault!==false
+      &&this.approval?.dialog.lease.isDefault!==false&&this.question?.dialog.lease.isDefault!==false;
+    const pickerKey=data.kind==='key'&&data.key==='f2'&&!data.modifiers?.length
+      &&(nativeInput||this.windowMode||this.windowPicker!==undefined);
+    if(pickerKey||(meta&&(data.key.toLowerCase()==='w'||data.key==='tab'))){
+      if(this.form||this.panel)return true;
+      if(pickerKey||data.key==='tab')this.openWindowPicker();
+      else {
+        this.cancelDrag();this.editorCapture=undefined;this.windowPicker=undefined;
+        this.windowMode=!this.windowMode;
+        if(this.windowMode)this.windows.focusContent();
+        else this.windows.focused='input';
+        this.draw();
+      }
+      return true;
+    }
+    const picker=this.windowPicker;
+    if(picker){
+      const entries=this.windowEntries();
+      if(data.kind==='mouse'){
+        if(data.button==='wheel-up'||data.button==='wheel-down'){
+          const index=Math.max(0,entries.findIndex(entry=>entry.id===picker.selected));
+          picker.selected=entries[Math.max(0,Math.min(entries.length-1,index+(data.button==='wheel-up'?-3:3)))]?.id;
+          this.draw();
+        }else if(data.action==='press'&&data.button==='left'&&data.col>=2&&data.col<this.columns-2){
+          const id=this.pickerHits.get(data.row-2);
+          if(id)this.openWindow(id);
+        }
+        this.updatePointer();
+        return true;
+      }
+      if(data.kind==='key'){
+        if(data.key==='escape'||(data.key==='c'&&data.modifiers?.includes('ctrl'))){this.closeWindowPicker();this.draw();return true;}
+        if(data.key==='u'&&data.modifiers?.includes('ctrl')){picker.query='';picker.selected=undefined;picker.offset=0;this.draw();return true;}
+        if(data.modifiers?.some(m=>m!=='shift'))return true;
+        const index=Math.max(0,entries.findIndex(entry=>entry.id===picker.selected));
+        if(['up','down','tab','pageup','pagedown'].includes(data.key)){
+          const delta=data.key==='up'||(data.key==='tab'&&data.modifiers?.includes('shift'))?-1:data.key==='pageup'?-5:data.key==='pagedown'?5:1;
+          picker.selected=entries[Math.max(0,Math.min(entries.length-1,index+delta))]?.id;
+        } else if(data.key==='enter'){
+          if(entries[index])this.openWindow(entries[index].id);
+          return true;
+        } else if(data.key==='backspace'){
+          picker.query=picker.query.slice(0,previousDraftBoundary(picker.query,picker.query.length));picker.selected=undefined;picker.offset=0;
+        }
+      } else if(data.kind==='text'){
+        const text=clean(data.text).replace(/[\r\n\t]/g,'');
+        picker.query=Array.from(picker.query+text).slice(0,128).join('');picker.selected=undefined;picker.offset=0;
+      }
+      this.draw();return true;
+    }
+    if(!this.windowMode)return false;
+    if(meta&&data.key.toLowerCase()==='i'){
+      this.windowMode=false;this.windows.focused='input';this.draw();return true;
+    }
+    if(data.kind==='mouse'){
+      // Content clicks keep normal spatial focus; the composer explicitly leaves the mode.
+      if(data.action==='press'&&data.button==='left'&&data.row>=this.rows-this.dockHeight()&&data.row<this.rows-2){
+        this.windowMode=false;this.windows.focused='input';this.draw();return true;
+      }
+      return false;
+    }
+    if(data.kind==='key'&&data.key==='c'&&data.modifiers?.includes('ctrl')){
+      this.windowMode=false;this.draw();return true;
+    }
+    const command=windowControl(data);
+    if(command)switch(command.type){
+      case 'focus':case 'move':this.windows.direction(command.direction,this.columns,this.rows-this.dockHeight(),command.type==='move');break;
+      case 'resize':this.windows.resize(command.delta);break;
+      case 'axis':this.windows.setSplitAxis(command.axis);break;
+      case 'cycle':this.windows.cycle(command.reverse);break;
+      case 'workspace':this.windows.switchTo(command.id);break;
+      case 'moveWorkspace':this.windows.moveWorkspace(command.id);break;
+      case 'zoom':if(this.windows.ids().length)this.windows.fullscreen=!this.windows.fullscreen;break;
+      case 'close':this.closeFocusedPane();break;
+      case 'picker':this.openWindowPicker();break;
+      case 'exit':this.windowMode=false;if(command.input)this.windows.focused='input';break;
+    }
+    this.draw();return true;
   }
   private selectMainConversation():void {
     this.activeAgentPane=undefined;
@@ -418,6 +577,7 @@ export class AppUI {
     this.formUnsubscribe = this.core.host.setFormHandler((_plugin, request: UiForm, signal) => {
       if (this.closed || signal.aborted) return Promise.resolve(null);
       if (this.form) return Promise.reject(new Error('Close the current form first'));
+      this.windowMode=false;this.windowPicker=undefined;
       return new Promise(resolve => {
         const native = new FormDialog(request);
         const dialog = new ControllerDialog(this.core.host.controllers.create("form",request,()=>({
@@ -778,31 +938,29 @@ export class AppUI {
     }
     if (!this.ready || message.type !== "input") return;
     const data = message.data;
+    if (data.kind === "mouse") this.lastMouse = data;
+    if (data.kind === "key" && this.drag) {
+      this.cancelDrag();
+      if (data.key === "escape") {this.draw();return;}
+    }
+    if(this.routeWindowInput(data))return;
     if(data.kind==='key'&&data.key==='c'&&data.modifiers?.includes('ctrl')&&this.windows.focused!=='input'){
       const owner=this.pluginWindows.get(this.windows.focused)?.plugin;
       if(owner&&this.core.cancelOperations(owner)){this.draw();return;}
     }
-    if (data.kind === "mouse") this.lastMouse = data;
     if(!this.controllerBypass && this.routeEditorInput(data))return;
-    if (data.kind === "key" && this.drag) {
-      this.cancelDrag();
-      if (data.key === "escape") {
-        this.draw();
-        return;
-      }
-    }
-    if (data.kind === 'mouse' && this.compactInteraction() && data.row >= this.rows-this.dockHeight()+2 && data.row < this.rows-2 && data.col >= 2 && data.col < this.columns-2) {
+    if (!this.windowMode && data.kind === 'mouse' && this.compactInteraction() && data.row >= this.rows-this.dockHeight()+2 && data.row < this.rows-2 && data.col >= 2 && data.col < this.columns-2) {
       // Expanding the dock must not also choose an answer or approve a tool.
       if(data.button==='left' && data.action==='press') {this.windows.focused='input';this.draw();}
       return;
     }
-    if (this.approval && data.kind==='mouse') {
+    if (!this.windowMode && this.approval && data.kind==='mouse') {
       const start=this.rows-this.dockHeight()+2;
       if(data.row>=start&&data.row<this.rows-2&&data.col>=2&&data.col<this.columns-2){
         this.windows.focused='input';this.handleApproval({...data,row:data.row-start,col:data.col-2});return;
       }
     }
-    if (this.question && !this.approval && data.kind === "mouse") {
+    if (!this.windowMode && this.question && !this.approval && data.kind === "mouse") {
       const start = this.rows - this.dockHeight() + 2;
       if (data.row >= start && data.row < this.rows - 2 && data.col >= 2 && data.col < this.columns - 2){
         this.windows.focused='input';this.handleQuestion({ ...data, row: data.row - start, col: data.col - 2 });return;
@@ -812,7 +970,7 @@ export class AppUI {
       data.kind === "mouse" &&
       (data.action === "move" || data.action === "release")
     ) {
-      if (this.drag && !this.approval && !this.panel) this.continueDrag(data);
+      if (this.drag && (!this.approval||this.windowMode) && !this.panel) this.continueDrag(data);
       else {
         const previous = this.hoveredTitle;
         this.updatePointer();
@@ -850,14 +1008,10 @@ export class AppUI {
           (tab) =>
             data.col < wrap && position >= tab.start && position < tab.end
         );
-        const buttonStart = (this.workspaceTabs().at(-1)?.end ?? 0) + 3;
-        if (this.statusActionsVisible && buttonStart+21<=wrap && position >= buttonStart + 11 && position < buttonStart + 21) {
-          this.managementCommand('/settings');
-          return;
-        }
-        if (this.statusActionsVisible && buttonStart+9<=wrap && position >= buttonStart && position < buttonStart + 9) {
-          this.managementCommand('/plugins');
-          this.draw();
+        const button=this.statusButtons.find(button=>position>=button.start&&position<button.end);
+        if(button){
+          if(button.command==='arrange')this.routeWindowInput({kind:'key',key:'w',modifiers:['meta']});
+          else this.managementCommand(button.command);
           return;
         }
         if (tab) {
@@ -916,7 +1070,7 @@ export class AppUI {
         this.windows.focused = hit.surface;
         const action = actionAt(this.hitRows.get(hit.surface)?.[data.row - hit.y - 2],data.col-hit.x-2);
         if (
-          action &&
+          action && !this.windowMode &&
           data.col >= hit.x + 2 &&
           data.col < hit.x + hit.width - 2 &&
           data.action !== "release"
@@ -1482,7 +1636,10 @@ export class AppUI {
     const mouse = this.lastMouse;
     this.hoveredTitle = undefined;
     let shape: Extract<WireMessage, { type: "pointer" }>["shape"] = "default";
-    if(mouse&&this.compactInteraction()&&mouse.row>=this.rows-this.dockHeight()+2&&mouse.row<this.rows-2){
+    if(mouse&&this.windowPicker){
+      if(mouse.col>=2&&mouse.col<this.columns-2)
+        shape=this.pickerHits.has(mouse.row-2)?'pointer':mouse.row===2?'text':'default';
+    }else if(mouse&&this.compactInteraction()&&mouse.row>=this.rows-this.dockHeight()+2&&mouse.row<this.rows-2){
       shape=mouse.col>=2&&mouse.col<this.columns-2?'pointer':'default';
     } else if(mouse&&this.approval&&mouse.row>=this.rows-this.dockHeight()+2&&mouse.row<this.rows-2){
       const row=mouse.row-(this.rows-this.dockHeight()+2);
@@ -1513,15 +1670,13 @@ export class AppUI {
           dock = this.dockHeight();
         const wrap = this.columns - 2,
           position = (row - (this.rows - 2)) * wrap + col;
-        const buttonStart = (this.workspaceTabs().at(-1)?.end ?? 0) + 3;
         if (
           row >= this.rows - 2 && row < this.rows - 2 + this.statusNavigationRows &&
           col < wrap &&
           (this.workspaceTabs().some(
             (tab) => position >= tab.start && position < tab.end
           ) ||
-            (this.statusActionsVisible && buttonStart+9<=wrap && position >= buttonStart && position < buttonStart + 9) ||
-            (this.statusActionsVisible && buttonStart+21<=wrap && position >= buttonStart + 11 && position < buttonStart + 21))
+            this.statusButtons.some(button=>position>=button.start&&position<button.end))
         )
           shape = "pointer";
         else if (
@@ -1666,6 +1821,7 @@ export class AppUI {
     return "Drag to an edge to split, center to swap, or workspace number to move";
   }
   private openPanel(): void {
+    this.windowMode=false;this.windowPicker=undefined;
     this.closePanel();
     this.panel = new PluginPanel(
       () =>
@@ -1752,6 +1908,7 @@ export class AppUI {
     if (
       (this.editor && !this.editor.isDefault) ||
       this.panel ||
+      this.windowMode || this.windowPicker ||
       this.completionDismissed ||
       this.approval ||
       this.question ||
@@ -1764,10 +1921,11 @@ export class AppUI {
     }));
     if (!/^\/[^\s]*$/.test(this.draft)) return [];
     return [
-      ...this.commandList().filter((command) => !['/plugins','/chat'].includes(command.name)),
+      ...this.commandList().filter((command) => !['/plugins','/chat','/windows'].includes(command.name)),
       { name: "/plugins", description: "Install, enable and update plugins" },
       { name: "/placement", description: "Arrange plugin windows" },
       { name: "/chat", description: "Return to the main conversation" },
+      { name: "/windows", description: "Find, focus or reopen a window" },
     ].filter((command) => command.name.startsWith(this.draft));
   }
   private visibleCompletions() {
@@ -1788,9 +1946,10 @@ export class AppUI {
   private composerRows(): number { return this.composer()?.[1].view.attachment?.rows ?? 4; }
   private composerWidth(): number {
     const view=this.composer()?.[1].view;
-    return (!this.editor || this.editor.isDefault)&&view&&(view.lines.length>0||!!view.raster)&&(!view.raster||this.nativeRaster)&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
+    return !this.windowMode&&!this.windowPicker&&(!this.editor || this.editor.isDefault)&&view&&(view.lines.length>0||!!view.raster)&&(!view.raster||this.nativeRaster)&&!this.approval&&!this.question&&!this.form&&!this.visibleCompletions().length&&this.columns>=60&&this.rows>=24 ? view.attachment!.width+2 : 0;
   }
   private dockHeight():number {
+    if(this.windowMode)return Math.min(this.rows-4,9);
     if(this.compactInteraction())return 6;
     if(!this.approval && !this.question && this.editor && !this.editor.isDefault) {
       try{return Math.min(this.rows-4,Math.max(6,this.editor.preferredRows(this.columns-4,this.rows-9)+5));}
@@ -1987,7 +2146,8 @@ export class AppUI {
     const dock = this.dockHeight();
     const formActive = this.form;
     const panelActive = !formActive && this.panel;
-    const frames = formActive ? [{surface:"settings-form",x:0,y:0,width:this.columns,height:this.rows-dock}] : panelActive
+    const frames = this.windowPicker ? [{surface:'window-switcher',x:0,y:0,width:this.columns,height:this.rows-dock}]
+      : formActive ? [{surface:"settings-form",x:0,y:0,width:this.columns,height:this.rows-dock}] : panelActive
       ? [
           {
             surface: "plugin-placement",
@@ -2015,13 +2175,15 @@ export class AppUI {
         height: 2,
       },
     ];
-    const chrome = { ...this.theme.chrome, ...this.theme.colors };
+    const chrome = { ...this.theme.chrome, ...this.theme.colors,
+      ...(this.windowMode?{controls:'always' as const}:{}) };
     this.sink?.({
       type: "declare",
       surfaces: [...[...this.panes].map(([id, pane]) => ({id,kind:'pane' as const,title:pane.title})),
         {id:'input',kind:'pane' as const,title:this.approval?'Approval required':this.question?(this.question.dialog.request.questions?'Questionnaire':'Your answer'):`${this.inputTitle}${this.composer()?" · "+clean(this.composer()![1].view.attachment!.label)+(this.composer()![1].view.raster&&!this.nativeRaster?" · images unavailable":""):""}`}],
     });
     if (formActive) this.sink?.({ type: 'declare', surfaces: [{ id: 'settings-form', kind: 'pane', title: this.form!.dialog.request.title }] });
+    if(this.windowPicker)this.sink?.({type:'declare',surfaces:[{id:'window-switcher',kind:'pane',title:'Windows'}]});
     if (panelActive)
       this.sink?.({
         type: "declare",
@@ -2050,7 +2212,7 @@ export class AppUI {
       });
     this.sink?.({
       type: "focus",
-      surface: formActive && !(this.windows.focused==='input'&&(this.approval||this.question)) ? "settings-form" : panelActive ? "plugin-placement" : this.windows.focused,
+      surface: this.windowPicker?'window-switcher':formActive && !(this.windows.focused==='input'&&(this.approval||this.question)) ? "settings-form" : panelActive ? "plugin-placement" : this.windows.focused,
     });
     for(const [id,contribution] of this.composerViews){
       const selected=this.composer()?.[0]===id;
@@ -2075,6 +2237,11 @@ export class AppUI {
     for (const frame of frames) {
       const width = Math.max(1, frame.width - 4),
         height = Math.max(1, frame.height - 3);
+      if(frame.surface==='window-switcher'){
+        this.sink?.({type:'render',surface:frame.surface,mode:'full',flush:true,
+          grid:gridFrom(this.windowPickerRows(width,height),this.theme,width,true)});
+        continue;
+      }
       if (frame.surface === 'settings-form' && this.form) {
         this.sink?.({type:'render',surface:'settings-form',mode:'full',flush:true,grid:gridFrom(this.form.dialog.visible(width,height),this.theme,width,true)});
         continue;
@@ -2195,6 +2362,22 @@ export class AppUI {
     else if (this.question)
       inputRows = this.question.dialog.visible(inputWidth, dock - 5);
     if(this.compactInteraction()) inputRows=[{text:this.approval?'Approval needed · Alt+i to review':'Answer needed · Alt+i to answer',tone:'warning'}];
+    if(this.windowMode)inputRows=this.columns<40?[
+      {text:'WINDOW MODE',tone:'accent',bold:true},
+      {text:'i type · Esc',tone:'text'},
+      {text:'w windows',tone:'text'},
+      {text:'hjkl focus',tone:'muted'},
+    ]:this.columns<70?[
+      {text:'WINDOW MODE · WS '+this.windows.workspace,tone:'accent',bold:true},
+      {text:'hjkl focus · Shift move · +/- size',tone:'text'},
+      {text:'b/v split · 1-9 WS · f full · q close',tone:'text'},
+      {text:'i type · w windows · Esc leave',tone:'muted'},
+    ]:[
+      {text:'WINDOW MODE · WS '+this.windows.workspace+' · '+clean(this.panes.get(this.windows.focused)?.title??'Empty workspace'),tone:'accent',bold:true},
+      {text:'h/j/k/l focus · Shift move · b/v split · +/- resize',tone:'text'},
+      {text:'1-9 workspace · Shift+1-9 move · f fullscreen · q close',tone:'text'},
+      {text:this.approval?'Approval remains pending · i to review':this.question?'Answer remains pending · i to answer':'w windows · Tab next · i type · Esc leave',tone:this.approval||this.question?'warning':'muted'},
+    ];
     if (formActive && !this.approval && !this.question) inputRows = [{text:"Settings form active · Esc cancels without saving",tone:"muted"}];
     if(attachmentWidth){
       const art=this.composer()![1].view;
@@ -2213,14 +2396,25 @@ export class AppUI {
     const waiting=this.approval?'Approval needed':this.question?'Answer needed':formActive?'Settings form':this.status;
     const protectedInput=!!(this.approval||this.question||formActive);
     const tabs=this.workspaceTabs().map(tab=>tab.label).join(' ');
-    const showControls=!formActive&&!panelActive&&tabs.length+3+23+waiting.length<=barWidth;
-    let bar=`${tabs} | ${showControls?'[Plugins]  [Settings]  ':''}${waiting}${this.pendingReload?' · plugins pending':''}`;
+    this.statusButtons=[];
+    let bar=tabs+' | ';
+    if(!formActive&&!panelActive)for(const [label,command]of [
+      ['[Windows]','/windows'],[this.windowMode?'[Typing]':'[Arrange]','arrange'],['[Plugins]','/plugins'],['[Settings]','/settings'],
+    ]){
+      if(bar.length+label.length+1+waiting.length>barWidth)continue;
+      this.statusButtons.push({label,command,start:bar.length,end:bar.length+label.length});
+      bar+=label+' ';
+    }
+    bar+=waiting+(this.pendingReload?' · plugins pending':'');
     const operations=this.core.getOperations();
     if(operations.length&&bar.length+12<=barWidth)bar+=` · ${operations.length} UI tools`;
     const hidden=Math.max(0,this.windows.ids().length-frames.filter(f=>this.windows.ids().includes(f.surface)).length);
-    for(const part of [this.contextIndicator,this.windows.fullscreen?' · FULLSCREEN':'',!protectedInput&&hidden?` · ${hidden} hidden`:''])if(bar.length+part.length<=barWidth)bar+=part;
+    for(const part of [this.windows.fullscreen?' · FULLSCREEN':'',!protectedInput&&hidden?` · ${hidden} hidden`:'',this.contextIndicator,
+      !protectedInput?' · '+clean(this.panes.get(this.windows.focused)?.title??(this.windows.focused==='input'?'Message':'')):''])if(bar.length+part.length<=barWidth)bar+=part;
     const pane=this.panes.get(this.windows.focused),narrow=this.columns<70;
-    const hint=operations.some(op=>op.owner===this.pluginWindows.get(this.windows.focused)?.plugin)?'Ctrl+C cancel tool · Alt+i return to agent'
+    const hint=this.windowPicker?'Windows · type to filter · Enter opens · Esc returns'
+      :this.windowMode?(narrow?'Esc leave · i type · w windows':'WINDOW · Esc leave · i type · w windows · h/j/k/l focus · Shift move · b/v split · +/- resize')
+      :operations.some(op=>op.owner===this.pluginWindows.get(this.windows.focused)?.plugin)?'Ctrl+C cancel tool · Alt+i return to agent'
       :this.windows.focused==='input'&&this.approval?this.approval.dialog.hint??(narrow?'Y once · N deny · PgDn details':'↑↓ scopes · Enter select · PgUp/PgDn details · Esc deny')
       :this.windows.focused==='input'&&this.question?this.question.dialog.hint??(this.question.dialog.review?'↑↓ edit · Enter select/submit · Esc cancel':narrow?'↑↓ choose · Space toggle · Tab · Enter next · Esc cancel':'↑↓ choose · Space toggle · Tab fields · Enter next · Esc cancel')
       :formActive?this.form?.dialog.hint??'Tab / Shift+Tab fields · Enter next · Esc cancel'
@@ -2230,9 +2424,8 @@ export class AppUI {
       :pane?.kind==='plugin'?narrow?'↑↓ actions · Enter · PgDn scroll · Esc leave':'↑↓ actions · Enter activate · PgUp/PgDn scroll · Esc leave'
       :!frames.some(frame=>this.panes.get(frame.surface)?.kind==='session')?'Alt+Enter or /chat: restore conversation'
       :this.status.startsWith('Working')?'Ctrl+C stop · Tab steer · Enter queue'
-      :narrow?'/ commands · Ctrl+J newline':'/ commands · Ctrl+J newline · Alt+t tools · Alt+? shortcuts');
+      :narrow?'F2 windows · Alt+w arrange':'F2 windows · Alt+w arrange · / commands · Ctrl+J newline');
     this.statusNavigationRows=tabs.length>barWidth?2:1;
-    this.statusActionsVisible=showControls&&this.statusNavigationRows===1;
     const barRows:Row[]=this.statusNavigationRows===2?[{text:tabs.slice(0,barWidth),tone:'accent'},{text:tabs.slice(barWidth,barWidth*2),tone:'accent'}]:[{text:bar.slice(0,barWidth),tone:'accent'}];
     if(this.statusNavigationRows===1&&this.theme.presentation.hints)barRows.push({text:hint,tone:'muted'});
     this.paint('status','status',barRows,barWidth,2,{status:waiting,workspace:this.windows.workspace});
@@ -2273,6 +2466,11 @@ export class AppUI {
 }
 
 const HELP = `WINDOW CONTROLS
+Alt+w: enter window mode (bare keys arrange, i types, Esc leaves)
+F2 or /windows: find, focus or reopen windows across workspaces
+Window mode: h/j/k/l focus · Shift move · Tab cycle
+Window mode: b/v split columns/rows · +/- resize · f fullscreen · q close
+Window mode: 1..9 workspace · Shift+1..9 move · w windows
 Alt+h/j/k/l or Alt+arrows: directional focus
 Alt+Shift+direction: move window
 Alt+b: next split side by side

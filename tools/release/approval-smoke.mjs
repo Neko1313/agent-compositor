@@ -23,7 +23,7 @@ export async function smokeApprovals(binary,output){
     current.reviews++;
     const payload=JSON.parse(body.messages.find(message=>message.role==='user').content);
     assert.equal(payload.context.task,current.task);assert.equal(payload.tool,'write');
-    assert.equal(payload.input.path,'result.txt');assert.equal(payload.input.content,'APPROVED_WRITE\n');
+    assert.equal(payload.input.path,join(current.cwd,'result.txt'));assert.equal(payload.input.content,'APPROVED_WRITE\n');
     res.end(frame({content:JSON.stringify({approved:current.approved,risk:current.approved?'medium':'high',reason:current.approved?'Bounded write requested by the user':'Controlled reviewer refusal'})})+'data: [DONE]\n\n');return;
    }
    current.mainCalls++;
@@ -38,7 +38,7 @@ export async function smokeApprovals(binary,output){
   for(const [name,approved,rule] of [['allow',true,'ask'],['refuse',false,'ask'],['host-deny',true,'deny']]){
    const cwd=join(root,name),home=join(root,name+'-home');await mkdir(cwd);await mkdir(home);
    const task='Write result.txt with exactly APPROVED_WRITE followed by a newline. Preserve user-draft.txt.';
-   current={name,approved,task,requests:0,reviews:0,mainCalls:0};cases.push(current);
+   current={name,approved,task,cwd,requests:0,reviews:0,mainCalls:0};cases.push(current);
    await writeFile(join(cwd,'result.txt'),'ORIGINAL\n');await writeFile(join(cwd,'user-draft.txt'),'USER_DRAFT\n');
    await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['auto-approve'],agent:{tools:['write'],builtinTools:['write'],controlTools:[],skills:false,projectContext:false,fileReferences:false,verifyCompletion:false},compaction:{enabled:false},permissions:{rules:[{tool:'write',decision:rule}]}}));
    const env={HOME:home,USERPROFILE:home,AGENT_HOME:join(home,'.agent-compositor'),AGENT_STORAGE_MODE:'project',XDG_CONFIG_HOME:join(home,'.config'),TMPDIR:root,TMP:root,TEMP:root,AGENT_BASE_URL:`http://127.0.0.1:${server.address().port}/v1`,AGENT_MODEL:'approval-probe',AGENT_API_KEY:''};

@@ -17,6 +17,7 @@ import { smokeQueries } from './query-smoke.mjs';
 import { smokeBackgroundTask } from './background-smoke.mjs';
 import { smokeApprovals } from './approval-smoke.mjs';
 import { smokePlainControls } from './plain-controls-smoke.mjs';
+import { readModelResult } from './model-read.mjs';
 const exec = promisify(execFile);
 // Permission rules and guarded edit anchors use canonical paths. macOS aliases
 // /var to /private/var, so fixture allow rules must use the same physical path.
@@ -73,7 +74,7 @@ async function serve(req, res) {
     }
     if(request.messages.filter(m=>m.role==='user').at(-1)?.content.startsWith('MULTIPROJECT_READ')){
       const last=request.messages.at(-1);
-      if(last?.role==='tool')res.end(frame({content:JSON.parse(last.content).content==='INSTALLED_MULTI_PROJECT_EVIDENCE'?'MULTIPROJECT_READ_OK':'MULTIPROJECT_READ_FAILED'},'stop')+'data: [DONE]\n\n');
+      if(last?.role==='tool')res.end(frame({content:readModelResult(last.content).content==='INSTALLED_MULTI_PROJECT_EVIDENCE'?'MULTIPROJECT_READ_OK':'MULTIPROJECT_READ_FAILED'},'stop')+'data: [DONE]\n\n');
       else res.end(frame({tool_calls:[{index:0,id:'workspace-read-'+request.messages.length,type:'function',function:{name:'read',arguments:JSON.stringify({path:'~/external projects/evidence.txt'})}}]},'tool_calls')+'data: [DONE]\n\n');
     } else if(request.messages.some(m=>m.role==='user'&&m.content.startsWith('WORKFLOW_WORKER_CHECK'))){
       res.end(frame({content:'WORKFLOW_WORKER_OK'},'stop')+'data: [DONE]\n\n');
@@ -85,7 +86,7 @@ async function serve(req, res) {
     } else if(request.messages.some(m=>m.role==='user'&&m.content==='CALLIX_SYMBOL_EDIT_CHECK')){
       const tool=request.messages.filter(m=>m.role==='tool').at(-1);
       if(!tool)res.end(frame({tool_calls:[{index:0,id:'symbol-read',type:'function',function:{name:'code_query',arguments:JSON.stringify({action:'read_symbol',pattern:'leaf',path:'leaf.ts'})}}]},'tool_calls')+'data: [DONE]\n\n');
-      else if(JSON.parse(tool.content).edit){const source=JSON.parse(tool.content);res.end(frame({tool_calls:[{index:0,id:'symbol-edit',type:'function',function:{name:'edit',arguments:JSON.stringify({...source.edit,oldText:'value + 1',newText:'value + 2'})}}]},'tool_calls')+'data: [DONE]\n\n');}
+      else if(JSON.parse(tool.content).edit){const source=JSON.parse(tool.content);assert.match(source.editRef,/^edit-v1:/);res.end(frame({tool_calls:[{index:0,id:'symbol-edit',type:'function',function:{name:'edit',arguments:JSON.stringify({target:source.editRef,oldText:'value + 1',newText:'value + 2'})}}]},'tool_calls')+'data: [DONE]\n\n');}
       else{guardedEditResult=JSON.parse(tool.content);res.end(frame({content:'CALLIX_SYMBOL_EDIT_OK'},'stop')+'data: [DONE]\n\n');}
     } else if (request.messages.some(m => m.role === 'user' && m.content === 'CALLIX_DISTRIBUTION_CHECK')) {
       const tool = request.messages.filter(m => m.role === 'tool').at(-1);

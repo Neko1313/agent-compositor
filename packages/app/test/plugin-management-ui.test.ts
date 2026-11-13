@@ -94,7 +94,8 @@ it.each(['approval','question'] as const)('keeps plugin navigation and forms usa
  ui.receive({type:'input',surface:'input',data:{kind:'text',text:'Work'}});key('enter');
  const marker=kind==='approval'?'allow once':'Agent waiting for answer';
  await wait(()=>rendered.get('input')?.includes(marker)??false);
- ui.receive({type:'input',surface:'status',data:{kind:'mouse',row:22,col:16,button:'left',action:'press'}});
+ const plugins=rendered.get('status')!.split('\n')[0].indexOf('[Plugins]');expect(plugins).toBeGreaterThanOrEqual(0);
+ ui.receive({type:'input',surface:'status',data:{kind:'mouse',row:22,col:plugins+1,button:'left',action:'press'}});
  await wait(()=>rendered.get('plugin-extension-manager-extensions')?.includes('Browse marketplace')??false);
  expect(ui.core.getState()).toBe('running');expect(rendered.get('input')).toContain(marker);
  const managing=ui.core.host.emit('ui.press',{site:'plugin-extension-manager-extensions',key:'manage:todos'});

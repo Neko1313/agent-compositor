@@ -176,13 +176,54 @@ See [installation and provider replacement](../../plugins/callix/README.md).
 
 ## Tiling windows
 
-The terminal UI now uses a binary container tree. Conversation and tools
-start side by side; windows can be nested, resized, moved and closed. A
+The terminal UI uses a binary container tree. Conversation starts in the main
+area; Tools opens on demand. Windows can be nested, resized, moved and closed. A
 focused window has an accent border. Message input stays in a dock and only
 receives typing when focused. Conversation views share the current agent
 session; creating a view does not spawn another agent. Scroll positions
 belong to individual windows. The application persists supported layout state
 and independent-agent metadata in project-scoped private storage for restart.
+
+Click **[Arrange]** or press **Alt+w** to enter **WINDOW MODE**. The dock shows
+the focused window, workspace and controls. Bare keys arrange windows while
+the message draft and cursor remain untouched:
+
+| Key in WINDOW MODE | Action |
+| --- | --- |
+| h/j/k/l or arrows | Focus left/down/up/right, including collapsed windows |
+| Shift + direction | Swap the focused window with its directional neighbor |
+| Tab / Shift+Tab | Cycle content windows forward/backward |
+| b / v | Set the nearest split and next opening to columns / rows |
+| + / - | Grow / shrink the focused window's nearest split |
+| 1…9 | Switch workspace |
+| Shift+1…9 | Move the focused window to that workspace and follow it |
+| f / q | Toggle fullscreen / close the focused window |
+| w | Open the window finder |
+| i / Alt+i | Leave the mode and return to message input |
+| Escape / Enter / Ctrl+C | Leave the mode, retaining the selected window |
+
+**Alt+w** toggles back to message input. In this mode Enter does not submit a
+prompt, answer a question or decide an approval; Ctrl+C leaves the mode without
+interrupting the agent. Mouse titles, separators and workspace controls still
+arrange windows. Clicking the message dock returns to input. Finish or cancel a
+private settings form or placement editor before entering window mode.
+
+Click **[Windows]**, press **F2** with the default editor, or submit **/windows**
+to open the window finder. Type to filter; Up/Down or Page Up/Down selects an
+entry, and Enter or a click opens it. **WS N** identifies an existing window's
+workspace; **Closed** identifies a retained view or an available plugin UI route.
+The finder follows existing windows across workspaces and reopens a retained
+conversation with the same window ID, transcript and unsent draft. Available
+plugin commands use their normal UI route, without entering the model queue.
+Escape restores the previous focus and exact draft cursor. The finder does not
+make model decisions or send model requests. Private prompts remain pending.
+
+Selected custom editor, question, approval and form controllers retain their own
+F2 binding while they own input; **Alt+w**, then **w**, and the toolbar remain
+host window controls outside a form. Alt+Tab is also accepted when delivered
+by the terminal, but desktop window managers commonly reserve that combination.
+Bracketed paste is marked separately: pasting a single `q` in window mode cannot
+close a window. Unsent drafts remain in memory and do not survive process exit.
 
 `/chat` returns to an existing main conversation window on its workspace or
 restores it after closing. Repeated calls do not create duplicates. Alt+Enter

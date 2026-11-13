@@ -81,6 +81,14 @@ describe("codec", () => {
     expect(() => decodeLine("")).toThrow(/empty/);
   });
 
+  it("preserves paste origin without changing ordinary text input", () => {
+    for (const data of [{kind: "text", text: "q"}, {kind: "text", text: "q", paste: true}] as const) {
+      const message = {type: "input", surface: "session-pane", data} as const;
+      expect(decodeLine(encodeMessage(message))).toEqual(message);
+    }
+    expect(() => decodeLine('{"type":"input","surface":"session-pane","data":{"kind":"text","text":"q","paste":false}}')).toThrow(/schema mismatch/);
+  });
+
   it("streams multi-chunk JSONL, including a final line without newline", () => {
     async function* chunks(): AsyncGenerator<string> {
       yield `{"type":"focus","surface":"a"}\n{"type":"focus","surface":"`;

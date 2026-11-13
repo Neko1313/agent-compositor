@@ -54,6 +54,15 @@ export class WindowManager {
     return ids.includes(this.focused) ? this.focused
       : previous && ids.includes(previous) ? previous : ids[0] ?? "input";
   }
+  /** Enter content controls from the separately docked composer. */
+  focusContent(): void { this.focused = this.contentFocus(); }
+  /** Visit every logical pane, including branches collapsed on a small terminal. */
+  cycle(reverse = false): void {
+    const ids = this.ids();
+    if (!ids.length) { this.focused = 'input'; return; }
+    const current = ids.indexOf(this.contentFocus());
+    this.focused = ids[(current + (reverse ? -1 : 1) + ids.length) % ids.length] ?? 'input';
+  }
   fullscreen = false;
   axis: "horizontal" | "vertical" = "horizontal";
   private spaces = new Map<number, { tree?: Tree; focus?: string }>([
@@ -443,30 +452,30 @@ export class WindowManager {
     };
     if (this.tree) walk(this.tree);
   }
+  private nearestSplit(surface: string): Exclude<Tree, {surface: string}> | undefined {
+    const walk = (node?: Tree): Exclude<Tree, {surface: string}> | undefined => {
+      if (!node || 'surface' in node) return;
+      const child = node.children.find(child => leaves(child).includes(surface));
+      return child ? walk(child) ?? node : undefined;
+    };
+    return walk(this.tree);
+  }
+  /** Set an explicit split direction for the nearest container and future opens. */
+  setSplitAxis(axis: 'horizontal' | 'vertical'): void {
+    this.axis = axis;
+    const split = this.nearestSplit(this.contentFocus());
+    if (split) split.axis = axis;
+  }
   /** Change the nearest split without changing pane identities or focus. */
   orient(): void {
-    const walk = (node?: Tree): boolean => {
-      if (!node || "surface" in node) return false;
-      const child = node.children.find(child => leaves(child).includes(this.focused));
-      if (!child) return false;
-      if (!walk(child)) {
-        node.axis = node.axis === "horizontal" ? "vertical" : "horizontal";
-        this.axis = node.axis;
-      }
-      return true;
-    };
-    if (!walk(this.tree)) this.axis = this.axis === "horizontal" ? "vertical" : "horizontal";
+    const split = this.nearestSplit(this.focused);
+    if (split) split.axis = split.axis === 'horizontal' ? 'vertical' : 'horizontal';
+    this.axis = split?.axis ?? (this.axis === 'horizontal' ? 'vertical' : 'horizontal');
   }
   /** Swap the children of the nearest split, retaining the focused pane. */
   swap(): void {
-    const walk = (node?: Tree): boolean => {
-      if (!node || "surface" in node) return false;
-      const child = node.children.find(child => leaves(child).includes(this.focused));
-      if (!child) return false;
-      if (!walk(child)) node.children = [node.children[1], node.children[0]];
-      return true;
-    };
-    walk(this.tree);
+    const split = this.nearestSplit(this.focused);
+    if (split) split.children = [split.children[1], split.children[0]];
   }
   workspaces(): number[] {
     return [...new Set([1, 2, 3, ...this.spaces.keys(), this.workspace])].sort(

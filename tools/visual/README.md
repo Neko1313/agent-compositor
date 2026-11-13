@@ -23,6 +23,21 @@ The standard scenario also checks the semantic agent overview: expand by mouse
 and keyboard, click state tabs, switch with Left/Right, resize to stacked narrow fields and enter the
 selected agent's conversation. Screenshots include the expanded and narrow views.
 
+`npm run visual:windows` checks the shipping Ink window controls through the
+actual PTY: finder search and cancellation, draft/cursor retention, nearest-split
+orientation and resize, directional movement, workspace transfer, fullscreen,
+closed-conversation recovery and layout restoration after restart. Separate
+fixtures keep an approval and a question pending while local window input is
+handled. The fixture inspects only its isolated saved layout and session journal;
+it does not mutate AppUI or WindowManager to simulate user actions. F2 exercises
+the real terminal shortcut; Alt+Tab can be intercepted by the browser or desktop
+and is not used as evidence. All model replies are local scripted fixtures.
+For the same checks against an extracted native archive, set
+`VISUAL_EXECUTABLE=/absolute/path/to/compositor` and run the command again. The
+report records the exact executable SHA-256 and verifies isolated storage paths;
+native model requests use the loopback fixture with an empty API key. Source
+plugin-directory overrides are rejected in this mode.
+
 `VISUAL_OUTPUT=dist/workflow-proof node tools/visual/workflow-check.mjs` checks
 dynamic workflow tables with actual bounded workers: run/stage drill-down,
 pause/release/resume, closing during worker completion and explicit reopening,

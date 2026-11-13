@@ -91,7 +91,7 @@ export const inputMessage = z.object({
   surface: z.string(),
   data: z.union([
     z.object({ kind: z.literal("key"), key: z.string(), modifiers: z.array(z.string()).optional() }),
-    z.object({ kind: z.literal("text"), text: z.string() }),
+    z.object({ kind: z.literal("text"), text: z.string(), paste: z.literal(true).optional() }),
     z.object({ kind: z.literal("mouse"), row: z.number().int().nonnegative(), col: z.number().int().nonnegative(), button: z.string(), action: z.enum(["press", "move", "release"]).optional() }),
   ]),
 });

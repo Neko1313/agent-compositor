@@ -650,6 +650,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           { name: "/reload", description: "Reload disk plugins" },
         ] as const,
         ['/chat',{name:'/chat',description:'Return to the main conversation'}] as const,
+        ['/windows',{name:'/windows',description:'Find, focus or reopen a terminal window'}] as const,
         [
           "/extensions",
           {

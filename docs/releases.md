@@ -156,6 +156,9 @@ matching official archive; the same pinned checksum is mandatory. Update the
 pins in `plugins/callix/distribution.mjs` when upgrading Callix.
 
 The archive is written to `dist/release/compositor-PLATFORM.tar.gz`.
+Native approval probes check effective canonical file paths. Discovery and
+cross-project probes consume the current metadata/verbatim read frame; guarded
+edits copy its complete `editRef` into the required model `target` parameter.
 The smoke test serves a local release mirror and model endpoint, rejects a
 corrupt checksum, installs from a versioned URL and `latest`, checks default
 plugin discovery outside the repository, executes a headless model request and

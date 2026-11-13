@@ -170,6 +170,8 @@ JSONL, semver. Messages:
 
 The renderer never calls the core outside the protocol. `hello`/`hello-ack` negotiate version and shared surfaces at session start.
 
+Text `input` data may include `paste: true` when the renderer can distinguish pasted text from typing. The Ink renderer preserves bracketed paste through this optional marker, including single-character pastes. Editors and search fields can insert the text normally; window-mode shortcuts ignore marked pastes. Unmarked text remains compatible with existing renderers.
+
 The acceptance test is behavioral: two renderers on the same event log must produce identical user-visible output. `@agent-compositor/renderer-ink` is the reference terminal implementation (Ink 8, grid state machine + React view); a web/desktop renderer can replace it without touching the core.
 
 Renderers own: cell-grid semantics (full/diff ops, scroll, cursor), style mapping to their toolkit, input key mapping. Renderers never own: focus policy for panes they didn't draw, event ordering, plugin state.

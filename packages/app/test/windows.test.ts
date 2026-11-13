@@ -2,6 +2,39 @@ import { describe, it, expect } from "vitest";
 import { WindowManager, leaves } from "../src/windows.js";
 
 describe("tiling compositor", () => {
+  it('returns to the last content pane from the composer and cycles every logical leaf in either direction', () => {
+    const wm = new WindowManager();
+    wm.focused = 'tools';wm.axis = 'vertical';wm.open('inspector');
+    wm.focused = 'input';
+    wm.focusContent();expect(wm.focused).toBe('inspector');
+    wm.cycle();expect(wm.focused).toBe('session');
+    wm.cycle(true);expect(wm.focused).toBe('inspector');
+    expect(wm.frames(16, 5)).toHaveLength(1);
+    wm.cycle(true);expect(wm.focused).toBe('tools');
+    wm.focused = 'input';wm.cycle(true);expect(wm.focused).toBe('session');
+    wm.switchTo(9);wm.focusContent();expect(wm.focused).toBe('input');
+    wm.cycle();expect(wm.focused).toBe('input');
+  });
+  it('sets the nearest content split explicitly without changing its parent, ratios or leaf identity', () => {
+    const wm = new WindowManager();
+    wm.focused = 'tools';wm.axis = 'vertical';wm.open('inspector');
+    wm.focused = 'input';
+    const before = wm.snapshot() as any;
+    wm.setSplitAxis('horizontal');
+    const changed = wm.snapshot() as any;
+    expect(changed.spaces[0].tree).toEqual({...before.spaces[0].tree,children:[
+      before.spaces[0].tree.children[0], {...before.spaces[0].tree.children[1],axis:'horizontal'},
+    ]});
+    expect(wm.focused).toBe('input');expect(wm.axis).toBe('horizontal');
+    const frames = wm.frames(160, 40);
+    expect(frames.find(frame=>frame.surface==='inspector')).toMatchObject({x:136,y:0,width:24,height:40});
+    const once = wm.snapshot();wm.setSplitAxis('horizontal');expect(wm.snapshot()).toEqual(once);
+    wm.switchTo(2);wm.setSplitAxis('vertical');wm.open('first');wm.open('second');
+    expect(wm.frames(100, 30)).toEqual([
+      {surface:'first',x:0,y:0,width:100,height:15},
+      {surface:'second',x:0,y:15,width:100,height:15},
+    ]);
+  });
   it("orients and swaps the nearest nested split without changing its focused identity", () => {
     const wm = new WindowManager();
     wm.focused = "tools"; wm.open("inspector");

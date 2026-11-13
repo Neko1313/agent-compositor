@@ -108,6 +108,18 @@ describe("RendererApp", () => {
     expect(onKey).toHaveBeenCalledWith("status", { kind: "text", text: "q" });
     app.unmount();
   });
+
+  it("marks bracketed paste as text even for a single command character", () => {
+    const store = new RendererStore();
+    const onKey = vi.fn();
+    const app = render(<RendererApp store={store} onKey={onKey} />);
+    declareAndRender(store);
+    act(() => {
+      app.stdin.write("\x1b[200~q\x1b[201~");
+    });
+    expect(onKey.mock.calls).toEqual([["session", {kind: "text", text: "q", paste: true}]]);
+    app.unmount();
+  });
 });
 
 it('keeps styled spans in one constrained text row after a narrow layout',()=>{

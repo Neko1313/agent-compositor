@@ -123,6 +123,15 @@ if(process.env.VISUAL_EXECUTABLE&&process.env.VISUAL_HARNESS){
  const paths=storagePaths(cwd,{...process.env,HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
  await writeFile(join(output,'fixture-launch.json'),JSON.stringify({cwd:paths.project,home:paths.home,state:paths.state,executable:resolve(process.env.VISUAL_EXECUTABLE)}));
 }
+if(process.env.VISUAL_WINDOW_CONTROLS){
+ if(process.env.VISUAL_EXECUTABLE&&process.env.VISUAL_PLUGIN_DIR)throw Error('Native window-controls proof cannot override bundled plugin directories');
+ const paths=storagePaths(cwd,{...process.env,HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
+ const executable=process.env.VISUAL_EXECUTABLE?resolve(process.env.VISUAL_EXECUTABLE):undefined;
+ await writeFile(join(output,'window-controls-launch.json'),JSON.stringify({
+  cwd:paths.project,home:paths.home,state:paths.state,mode:executable?'binary':'source',
+  ...(executable?{executable,sha256:new Bun.CryptoHasher('sha256').update(await readFile(executable)).digest('hex')}:{}),
+ }));
+}
 if(process.env.VISUAL_AGENT_HISTORY)await writeFile(join(cwd,'history-proof.txt'),'HISTORICAL_TOOL_EVIDENCE');
 const workflowRequests=[];
 let terminalSize={cols:100,rows:30};
@@ -132,7 +141,7 @@ async function start(ws) {
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
     : ['bun', join(import.meta.dir, process.env.VISUAL_OPENTUI === '1' ? 'opentui-sample.ts' : 'fixture.ts'), cwd];
   const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), ...command],
-    { cwd: root, env:{...process.env,...(ciBin?{PATH:ciBin+':'+process.env.PATH}:{}),...((process.env.VISUAL_HARNESS||process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off",...(process.env.VISUAL_HARNESS?{AGENT_API_KEY:''}:{})}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+    { cwd: root, env:{...process.env,...(ciBin?{PATH:ciBin+':'+process.env.PATH}:{}),...((process.env.VISUAL_HARNESS||process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off",...(process.env.VISUAL_HARNESS||process.env.VISUAL_WINDOW_CONTROLS?{AGENT_API_KEY:''}:{})}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
   active = { ws, proc };
   const sendLines = async () => {
     let pending = '';
@@ -240,7 +249,10 @@ const server = Bun.serve({
       const body=await request.json();return new Response(`data: ${JSON.stringify({choices:[{delta:{content:historyReply(body.messages)},finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
     }
     if(process.env.VISUAL_QUESTIONS&&url.pathname===`/model/${token}/v1/chat/completions`&&request.method==='POST'){
-      const body=await request.json();const reply=questionsReply(body.messages);const delta=reply?{content:reply}:{tool_calls:[{index:0,id:'questionnaire-proof',type:'function',function:{name:'ask_questions',arguments:JSON.stringify(questionsSample)}}]};
+      const body=await request.json();
+      const result=body.messages.filter(message=>message.role==='tool').at(-1)?.content;
+      const reply=process.env.VISUAL_WINDOW_CONTROLS&&typeof result==='string'&&/^(?:error:\s*)?Question cancelled by user(?:\n|$)/.test(result)?'Questionnaire cancelled.':questionsReply(body.messages);
+      const delta=reply?{content:reply}:{tool_calls:[{index:0,id:'questionnaire-proof',type:'function',function:{name:'ask_questions',arguments:JSON.stringify(questionsSample)}}]};
       return new Response(`data: ${JSON.stringify({choices:[{delta,finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{delta:{},finish_reason:reply?'stop':'tool_calls'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
     }
     if(process.env.VISUAL_MARKDOWN&&url.pathname===`/model/${token}/v1/chat/completions`&&request.method==='POST'){

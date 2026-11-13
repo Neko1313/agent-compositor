@@ -96,7 +96,7 @@ export function RendererApp({
     useInput((input, key) => {
       for(const data of mapInputs(input,key)){const surface=store.state.focused;if(surface)onKey(surface,data);}
     });
-    usePaste(text=>{const surface=store.state.focused;if(surface)onKey(surface,{kind:"text",text});});
+    usePaste(text=>{const surface=store.state.focused;if(surface)onKey(surface,{kind:"text",text,paste:true});});
   }
 
   const surfaces = store.state.surfaceList();

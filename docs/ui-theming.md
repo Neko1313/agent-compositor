@@ -60,6 +60,12 @@ Chrome: `borderStyle` (`single`, `round`, `double`), `controls` (`focus`,
 `always`). Focus mode also shows buttons on title hover. Styles retain the
 same title and border hit areas.
 
+In the shipping terminal's **WINDOW MODE**, title controls are temporarily shown
+on every visible window so arrangement actions remain discoverable. Leaving the
+mode restores the configured `controls` policy. The host-owned Windows finder
+uses the selected theme, but its private filter and navigation do not pass
+through `ui.render`. Existing plugin views continue to use the normal hook.
+
 Presentation: `userLabel`, `agentLabel`, `welcome`, `toolDetails`, `hints`,
 `showTools`. The last option requests opening/closing the initial Tools window
 at publication time; it is not a replacement for placement rules.

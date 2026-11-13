@@ -1,5 +1,53 @@
 # Project memory
 
+## Discoverable window controls in the shipping terminal — 2026-11-14
+
+c459a8e passed remote CI, documentation and release preparation. The user's
+follow-up clarified that the UI still did not feel like a tiling window manager.
+The normal CLI remains Ink; OpenTUI is a separate source preview. PATH on this
+machine also still selected the old 0.2.0 installation. Treat both launch and
+discoverability gaps as real product issues, not evidence that another preview
+alone completes the migration.
+
+The shipping AppUI now exposes Arrange / Alt+w WINDOW MODE over the existing
+WindowManager, with directional focus/move, content cycling, explicit nearest
+split direction, resize, fullscreen, close and workspace transfer. The dock
+names the mode and actions; narrow variants prioritize exit/type/window access.
+Window-mode input cannot answer pending model requests or enter the prompt queue.
+Ctrl+C leaves the mode without interrupting work. Original editor instances,
+drafts and cursors remain live. Selected custom controllers retain their F2 keys.
+Optional protocol text paste:true preserves Ink bracketed-paste origin, so even
+a single pasted q cannot close a window in this mode.
+
+Windows / F2 / /windows opens a private searchable inventory of current,
+closed and declared plugin views across workspaces. Escape restores prior
+workspace, focus and fullscreen; activation reuses the existing conversation ID
+or a plugin's actual current UI command. Inventory queries bypass ui.render.
+Toolbar painting and mouse hitboxes share visible labels. Private settings
+forms and placement still require finishing/cancelling before window mode.
+Independent operation panes and the production OpenTUI protocol remain open.
+
+Validation: full coverage passed 1771 tests, three optional skips, 204 files;
+the final focused window integration file passes 14 tests, including additional
+custom-controller F2 and drag-through-pending-question cases. Full typecheck,
+generation and documentation checks pass; detector returned []. Actual source
+and exact compiled Linux x64 PTY each passed seven window scenarios, including
+mouse close/reopen, protected approval/question input, 38/48-column layouts,
+and exact nested geometry with ratio 0.55 across restart. Evidence:
+dist/ink-window-controls-persisted-final and
+dist/ink-window-controls-native-complete. The native build SHA-256 is
+923712d2790f9adb761aaebac6d55afc80c43a744ad81fd2cdea177f01f844de.
+
+The full Linux archive/installer smoke passed after updating stale fixture
+expectations for effective absolute paths, metadata/verbatim read framing and
+the required edit.target selector. Exact source/file preservation and snapshot
+checks remain. No production permission or coding policies changed. The local
+PATH now selects an immutable main-20261114-923712d2790f-linux-x64 installation;
+the previous 0.2.0 directory is retained. This is a local main build, not a new
+public release. No paid model budget was used. Four-platform release validation,
+embedded CPU onboarding, broad model-quality/self-development and full OpenTUI
+migration remain required for stable 1.0; keep the full original goal active.
+
 ## Native OpenTUI questions and private forms — 2026-11-14
 
 82206ff passed remote CI, documentation and release preparation. The next source

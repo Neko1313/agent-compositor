@@ -39,6 +39,18 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>;
 }
 
+interface McpToolDefinition extends Record<string, unknown> {
+  name: string;
+  description?: string;
+}
+interface McpToolPage {
+  tools: McpToolDefinition[];
+  nextCursor?: string;
+}
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 class McpClient {
   dead?: string;
   timeoutMs: number;
@@ -137,15 +149,26 @@ class McpClient {
     this.notify("notifications/initialized", {});
   }
 
-  async listTools(): Promise<{ name: string; description?: string }[]> {
+  async listTools(cursor?: string): Promise<McpToolPage> {
     await this.ready;
-    const result = (await this.send("tools/list", {})) as {
-      tools?: { name: string; description?: string }[];
-    };
-    return (result.tools ?? []).map((t) => ({
-      name: t.name,
-      description: t.description,
-    }));
+    const result = await this.send("tools/list", cursor === undefined ? {} : {cursor});
+    if (!isRecord(result) || !Array.isArray(result.tools))
+      throw Error('MCP tools/list response must contain a tools array');
+    for (const [index, tool] of result.tools.entries()) {
+      if (!isRecord(tool) || typeof tool.name !== 'string' || !tool.name.length)
+        throw Error(`MCP tools/list tools[${index}].name must be a nonempty string`);
+      for (const field of ['title', 'description'])
+        if (tool[field] !== undefined && typeof tool[field] !== 'string')
+          throw Error(`MCP tools/list tools[${index}].${field} must be a string`);
+      for (const field of ['inputSchema', 'outputSchema'])
+        if (tool[field] !== undefined && !isRecord(tool[field]))
+          throw Error(`MCP tools/list tools[${index}].${field} must be an object`);
+    }
+    if (result.nextCursor !== undefined && typeof result.nextCursor !== 'string')
+      throw Error('MCP tools/list nextCursor must be a string');
+    // Preserve schemas and server metadata as data, never as permissions.
+    // Fetch only the requested page rather than growing context without bounds.
+    return {tools: result.tools as McpToolDefinition[], ...(result.nextCursor === undefined ? {} : {nextCursor: result.nextCursor as string})};
   }
 
   async callTool(name: string, args: unknown): Promise<unknown> {
@@ -268,8 +291,9 @@ async function withAbort<T>(
 export const mcpCallTool = {
   name: "mcp_call",
   description:
-    'Gateway to MCP (Model Context Protocol) servers. Use action="list" to discover configured servers and their tools ' +
-    '(failures per server are reported inline), then action="call" with server, tool and arguments to execute. ' +
+    'Gateway to MCP (Model Context Protocol) servers. Use action="list" to discover tools and their argument schemas ' +
+    '(failures per server are reported inline). Set server to inspect only that server; follow its nextCursor with server and cursor to fetch another page. ' +
+    'Use action="call" with server, tool and arguments matching the discovered inputSchema to execute. ' +
     "Config: AGENT_MCP_CONFIG env (JSON) or .agent-compositor/mcp.json.",
   parameters: {
     type: "object",
@@ -279,7 +303,8 @@ export const mcpCallTool = {
         enum: ["list", "call"],
         description: "list servers/tools, or call a tool",
       },
-      server: { type: "string", description: "server name (action=call)" },
+      server: { type: "string", description: "required for call; optional server filter for list" },
+      cursor: { type: "string", description: "opaque nextCursor from a previous list page; requires action=list and server" },
       tool: {
         type: "string",
         description: "tool name on the server (action=call)",
@@ -301,15 +326,24 @@ export const mcpCallTool = {
     },
     rawArgs: unknown
   ) {
+    if (!isRecord(rawArgs)) return {ok: false, error: 'mcp_call: arguments must be an object'};
     const args = rawArgs as {
       action?: string;
       server?: string;
       tool?: string;
       arguments?: unknown;
+      cursor?: string;
     };
-    const action = args.action ?? "list";
+    const action = args.action === undefined ? "list" : args.action;
     try {
       ctx.signal?.throwIfAborted();
+      if (action !== 'list' && action !== 'call') throw Error('mcp_call: action must be list or call');
+      if (args.server !== undefined && (typeof args.server !== 'string' || !args.server.length)) throw Error('mcp_call: server must be a nonempty string');
+      if (args.cursor !== undefined && (action !== 'list' || !args.server || typeof args.cursor !== 'string')) throw Error('mcp_call: cursor requires action=list, a server and a string cursor');
+      if (action === 'call') {
+        if (!args.server || typeof args.tool !== 'string' || !args.tool.length) throw Error('mcp_call: server and tool are required for action=call');
+        if (args.arguments !== undefined && !isRecord(args.arguments)) throw Error('mcp_call: arguments must be an object when supplied');
+      }
       const loaded = await loadConfig(ctx.cwd, ctx);
       ctx.signal?.throwIfAborted();
       if (loaded.error || !loaded.config)
@@ -320,21 +354,23 @@ export const mcpCallTool = {
           { ...cfg, env: { ...ctx.env, ...cfg.env } },
         ])
       );
+      if (args.server !== undefined && !Object.hasOwn(servers, args.server)) throw Error(`unknown mcp server: ${args.server}`);
 
       if (action === "list") {
         const listed: {
           name: string;
-          tools?: { name: string; description?: string }[];
+          tools?: McpToolDefinition[];
+          nextCursor?: string;
           error?: string;
         }[] = [];
-        for (const name of Object.keys(servers)) {
+        for (const name of args.server === undefined ? Object.keys(servers) : [args.server]) {
           ctx.signal?.throwIfAborted();
           try {
             const client = await getClient(name, servers, ctx.cwd);
             listed.push({
               name,
-              tools: await withAbort(client, ctx.signal, () =>
-                client.listTools()
+              ...await withAbort(client, ctx.signal, () =>
+                client.listTools(args.cursor)
               ),
             });
           } catch (err) {
@@ -358,6 +394,10 @@ export const mcpCallTool = {
         const result = await withAbort(client, ctx.signal, () =>
           client.callTool(args.tool!, args.arguments)
         );
+        if (!isRecord(result) || (result.isError !== undefined && typeof result.isError !== 'boolean'))
+          return {ok: false, error: 'MCP tools/call returned an invalid result object or isError flag'};
+        if (result.isError === true)
+          return {ok: false, error: `MCP tool ${args.server}/${args.tool} failed: ${JSON.stringify(result)}`};
         return { ok: true, data: result };
       }
       return {

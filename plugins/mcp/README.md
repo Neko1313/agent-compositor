@@ -20,6 +20,32 @@ stops the operation instead of reporting a successful partial server list or
 starting further servers. Ordinary per-server discovery failures still appear
 inline without hiding other servers.
 
+`mcp_call` discovery returns complete tool definitions, including the server's
+`inputSchema`, optional `outputSchema`, title, annotations and metadata. These
+are server-provided data; annotations do not grant permissions. Use the actual
+input schema when constructing `arguments` for a call. Older servers that omit
+schemas remain readable; the gateway does not invent missing schemas.
+
+Discovery fetches one page per selected server. Without `server`, it lists the
+first page from each configured server and reports per-server errors inline.
+Supply `server` to inspect only one server. If its entry includes `nextCursor`,
+request the next page explicitly:
+
+```json
+{"action":"list","server":"catalog","cursor":"<nextCursor from that server>"}
+```
+
+The cursor is opaque, belongs to that server, and is not accepted on calls or
+without a selected server. Pages are not automatically accumulated into an
+unbounded model response. Malformed discovery data is an inline server error.
+Invalid gateway arguments fail before configuration is read or a server starts.
+
+Successful calls preserve content and structured results. A server result with
+`isError: true` becomes a failed tool result, with the original result serialized
+in the error so the agent can inspect both text and structured diagnostics.
+Malformed call result objects or non-boolean `isError` flags fail as well.
+This distinguishes a successful JSON-RPC exchange from successful tool execution.
+
 ## Use
 
 This plugin is available through the default `agent-compositor` marketplace.

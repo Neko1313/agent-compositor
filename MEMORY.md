@@ -1,5 +1,46 @@
 # Project memory
 
+## MCP schemas, explicit discovery pages and truthful tool failures — 2026-11-13
+
+43bef7d passed CI 43411227845 on both Node versions, docs 43411227445 and
+release preparation 43411227564. The preceding goal turn made concrete MCP
+lifecycle progress. Continued offline while cloud transcript replay approval
+remains pending; no model endpoint, user key or spending guard was used.
+
+Reproduced 11 failing cases in the old gateway: dropped discovery definitions/
+cursors, ignored server selection, isError:true reported as success, malformed
+pages and bad gateway arguments. Discovery now preserves complete tool metadata,
+including inputSchema/outputSchema, and optional nextCursor. It requests one
+page per selected server; optional server targets one server and cursor passes
+an opaque cursor only for an explicit server/list request. It never follows
+pages automatically or aggregates an unbounded catalog. Untargeted first-page
+discovery and per-server error isolation remain available. Missing schemas on
+older servers are not fabricated. Annotations stay data, not authorization.
+
+Malformed pages become inline server errors with field diagnostics. Invalid
+gateway arguments fail before settings/process work. isError:true is a failed
+tool result with serialized original text/structured diagnostics; successful
+results remain intact. Non-object call results and non-boolean isError flags
+fail. The protocol reference checked was
+https://modelcontextprotocol.io/specification/2025-06-18/server/tools;
+the advertised handshake version has not changed. This is not full protocol
+conformance or JSON Schema validation of all tool outputs.
+
+Added 17 real-stdio/core regressions, including a scripted agent cycle proving
+schemas, explicit later pages and structured success reach model requests, and
+that execution failure is journaled as failed and reaches the next model step.
+This is deterministic contract evidence, not real-model task-quality evidence.
+MCP's declared integration matrix now passes 27 tests; full coverage passes
+1553 tests with three optional skips across 183 files. Typecheck, gen, docs:gen
+and docs:check pass. Updated the canonical plugin README and integration file
+list; no UI, frozen event contracts, plugin/catalog version or changelog changes.
+The new test initially used findLast outside the repository's supported TS lib;
+switched it to filter/at without changing compiler settings before final checks.
+
+Remaining transport observations (JSON null/primitive envelopes and split UTF-8
+decoding) are not fixed by this change. Stable 1.0, broad self-development/model
+quality, onboarding and OpenTUI remain incomplete; keep the full goal active.
+
 ## MCP process-exit cleanup and cancellation before launch — 2026-11-13
 
 97a848a passed CI 43410223549 on both Node versions, docs 43410223577 and

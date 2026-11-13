@@ -6,6 +6,12 @@ retains its prompt-command handler.
 
 Persistent task list window. Restores tasks on startup, updates after todo tool calls, and opens with /todos. Placement is controlled by the compositor.
 
+The built-in `todo` tool accepts `running` as an alias for `in_progress`; results
+and saved lists keep the existing `pending`/`in_progress`/`completed` format.
+Its default in-memory list belongs to the Core/dispatcher, so another agent or
+project in the same process cannot implicitly overwrite it. This plugin still
+restores and saves its explicitly configured project-scoped file.
+
 ## Use
 
 This plugin is available through the default `agent-compositor` marketplace.

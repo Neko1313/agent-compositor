@@ -398,6 +398,24 @@ The selected
 resumption; `ui.controllers` replaces its UI controllers. Their contracts and
 external-extension checks are documented in [ui-controllers.md](ui-controllers.md).
 
+### Task state inputs and ownership
+
+`task_plan` accepts `in_progress` as an alias for `running`, and `todo` accepts
+`running` as an alias for `in_progress`. Each tool validates before normalizing
+its owned output/storage representation; input arguments remain unchanged for
+audit. Saved plans use `running`, Todo results use `in_progress`, and the frozen
+`service.todo.update` schema remains canonical. Other unknown states are rejected,
+and Todo does not gain the plan's `blocked` state. Both active plan spellings
+remain unfinished in the completion policy.
+Missing fields, duplicate IDs and unsupported plan states report the specific
+`task_plan.tasks[index].field` rather than silently inventing values. Validation
+failures do not overwrite the saved plan.
+
+Default Todo memory is local to `registerDefaultResolvers`/AgentCore rather than
+the JavaScript process. Separate cores and ephemeral task children therefore do
+not share an implicit list. Custom service providers and the Todos plugin's
+explicit persistence/restore behavior retain their existing scope and formats.
+
 ### Model-facing tool text
 
 A successful `ToolResult` may include optional `modelText` alongside `data`.

@@ -34,17 +34,23 @@ export function successfulVerification(tools:any[]):boolean {
 /** A durable plan is distinct from a model's private reasoning. */
 export function harnessControls(storage: ProjectStorage, config: Record<string, any>, sessionId: () => string, core?:()=>import("@agent-compositor/core").AgentCore) {
     const tool: ToolSpec<any, any> = { name: 'task_plan', description: 'Save/update the current task goal, acceptance criteria and progress. Use for substantial tasks and checkpoints before stopping at a budget boundary. Preserve unresolved tasks; cite real tool evidence for completed items.',
-        parameters: { type: 'object', properties: { goal: { type: 'string' }, tasks: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, status: { enum: ['pending', 'running', 'completed', 'blocked'] }, acceptance: { type: 'string' }, evidence: { type: 'string' } }, required: ['id', 'title', 'status'] } }, nextAction: { type: 'string' } }, required: ['goal', 'tasks'] },
+        parameters: { type: 'object', properties: { goal: { type: 'string' }, tasks: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, status: { type:'string',enum: ['pending', 'running', 'in_progress', 'completed', 'blocked'],description:'Active work uses running; in_progress is an accepted alias. Saved plans/results use running.' }, acceptance: { type: 'string' }, evidence: { type: 'string' } }, required: ['id', 'title', 'status'] } }, nextAction: { type: 'string' } }, required: ['goal', 'tasks'] },
         describe: () => ({ tool: 'task_plan' }), execute: async (ctx, args) => {
             if (typeof args.goal !== 'string' || !args.goal.trim() || !Array.isArray(args.tasks) || args.tasks.length > 100)
                 return { ok: false, error: 'Provide a goal and at most 100 tasks' };
             const seen = new Set();
-            for (const t of args.tasks) {
-                if (!t || typeof t.id !== 'string' || seen.has(t.id) || typeof t.title !== 'string' || !['pending', 'running', 'completed', 'blocked'].includes(t.status))
-                    return { ok: false, error: 'Invalid/duplicate task entry' };
+            for (const [index,t] of args.tasks.entries()) {
+                const field=`task_plan.tasks[${index}]`;
+                if(!t||typeof t!=='object'||Array.isArray(t))return{ok:false,error:`${field} must be an object.`};
+                if(typeof t.id!=='string')return{ok:false,error:`${field}.id must be a string.`};
+                if(seen.has(t.id))return{ok:false,error:`${field}.id duplicates an earlier task id.`};
+                if(typeof t.title!=='string')return{ok:false,error:`${field}.title must be a string.`};
+                if(!['pending','running','in_progress','completed','blocked'].includes(t.status))
+                    return{ok:false,error:`${field}.status must be pending, running (alias in_progress), completed or blocked.`};
                 seen.add(t.id);
             }
-            const state = { goal: args.goal, tasks: args.tasks, nextAction: String(args.nextAction ?? ''), updatedAt: new Date().toISOString() };
+            const tasks=args.tasks.map((t:any)=>({...t,status:t.status==='in_progress'?'running':t.status}));
+            const state = { goal: args.goal, tasks, nextAction: String(args.nextAction ?? ''), updatedAt: new Date().toISOString() };
             if (JSON.stringify(state).length > 64000)
                 return { ok: false, error: 'Task plan exceeds 64 KiB' };
             await atomicJson(join(ctx.stateDir ?? storage.paths.state, 'task-plans', (ctx.sessionId ?? 'default') + '.json'), state);
@@ -92,7 +98,7 @@ export function harnessControls(storage: ProjectStorage, config: Record<string, 
             for(const t of e.tools)if(t.ok&&t.name==='workflow_run'&&t.output?.id)workflowStates.set(t.output.id,t.output.status);
             if([...workflowStates.values()].some(s=>s==='running'||s==='paused')&&!e.text.includes('[workflow running]'))return{value:{complete:false,continue:'A workflow is still running or paused. Inspect it with workflow_run status (waitMs is available), resolve failures, and verify results before claiming completion. If handing ongoing background work back to the user, state that it is unfinished and include [workflow running].'}};
             const lastPlan = [...e.tools].reverse().find((t: any) => t.name === 'task_plan' && t.ok)?.args;
-                if (lastPlan?.tasks?.some((t: any) => ['pending', 'running'].includes(t.status)))
+                if (lastPlan?.tasks?.some((t: any) => ['pending', 'running', 'in_progress'].includes(t.status)))
                     return { value: { complete: false, continue: 'Your task plan still has unfinished work. Complete it or mark a concrete blocker with evidence using task_plan before finishing.' } };
                 const edits = e.tools.filter((t: any) => t.ok && ['write', 'edit'].includes(t.name));
                 const checks = successfulVerification(e.tools);

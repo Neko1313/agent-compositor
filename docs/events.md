@@ -105,7 +105,7 @@
 | `service.agent.spawn` | 0.5.0 | 1 | Spawn a subagent: a fresh AgentCore (shared provider/permissions/plugins, isolated transcript) runs the prompt to completion and returns its final text. Core-resolved. | `deny`, `value` | — |
 | `service.agent.open` | 0.26.0 | 1 | Explicit user control: create a persisted shared-workspace side conversation, or reopen an existing agent by id, and focus its own message editor. The main turn is unaffected. | `deny`, `value` | — |
 | `service.workflow.run` | 0.11.0 | 1 | Replaceable persistent workflow lifecycle: start, inspect, pause, resume, retry or stop. Host permissions remain in each worker. | `deny`, `value` | — |
-| `service.todo.update` | 0.5.0 | 1 | Core todo tool: replace (or read) the process-scoped task list. | `deny`, `value` | — |
+| `service.todo.update` | 0.5.0 | 1 | Core todo tool: replace (or read) this Core/dispatcher's task list. | `deny`, `value` | — |
 | `service.file.read` | 0.5.0 | 1 | Core read tool: paginated file read with truncation note. | `deny`, `value` | — |
 | `service.file.readText` | 0.5.0 | 1 | Internal: raw full-text read (undo pre-image). null when missing. | `deny`, `value` | — |
 | `service.file.write` | 0.5.0 | 1 | Core write tool: create or overwrite a file. | `deny`, `value` | — |

@@ -1,5 +1,58 @@
 # Project memory
 
+## Isolate Todo owners and normalize active-state inputs — 2026-11-13
+
+New regressions expose six failures on f1557fb: the process-global default Todo
+list leaks between independent cores, a task child overwrites its parent, and
+real Todos plugin hooks can persist project B's list into project A. Also,
+task_plan rejects the Todo spelling in_progress, and todo rejects running.
+Canonical running-plan completion remains the one passing baseline case.
+
+Moved default Todo memory into registerDefaultResolvers, giving each dispatcher/
+AgentCore its own list. Children inherit tool definitions, not implicit Todo
+storage. The Todos plugin still explicitly restores/saves its existing project
+file; this change does not redefine that persistence policy or migrate its data.
+Both tools now accept running/in_progress on input: task_plan stores/returns
+running, todo normalizes to in_progress before the frozen service.todo.update
+payload. Unknown statuses remain errors; Todo does not gain blocked. Arguments
+are not mutated and rejected plans do not overwrite the last valid file.
+Completion treats either active plan spelling as unfinished, preventing alias
+acceptance from bypassing the saved-plan check. Seven real core/app regressions
+now pass, including child/project isolation and actual persistence.
+
+The two-family original coding matrix remains 5/8; no task/rule/grader/bound
+changes or failed-score reclassification. Model plans use canonical running in
+this sample; guided local regressions establish alias handling. Another observed
+Gemma failure repeats task_plan calls lacking title. Final validation now names
+the exact tasks[index].field for missing fields, duplicate IDs and invalid state,
+without guessing data. This diagnostic refinement came after the live matrix and
+is covered by local regressions. Source/report evidence and final hashes are in
+dist/check-discovery/task-statuses-decision.json and coding-task-statuses.
+
+Initial full coverage under overlapping model/plugin/doc jobs failed MCP reconnect
+and two five-second checkpoint/workflow tests (with checkpoint teardown also
+reporting ENOTEMPTY). Keep /tmp/compositor-task-statuses-tests.log. Exact three
+cases pass separately with their original assertions/deadlines; final full run
+without competing heavy jobs passes 1373 tests/three optional skips, 168 files
+(/tmp/compositor-task-statuses-standalone-tests.log). This does not prove load
+sensitivity is eliminated. MCP fixture assertion messages now include the actual
+connection error; no production MCP code, predicates or timeout thresholds changed.
+Types, docs, original deterministic 5/5 smoke and Todos package/lifecycle checks
+pass. Future full coverage runs should not overlap other heavy local suites.
+
+The first focused test launch never started: automatic permission review timed
+out. Its stated one retry was used successfully; no safety refusal was inferred
+and no user approval was needed. No OpenAI request/profile use or guard mutation;
+Ollama billing unavailable. Public 0.8.0 remains unchanged. Push f1557fb has
+successful CI 43365582923, docs 43365582853 and preparation 43365582939.
+Current changes require their own committed checks. Canonical capability/core/
+Todos guides and generated scope descriptions updated; frozen service shapes,
+UI layout and command syntax remain compatible. Broader 1.0/model-quality,
+verification discovery, actual self-development, onboarding and OpenTUI remain
+incomplete. Next pursue a bounded self-hosted repair of a real repository defect
+using Compositor itself, isolated source/dependencies and frozen acceptance tests,
+rather than infer self-development readiness from these tiny coding diagnostics.
+
 ## Separate literal model text from structured tool results — 2026-11-13
 
 Tracing a Gemma checkout failure found repeated edits copying JSON-escaped read

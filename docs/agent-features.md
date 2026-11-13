@@ -358,6 +358,17 @@ loaded as data on the next turn. `/continue` resumes unfinished work from the
 current conversation and saved plan. Subagents inherit project instructions and
 have separate plans and fresh context budgets.
 
+Both `task_plan` and `todo` accept `running` or `in_progress` for active work.
+Plans normalize/persist this as `running`; Todo results and service payloads use
+`in_progress`. Pending/completed states keep their meaning, and plan-only
+`blocked` is not a Todo status. Unsupported states remain errors. Either active
+plan spelling keeps work unfinished for completion checks.
+
+The default in-memory Todo list belongs to its Core/dispatcher, including when
+several agents share one process. A child or another project cannot overwrite it.
+Persistence providers can restore their scoped state; the Todos plugin retains
+its existing project file format.
+
 Before accepting a final answer, `service.agent.finish` can request a concrete
 continuation. The default asks for a useful final answer when the model stops
 with empty or whitespace-only text, including after tool execution. Repeated

@@ -321,7 +321,7 @@ export const serviceTodoUpdate = defineEvent({
   name: "service.todo.update",
   since: "0.5.0",
   version: 1,
-  summary: "Core todo tool: replace (or read) the process-scoped task list.",
+  summary: "Core todo tool: replace (or read) this Core/dispatcher's task list.",
   input: z.object({
     todos: z
       .array(

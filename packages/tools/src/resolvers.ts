@@ -29,6 +29,13 @@ export function registerDefaultResolvers(
   } = {}
 ): (()=>Promise<void>)&{revalidate:()=>Promise<void>} {
   const jobs=backgroundScope(options.onBackgroundComplete);
+  // Each dispatcher/Core owns its list; several agents can share one process.
+  let todoList:TodoItem[]=[];
+  const todoUpdate=async(payload:unknown)=>{
+    const p=payload as {todos?:TodoItem[]};
+    if(p.todos)todoList=p.todos.map(t=>({content:String(t.content),status:t.status}));
+    return{todos:todoList.map(t=>({...t}))};
+  };
   const locks=fileMutationLocks;
   const original = bus;
   bus = {
@@ -86,19 +93,6 @@ interface ExecPayload {
   background?: boolean;
 }
 
-
-// process-scoped task list for the `todo` tool (one CLI session per process)
-let todoList: TodoItem[] = [];
-
-function todoUpdate(payload: unknown): Promise<unknown> {
-  const p = payload as { todos?: TodoItem[] };
-  if (p.todos)
-    todoList = p.todos.map((t) => ({
-      content: String(t.content),
-      status: t.status,
-    }));
-  return Promise.resolve({ todos: todoList.map((t) => ({ ...t })) });
-}
 
 async function runExec(
   payload: unknown,

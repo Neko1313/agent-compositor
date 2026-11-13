@@ -59,15 +59,21 @@ try{
     await page.waitForFunction(before=>visual.frames>before,before);
   }}
   async function replace(value){await key('End');await key('Control+u');await type(value);}
+  let pointerAttempt=0;
   async function click(label,{last=false,top=false}={}){
-    const point=await page.waitForFunction(({label,last,top})=>{
+    const attempt=++pointerAttempt;
+    const point=await page.waitForFunction(({label,last,top,attempt})=>{
       const lines=visual.text().split('\n');
       const rows=lines.flatMap((line,row)=>line.includes(label)&&(!top||row<lines.findIndex(line=>/^\s*WS\s/.test(line)))?[row]:[]);
-      const row=last?rows.at(-1):rows[0];if(row===undefined)return;
+      const row=last?rows.at(-1):rows[0];if(row===undefined){delete window.__appPointer;return;}
       const col=lines[row].indexOf(label)+Math.min(1,label.length-1);
       const rect=document.querySelector('.xterm-screen').getBoundingClientRect();
+      const signature=[row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height].join(':');
+      const previous=window.__appPointer;
+      if(previous?.attempt!==attempt||previous.signature!==signature){window.__appPointer={attempt,signature,count:1};return;}
+      if(++previous.count<3)return;
       return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};
-    },{label,last,top});
+    },{label,last,top,attempt},{polling:'raf'});
     const p=await point.jsonValue();await page.mouse.click(p.x,p.y);
   }
   async function capture(name){

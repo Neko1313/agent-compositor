@@ -9,6 +9,9 @@ window.createGraphicsBench = (terminal, send, enabled) => {
   let pending='', upload;
   const stats={uploads:0,placements:0,deletions:0,queries:0,frames:0,lastWidth:0,lastHeight:0,errors:[]};
   function draw() {
+    // Keep the last presented image while the terminal is repainting a synchronized frame.
+    // A Kitty deletion and replacement may span several PTY chunks in that frame.
+    if (terminal.modes.synchronizedOutputMode) return;
     const size=screen.getBoundingClientRect();
     canvas.width=Math.round(size.width);canvas.height=Math.round(size.height);
     context.imageSmoothingEnabled=false;

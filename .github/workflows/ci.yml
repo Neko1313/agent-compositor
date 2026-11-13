@@ -38,6 +38,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run test:ci
+      - name: Check OpenTUI image frames in a PTY
+        if: matrix.node == '26'
+        run: npm run visual:opentui-ghost
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -73,6 +76,7 @@ jobs:
             reports/junit.xml
             reports/coverage/coverage.xml
             reports/certification/
+            dist/visual-opentui-ghost/report.json
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

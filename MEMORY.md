@@ -1,5 +1,25 @@
 # Project memory
 
+## First OpenTUI conversation and workflow prototype — 2026-11-13
+
+The private renderer-opentui workspace runs under Bun. From a source checkout
+`npm run opentui:preview` starts isolated Main and Side sessions with a local
+deterministic provider plus an actual workflows plugin run. Core and plugin
+bindings and the original mascot scheduler live in the preview host. The
+renderer accepts session snapshots, plugin-owned table rows/actions and RGBA
+frames. Production launch and the installed CLI remain on Ink.
+
+Seven browser-backed Linux PTY checks cover streaming, separate multiline
+drafts, Unicode paste, keyboard/mouse navigation, plugin row expansion at
+100×30 and 48×18, and Ctrl+C. Evidence: dist/opentui-prototype-20261113-synced.
+The independent Kitty PTY check confirms frame sequence and source RGBA bytes
+for idle and thinking, including wraparound (dist/visual-opentui-ghost).
+The shared emulator respects synchronized terminal redraws. The stock Ink
+mascot lifecycle passed after this change. The prototype has no full protocol
+compositor, provider setup, approvals, session resume, native release build or
+physical terminal coverage. See docs/02-ui.md and docs/readiness.md. Stable 1.0
+and sustained autonomous development remain open.
+
 ## Preserve surrounding code on a mistaken whole-file write — 2026-11-13
 
 c458dc7 passed remote CI, documentation and release preparation. In a clean

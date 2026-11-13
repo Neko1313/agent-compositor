@@ -35,6 +35,9 @@
       "path": "packages/renderer-ink"
     },
     {
+      "path": "packages/renderer-opentui"
+    },
+    {
       "path": "examples"
     },
     {

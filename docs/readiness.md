@@ -297,9 +297,9 @@ public shipping files match the exercised Linux archive.
 ### Planned OpenTUI migration — 2026-11-13
 
 The user explicitly requested adding migration to OpenTUI to the plan. OpenTUI
-is the intended future terminal frontend, subject to the acceptance checks below;
-this is not a claim that migration has started or that the current renderer has
-been replaced. Preserve the agent core, provider adapters, permissions, tools,
+is the intended future terminal frontend. The first source prototype now runs
+alongside Ink. Try the [conversation and workflow preview](02-ui.md#opentui-conversation-prototype).
+The acceptance checks below govern the switch to a shipping frontend. Preserve the agent core, provider adapters, permissions, tools,
 session state and extension ownership contracts throughout the migration.
 
 1. Build a separate `renderer-opentui` prototype using the existing Bun/React
@@ -325,6 +325,15 @@ session state and extension ownership contracts throughout the migration.
    all declared platforms. Verify native library/resource packaging. Switch the
    default renderer only after the replacement passes those gates; retire the
    Ink frontend after the migration is complete.
+
+The first prototype passed seven Linux browser-backed PTY checks at 100×30
+and 48×18. A held streaming Main session remained active during a Side reply,
+workflow row expansion and draft recovery. Checks covered mouse selection,
+keyboard navigation, a multiline Unicode paste and process exit. A separate
+PTY check matched every emitted RGBA frame in the idle and thinking loops to
+the original Ghost images. The browser and byte-level checks emulate Kitty
+protocol support. Native terminal coverage, additional protocols, the full
+plugin view contract and packaged releases remain outstanding.
 
 Initial technical references are the official [OpenTUI components](https://opentui.com/docs/components/),
 [image](https://opentui.com/docs/components/image/),

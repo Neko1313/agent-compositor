@@ -107,6 +107,22 @@ commands; restarting preserves that project's task data and placement rules.
 Ctrl+C stops the server and removes the temporary project. The app's own
 Ctrl+C closes only the PTY session; use Restart session to reopen it.
 
+## OpenTUI prototype
+
+`npm run visual:opentui` launches the OpenTUI preview in the same POSIX PTY
+and xterm.js browser used by the Ink checks. It uses Bun and the Playwright
+Chromium installation or `PLAYWRIGHT_CHROMIUM_EXECUTABLE` override described
+above. The fixture holds one agent in a turn while a second agent receives
+input. The scenario exercises native text editing, keyboard and mouse tab
+switching, independent drafts, workflow row expansion, terminal resizing and
+Ctrl+C cleanup. Set `VISUAL_OUTPUT` to choose a capture directory.
+
+`npm run visual:opentui-ghost` checks transfers on a PTY that
+answers the Kitty capability probe. It compares decoded RGBA frame bytes and
+ordering with the bundled idle and thinking animations. This verifies the
+emitted image protocol. Physical terminals and multiplexer passthrough need
+separate checks.
+
 ## Render performance
 
 `npm run visual:performance -- --motion` runs the actual application in the

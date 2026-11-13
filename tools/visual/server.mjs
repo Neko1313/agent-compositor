@@ -128,7 +128,7 @@ async function start(ws) {
   if(process.env.VISUAL_PERFORMANCE)appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'start',...terminalSize})+'\n');
   const command = process.env.VISUAL_EXECUTABLE
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
-    : ['bun', join(import.meta.dir, 'fixture.ts'), cwd];
+    : ['bun', join(import.meta.dir, process.env.VISUAL_OPENTUI === '1' ? 'opentui-sample.ts' : 'fixture.ts'), cwd];
   const proc = Bun.spawn([process.env.PYTHON ?? 'python3', '-u', join(import.meta.dir, 'pty_bridge.py'), ...command],
     { cwd: root, env:{...process.env,...(ciBin?{PATH:ciBin+':'+process.env.PATH}:{}),...((process.env.VISUAL_HARNESS||process.env.VISUAL_MARKETPLACE_BUSY||process.env.VISUAL_WORKSPACES||process.env.VISUAL_AUTHOR||process.env.VISUAL_CONTROLLERS||process.env.VISUAL_UX||process.env.VISUAL_MARKDOWN||process.env.VISUAL_QUESTIONS||process.env.VISUAL_HISTORY)?{AGENT_BASE_URL:`http://127.0.0.1:${server.port}/model/${token}/v1`,AGENT_MODEL:"visual-fixture",AGENT_GRAPHICS:"off",...(process.env.VISUAL_HARNESS?{AGENT_API_KEY:''}:{})}:{}),AGENT_POINTER:process.env.VISUAL_POINTER??"on",HOME:workspaceHome,AGENT_HOME:join(workspaceHome, ".agent-compositor"),XDG_CONFIG_HOME:join(cwd,"xdg"),VISUAL_COLS:String(terminalSize.cols),VISUAL_ROWS:String(terminalSize.rows)},stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
   active = { ws, proc };

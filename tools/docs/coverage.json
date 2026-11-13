@@ -13,6 +13,7 @@
     "plugins": ["docs/marketplace.md", "docs/plugin-standard.md"],
     "protocol": ["docs/03-contracts.md", "docs/architecture.md"],
     "provider": ["docs/state-and-network.md", "docs/agent-features.md"],
+    "renderer-opentui": ["docs/02-ui.md", "tools/visual/README.md"],
     "renderer-ink": ["docs/02-ui.md", "docs/ui-theming.md", "tools/visual/README.md"],
     "runtime": ["docs/03-contracts.md", "docs/core-customization.md"],
     "session": ["docs/ui-controllers.md", "docs/agent-features.md"],

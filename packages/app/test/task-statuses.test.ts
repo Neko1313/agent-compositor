@@ -43,3 +43,21 @@ it('keeps separate projects private through the real Todos plugin persistence ho
  expect(JSON.parse(await readFile(join(a.app.storage.paths.state,'todos.json'),'utf8'))).toEqual(first);
  expect(JSON.parse(await readFile(join(b.app.storage.paths.state,'todos.json'),'utf8'))).toEqual(second);
 });
+it('preserves the Todo list and persisted bytes on indexed validation failures',async()=>{
+ const f=await fixture([],true);await f.core.start();
+ const todos=[{content:'Keep existing work',status:'in_progress'}];
+ expect(await f.core.invokeTool('todo',{todos})).toMatchObject({ok:true});
+ const file=join(f.app.storage.paths.state,'todos.json'),before=await readFile(file,'utf8');
+ let updates=0;
+ f.core.host.registerPlugin({name:'observe-validation',version:'1.0.0',trust:'trusted'},{'service.todo.update':()=>{updates++;}});
+ for(const index of [0,2,4])for(const field of ['content','status']){
+  const args:any={todos:Array.from({length:5},(_,i)=>({content:'Task '+i,status:'pending'}))};
+  args.todos[index][field]=123;
+  const copy=structuredClone(args);
+  expect(await f.core.invokeTool('todo',args)).toMatchObject({ok:false,error:expect.stringContaining(`todos[${index}].${field}`)});
+  expect(args).toEqual(copy);
+  expect(await readFile(file,'utf8')).toBe(before);
+ }
+ expect(updates).toBe(0);
+ expect(await f.core.invokeTool('todo',{})).toMatchObject({ok:true,output:{todos}});
+});

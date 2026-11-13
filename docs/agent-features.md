@@ -367,6 +367,11 @@ Plans normalize/persist this as `running`; Todo results and service payloads use
 `in_progress`. Pending/completed states keep their meaning, and plan-only
 `blocked` is not a Todo status. Unsupported states remain errors. Either active
 plan spelling keeps work unfinished for completion checks.
+Malformed Todo replacements identify the first invalid field with a zero-based
+path such as `todo.todos[4].status`, plus the accepted type or values. Invalid
+arguments, non-array lists and non-object items are rejected before requesting
+the update service; an invalid replacement leaves the current list and its
+persisted file unchanged. Omit `todos` to read, or pass `[]` to clear the list.
 
 The default in-memory Todo list belongs to its Core/dispatcher, including when
 several agents share one process. A child or another project cannot overwrite it.

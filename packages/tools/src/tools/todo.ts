@@ -42,8 +42,20 @@ export const todoTool: ToolSpec<TodoArgs, TodoOutcome> = {
   describe: () => ({ tool: "todo" }),
   async execute(ctx, args): Promise<ToolResult<TodoOutcome>> {
     try {
-      if(args.todos!==undefined&&(!Array.isArray(args.todos)||!args.todos.every(t=>t&&typeof t.content==='string'&&['pending','in_progress','running','completed'].includes(t.status))))
-        return{ok:false,error:'todo: each item needs string content and status pending, in_progress (alias running), or completed.'};
+      if (!args || typeof args !== 'object' || Array.isArray(args))
+        return {ok: false, error: 'todo: arguments must be an object; omit todos to read the current list.'};
+      if (args.todos !== undefined) {
+        if (!Array.isArray(args.todos)) return {ok: false, error: 'todo.todos must be an array.'};
+        for (const [index, item] of args.todos.entries()) {
+          const field = `todo.todos[${index}]`;
+          if (!item || typeof item !== 'object' || Array.isArray(item))
+            return {ok: false, error: `${field} must be an object with content and status.`};
+          if (typeof item.content !== 'string')
+            return {ok: false, error: `${field}.content must be a string.`};
+          if (!['pending', 'in_progress', 'running', 'completed'].includes(item.status))
+            return {ok: false, error: `${field}.status must be pending, in_progress (alias running), or completed.`};
+        }
+      }
       const todos=args.todos?.map(t=>({...t,status:t.status==='running'?'in_progress' as const:t.status}));
       const outcome = await ctx.request<TodoOutcome>("service.todo.update", { todos });
       return { ok: true, data: outcome };

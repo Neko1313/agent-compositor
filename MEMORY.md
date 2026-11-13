@@ -1,5 +1,38 @@
 # Project memory
 
+## Indexed Todo validation and state retention — 2026-11-13
+
+Continued local work while the explicit cloud-transcript replay approval remains
+pending. No model requests were attempted and the approval rejection was not
+worked around. The preceding goal turn made implementation progress in 9db2855.
+
+The current task_plan already validates actual array indexes; the hardcoded-index
+failures belonged to rejected historical model candidates. Do not claim a new
+task_plan bug. The built-in todo tool, however, returned only a generic list-wide
+error. Added indexed first-error feedback for item/content/status and explicit
+root/list type errors before service.todo.update. The indexed loop also rejects
+sparse SDK arrays instead of letting Array.every/map skip holes. Successful alias
+normalization, read/replace/clear behavior and frozen service shapes are unchanged.
+
+The negative unit reproduction failed all 12 initial cases on the old validator.
+The final verification passes 106 tests across all tools, core Todo isolation and
+actual Todos plugin persistence. It covers indexes 0/2/4, malformed root/list/item
+shapes, sparse inputs, zero service calls, unchanged arguments, unchanged memory
+and byte-identical persisted state on invalid updates. Typecheck and docs:gen/
+docs:check pass. Updated canonical agent-features guidance; architecture,
+workspace/file-tool behavior and app controls are unaffected. No generated event
+inputs or plugin versions/catalogs changed; no UI work or broad model-quality
+claim. Self-development, onboarding, OpenTUI and stable 1.0 remain open.
+
+9db2855 docs 43409632348 and release preparation 43409632365 passed. CI
+43409632398 Node 22 job 131832516618 failed its real stdio MCP handshake test
+after the default 5000 ms; 1513 tests passed, three optional skips. The exact test
+passed in isolation locally (648 ms total). Node 26 job 131832517031 passed the
+full test step and remained in plugin certification at last inspection. A retry
+of the failed job was refused by GitHub because the run was still active; it did
+not start. Inspect the same run before retrying; do not restart the live job or
+claim the earlier CI is green. No timeout or MCP production code was changed.
+
 ## Explicit text-only summary requests and tool-event rejection — 2026-11-13
 
 7ac62fb passed CI 43408642452 (both Node versions), docs 43408642480 and

@@ -231,8 +231,9 @@ a passing legacy-only view does not cover the newer workflow interface.
 
 Six model profiles use `tools/plugins/live-scenario.ts`. Every task starts in a
 fresh isolated project and runs the actual plugin against the predeclared Ollama
-reference, three repetitions of each package's task set (eight scenarios for
-auto-approve, seven for the other packages). Graders inspect generated files,
+reference, three repetitions of each package's declared task set. The current
+auto-approve and btw sets contain eight scenarios; the other sets contain seven.
+Graders inspect generated files,
 explicitly activated generated commands, workflow results, approval verdicts and
 preserved/compacted context. Negative controls reject wrong outputs, unsafe
 approvals, unchanged starters, unauthorized activation and lost goals. A failed
@@ -240,6 +241,12 @@ required repetition fails the entire run; thresholds are never reduced afterward
 `trajectory.json` retains requests, responses, actual usage, errors and task results.
 Token and call budgets are enforced. Billing is recorded as unavailable when the
 bridge exposes no monetary usage; it is not reported as zero cost.
+
+Immediate command cancellation must target that command's operation through
+`core.cancelOperations(owner)`. Interrupting the foreground turn must leave an
+independent command running. The btw live cancellation case uses the actual
+application/core command path, then requires cancellation settlement and no
+answer notification; aborting the fixture's foreground signal cannot test it.
 
 For local exploration, run a non-publishable evaluation with:
 

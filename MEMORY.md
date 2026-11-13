@@ -1,5 +1,30 @@
 # Project memory
 
+## Reference certification and immediate-command cancellation seam — 2026-11-13
+
+On clean source 703f87d, full Linux release-stage certifications pass for
+auto-approve (all bindings and 24/24 live reference cases) and workflows (all
+bindings and 21/21 live cases), using the declared gemma4:31b-cloud policy and
+unchanged task oracles. Reports are preserved under
+dist/release-0.8.0-navigation-fix/source-certification. This is one-reference
+evidence, not general model quality or four-platform artifact certification.
+The new complete Linux archive passes real workflow PTY and all eight installed
+runtime probes; closed/completed/narrow captures were inspected. Node 22 CI on
+703f87d passes; Node 26 was still running at the last observation. No public tag.
+
+The btw release gate exposed a stale cancellation trigger in the harness: it
+aborted the foreground fixture signal, which immediate commands intentionally
+outlive. Its unchanged no-answer-after-cancel assertion correctly failed there;
+preserved reports under dist/btw-command-cancellation/before. The live case now
+uses the actual app/core command path and cancels the owning btw operation,
+requiring cancellation settlement, no active operation and no answer notification.
+A real-core unit regression separately proves foreground interrupt leaves the
+one-shot request running and owner cancellation aborts it. Five btw integration
+tests and three live cancellation diagnostics pass. No production command
+behavior was changed to accommodate the old trigger. Full certification on the
+final committed harness still needs rerunning; prior certificates remain bound
+to 703f87d. No OpenAI calls/budget change; Ollama billing is unavailable.
+
 ## Workflow navigation waits for replacement publications — 2026-11-13
 
 Node 22 CI on dff160d and generated PR10 exposed a second render race: switching

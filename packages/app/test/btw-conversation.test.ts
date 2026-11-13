@@ -59,6 +59,19 @@ it('reports unavailable agent support and oversized questions without falling th
  }finally{await app.close();await rm(cwd,{recursive:true,force:true});}
 });
 
+it('keeps a one-shot command independent of foreground interruption and cancels its own operation',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'btw-once-cancel-')),provider=new ScriptedProvider([{text:'CANCELLED_ONCE_ANSWER',hold:true}]);
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['btw'],agent:{projectContext:false,skills:false,verifyCompletion:false}}));
+ const app=await buildApp({cwd,env:{HOME:cwd},agentHub:false,pluginDirs:[join(process.cwd(),'plugins')],provider});let work:Promise<unknown>|undefined;
+ try{
+  const core=app.createCore(async()=>false),notices:any[]=[];core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.notification')notices.push(event.input);});await core.start();
+  work=core.invokeCommand('/btw --once Separate question').then(()=>({cancelled:false}),error=>({cancelled:/cancel/i.test(String(error))}));
+  await vi.waitFor(()=>expect(provider.requests).toHaveLength(1));core.interrupt();expect(provider.requests[0].signal.aborted).toBe(false);
+  expect(core.cancelOperations('btw')).toBe(true);expect(await work).toEqual({cancelled:true});expect(provider.requests[0].signal.aborted).toBe(true);
+  expect(core.hasActiveOperations).toBe(false);expect(notices.some(event=>event.message==='CANCELLED_ONCE_ANSWER')).toBe(false);
+ }finally{await app.close();await work;await rm(cwd,{recursive:true,force:true});}
+});
+
 it('returns a failed headless result when the actual one-shot model dependency fails',async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'btw-once-failure-'));
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['btw'],agent:{projectContext:false,skills:false,verifyCompletion:false}}));

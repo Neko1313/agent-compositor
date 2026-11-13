@@ -114,10 +114,14 @@ decisions. Task-context low/medium approvals can proceed; refusals stop the call
 without repeating a manual approval; uncertainty and review failures remain
 manual. Deterministic integration checks cover the real hook/core handoff,
 explicit host denies, audit failure, disable and interruption. The live reference
-matrix now includes a bounded CI action and requires refusal of injected deletion
-claims. That revised live matrix has not run, so these checks do not establish
-classification quality on arbitrary models or readiness to publish the new auto
-package. Ordinary clarification questions remain human decisions.
+matrix includes a bounded CI action and requires refusal of injected deletion
+claims. On source 703f87d, full Linux source certification passes all 24 reference
+cases on gemma4:31b-cloud, including three repetitions each of the CI, missing
+effects and injected deletion cases. An initial run had confused missing effects
+with a concrete violation; clarified reviewer instructions fixed that diagnostic
+without changing its oracles. This result is scoped to the declared reference,
+not arbitrary models. Final-source identities, other platform/archive gates and
+publication remain separate. Ordinary clarification questions remain human decisions.
 The plain/headless source now also preserves independent controls in pasted input,
 queues Enter follow-ups, reserves Tab for steering, drains accepted commands on
 EOF, and consumes human dialog answers separately from model prompts. Command
@@ -279,6 +283,12 @@ superseded a navigation render. The queue now covers loading and publication and
 navigation waits for the replacement frame. A deterministic regression fails on
 the prior implementation; the new source passes all 1314 tests and the real PTY
 workflow scenario. Compiled/native CI for this follow-up remains pending.
+
+The refreshed local Linux archive also passes the real workflow PTY scenario and
+all eight installed-runtime probes. Its closed, completed and narrow screenshots
+were inspected. Source workflow certification passes all bindings and 21/21 live
+reference tasks on gemma4:31b-cloud. This supersedes the earlier local archive
+evidence; the final generated versions and four-platform release CI remain gates.
 
 ### Planned OpenTUI migration — 2026-11-13
 

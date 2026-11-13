@@ -45,7 +45,15 @@ export async function liveTask(name:string,id:string,prompt:string,policy:any,di
    }
    if(id==='failure'){ref.unavailable=true;await f.prompt(prompt);assert.match(f.notices.at(-1).message,/failed/);}
    if(id==='denied'){f.host.registerPlugin({name:'deny-model',version:'1.0.0',trust:'trusted',priority:100},{'service.model.complete':()=>({deny:'No model permission'})});await f.prompt(prompt);assert.match(f.notices.at(-1).message,/failed/);assert.equal(ref.frames.length,0);}
-   if(id==='cancel'){let began:()=>void=()=>{};const started=new Promise<void>(done=>{began=done;});ref.onStart=began;const work=f.prompt(prompt,true);await started;f.abort.abort(Error('cancelled'));await work;assert.ok(!f.notices.some(n=>/^42$/.test(n.message)));}
+   if(id==='cancel'){
+    const app=await f.app({agent:{tools:[],builtinTools:[],controlTools:[],skills:false,projectContext:false,verifyCompletion:false}},ref);
+    const core=app.createCore(async()=>false);activeCore=core;await core.start();const notices:any[]=[];
+    core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.notification')notices.push(event.input);});
+    let began:()=>void=()=>{};const started=new Promise<void>(done=>{began=done;});ref.onStart=began;
+    const work=core.invokeCommand(prompt).then(()=>({cancelled:false}),error=>({cancelled:/cancel/i.test(String(error))}));
+    await started;assert.equal(core.cancelOperations('btw'),true);assert.equal((await work).cancelled,true);
+    assert.equal(core.hasActiveOperations,false);assert.ok(!notices.some(n=>/^42$/.test(n.message)));details.cancelledOperation=true;
+   }
   }else if(name==='auto-approve'){
    await writeFile(join(f.cwd,'README.md'),'Read this public fixture.');await f.storage.configure('auto.json',{profile:'reference',maxReviews:10,timeoutMs:policy.configuration.requestTimeoutMs});await f.prompt('/auto on');
    const proposal:any={callId:'live-review',tool:'read',input:{path:'README.md'},descriptor:{tool:'read',readOnly:true,path:join(f.cwd,'README.md')},description:'Read public project documentation',parameters:{type:'object'},context:{task:'Inspect the README in this project. No mutations are requested.'}};

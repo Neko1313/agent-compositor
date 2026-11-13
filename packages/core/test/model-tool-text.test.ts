@@ -45,10 +45,21 @@ it('preserves rejection of binary/NUL content',async()=>{
  const f=await fixture('line\n\0\n');expect(f.result.ok).toBe(false);expect(f.result.modelText).toBeUndefined();expect(f.sent).toContain('read:');
 });
 
-it('bounds formatted output without presenting a truncated body as a complete edit source',async()=>{
- const f=await fixture('export const big="'+'x'.repeat(140000)+'";\n'),value=JSON.parse(f.sent);
+it('presents a bounded native read chunk with its continuation and exact edit anchor',async()=>{
+ const f=await fixture('export const big="'+'x'.repeat(140000)+'";\n'),output=f.result.output as any;
+ expect(output.content.length).toBe(16000);expect(output.nextCursor).toEqual(expect.any(String));
+ expect(output.edit.range).toEqual({start:0,end:16000});expect(output.editRef).toEqual(expect.any(String));
+ expect(f.sent).toContain('File content (verbatim):');expect(f.sent).not.toContain('Tool result exceeded');expect(f.result.modelText).toBe(f.sent);
+});
+it('bounds oversized extension presentation without presenting its body as a complete edit source',async()=>{
+ const output={content:'x'.repeat(140000)},journal:SessionEvent[]=[];
+ const tool:ToolSpec={name:'oversized',description:'Oversized fixture',parameters:{type:'object'},describe:()=>({tool:'oversized'}),execute:async()=>({ok:true,data:output,modelText:'File content (verbatim):\n'+output.content})};
+ const provider=new ScriptedProvider([{toolCalls:[{name:'oversized',args:{}}]},{text:'Read complete.'}]);
+ const core=new AgentCore({cwd:process.cwd(),provider,tools:[tool],rules:[{tool:'oversized',decision:'allow'}],sessions:{create:async()=>{},append:async(_id,events)=>{journal.push(...events);}}});cores.push(core);
+ await core.submit('Inspect the extension output');
+ const sent=provider.requests[1].messages.find(message=>message.role==='tool')!.content,result=journal.find(event=>event.type==='tool.result')!,value=JSON.parse(sent);
  expect(value.truncated).toBe(true);expect(value).not.toHaveProperty('edit');expect(value.hint).toContain('not a complete edit source');expect(value.preview.length).toBeLessThanOrEqual(16000);
- expect(f.result.modelText).toBe(f.sent);expect((f.result.output as any).content.length).toBeGreaterThan(128*1024);
+ expect(result.modelText).toBe(sent);expect((result.output as any).content.length).toBeGreaterThan(128*1024);
 });
 it('applies the same byte bound to explicit text in external replay records',()=>{
  const events:SessionEvent[]=[{type:'tool.call',callId:'big',tool:'read',input:{}},{type:'tool.result',callId:'big',tool:'read',ok:true,output:{content:'not authoritative'},modelText:'😀'.repeat(50000)}];

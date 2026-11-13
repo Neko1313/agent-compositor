@@ -547,9 +547,23 @@ for opt-out, replacement policies and explicit limitations.
 
 `read.offset` uses 1-based integer lines (omit it or use 1 to start); `read.limit`
 is an integer from 1 to 10000, defaulting to 200 lines from the requested offset.
-Truncated results include `nextOffset` for the next page; use targeted search to
-locate relevant sections instead of repeatedly reading a large file from its start.
-An explicit limit can request a larger range. The edit anchor covers exactly the
+Each tool page also returns at most 16000 UTF-8 bytes, even for a single dense
+line. `maxChars` accepts 1..16000 Unicode characters to request a smaller page;
+the byte bound still applies and never splits a code point. If the selected
+line window does not fit, copy `nextCursor` verbatim into another `read` with
+the same `path`; omit `offset`/`limit` or keep the original values. The cursor
+preserves the original line window and verifies its returned content has not
+changed. It is stateless across cores/restarts and never grants file access.
+A stale cursor gives the original line window to reread. Character pages keep
+Unicode code points intact; edit ranges still use UTF-16 offsets.
+
+Clients must follow `nextCursor` before `nextOffset`. Only after the character
+window finishes does `nextOffset` expose the next line page. Do not assume a
+requested line range fits in one result. This changes the default for long lines
+and large explicit ranges; consumers that previously used only line pagination
+must handle `nextCursor`. The underlying `service.file.read` input is unchanged.
+Use targeted search to locate relevant sections instead of repeatedly reading
+a large file from its start. The edit anchor covers exactly the
 returned content, including on later pages. Ordinary source is presented to the model with
 literal line breaks and separate JSON anchor metadata; callers/UI retain the
 structured result. See [model-facing tool text](core-customization.md#model-facing-tool-text).

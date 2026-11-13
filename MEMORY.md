@@ -1,5 +1,53 @@
 # Project memory
 
+## Dense file reads with bounded, stateless continuation — 2026-11-13
+
+70ce384 passed CI 43413635254 on both Node versions, docs 43413635233 and
+release preparation 43413635247. The preceding goal turn made concrete MCP
+transport progress. Continued local tool work while cloud transcript replay
+approval stays pending; no model endpoint, private key or spending guard used.
+
+Investigated context pressure rather than assuming the large MEMORY file was
+dumped wholesale: current MEMORY is about 473 KB, but the saved DeepSeek run
+read only the first 200 lines (about 14 KB) of its 414 KB fixture copy. That
+does not prove memory size caused its summary failure. A separate real read
+gap was unbounded line length: line pagination could return almost 2 MiB in
+one result and could not continue inside a dense line after model preview loss.
+
+Native read pages now contain at most 16000 UTF-8 content bytes. maxChars accepts
+1..16000 Unicode code points for smaller pages; neither bound splits a code
+point. nextCursor continues within the selected line window before nextOffset
+becomes available. It records the original optional offset/limit and hashes that
+window's returned content. Changes to that view invalidate the cursor and give
+the original window for recovery; unrelated content outside it need not invalidate
+it. Cursors are bounded, stateless selectors, not authenticated capabilities.
+path remains required and ordinary policy applies; mismatched paths/windows are
+rejected. Pure argument validation also participates in the core preflight.
+
+Every partial page narrows a compatible edit anchor to its exact UTF-16 range
+and regenerates editRef; incompatible custom-provider guards are omitted.
+Custom service content can still be paged without anchors. Native 2 MiB input
+and line limits remain unchanged. No service.file.read input fields, frozen
+events, provider/model budgets or UI controls changed. This intentionally changes
+default long-line/large-range results: consumers must handle nextCursor before
+nextOffset. The Conventional Commit must mark that behavior incompatibility.
+Canonical agent-features and core-customization guidance document the migration.
+
+Evidence: dist/read-pagination-proof compares committed 70ce384 read code with
+the new direct tool on identical local input using unchanged native resolvers.
+The 65007-byte line formerly returned whole; five new pages each at most 16000
+bytes reconstruct it exactly. The baseline module only relocates unchanged
+relative type/edit-anchor imports. This is a direct-tool comparison, not a
+real-model task-quality result. Unit/core tests cover ASCII/emoji byte bounds,
+CRLF, exact edits, stale/forged cursors, custom providers, cross-file denial,
+argument nonmutation and a literal fresh-process continuation. Full coverage
+passes 1587 tests, three optional skips, 186 files; typecheck, gen, docs:gen and
+docs:check pass. An old native-oversize test was updated to the new bounded page;
+independent oversized-extension/replay preview coverage remains intact. No manual
+plugin/catalog version or changelog edits. Workspace/reference expansion behavior
+is unchanged. Stable 1.0, broad self-development/model quality, onboarding and
+OpenTUI remain incomplete; keep the original goal active.
+
 ## MCP streaming UTF-8 and bidirectional RPC framing — 2026-11-13
 
 1dc26fc passed CI 43412436021 on both Node versions, docs 43412435888 and

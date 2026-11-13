@@ -589,12 +589,16 @@ presentation, and failure results retain their actual error. Text is data, not
 authorization or a replacement for verification evidence.
 
 Built-in `read` uses this view for ordinary UTF-8 source: one JSON metadata block
-contains the unchanged edit anchor, line count and truncation status, followed
+contains the returned page's exact edit anchor, line count and truncation status, followed
 by source with literal line breaks. It does not decode literal backslash escapes
 or alter the file. LF/CRLF, tabs and Unicode remain intact. Source with terminal
 control characters keeps the existing JSON-escaped view; binary rejection is
 unchanged. Custom read providers without a string `content` retain their prior
 representation.
+Native reads page dense content before applying the general presentation bound;
+follow `nextCursor` before `nextOffset` as described in
+[read pagination](agent-features.md). Custom service content is paged by the tool
+as well; incompatible whole-window edit anchors are omitted from partial pages.
 
 Built-in `exec` and `exec_output` use a separate readable view when the result
 has string stdout and stderr. A `Command metadata (JSON)` header contains `result`

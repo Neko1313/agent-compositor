@@ -203,6 +203,9 @@ remain absent from terminal output, HTTP bodies and saved journals; raw test
 keyboard logs are deliberately excluded. No user credentials or paid provider
 are used. Artifacts default to `dist/visual-opentui-requests/`; `VISUAL_EXECUTABLE`
 selects the executable inside a complete extracted archive for the same proof.
+Initial resize waits for the app's complete native pane geometry before starting
+the question. Pointer targets exclude synchronized partial output and must keep
+their coordinates and painted row stable across three browser animation frames.
 
 `npm run visual:windows` checks the shipping Ink window controls through the
 actual PTY: finder search and cancellation, draft/cursor retention, nearest-split

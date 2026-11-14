@@ -1,5 +1,40 @@
 # Project memory
 
+## Request bench native resize acknowledgement — 2026-11-14
+
+The selected workspace-controller feature is committed and pushed as 7627203.
+Its exact locally tested immutable Linux bundle is installed at
+~/.local/share/agent-compositor/main-20261114-e6185649d028-linux-x64;
+dist/opentui-workspace-controllers-local-install.json records the old target and
+matching executable/renderer/archive hashes. Node 22/26 CI 43562451891,
+documentation 43562451830 and plugin preparation 43562451858 passed. Build-only
+43562457557 verification and both Linux native jobs passed. The first macOS ARM
+job failed the older requests bench before its first completed check; keep that
+run failed. macOS Intel was still running at this checkpoint.
+
+Downloaded ARM evidence is retained in dist/opentui-workspace-remote-7627203.
+The only click targeted column 57, row 15 from synchronized ANSI frame 8;
+frame 9 moved Edit answer to column 111, row 27 after the native 180x50 resize.
+The final screenshot remains in Draft, with the question still pending. This is
+an observed stale pointer coordinate, not evidence of an input-policy failure.
+The requests bench now waits for completed native border geometry, excludes
+synchronized partial output and stabilizes the target row/frame before clicking,
+as the existing manager/controller checks do. Pointer clicks, all answer/effect
+oracles and the timeout remain unchanged. This correction changes no shipping
+payload; the installed bundle's input fingerprint remains authoritative.
+The corrected scenario passes all six checks against the exact installed
+133b4462/34ac4ba5 bundle, PTY 0, errors:[]; screenshots retain Main's pending
+answer/draft and independent request results. docs:check also passes. macOS Intel
+subsequently passed all native gates in the first run, while ARM remains failed
+and publication skipped. Exact new-head remote gates remain required.
+
+Read-only WM audit identified keyboard edge retiling as the next bounded slice:
+Shift+direction currently swaps via center drop; mouse edge-drop can reshape
+nested splits. Consider explicit Ctrl+Arrow in Arrange, leaving ordinary native
+editing and existing swap unchanged. Require a real three-window nested move,
+pending Main/draft preservation, unaffected ratios and restart persistence.
+No implementation or additional i3 layout modes are claimed by that audit.
+
 ## Selected history and placement window implementation — 2026-11-14
 
 Continue toward the complete 1.0 scope; the previous editor turn was progress.

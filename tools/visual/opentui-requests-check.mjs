@@ -45,9 +45,10 @@ try{
   let pointerAttempt=0;
   async function click(label,also){const attempt=++pointerAttempt;
     const point=await page.waitForFunction(({label,also,attempt})=>{
+      if(visual.terminal.modes?.synchronizedOutputMode===true){delete window.__requestsPointer;return;}
       const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(label)&&(!also||line.includes(also)));if(row<0){delete window.__requestsPointer;return;}
       const col=lines[row].indexOf(label)+Math.min(1,label.length-1),rect=document.querySelector('.xterm-screen').getBoundingClientRect();
-      const signature=[row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height].join(':'),previous=window.__requestsPointer;
+      const signature=JSON.stringify([row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height,visual.frames,lines[row]]),previous=window.__requestsPointer;
       if(previous?.attempt!==attempt||previous.signature!==signature){window.__requestsPointer={attempt,signature,count:1};return;}
       if(++previous.count<3)return;return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};
     },{label,also,attempt},{polling:'raf'});const value=await point.jsonValue();await page.mouse.click(value.x,value.y);
@@ -100,7 +101,16 @@ try{
   const args=launch.launches[0].command.slice(-4);assert.deepEqual(args.slice(0,3),['--renderer','opentui','--cwd']);assert.equal(await realpath(args[3]),await realpath(launch.cwd));
   if(launch.executable){assert.equal(hash(await readFile(launch.executable)),launch.sha256);report.executable={path:launch.executable,sha256:launch.sha256};
     const renderer=join(dirname(launch.executable),'node_modules/@agent-compositor/renderer-opentui/index.js');report.renderer={path:renderer,sha256:hash(await readFile(renderer))};}
-  await page.evaluate(()=>visual.terminal.resize(180,50));await command('APP_QUESTION');await wait('MAIN_QUESTION: choose deployment');
+  await page.evaluate(()=>visual.terminal.resize(180,50));
+  // A client resize can expose the old native frame until the app acknowledges
+  // its new geometry. Pointer coordinates must come from the completed frame.
+  await page.waitForFunction(()=>{
+    const terminal=visual.terminal,buffer=terminal.buffer.active;
+    return terminal.cols===180&&terminal.rows===50&&terminal.modes?.synchronizedOutputMode!==true
+      &&buffer.getLine(buffer.viewportY+3)?.getCell(179)?.getChars()==='┐'
+      &&buffer.getLine(buffer.viewportY+48)?.getCell(179)?.getChars()==='┘';
+  });
+  await command('APP_QUESTION');await wait('MAIN_QUESTION: choose deployment');
   await click('Edit answer');await click('[ ] Production');await wait('[x] Production');await click('Draft');
 
   // The manifest has no UI route and the command publishes no view. Its first

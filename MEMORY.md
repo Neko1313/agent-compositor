@@ -1,5 +1,109 @@
 # Project memory
 
+## Installed render repair; eval admission correction in progress — 2026-11-15
+
+This goal turn made concrete progress. Commit `2ca0b697fef04fa5cc871c3003c1ef0dd17b5974`
+fixes render occupancy and stale SDK continuation. It was pushed with the three
+preceding local commits. Local full verification passes 2386 tests plus three
+optional skips in 266 files, with no unhandled errors. Types, generation,
+documentation, marketplace and all 32 PR plugin contracts pass. Actual source
+render8 and a fresh archive's native95 pass without reusing the old failed72.
+
+Fresh immutable manifest: dist/opentui-render-settlement-artifact.json,
+SHA85296c7815e57126a40f933e8ee22ec1ee19f624d2cfef07a0e31584496c430e.
+All 735 frozen shipping-source rows have fingerprint
+a57cafbcbe9bba4ef1399c2bd8da8c8b39f2f0d5121facdaf900246bdbeacc07.
+Archive SHA1eb8d1d1bb9802281b14560c02039c699a78738c2179e6bc244de385a33ee213;
+executable bd7fc487a6ac327288b2cb3ffe2449be94bebf418623c1e02420f6edf44beaf4;
+adjacent renderer remains 37fa43f75d0f5c2c105e86df30f03b26d8b88cbea5989c9103dffc2ed122d7e5.
+All 5879 shipping entries, nine canonical smokes, six signal cases and 105 raw
+signal files were independently audited. Native summary SHA8d693482 proves
+95 checks, fourteen actual runners and twenty-two PTY exits zero. Independent
+shipping visual review inspected seventeen current PNGs and 207 evidence files.
+The exact archive is installed at
+/home/neko/.local/share/agent-compositor/main-20261114-1eb8d1d1bb98-linux-x64;
+the previous 23315fd3 installation remains. Public version is still 0.8.0;
+Ink remains default, OpenTUI opt-in. No 1.0 readiness claim.
+
+Exact-head build-only release 43635594880 is terminal SUCCESS: verify and all
+four native jobs pass, publication skipped. All four actual downloaded ZIPs
+match primary GitHub digests and prove 352 UI checks, 36 smokes, 24 signal cases,
+32 reaped owned workers, 24 preserved neighbors and 80 PTY exits zero. Final
+dist/opentui-render-settlement-remote-2ca0b69/terminal-qualification-receipt.json
+SHA4aee8692134995dd94b197bf88497a32e5ef55ffed6397aa4cd01a274d5a3198
+truthfully keeps overall qualification false: source CI 43635573480 fails the
+same development-transport.test.ts cap assertion on Node22 and Node26. Docs
+43635573474 and plugin preparation 43635573490 pass. Preserve original failed
+CI logs, both quality ZIPs and all native evidence; do not rerun old jobs.
+
+The remaining fix is in unshipped tools/evals/development-transport.ts and its
+test only, outside the 735 shipping-source scope. A real OpenAICompatProvider
+RED proves normal `[DONE]` reader cancellation aborts a valid still-open upstream;
+the next sequential call gets HTTP409 after only one upstream attempt despite
+cap3. Raw proof: dist/development-transport-admission-repro-20261115. HTTP EOF
+also precedes asynchronous receipt persistence and admission release, explaining
+the original cap-test race. The scoped fix adds one bounded waiter, transfers
+ownership only after evidence settlement and distinguishes validated terminal
+consumption from early disconnect. Appearance owns implementation/targeted tests;
+root owns docs and standalone full verification. Independent reviewers cover
+queue/cancellation and hard incoming-body lifetime boundaries. Do not attribute
+this unshipped correction to 2ca0b69; qualify its committed source separately
+against fresh CI, retaining the original failed run.
+
+The correction is now frozen at transport source
+41e0f4f25dade87003450d00ed88826b59cfec3003d54482f860718a2306edc4 and test
+a0cec957eac46babcf128c770ee1523146d4115d13b892a53395ac99cb2bca04.
+All 24 HTTP cases, existing SDK8 and eval types pass. They preserve the original
+cap and partial-body409 assertions, add actual-provider DONE behavior and gated
+receipt ordering, and prove no upstream after a transferred caller disconnects.
+Per-request lifetimes also end NEVER incoming bodies without a client-end rescue;
+concurrent close callers join the same owned cleanup promise. Independent review
+is retained in dist/development-transport-independent-review-20261115.json;
+raw RED/GREEN/final source snapshots are under
+dist/development-transport-admission-final-20261115. Root's first standalone run
+passes 2426 tests plus three optional skips in 267 files, zero unhandled errors,
+32.78s, but includes the retained 24-test snapshot under that ignored dist path.
+Preserve this real success without treating the duplicate as maintained coverage.
+Vitest's defaults excluded only node_modules/.git. Root preserves those defaults
+and additionally excludes root dist; the actual discovery inventory now contains
+all 266 maintained test files and no dist file. Fresh canonical full82560 passes
+2402 tests plus three optional skips in 266 maintained files, zero unhandled
+errors,32.909s. Receipt dist/headless-development-admission-canonical-full-ci-receipt.json;
+log /home/neko/.cache/ac-tmp/compositor-development-admission-canonical-full-test-ci-20261115.log.
+The earlier full success with duplicate remains unchanged under
+dist/development-admission-initial-full-with-copy-20261115.
+All 1016 tracked/nonignored workspace files stayed unchanged during that run,
+including eval tooling and docs (broader than the735 shipping-scope snapshot).
+Receipt dist/headless-development-admission-full-ci-receipt.json and log
+/home/neko/.cache/ac-tmp/compositor-development-admission-full-test-ci-20261115.log.
+No full native UI rerun is claimed for this unshipped-only correction.
+
+Native Kitty progress is separate. The first literal send-key Unicode attempt
+fails before CJK bytes reach the app due Kitty0.50's Python ASCII encoding path;
+its failure remains preserved. A passive 110x36 preflight exits naturally with
+TTY restoration but does not prove the original resize ordering. The separately
+owned rootful Xwayland route avoids shared keymap/focus changes and proves real
+unmodified CJK/emoji/combining input and every native edit/undo/cursor receipt.
+Only two of its four business oracles pass: Finder legitimately offers both
+Tools/Closed and New Tools window/Available, contradicting a helper's hardcoded
+one-row assumption. Preserve the failed run and ungraded final PTY/TTY cleanup.
+A distinct corrected helper was run once at
+dist/opentui-native-kitty-private-tools-unicode-2ca0b69-20261115. It again passes
+the first two oracles, but its added ANSI/RGB selected-row observer times out
+before Enter despite the native screenshot showing exact query tools, two rows
+and canonical Tools/Closed selected. Preserve this second2/4 failure unchanged;
+it does not establish navigation or normal final PTY/TTY restoration. All three
+owned processes exit zero, private socket/workspace are removed, no forced kill.
+Root requests a minimal observed-list/capture/Enter helper correction retaining
+the original exact Tools-focused/restored-draft/final-submission business oracles;
+no third attempt has yet been approved or run. The native slot is currently free.
+
+All work in this turn uses scripted loopback providers with zero paid requests.
+The original budget ledger and pending budget question remain unchanged. The
+complete 1.0 scope stays active: daily OpenTUI usability/default switch, native
+media and terminal coverage, CPU onboarding decision/quality, repeated realistic
+development and initial useful-plugin delivery, multi-hour recovery and trust.
+
 ## Public-render dispatch repair verified in source — 2026-11-15
 
 The preceding status-only goal turn made no implementation progress; it verified

@@ -7,7 +7,7 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
-The current source passes the full standalone suite: 2386 tests plus three
+The local `2ca0b69` checkpoint passes the full standalone suite: 2386 tests plus three
 optional skips in 266 files, with no unhandled errors. Whole-workspace types,
 generation, documentation, marketplace validation and all 32 mandatory plugin
 contracts pass. Actual source CLI
@@ -21,12 +21,29 @@ eleven runners, then fails the public-render limit: eight actual held painters
 remain unresolved before any fixture gate is released, despite the limit of two.
 The remaining wire and delegated-child runners were not executed. This archive
 is retained as failed evidence and has not replaced the installed binary. A
-narrow dispatch/SDK-authority separation now passes 27 focused host/cache tests
-and all eight actual source PTY checks with the original two-painter oracle.
-Captured continuations and implicit stale fallthrough are guarded; current
-dispatch results and publication remain verified. This source repair requires a
-fresh archive, full native 95 and exact-head four-platform evidence. The older
-archive below does not verify these runtime changes.
+narrow dispatch/SDK-authority separation is committed as `2ca0b69` and passes 27
+focused host/cache tests, all eight actual source PTY checks and a fresh sealed
+archive's full 95 native checks in fourteen runners and twenty-two PTYs. All
+nine canonical archive smokes pass. Captured continuations and implicit stale
+fallthrough are guarded; current dispatch results and publication remain verified.
+The exact build-only release 43635594880 passes verification and all four native
+jobs, with publication skipped. Its four downloaded, digest-verified artifacts
+contain 352 UI checks, 36 smokes, 24 signal cases, 32 reaped owned workers and
+80 successful PTY receipts. This archive is installed, with the prior installation
+retained and Ink still the default.
+
+Overall qualification for `2ca0b69` remains false: source CI 43635573480 fails the
+same eval-transport request-cap test on Node 22 and 26. The response can reach a
+client before receipt persistence releases admission; a real SSE client also
+exposes a mistaken upstream cancellation after consuming `[DONE]`. These are
+separate from the passing packaged UI/runtime evidence. The bounded serialization
+and terminal-reader correction passes 24 transport checks, eight SDK checks and
+the canonical full local suite: 2402 tests plus three optional skips in 266
+maintained test files, with no unhandled errors. Retained `dist/` snapshots are
+excluded from discovery. The correction also closes never-ending incoming bodies on cancellation,
+checks client loss before upstream admission and joins concurrent close calls.
+All 735 packaged inputs remain unchanged. No failed CI is retried or retroactively
+passed; corrected source needs a new exact-head source qualification.
 
 OpenTUI runs the configured application through `--renderer opentui`; Ink remains
 the default. Revision `3281bda` adds private delegated and managed agent request
@@ -81,7 +98,14 @@ is 1075.79/1084.98 ms and 1083.66/1075.06 ms against the declared 1080±180 ms b
 The two native captures show a stable original frame in each state; this does
 not measure every GPU-visible animation frame or screen frame rate.
 The terminal's modifyOtherKeys advisory and mode 2027 warnings remain preserved
-compatibility issues. Full state transitions, physical compositing, resize,
+compatibility issues. A separate installed `2ca0b69` run in a private rootful
+Xwayland/Kitty environment verifies real unmodified CJK, emoji and combining
+keys, exact UTF-16/cell positions and native edit/backspace/undo behavior. Two of
+four declared oracles pass; the window-navigation helper stops before opening
+Tools because its Finder selection observer does not recognize the actual
+highlight. The full navigation/submission/normal-exit scenario remains open.
+This text/key path does not establish graphics or mode 2027 compatibility.
+Full state transitions, physical compositing, resize,
 fallbacks, tmux and video remain open, as do the default frontend switch,
 CPU-assisted onboarding, repeated realistic development,
 initial useful-plugin delivery, sustained sessions and trust remain open gates.

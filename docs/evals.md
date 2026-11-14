@@ -446,7 +446,15 @@ until this launcher can reuse their persistent USD guard; it never creates or
 resets that ledger.
 
 The host-owned gateway admits one completion at a time with no redirect or
-fallback. Defaults are 40 requests, 200,000 serialized request bytes per call,
+fallback. One following request may wait until the prior response and its
+receipt have finished; additional concurrent callers receive HTTP 409. The
+waiting request cannot contact the provider before that evidence settles, and
+receipt failure, cancellation or the deadline prevents its admission. A client
+that consumes validated usage followed by SSE `[DONE]` may close its reader
+while the gateway finishes collecting the upstream response and saving its
+receipt. Disconnecting earlier still cancels that upstream request.
+
+Defaults are 40 requests, 200,000 serialized request bytes per call,
 6,000,000 total request bytes, requested output of at most 4,096 tokens,
 1,200,000 reported tokens as a stop threshold, 4,000,000 response bytes per call
 and a 20-minute deadline. `--limits /absolute/path/to/limits.json` requires every

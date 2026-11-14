@@ -43,8 +43,8 @@ maintained test files, with no unhandled errors. Retained `dist/` snapshots are
 excluded from discovery. The correction also closes never-ending incoming bodies on cancellation,
 checks client loss before upstream admission and joins concurrent close calls.
 At that tooling checkpoint all 735 conservative bundle rows remain unchanged.
-No failed CI is retried or retroactively
-passed; corrected source needs a new exact-head source qualification.
+No failed CI is retried or retroactively passed; later corrections receive their
+own exact-head qualification.
 
 The source-only correction is pushed as `e862952` and `15675d6`. Both Node jobs
 now pass all 24 transport cases, while source CI 43641127303 fails two different
@@ -55,9 +55,25 @@ now wait for actual question publication and the exact current render completion
 all original state, privacy, capacity and ownership assertions remain. The exact
 slow stage of the failed history run is not established by its retained artifacts.
 These test corrections pass the full standalone local suite: 2402 tests plus
-three optional skips in 266 files, with no unhandled errors. Packaged runtime
-code is unchanged and older failed workflows retain their original results;
-fresh exact-head source CI is still required.
+three optional skips in 266 files, with no unhandled errors. Their committed
+`e887afb` source CI 43643133938, documentation 43643133917 and plugin preparation
+43643133980 all succeed. Downloaded, digest-verified artifacts contain Node 26's
+2402 passing tests plus three optional skips, Node 22's 2391 plus fourteen skips,
+88 source UI checks, 20 successful PTY exits and 32 plugin certificates. Packaged
+runtime code is unchanged; older failed workflows retain their original results
+and the installed archive's native evidence is not rebound to this later source.
+
+The saved-profile development launcher now uses native Responses with one
+parent-owned reservation/collector/settlement authority shared by the typed
+evaluator. Development reuse requires the original existing lifetime ledger;
+preparation reads no saved profile, credential or ledger. Focused fixtures cover
+raw reasoning/function continuity, bounded admission, durable evidence and
+cancellation. A separately selected actual installed executable passes natural
+exit before upstream EOF and operator cancellation during the final drain, using
+a synthetic profile and zero external HTTP. That scripted actor delivers no
+plugin and its authoring grade correctly fails. These checks establish the
+transport/lifecycle boundary; repeated independently graded real development and
+initial useful-plugin delivery remain open. See the [launcher contract](evals.md#retained-installed-cli-plugin-authoring).
 
 OpenTUI runs the configured application through `--renderer opentui`; Ink remains
 the default. Revision `3281bda` adds private delegated and managed agent request

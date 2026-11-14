@@ -1,8 +1,8 @@
 import {afterEach,beforeEach,expect,it} from 'vitest';
-import {mkdtemp,rm,writeFile,stat} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile,stat,readFile,unlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {EvalBudget} from './budget.js';
+import {EvalBudget,evaluationLedgerDigest} from './budget.js';
 let root:string,file:string;
 beforeEach(async()=>{root=await mkdtemp(join(tmpdir(),'eval-budget-'));file=join(root,'ledger.json');});
 afterEach(async()=>{await rm(root,{recursive:true,force:true});});
@@ -85,4 +85,31 @@ it('refuses unrecognized per-request pricing policies in a persisted ledger',asy
  const budget=new EvalBudget(file,'test','gpt-6.1-sol',1),id=await budget.reserve(1,1);
  const fs=await import('node:fs/promises'),data=JSON.parse(await fs.readFile(file,'utf8'));data.charges[id].pricingPolicy='free';await fs.writeFile(file,JSON.stringify(data));
  await expect(budget.reserve(1,1)).rejects.toThrow('corruption');
+});
+it('requires an existing allowance without creating or replacing a missing ledger',async()=>{
+ const options={existingOnly:true},guard=new EvalBudget(file,'test','gpt-6.1-sol',50,options);options.existingOnly=false;
+ await expect(guard.status()).rejects.toThrow('Existing evaluation budget');
+ await expect(guard.auditStatus()).rejects.toThrow('Existing evaluation budget');
+ await expect(guard.reserve(10,100,'standard')).rejects.toThrow('Existing evaluation budget');
+ await expect(stat(file)).rejects.toMatchObject({code:'ENOENT'});
+ const original=new EvalBudget(file,'test','gpt-6.1-sol',50);await original.reserve(10,100,'standard');
+ expect((await guard.status()).pendingRequests).toBe(1);await unlink(file);
+ await expect(guard.reserve(10,100,'standard')).rejects.toThrow('Existing evaluation budget');
+ await expect(stat(file)).rejects.toMatchObject({code:'ENOENT'});
+});
+it('checks a disappearing existing ledger after acquiring the shared lock',async()=>{
+ const original=new EvalBudget(file,'test','gpt-6.1-sol',50);await original.reserve(10,100,'standard');
+ await writeFile(file+'.lock','held');
+ const guard=new EvalBudget(file,'test','gpt-6.1-sol',50,{existingOnly:true});
+ const pending=guard.reserve(10,100,'standard');const outcome=expect(pending).rejects.toThrow('Existing evaluation budget');
+ await unlink(file);await unlink(file+'.lock');await outcome;
+ await expect(stat(file)).rejects.toMatchObject({code:'ENOENT'});
+});
+it('returns a same-read canonical digest without changing pending charges or historical policies',async()=>{
+ const original=new EvalBudget(file,'test','gpt-6.1-sol',50),old=await original.reserve(1000,100),fresh=await original.reserve(100,100,'standard');
+ await original.reported(old,500,10,{cachedInputTokens:400});
+ const before=await readFile(file,'utf8'),data=JSON.parse(before),guard=new EvalBudget(file,'test','gpt-6.1-sol',50,{existingOnly:true});
+ const audit=await guard.auditStatus();expect(audit).toEqual({status:await guard.status(),ledgerSha256:evaluationLedgerDigest(data)});
+ expect(audit.status).toMatchObject({limitUsd:50,pendingRequests:1,reportedRequests:1});
+ expect(JSON.stringify(audit)).not.toContain(fresh);expect(await readFile(file,'utf8')).toBe(before);
 });

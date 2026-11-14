@@ -8,12 +8,17 @@ import {promisify} from 'node:util';
 import {stripTypeScriptTypes} from 'node:module';
 import {prepareDevelopmentTask,developmentTask} from './development-task.js';
 import {developmentInventory,developmentContentDigest,gradeDevelopmentPlugin} from './development-grade.js';
-import {runDevelopment,developmentLimits,inspectDevelopmentBinary} from './development.js';
+import {runDevelopment,developmentLimits,inspectDevelopmentBinary,developmentOptions,validateDevelopmentSource} from './development.js';
 import {buildApp} from '../../packages/app/src/build.js';
 import {evaluationEnvironment,evaluationEnvironmentOverlay} from './environment.js';
 
 const roots:string[]=[];afterEach(async()=>{vi.unstubAllEnvs();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
 async function root(){const path=await mkdtemp(join(tmpdir(),'development-test-'));roots.push(path);return path;}
+async function preparationBinary(){
+  const base=await root(),bundle=join(base,'bundle');await mkdir(join(bundle,'node_modules','@agent-compositor','renderer-opentui'),{recursive:true});
+  const binary=join(bundle,'compositor'),bytes=Buffer.from('\x7fELFsynthetic-preparation-fixture');await writeFile(binary,bytes,{mode:0o755});await writeFile(join(bundle,'VERSION'),'v0.8.0');await writeFile(join(bundle,'node_modules','@agent-compositor','renderer-opentui','index.js'),'// fixture');
+  return{base,binary,binarySha256:createHash('sha256').update(bytes).digest('hex')};
+}
 async function fixture(){const base=await root(),project=join(base,'project'),home=join(base,'home');await mkdir(project);await mkdir(home);return{base,project,home,fixtures:await prepareDevelopmentTask(project)};}
 async function reference(project:string){
   const target=join(project,'plugins','project-checks'),source=new URL('../../plugins/project-checks/',import.meta.url);
@@ -60,15 +65,40 @@ it('binds agent verification to exact final candidate bytes and ignores only hos
   const result=await gradeDevelopmentPlugin({...f,output:join(f.base,'grade'),events});expect(result.ok).toBe(false);expect(result.checks).toContainEqual({name:'agent executed verification successfully',ok:false});
 },15000);
 it('requires a pinned native package and prepares retained artifacts without starting a transport or actor',async()=>{
-  const base=await root(),bundle=join(base,'bundle');await mkdir(join(bundle,'node_modules','@agent-compositor','renderer-opentui'),{recursive:true});
-  const binary=join(bundle,'compositor'),bytes=Buffer.from('\x7fELFsynthetic-preparation-fixture');await writeFile(binary,bytes,{mode:0o755});await writeFile(join(bundle,'VERSION'),'v0.8.0');await writeFile(join(bundle,'node_modules','@agent-compositor','renderer-opentui','index.js'),'// fixture');
-  const binarySha256=createHash('sha256').update(bytes).digest('hex'),output=join(base,'attempt');
+  const {base,binary,binarySha256}=await preparationBinary(),output=join(base,'attempt');
   const report=await runDevelopment({binary,binarySha256,output,provider:{kind:'ollama',baseUrl:'http://127.0.0.1:1/v1',model:'no-inference'},limits:developmentLimits});
   expect(report).toMatchObject({ok:true,prepared:true,authoringExecuted:false,modelRequests:0});
   expect(JSON.parse(await readFile(join(output,'evidence','manifest.json'),'utf8')).actor).toBe('installed-compositor-cli');
   await expect(runDevelopment({binary,binarySha256,output,provider:{kind:'ollama',baseUrl:'http://127.0.0.1:1/v1',model:'no-inference'},limits:developmentLimits})).rejects.toThrow();
   await expect(inspectDevelopmentBinary(binary,'0'.repeat(64))).rejects.toThrow('identity');
   await expect(runDevelopment({binary,binarySha256,output:join(base,'live'),provider:{kind:'ollama',baseUrl:'http://127.0.0.1:1/v1',model:'no-inference'},limits:developmentLimits,execute:true})).rejects.toThrow('provider-access');
+});
+
+it('prepares saved Responses with zero profile/ledger loads, gateway, actor or model requests',async()=>{
+  const {base,binary,binarySha256}=await preparationBinary(),output=join(base,'saved-prepare'),parent=join(base,'parent-only');await mkdir(parent);
+  vi.stubEnv('AGENT_HOME',parent);await writeFile(join(parent,'providers.json'),'deliberately invalid profile JSON');await writeFile(join(parent,'credentials.json'),'preparation-must-not-read-this');
+  const profile=await import('./profile.js'),gateway=await import('./development-responses-transport.js');
+  const load=vi.spyOn(profile,'openEvaluationProfile'),create=vi.spyOn(gateway,'createDevelopmentResponsesTransport'),fetch=vi.fn(()=>{throw Error('No model permitted during preparation');});vi.stubGlobal('fetch',fetch);
+  try{
+    const report=await runDevelopment({binary,binarySha256,output,provider:{kind:'saved-openai-profile',profile:'synthetic-parent',model:'gpt-6.1-sol',maxUsd:50},limits:developmentLimits});
+    expect(report).toMatchObject({ok:true,prepared:true,authoringExecuted:false,modelRequests:0});expect(load).not.toHaveBeenCalled();expect(create).not.toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled();
+    const config=JSON.parse(await readFile(join(output,'project','agent-compositor.json'),'utf8'));expect(config.providers.default).toMatchObject({type:'openai-responses',model:'gpt-6.1-sol',baseUrl:'http://127.0.0.1:9/v1',apiKey:'development-local'});
+    expect(JSON.stringify(config)).not.toContain('synthetic-parent');expect(JSON.stringify(config)).not.toContain(parent);
+    await expect(readFile(join(parent,'eval-budgets','synthetic-parent.json'))).rejects.toMatchObject({code:'ENOENT'});
+    await expect(readFile(join(output,'evidence','actor-exit.json'))).rejects.toMatchObject({code:'ENOENT'});
+  }finally{vi.restoreAllMocks();vi.unstubAllGlobals();}
+});
+
+it('keeps saved-profile CLI authority explicit and exclusive without loading it',async()=>{
+  const common=['--prepare','--binary','/fixture/compositor','--binary-sha256','a'.repeat(64),'--output','/fixture/evidence'];
+  const saved=['--provider','saved-openai-profile','--profile','synthetic-parent','--model','gpt-6.1-sol','--max-usd','50'];
+  expect(await developmentOptions([...common,...saved])).toMatchObject({execute:false,provider:{kind:'saved-openai-profile',profile:'synthetic-parent',model:'gpt-6.1-sol',maxUsd:50}});
+  await expect(developmentOptions([...common,...saved,'--base-url','https://example.invalid/v1'])).rejects.toThrow('do not accept --base-url');
+  await expect(developmentOptions([...common,'--provider','ollama','--base-url','http://127.0.0.1:1/v1','--model','local','--max-usd','50'])).rejects.toThrow('do not accept saved-profile');
+  await expect(developmentOptions([...common,...saved,'--max-usd','100'])).rejects.toThrow('Duplicate');
+  await expect(developmentOptions([...common,...saved.slice(0,-1)])).rejects.toThrow('Missing --max-usd');
+  await expect(developmentOptions([...common,...saved,'--run'])).rejects.toThrow('Choose exactly');
+  for(const value of [{kind:'saved-openai-profile',profile:'../escape',model:'gpt-6.1-sol',maxUsd:50},{kind:'saved-openai-profile',profile:'synthetic-parent',model:'other',maxUsd:50},{kind:'saved-openai-profile',profile:'synthetic-parent',model:'gpt-6.1-sol',maxUsd:0},{kind:'saved-openai-profile',profile:'synthetic-parent',model:'gpt-6.1-sol',maxUsd:50,apiKey:'unexpected'}])expect(()=>validateDevelopmentSource(value as any)).toThrow('existing total USD ceiling');
 });
 
 it.each(['deadline','operator abort','unabortable Cancel'] as const)('gracefully closes real SDK workers on grader %s without touching an external neighbor',async mode=>{

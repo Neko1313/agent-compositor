@@ -425,7 +425,8 @@ an OS sandbox.
 
 Preparation verifies the executable SHA-256, packaged version and renderer,
 retains the project, and checks both the original passing project command and
-the expected absent-plugin failure. It starts no model gateway or actor:
+the expected absent-plugin failure. It starts no model gateway or actor and does
+not load a saved profile, credential or budget ledger:
 
 ```sh
 bun tools/evals/development.ts --prepare \
@@ -439,11 +440,42 @@ bun tools/evals/development.ts --prepare \
 Execution requires a fresh output directory, the same explicit identity/provider
 flags, `--run` instead of `--prepare`, and a `--provider-access-note` recording the
 reviewed service access and billing arrangement. A loopback Ollama route can use
-a paid cloud model; the note does not create a spending allowance. Only explicit
-credential-free loopback chat-completions providers (`ollama` or
-`openai-compatible-local`) are supported. Saved paid OpenAI profiles are rejected
-until this launcher can reuse their persistent USD guard; it never creates or
-resets that ledger.
+a paid cloud model; the note does not create a spending allowance. Local
+chat-completions providers (`ollama` or `openai-compatible-local`) require an
+explicit credential-free loopback URL. The separate `saved-openai-profile` mode
+uses the native Responses protocol for the exact `gpt-6.1-sol` model:
+
+```sh
+bun tools/evals/development.ts --prepare \
+  --binary /absolute/path/to/compositor \
+  --binary-sha256 SHA256_FROM_VERIFIED_INSTALL \
+  --output dist/development-saved-profile-prepared \
+  --provider saved-openai-profile --profile openai-eval \
+  --model gpt-6.1-sol --max-usd 50
+```
+
+`--max-usd` must equal that profile's existing **total lifetime ceiling**, not
+its remaining balance or a new allowance for this run. On `--run`, the parent
+resolves the original caller's settings and `AGENT_HOME` before constructing the
+isolated actor home. It requires the original
+`eval-budgets/PROFILE.json` ledger; a missing, deleted, corrupt, locked or
+mismatched ledger fails closed. It never copies or creates a replacement ledger,
+resets charges, changes prices or applies a historical cache review. The example
+does not authorize spending. Saved profiles reject `--base-url`; local modes
+reject `--profile` and `--max-usd`.
+
+The saved profile must use the official OpenAI Responses endpoint. Its credential
+and saved model-proxy settings stay in the parent. The installed actor receives
+only a loopback Responses URL, dummy key, exact model, and bounded reasoning/output
+settings. Requests preserve function-call IDs, outputs and encrypted reasoning
+without a chat-completions translation. Stateful response references, hosted
+tools, image/file inputs and undeclared billing controls are rejected before
+HTTP. Standard-tier serialized requests are reserved in the original ledger
+before egress. One parent collector validates terminal usage and settles that
+reservation exactly once, independently of the consumer's reader. The existing
+typed saved-profile evaluator uses the same authority. HTTP/proxy failure,
+interruption or unconfirmed usage retains the reservation; an unconfirmed pricing
+tier persists the existing halt. Accounting bounds are not an invoice.
 
 The host-owned gateway admits one completion at a time with no redirect or
 fallback. One following request may wait until the prior response and its
@@ -453,6 +485,14 @@ receipt failure, cancellation or the deadline prevents its admission. A client
 that consumes validated usage followed by SSE `[DONE]` may close its reader
 while the gateway finishes collecting the upstream response and saving its
 receipt. Disconnecting earlier still cancels that upstream request.
+
+For saved Responses, natural actor exit seals new and waiting admission. If a
+validated terminal response was already observed, the parent drains only that
+admitted response and joins its raw-stream, ledger and gateway-receipt writes
+under the original deadline. Operator cancellation or deadline expiry still
+aborts it. An actor exiting before a validated terminal cannot cause a new model
+request or a fabricated usage settlement. Local chat shutdown keeps its existing
+aborting behavior.
 
 Defaults are 40 requests, 200,000 serialized request bytes per call,
 6,000,000 total request bytes, requested output of at most 4,096 tokens,
@@ -484,6 +524,20 @@ The independent SDK child has a separate 45-second deadline and a bounded
 two-second graceful-shutdown window. Operator cancellation is forwarded into it;
 interruption produces a failed grading result and awaits application cleanup.
 A forced SIGKILL fallback is recorded as such and cannot establish worker cleanup.
+Saved-profile runs additionally retain parent-only start/end budget summaries
+and canonical ledger digests, normalized Responses requests, reservation receipts,
+raw SSE and terminal settlement receipts. Actor start/exit receipts distinguish
+its actual process lifetime from parent collection. Authorization headers,
+credentials and complete saved profile/proxy settings are not evidence payloads.
+
+The optional `development-installed.test.ts` fixture requires
+`DEVELOPMENT_FIXTURE_BINARY` and `DEVELOPMENT_FIXTURE_BINARY_SHA256`. It uses a
+synthetic private profile/ledger and an injected parent-only transport with no
+external HTTP, then runs that actual installed executable. It checks natural
+actor exit before upstream EOF, joined receipt persistence and operator
+cancellation during the drain. `DEVELOPMENT_FIXTURE_OUTPUT` retains fresh
+per-case artifacts. Scripted text in this fixture does not establish autonomous
+plugin authoring or model quality.
 
 ### Saved-profile development evidence (2026-11-11)
 

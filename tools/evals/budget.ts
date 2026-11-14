@@ -67,27 +67,30 @@ function bounds(data:Ledger){
  return{recorded,reviewed};
 }
 export class EvalBudget {
- constructor(readonly file:string,readonly profile:string,readonly model:string,readonly maxUsd:number){
+ private readonly existingOnly:boolean;
+ constructor(readonly file:string,readonly profile:string,readonly model:string,readonly maxUsd:number,options:{existingOnly?:boolean}={}){
+  this.existingOnly=options.existingOnly===true;
   if(!Number.isFinite(maxUsd)||maxUsd<=0||!Number.isSafeInteger(Math.round(maxUsd*1e6)))throw Error('max-usd must be a positive finite USD limit');
  }
  private async read():Promise<Ledger>{
   let data:Ledger;
   try{data=JSON.parse(await readFile(this.file,'utf8'));}
-  catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;return{version:1,policy:EVAL_BUDGET_POLICY,profile:this.profile,model:this.model,limitMicroUsd:Math.round(this.maxUsd*1e6),charges:{}};}
+  catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;if(this.existingOnly)throw Error('Existing evaluation budget ledger is required; refusing a new allowance');return{version:1,policy:EVAL_BUDGET_POLICY,profile:this.profile,model:this.model,limitMicroUsd:Math.round(this.maxUsd*1e6),charges:{}};}
   try{
    if(!record(data)||data.version!==1||data.policy!==EVAL_BUDGET_POLICY||data.profile!==this.profile||data.model!==this.model||data.limitMicroUsd!==Math.round(this.maxUsd*1e6)||!record(data.charges)||(data.halted!==undefined&&data.halted!=='unconfirmed-response-pricing')||Object.values(data.charges).some(c=>!validCharge(c)))throw Error('Invalid ledger');
    validateReview(data);bounds(data);
   }catch{throw Error('Budget ledger mismatch or corruption; refusing paid requests');}
   return data;
  }
- private async change<T>(update:(data:Ledger)=>T):Promise<T>{
+ private async locked<T>(update:(data:Ledger)=>T,write:boolean):Promise<T>{
   await mkdir(dirname(this.file),{recursive:true,mode:0o700});
   const lock=this.file+'.lock',deadline=Date.now()+2000;
   let handle:Awaited<ReturnType<typeof open>>;
   for(;;){try{handle=await open(lock,'wx',0o600);break;}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;if(Date.now()>=deadline)throw Error('Budget ledger is locked; refusing paid requests');await delay(10);}}
-  try{const data=await this.read(),result=update(data);await atomicJson(this.file,data);return result;}
+  try{const data=await this.read(),result=update(data);if(write)await atomicJson(this.file,data);return result;}
   finally{await handle.close();await unlink(lock);}
  }
+ private change<T>(update:(data:Ledger)=>T):Promise<T>{return this.locked(update,true);}
  async reserve(requestBytes:number,maxOutputTokens:number,pricing:'legacy'|'standard'='legacy'):Promise<string>{
   if(!['legacy','standard'].includes(pricing))throw Error('Unknown evaluation pricing policy');
   if(!Number.isSafeInteger(requestBytes)||requestBytes<0||requestBytes>200000||!Number.isSafeInteger(maxOutputTokens)||maxOutputTokens<1||maxOutputTokens>8192)throw Error('Request exceeds the bounded evaluation profile');
@@ -137,8 +140,8 @@ export class EvalBudget {
    data.charges[id]={...charge,microUsd,status:'reported',inputTokens,outputTokens,...(cache?{cachedInputTokens:cached,cacheWriteInputTokens:written,estimatedStandardMicroUsd:estimate}:{})};
   });
  }
- async status(){
-  const data=await this.read(),charges=Object.values(data.charges),total=bounds(data);
+ private describe(data:Ledger){
+  const charges=Object.values(data.charges),total=bounds(data);
   return{limitUsd:data.limitMicroUsd/1e6,committedUpperBoundUsd:total.reviewed/1e6,recordedUpperBoundUsd:total.recorded/1e6,
    ...(data.cacheReview?{historicalCacheReview:{policy:data.cacheReview.policy,reviewedAt:data.cacheReview.reviewedAt,coveredRequests:Object.keys(data.cacheReview.charges).length,refinementUsd:(total.recorded-total.reviewed)/1e6}}:{}),
    ...(data.halted?{halted:data.halted}:{}),
@@ -147,4 +150,8 @@ export class EvalBudget {
     coveredRequests:charges.filter(c=>c.estimatedStandardMicroUsd!==undefined).length,
     unavailableRequests:charges.filter(c=>c.status==='reported'&&c.estimatedStandardMicroUsd===undefined).length}};
  }
+ async status(){return this.existingOnly?this.locked(data=>this.describe(data),false):this.describe(await this.read());}
+ /** Status and digest describe one locked read, without exposing the private ledger. */
+ async auditStatus(){return this.locked(data=>({status:this.describe(data),ledgerSha256:evaluationLedgerDigest(data)}),false);}
 }
+export type EvaluationBudgetAudit=Awaited<ReturnType<EvalBudget['auditStatus']>>;

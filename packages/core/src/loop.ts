@@ -59,6 +59,7 @@ interface UserToolOperation {
   id:string;callId:string;tool:string;owner?:string;controller:AbortController;signal:AbortSignal;
   tools:ToolSpec[];messages:ChatMessage[];records:Array<{name:string;args:unknown;ok:boolean;output?:unknown;denied?:boolean}>;
   tokens:number;usage:{inputTokens:number;outputTokens:number};promise:Promise<unknown>;
+  children?:Set<Promise<unknown>>;
 }
 type HumanFormBinding={handler?:CoreHumanFormHandler;previous?:HumanFormBinding;active:boolean};
 
@@ -216,6 +217,8 @@ export class AgentCore {
   private draining?:Promise<void>;
   private activeTurn?:Promise<void>;
   private closed=false;
+  private closePromise?:Promise<void>;
+  private readonly closeCancellation=new AbortController();
   private resetBackground:Promise<unknown>=Promise.resolve();
   private resettingBackground=false;
   private stopShells:()=>Promise<void>=async()=>{};
@@ -252,7 +255,19 @@ export class AgentCore {
     return signals.length ? AbortSignal.any(signals) : undefined;
   }
   private activeOperations(){return [...this.userOperations.values(),...this.commandOperations.values()];}
-  private readonly journalSignal=new AbortController().signal;
+  private readonly journalCancellation=new AbortController();
+  private readonly journalSignal=this.journalCancellation.signal;
+  private readonly terminalObservers=new WeakMap<AbortSignal,{signal:AbortSignal;reason:Error}>();
+  private terminalObservation(authority:AbortSignal){
+    let observer=this.terminalObservers.get(authority);
+    if(!observer){
+      const controller=new AbortController(),reason=Error('Cancelled terminal observation exceeded 1000ms');
+      const cancel=()=>{const timer=setTimeout(()=>controller.abort(reason),1000);timer.unref();};
+      observer={signal:controller.signal,reason};this.terminalObservers.set(authority,observer);
+      if(authority.aborted)cancel();else authority.addEventListener('abort',cancel,{once:true});
+    }
+    return observer;
+  }
   get hasActiveOperations():boolean{return this.userOperations.size>0||this.commandOperations.size>0;}
   getOperations(){return this.activeOperations().map(op=>({id:op.id,tool:op.tool,owner:op.owner,tokens:op.tokens}));}
   cancelOperations(owner?:string):boolean{let cancelled=false;for(const op of this.activeOperations())if(owner===undefined||op.owner===owner){op.controller.abort(Error('User operation cancelled'));cancelled=true;}return cancelled;}
@@ -465,7 +480,7 @@ export class AgentCore {
       async ({ name, args, plugin }: { name: string; args: unknown;plugin?:string }) => {
         const invoke=()=>this.invokeUserTool(name,args,{owner:plugin,signal:this.host.currentSignal});
         return {value:await (this.host.isBackgroundService?this.userOperation.exit(invoke):invoke())};
-      }
+      },{settleOnCancel:true,preserveResultOnCancel:true}
     );
 
     // core resolvers at the chain end; everything above them can deny/value
@@ -474,7 +489,8 @@ export class AgentCore {
         on: (service, handler) => {
           this.runtime.setResolver(service, async (payload: unknown) => ({
             value: await handler(payload),
-          }));
+          }),{settleOnCancel:service==='service.shell.exec'||service==='service.shell.execKill',
+            preserveResultOnCancel:service==='service.shell.exec'||service==='service.shell.execKill'});
         },
       },
       {
@@ -519,7 +535,7 @@ export class AgentCore {
     this.runtime.setResolver("service.agent.tools", ({tools}) => ({value:tools}));
     this.runtime.setResolver("service.agent.batch", async ({calls,context}) => {
       for(const call of calls)await context.execute(call);return{value:true};
-    });
+    },{settleOnCancel:true,preserveResultOnCancel:true});
     this.runtime.setResolver("service.context.prepare", async ({text,signal}) => ({value:this.options.preparePrompt ? await this.options.preparePrompt(text,signal,(this.options.subagentDepth??0)>0?"agent":this.inputSource) : text}));
     this.runtime.setResolver("service.context.manage", async () => { await this.manageContextDefault(); return {value:true}; });
     this.runtime.setResolver("service.context.compact", async () => { await this.compactDefault(); return {value:true}; });
@@ -838,13 +854,19 @@ export class AgentCore {
   /** UI calls share policy and session costs but never reset an active turn. */
   async invokeUserTool(name:string,args:unknown,options:{owner?:string;signal?:AbortSignal}={}):Promise<{ok:boolean;output?:unknown;error?:string}>{
     const command=this.userOperation.getStore();
-    if(command?.command)return this.userOperation.exit(()=>this.invokeUserTool(name,args,{owner:options.owner??command.owner,signal:AbortSignal.any([command.signal,...(options.signal?[options.signal]:[])])}));
+    if(command?.command){
+      const child=this.userOperation.exit(()=>this.invokeUserTool(name,args,{owner:options.owner??command.owner,signal:AbortSignal.any([command.signal,...(options.signal?[options.signal]:[])])}));
+      command.children??=new Set();command.children.add(child);
+      void child.then(()=>command.children!.delete(child),()=>command.children!.delete(child));
+      return child;
+    }
     if(this.userOperation.getStore())return{ok:false,error:'Nested user tool operations are not supported'};
     if(this.state!=='running'&&!this.hasActiveOperations)return this.invokeTool(name,args,options.signal);
     if(this.closed||this.journalFailure)return{ok:false,error:this.journalFailure?.message??'Session is closed'};
     if(this.userOperations.size>=4)return{ok:false,error:'Four user tool operations are already active; cancel or wait for one'};
     if(options.owner&&!this.host.hasPlugin(options.owner))return{ok:false,error:'Tool owner is no longer active'};
     const controller=new AbortController(),signal=AbortSignal.any([controller.signal,...(options.signal?[options.signal]:[])]);
+    this.terminalObservation(signal);
     const operation:UserToolOperation={id:randomUUID(),callId:randomUUID(),tool:name,owner:options.owner,controller,signal,tools:[],messages:[],records:[],tokens:0,usage:{inputTokens:0,outputTokens:0},promise:Promise.resolve()};
     this.userOperations.set(operation.id,operation);
     const timer=setTimeout(()=>controller.abort(Error('User tool operation timed out after five minutes')),300000);timer.unref();
@@ -886,6 +908,7 @@ export class AgentCore {
     this.turnTokens = 0;
     this.turnUsage = {inputTokens:0,outputTokens:0};
     this.abort = new AbortController();
+    this.terminalObservation(this.abort.signal);
     const controller=this.abort,abortCaller=()=>controller.abort(callerSignal?.reason);
     callerSignal?.addEventListener("abort",abortCaller,{once:true});
     if(callerSignal?.aborted)abortCaller();
@@ -1117,6 +1140,7 @@ export class AgentCore {
     if(text.length>64000)throw Error('Command input exceeds 64000 characters');
     if(this.commandOperations.size>=4)throw Error('Four immediate commands are already active');
     const controller=new AbortController(),signal=callerSignal?AbortSignal.any([controller.signal,callerSignal]):controller.signal;
+    this.terminalObservation(signal);
     const op:UserToolOperation={command:true,id:randomUUID(),callId:randomUUID(),tool:command.name,owner:command.plugin,controller,signal,tools:[],messages:[],records:[],tokens:0,usage:{inputTokens:0,outputTokens:0},promise:Promise.resolve()};
     this.commandOperations.set(op.id,op);
     const timer=setTimeout(()=>controller.abort(Error('Immediate command timed out after five minutes')),300000);timer.unref();
@@ -1128,8 +1152,9 @@ export class AgentCore {
       const result=await this.host.emit('command.invoke',{plugin:command.plugin,name:command.name,text:trimmed,args},signal);
       signal.throwIfAborted();
       if(result.faults.length)throw Error('Command failed: '+JSON.stringify(result.faults));
-    })).then(async()=>{await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'completed',ok:true});},async error=>{
-      await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'completed',ok:false,error:String(error)});throw error;
+    })).then(async()=>{await Promise.allSettled([...(op.children??[])]);await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'completed',ok:true},signal);},async error=>{
+      await Promise.allSettled([...(op.children??[])]);
+      await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'completed',ok:false,error:String(error)},signal);throw error;
     }).finally(()=>{clearTimeout(timer);this.commandOperations.delete(op.id);});
     op.promise=work;admitted?.('command');await work;return true;
   }
@@ -1259,6 +1284,7 @@ export class AgentCore {
     this.state = "running";
     this.interruptedByUser = false;
     this.abort = new AbortController();
+    this.terminalObservation(this.abort.signal);
     admitted?.('submitted');
     const usage = { inputTokens: 0, outputTokens: 0 };
 
@@ -1614,15 +1640,29 @@ export class AgentCore {
   }
 
   /** Terminal host teardown: no owned process or queued follow-up outlives it. */
-  async close():Promise<void>{
-    if(this.closed)return;
-    this.closed=true;this.humanLifetime.abort();this.offHumanForm?.();this.interrupt();this.promptQueue=[];this.cancelOperations();clearTimeout(this.queueTimer);this.queueTimer=undefined;
-    await this.resetBackground;
-    await Promise.allSettled([this.activeTurn,this.draining,...this.activeOperations().map(op=>op.promise)]);
-    await this.host.emit('session.end',{reason:'other'});
-    await this.stopShells();
-    this.host.close();
-    this.options.plugins=[];
+  close(signal?:AbortSignal):Promise<void>{
+    let unbind=()=>{};
+    if(signal){
+      const source=AbortSignal.any([signal]),abort=()=>this.closeCancellation.abort(source.reason);
+      source.addEventListener('abort',abort,{once:true});if(source.aborted)abort();
+      unbind=()=>source.removeEventListener('abort',abort);
+    }
+    this.closed=true;
+    const work=this.closePromise??=Promise.resolve().then(async()=>{
+      this.humanLifetime.abort();this.offHumanForm?.();this.interrupt();this.promptQueue=[];this.cancelOperations();clearTimeout(this.queueTimer);this.queueTimer=undefined;
+      try {
+        await this.resetBackground;
+        await Promise.allSettled([this.activeTurn,this.draining,...this.activeOperations().map(op=>op.promise)]);
+        await this.host.emit('session.end',{reason:'other'},AbortSignal.any([this.closeCancellation.signal,this.journalSignal]));
+      } catch(error) {
+        // Storage failure has already stopped execution and is exposed through
+        // failure. Teardown must still finish without reviving plugin effects.
+        if(!this.journalFailure||error!==this.journalSignal.reason)throw error;
+      } finally {
+        try {await this.stopShells();} finally {this.host.close();await this.host.closeProcesses();this.options.plugins=[];}
+      }
+    });
+    void work.then(unbind,unbind);return work;
   }
 
   // ---- subagents (the task tool / service.agent.spawn) --------------------
@@ -2232,8 +2272,22 @@ export class AgentCore {
   ): Promise<unknown> {
     const operation=this.userOperation.getStore();
     if(operation)input={...input,operationId:operation.id};
-    const result=await this.host.emit(event,input,signal??operation?.signal);
-    const value=result?.value;
+    const terminal=event==='tool.result'||event==='turn.complete'||event==='turn.failed'||event==='turn.interrupted'
+      ||event==='turn.usage'||event==='model.usage'||event==='subagent.complete'
+      ||((event==='tool.operation'||event==='command.operation')&&input.phase==='completed')
+      ||(event==='ui.reaction'&&input.active===false);
+    const authority=signal??operation?.signal??this.host.currentSignal
+      ??((this.state==='running'||this.state==='interrupted')?this.abort.signal:undefined);
+    let value:unknown;
+    if(terminal&&authority){
+      // The observer can finish audit work, but its SDK keeps the caller's
+      // revoked authority. A single grace covers every terminal record.
+      const observer=this.terminalObservation(authority);
+      try{
+        value=(await this.host.emit(event,input,AbortSignal.any([authority,this.journalSignal]),
+          AbortSignal.any([this.journalSignal,observer.signal]))).value;
+      }catch(error){if(this.journalFailure||error!==observer.reason)throw this.journalFailure??error;}
+    }else value=(await this.host.emit(event,input,signal??operation?.signal)).value;
     // Handled UI commands are audit records, not user messages on replay.
     const dropped=event==='prompt.submit'&&value&&typeof value==='object'&&'drop' in value;
     await this.persist(dropped?'prompt.dropped':event,journalMeta?{...input,...journalMeta}:input);
@@ -2266,6 +2320,7 @@ export class AgentCore {
         throw Error(value?.deny ?? (response.faults.length ? JSON.stringify(response.faults) : 'Journal did not acknowledge the write'));
     } catch(error) {
       this.journalFailure=new Error(`Session journal failed; execution stopped. Repair storage and reopen/resume the session before continuing. ${String(error)}`);
+      this.journalCancellation.abort(this.journalFailure);
       this.abort.abort(this.journalFailure);
       for(const op of this.activeOperations())op.controller.abort(this.journalFailure);
       throw this.journalFailure;

@@ -17,6 +17,7 @@ import { smokeQueries } from './query-smoke.mjs';
 import { smokeBackgroundTask } from './background-smoke.mjs';
 import { smokeApprovals } from './approval-smoke.mjs';
 import { smokePlainControls } from './plain-controls-smoke.mjs';
+import { smokeHeadlessSignals } from './headless-signals-smoke.mjs';
 import { readModelResult } from './model-read.mjs';
 const exec = promisify(execFile);
 // Permission rules and guarded edit anchors use canonical paths. macOS aliases
@@ -126,6 +127,8 @@ try {
   console.log('Installed structured approval/refusal:',JSON.stringify(approvalSmoke));
   const plainControls=await smokePlainControls(binary,resolve('dist/release',`plain-controls-smoke-${process.platform}-${process.arch}.json`));
   console.log('Installed plain controls and raw approval:',JSON.stringify(plainControls));
+  const headlessSignals=await smokeHeadlessSignals(binary,resolve('dist/release',`headless-signals-smoke-${process.platform}-${process.arch}.json`),{archive:{path:resolve('dist/release',asset),sha256:digest}});
+  console.log('Installed headless signal cleanup:',JSON.stringify(headlessSignals));
   const discoverySmoke=await smokeDiscovery(binary,resolve('dist/release',`discovery-smoke-${process.platform}-${process.arch}.json`));
   console.log('Installed discovery/read recovery:',JSON.stringify(discoverySmoke));
   const querySmoke=await smokeQueries(binary,resolve('dist/release',`query-smoke-${process.platform}-${process.arch}.json`));

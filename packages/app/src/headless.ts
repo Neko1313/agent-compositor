@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { Ajv } from 'ajv';
 import type { BuiltApp } from './build.js';
-export async function runHeadless(app: BuiltApp, prompt: string, format: 'text' | 'json' | 'stream-json', write: (text: string) => void, schemaFile?: string): Promise<number> {
+export async function runHeadless(app: BuiltApp, prompt: string, format: 'text' | 'json' | 'stream-json', write: (text: string) => void, schemaFile?: string, signal?: AbortSignal, finalize?: () => Promise<void>): Promise<number> {
   const core = app.createCore(async () => false);
   const usage = { inputTokens: 0, outputTokens: 0 };
   let error: string | undefined, response = '',commandOwner:string|undefined;
@@ -29,8 +29,20 @@ export async function runHeadless(app: BuiltApp, prompt: string, format: 'text' 
       response = event.input.text;
     }
   });
+  let shutdown: Promise<void> | undefined;
+  const abort = () => {
+    error = signal?.reason instanceof Error ? signal.reason.message : 'Interrupted';
+    shutdown ??= app.close(signal);
+    // Observe immediately, while retaining the promise for the final cleanup
+    // join even if the interrupted submission has not settled yet.
+    void shutdown.catch(() => {});
+  };
+  signal?.addEventListener('abort', abort, {once: true});
+  if (signal?.aborted) abort();
   try {
-    await core.start(); await core.submit(prompt);
+    signal?.throwIfAborted();
+    await core.start();signal?.throwIfAborted();
+    await core.submit(prompt);signal?.throwIfAborted();
     error ??= core.failure ?? (core.getState() === 'interrupted' ? 'Interrupted' : undefined);
     if (schemaFile && !error) {
       const schema = JSON.parse(await readFile(schemaFile, 'utf8'));
@@ -38,8 +50,12 @@ export async function runHeadless(app: BuiltApp, prompt: string, format: 'text' 
       const validate = ajv.compile(schema);
       if (!validate(JSON.parse(response))) error = `Output schema mismatch: ${ajv.errorsText(validate.errors)}`;
     }
-  } catch (caught) { error = String(caught); }
-  finally { unsubscribe(); }
+  } catch (caught) { if (!signal?.aborted) error = String(caught); }
+  finally {
+    try {await finalize?.();await shutdown;} catch (caught) {error ??= String(caught);}
+    signal?.removeEventListener('abort', abort);
+    unsubscribe();
+  }
   const result = { type: 'result', sessionId: core.sessionId, response, usage, ...(error ? { error } : {}) };
   if (format !== 'text') write(JSON.stringify(result) + '\n');
   else { write('\n'); if (error) write(`Error: ${error}\n`); }

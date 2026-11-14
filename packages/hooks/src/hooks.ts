@@ -157,6 +157,10 @@ export class HooksHost {
   private readonly rendering = new AsyncLocalStorage<string>();
   private readonly userInteraction = new AsyncLocalStorage<boolean>();
   private readonly serviceSignal = new AsyncLocalStorage<AbortSignal>();
+  private readonly lifetime = new AbortController();
+  private readonly processLifetime = new AbortController();
+  private readonly processes = new Set<Promise<unknown>>();
+  private processClose?: Promise<void>;
   private readonly backgroundService = new AsyncLocalStorage<boolean>();
   private readonly serviceScope = new AsyncLocalStorage<HooksServiceScope>();
   private readonly toolOperationScope=new AsyncLocalStorage<unknown>();
@@ -265,12 +269,13 @@ export class HooksHost {
   }
 
   unregisterPlugin(name: string): boolean {
-    this.pluginLifetimes.get(name)?.abort(new Error("Plugin unloaded"));
+    const reason=this.lifetime.signal.aborted?this.lifetime.signal.reason:new Error('Plugin unloaded');
+    this.pluginLifetimes.get(name)?.abort(reason);
     this.pluginLifetimes.delete(name);
     this.controllers.remove(name);
     this.pluginTrust.delete(name);
     this.pluginState.delete(name);
-    const removed = this.runtime.unregister(name);
+    const removed = this.runtime.unregister(name,reason);
     if (removed) this.config.onPluginRemoved?.(name);
     return removed;
   }
@@ -279,20 +284,34 @@ export class HooksHost {
   hasPlugin(name:string,trust?:string):boolean{
     return this.pluginTrust.has(name)&&(!trust||this.pluginTrust.get(name)===trust)&&!this.pluginLifetimes.get(name)?.signal.aborted;
   }
-  close():void{for(const name of [...this.pluginTrust.keys()])this.unregisterPlugin(name);}
+  closeProcesses():Promise<void>{
+    if(!this.processClose){
+      this.processLifetime.abort(new Error('Hooks host closed'));
+      this.processClose=Promise.allSettled([...this.processes]).then(()=>{});
+    }
+    return this.processClose;
+  }
+  close():void{void this.closeProcesses();this.lifetime.abort(new Error('Hooks host closed'));for(const name of [...this.pluginTrust.keys()])this.unregisterPlugin(name);}
 
   /** Consume one emission fully; returns the chain result. */
   async emit(
     event: string,
     input: unknown,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    // Host-owned terminal observation may outlive revoked SDK authority.
+    dispatchSignal?: AbortSignal
   ): Promise<{ value: unknown; faults: unknown[] }> {
+    if(this.lifetime.signal.aborted&&['service.ui.configure','service.ui.view','service.ui.surface','service.ui.remove'].includes(event))
+      return{value:{accepted:false},faults:[]};
     if(signal){
-      const run=()=>this.serviceSignal.run(signal,()=>this.emit(event,input));
+      const run=()=>this.serviceSignal.run(signal,()=>this.emit(event,input,undefined,dispatchSignal));
       const inherited=this.serviceScope.getStore();
       return inherited?this.serviceScope.run(Object.freeze({...inherited,signal}),run):run();
     }
-    const gen = this.runtime.emit(event, input);
+    const caller = this.serviceSignal.getStore();
+    const dispatch=dispatchSignal??caller;
+    const effective = AbortSignal.any([this.lifetime.signal, ...(dispatch ? [dispatch] : [])]);
+    const gen = this.runtime.emit(event, input, effective,{retirementGraceMs:dispatchSignal?0:100});
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const step = await gen.next();
@@ -670,11 +689,12 @@ export class HooksHost {
       }) => {
         const operation=this.serviceSignal.getStore()??(this.userInteraction.getStore()?undefined:this.config.signal?.());
         const lifetime=this.pluginLifetimes.get(plugin)?.signal;
-        const signal=AbortSignal.any([...(operation?[operation]:[]),...(lifetime?[lifetime]:[])]);
-        return {
-          value: await runPluginProcess(cmd,args??[],{cwd:root,env:{...process.env,...this.config.execEnvironment?.()},signal,timeoutMs:timeoutMs??30000}),
-        };
-      }
+        const signal=AbortSignal.any([this.processLifetime.signal,...(operation?[operation]:[]),...(lifetime?[lifetime]:[])]);
+        const work=runPluginProcess(cmd,args??[],{cwd:root,env:{...process.env,...this.config.execEnvironment?.()},signal,timeoutMs:timeoutMs??30000});
+        this.processes.add(work);
+        try{return{value:await work};}finally{this.processes.delete(work);}
+      },
+      {settleOnCancel:true}
     );
 
     r.setResolver(

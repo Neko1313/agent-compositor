@@ -33,7 +33,7 @@ type RuntimeEntry = {
   delta: string;
   activity:string[];
   history:ReturnType<typeof agentHistory>;
-  close: () => Promise<void>;
+  close: (signal?:AbortSignal) => Promise<void>;
 };
 type Channels = {
   inputSource?:()=>"user"|"agent";
@@ -45,7 +45,7 @@ type Channels = {
 type Factory = (
   record: RecordEntry,
   channels: Channels
-) => Promise<{ core: AgentCore; close: () => Promise<void>; history:()=>Promise<SessionEvent[]> }>;
+) => Promise<{ core: AgentCore; close: (signal?:AbortSignal) => Promise<void>; history:()=>Promise<SessionEvent[]> }>;
 const exec = promisify(execFile);
 export async function agentManager(
   cwd: string,
@@ -66,6 +66,7 @@ export async function agentManager(
   let host: HooksApi|undefined, channels: Channels | undefined;
   const publication=new AsyncLocalStorage<HooksApi>();
   let closePromise:Promise<void>|undefined;
+  const closeCancellation=new AbortController();
   let writes = Promise.resolve();
   const drafts=new Map<string,string>();
   const draftIds=new Map<string,number>();
@@ -169,7 +170,7 @@ export async function agentManager(
         const ask=channels?.ask;return ask?ask(request,context):Promise.reject(Error('No interactive question channel is available'));
       },
     });
-    if(closePromise){await managed.close();throw Error('The agent manager is closed');}
+    if(closePromise){await managed.close(closeCancellation.signal);throw Error('The agent manager is closed');}
     const core = managed.core;
     const entry: RuntimeEntry = {
       record,
@@ -244,7 +245,7 @@ export async function agentManager(
     try{await core.start();if(closePromise)throw Error('The agent manager is closed');}
     catch(error){
       if(entries.get(record.id)===entry)entries.delete(record.id);
-      entry.unsubscribe();await managed.close();throw error;
+      entry.unsubscribe();await managed.close(closeCancellation.signal);throw error;
     }
     return entry;
   }
@@ -659,15 +660,20 @@ export async function agentManager(
     bind: (value: Channels) => {
       if(!closePromise)channels = value;
     },
-    close: () => closePromise??=(async () => {
-      channels=undefined;
-      const current=[...entries.values()];for(const entry of current)entry.history.close();
-      // Actual Core closure revokes retained background input before a run is
-      // awaited; a foreground interrupt alone deliberately cannot do that.
-      await Promise.allSettled([...current.map(entry=>entry.close()),...loading.values()]);
-      await Promise.allSettled(current.map(entry=>entry.run));
-      for(const entry of current)entry.unsubscribe();
-      await writes;
-    })(),
+    close: (signal?:AbortSignal) => {
+      let unbind=()=>{};
+      if(signal){const source=AbortSignal.any([signal]),abort=()=>closeCancellation.abort(source.reason);source.addEventListener('abort',abort,{once:true});if(source.aborted)abort();unbind=()=>source.removeEventListener('abort',abort);}
+      const work=closePromise??=Promise.resolve().then(async () => {
+        channels=undefined;
+        const current=[...entries.values()];for(const entry of current)entry.history.close();
+        // Actual Core closure revokes retained background input before a run is
+        // awaited; a foreground interrupt alone deliberately cannot do that.
+        await Promise.allSettled([...current.map(entry=>entry.close(closeCancellation.signal)),...loading.values()]);
+        await Promise.allSettled(current.map(entry=>entry.run));
+        for(const entry of current)entry.unsubscribe();
+        await writes;
+      });
+      void work.then(unbind,unbind);return work;
+    },
   };
 }

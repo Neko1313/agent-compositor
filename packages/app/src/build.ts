@@ -86,7 +86,7 @@ export interface BuiltApp {
   bindHumanRequests(handlers:BuiltAppHumanRequests):()=>void;
   shouldOfferSetup?:()=>Promise<boolean>;
   storage: ProjectStorage;
-  close: () => Promise<void>;
+  close: (signal?:AbortSignal) => Promise<void>;
   config: LoadedConfig;
   plugins: DiskPlugin[];
   pluginErrors: { dir: string; error: string }[];
@@ -130,6 +130,7 @@ export interface BuiltApp {
  */
 export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   let humanRequests:Readonly<BuiltAppHumanRequests>|undefined,humanUiRegistered=false,closing=false,closePromise:Promise<void>|undefined;
+  const closeCancellation=new AbortController();
   const env = options.env ?? process.env;
   const config: LoadedConfig = options.fixedConfig !== undefined
     ? { config: structuredClone(options.fixedConfig), sources: [], origins: [], substitutions: [], warnings: [] }
@@ -600,6 +601,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
         ? AgentCore.resume(coreOptions, events)
         : new AgentCore(coreOptions);
     cores.add(core);harnesses.set(core,harness);sessionPlugins.set(core,sessionPlugin);
+    const agentControl=coreOptions.services?.['service.agent.control'];
+    if(agentControl)core.runtime.setResolver('service.agent.control',agentControl,{settleOnCancel:true,preserveResultOnCancel:true});
     hub?.bind({approve:onApproval,ask:onAsk,inputSource:()=>core.isUserInvocation?"user":"agent",resolveWorkspace:value=>core.workspace.resolve(value,{directory:true}),workspace:()=>core.workspace.list().filter(entry=>entry.path!==core.workspace.root)});
     installSessionServices(core, store, options.cwd);
     installPluginServices(core,extensions.userControl,(args,signal)=>market.tool.execute({signal},args));
@@ -783,14 +786,20 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     return next;
   };
   return {
-    close: () => closePromise??=(async () => {
-      closing=true;humanRequests=undefined;
-      await hub?.close();
-      await Promise.allSettled([...cores].map(core=>core.close()));cores.clear();
-      await Promise.allSettled(plugins.map((p) => p.dispose?.()));
-      await store.dispose();
-      await network.close();
-    })(),
+    close: signal => {
+      let unbind=()=>{};
+      if(signal){const source=AbortSignal.any([signal]),abort=()=>closeCancellation.abort(source.reason);source.addEventListener('abort',abort,{once:true});if(source.aborted)abort();unbind=()=>source.removeEventListener('abort',abort);}
+      closing=true;
+      const work=closePromise??=Promise.resolve().then(async () => {
+        humanRequests=undefined;
+        await hub?.close(closeCancellation.signal);
+        await Promise.allSettled([...cores].map(core=>core.close(closeCancellation.signal)));cores.clear();
+        await Promise.allSettled(plugins.map((p) => p.dispose?.()));
+        await store.dispose();
+        await network.close();
+      });
+      void work.then(unbind,unbind);return work;
+    },
     bindHumanRequests(handlers){
       if(closing)throw Error('The application is closed');
       const binding=Object.freeze({...handlers});humanUiRegistered=true;humanRequests=binding;

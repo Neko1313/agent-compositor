@@ -15,6 +15,8 @@ export interface MainOptions {
   stdout?: NodeJS.WriteStream;
   /** test hook: scripted provider instead of env/config-derived */
   provider?: ConstructorParameters<typeof AgentCore>[0]["provider"];
+  /** Cancel headless execution and close its owned application resources. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -25,7 +27,7 @@ export interface MainOptions {
  * Provider comes from env (AGENT_BASE_URL / AGENT_API_KEY / AGENT_MODEL) or
  * config (`providers.default`, `model`). Exits 2 on unknown flags.
  */
-export async function main(options: MainOptions = {}): Promise<number> {
+export async function main(options: MainOptions = {}, bindHeadlessSignals?: (cancel: (reason: Error) => void) => () => void): Promise<number> {
   let cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
   const argv = options.argv ?? process.argv.slice(2);
@@ -112,8 +114,20 @@ export async function main(options: MainOptions = {}): Promise<number> {
     const bytes = await readFile(path); if (bytes.length > 10 * 1024 * 1024) throw new Error('Image exceeds 10MB');
     return { mimeType, data: bytes.toString('base64') };
   }));
-  const app = await buildApp({ cwd,workspacePaths, images, env: model ? { ...env, AGENT_MODEL: model } : env, pluginDirs, resumeSessionId, provider: options.provider, maxSteps });
-  if (prompt !== undefined) { try { return await runHeadless(app, prompt, format, text => { stdout.write(text); }, schemaFile); } finally { await app.close(); } }
+  const createApp = () => buildApp({ cwd,workspacePaths, images, env: model ? { ...env, AGENT_MODEL: model } : env, pluginDirs, resumeSessionId, provider: options.provider, maxSteps });
+  if (prompt !== undefined) {
+    const controller = new AbortController();
+    const signal = options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal;
+    const unbind = bindHeadlessSignals?.(reason => controller.abort(reason));
+    let app: Awaited<ReturnType<typeof buildApp>> | undefined;
+    try {
+      app = await createApp();
+      return await runHeadless(app, prompt, format, text => { stdout.write(text); }, schemaFile, signal, () => app!.close(signal));
+    } finally {
+      try {await app?.close(signal);} finally {unbind?.();}
+    }
+  }
+  const app = await createApp();
 
   if (!plain && stdin.isTTY && stdout.isTTY) {
     if(renderer==='opentui'){

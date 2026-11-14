@@ -110,9 +110,10 @@ async function runExec(
     if (signal?.aborted) abort();
     let stdout = "";
     let stderr = "";
+    let timeoutError:Error|undefined;
     const timer = setTimeout(() => {
+      timeoutError=new Error(`exec timed out after ${p.timeoutMs}ms: ${p.command}`);
       stopProcess(child);
-      reject(new Error(`exec timed out after ${p.timeoutMs}ms: ${p.command}`));
     }, p.timeoutMs);
     child.stdout.on("data", (d: Buffer) => {
       stdout += d.toString();
@@ -125,12 +126,14 @@ async function runExec(
         stderr = stderr.slice(0, MAX_OUTPUT) + "\n…[truncated]";
     });
     child.on("error", (err) => {
+      signal?.removeEventListener("abort", abort);
       clearTimeout(timer);
       reject(err);
     });
     child.on("close", (code) => {
       signal?.removeEventListener("abort", abort);
       clearTimeout(timer);
+      if(timeoutError){reject(timeoutError);return;}
       resolve({
         stdout,
         stderr,

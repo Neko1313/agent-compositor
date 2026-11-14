@@ -20,20 +20,41 @@ interface RegisteredHook {
   fn: HookFn;
   budget: Budget;
   priority: number;
+  lifetime: AbortSignal;
 }
 
 interface PluginRecord {
   manifest: PluginManifest;
   tier: Tier;
+  lifetime: AbortController;
 }
 
 interface WalkMeta {
   def: EventDef;
   trace: ChainTrace["write"];
   faults: Fault[];
+  signal?: AbortSignal;
+  cleanup: Set<Promise<unknown>>;
+  preserved: {settled:boolean;value?:unknown;signal?:AbortSignal}[];
+  retirementGraceMs:number;
+  cooperative:{completed:boolean};
 }
 
 const now = () => performance.now();
+
+async function cancellable<T>(value: T | PromiseLike<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return await value;
+  const pending = Promise.resolve(value);
+  let abort: (() => void) | undefined;
+  try {
+    return await new Promise<T>((accept, reject) => {
+      abort = () => reject(signal.reason);
+      signal.addEventListener('abort', abort, {once: true});
+      if (signal.aborted) abort();
+      pending.then(result => signal.aborted ? reject(signal.reason) : accept(result), reject);
+    });
+  } finally {if (abort) signal.removeEventListener('abort', abort);}
+}
 
 function isAsyncGenerator(v: unknown): v is AsyncGenerator<unknown, unknown, unknown> {
   return (
@@ -48,7 +69,7 @@ export class Runtime {
   private hooks: RegisteredHook[] = [];
   private trace: ChainTrace["write"];
   /** core behavior at the end of a chain: service.* events resolve to real operations */
-  private resolvers = new Map<string, (input: any) => unknown>();
+  private resolvers = new Map<string, {run: (input: any) => unknown; settleOnCancel: boolean;preserveResultOnCancel:boolean}>();
   private readonly providers: Record<string, string>;
   private extensions = new Map<string, { owner: string; definition: EventDef }>();
 
@@ -83,6 +104,7 @@ export class Runtime {
       }
     }
     const pending: RegisteredHook[] = [];
+    const lifetime = new AbortController();
     for (const [hookName, fn] of Object.entries(hooks)) {
       const def = definitions.get(hookName) ?? this.resolve(hookName);
       if (!def) throw new Error(`plugin "${manifest.name}": unknown hook "${hookName}"`);
@@ -93,17 +115,19 @@ export class Runtime {
         throw new Error(`plugin "${manifest.name}": duplicate hook for "${def.name}"`);
       const timeout = manifest.trust === "trusted" ? manifest.hookTimeouts?.[def.name] : undefined;
       pending.push({ plugin: manifest.name, tier, event: def.name, fn, priority: manifest.priority ?? 0,
+        lifetime: lifetime.signal,
         budget: timeout ? { ownMs: timeout, threadMs: timeout, yieldMs: timeout } : { ...defaultBudget } });
     }
     // Validate the whole contribution before making any hook or definition visible.
     for (const [name, definition] of definitions) this.extensions.set(name, { owner: manifest.name, definition });
     this.hooks.push(...pending);
-    this.plugins.set(manifest.name, { manifest, tier });
+    this.plugins.set(manifest.name, { manifest, tier, lifetime });
   }
 
   /** Remove a plugin (reload path). */
-  unregister(name: string): boolean {
-    if (!this.plugins.has(name)) return false;
+  unregister(name: string,reason:unknown=new Error('Plugin unloaded')): boolean {
+    const plugin = this.plugins.get(name);if (!plugin) return false;
+    plugin.lifetime.abort(reason);
     this.hooks = this.hooks.filter((h) => h.plugin !== name);
     for (const [event, entry] of this.extensions) if (entry.owner === name) {
       this.extensions.delete(event);this.resolvers.delete(entry.definition.name);
@@ -123,10 +147,11 @@ export class Runtime {
    * (every hook called next), the resolver performs the real operation and
    * its return value becomes the chain result.
    */
-  setResolver(eventName: string, fn: (input: any) => unknown): void {
+  setResolver(eventName: string, fn: (input: any) => unknown, options: {settleOnCancel?: boolean;preserveResultOnCancel?:boolean} = {}): void {
     const def = this.resolve(eventName);
     if (!def) throw new Error(`unknown event "${eventName}"`);
-    this.resolvers.set(def.name, fn);
+    this.resolvers.set(def.name, {run: fn, settleOnCancel: options.settleOnCancel === true,
+      preserveResultOnCancel:options.settleOnCancel===true&&options.preserveResultOnCancel===true});
   }
 
   /**
@@ -134,7 +159,8 @@ export class Runtime {
    * Yields intermediate values from async-generator hooks, streaming, in chain order.
    * Returns the terminal response, or the (possibly rewritten) event that fell off the end.
    */
-  async *emit(eventName: string, input: unknown): AsyncGenerator<unknown, EmitResult, void> {
+  async *emit(eventName: string, input: unknown, signal?: AbortSignal,options:{retirementGraceMs?:number}={}): AsyncGenerator<unknown, EmitResult, void> {
+    signal?.throwIfAborted();
     const def = this.resolve(eventName);
     if (!def) throw new Error(`unknown event "${eventName}"`);
     const selected = this.providers[def.name];
@@ -143,13 +169,26 @@ export class Runtime {
     const parsed = def.input.parse(input);
 
     const faults: Fault[] = [];
-    const meta: WalkMeta = { def, trace: (e) => this.trace(e), faults };
+    const meta: WalkMeta = { def, trace: (e) => this.trace(e), faults, signal, cleanup: new Set(),preserved:[],
+      retirementGraceMs:options.retirementGraceMs??0,cooperative:{completed:false} };
 
     const hooks = this.hooksFor(def.name);
     this.trace({ ts: Date.now(), event: def.name, phase: "enter", detail: `chain depth ${hooks.length}` });
-    const final = yield* this.walk(0, hooks, parsed, meta, 0);
-    this.trace({ ts: Date.now(), event: def.name, phase: "result", detail: summarize(final) });
-    return { value: final, faults };
+    try {
+      const final = yield* this.walk(0, hooks, parsed, meta, 0);
+      if(!meta.cooperative.completed)signal?.throwIfAborted();
+      this.trace({ ts: Date.now(), event: def.name, phase: "result", detail: summarize(final) });
+      return { value: final, faults };
+    } catch(error) {
+      if(meta.cleanup.size)await Promise.allSettled([...meta.cleanup]);
+      const owned=meta.preserved.find(result=>result.settled&&result.signal?.aborted&&error===result.signal.reason);
+      if(owned)return{value:owned.value,faults};
+      throw error;
+    } finally {
+      // Standard process resolvers own the OS close promise. Their callers
+      // must not observe cancellation before that resource has been reaped.
+      if (meta.cleanup.size) await Promise.allSettled([...meta.cleanup]);
+    }
   }
 
   /**
@@ -163,12 +202,28 @@ export class Runtime {
     meta: WalkMeta,
     depth: number,
   ): AsyncGenerator<unknown, unknown, void> {
+    meta.signal?.throwIfAborted();
     if (i >= hooks.length) {
       const resolver = this.resolvers.get(meta.def.name);
-      return resolver ? await resolver(input) : input;
+      if (!resolver) return input;
+      const pending = Promise.resolve(resolver.run(input));
+      if (resolver.settleOnCancel) meta.cleanup.add(pending);
+      if(resolver.preserveResultOnCancel){
+        const result={settled:false,value:undefined as unknown,signal:meta.signal};meta.preserved.push(result);
+        void pending.then(value=>{result.value=value;result.settled=true;},()=>{});
+      }
+      return await cancellable(pending, meta.signal);
     }
     const h = hooks[i];
+    const cancellation = AbortSignal.any([h.lifetime, ...(meta.signal ? [meta.signal] : [])]);
+    cancellation.throwIfAborted();
     const started = now(), ctrl = new AbortController();
+    let retirementTimer:ReturnType<typeof setTimeout>|undefined;
+    const abort = () => {
+      if(meta.retirementGraceMs>0)retirementTimer=setTimeout(()=>ctrl.abort(cancellation.reason),meta.retirementGraceMs);
+      else ctrl.abort(cancellation.reason);
+    };
+    cancellation.addEventListener('abort', abort, {once: true});
     type Item = { kind: "yield"; value: unknown; resume:()=>void } | { kind: "done"; value: unknown } | { kind: "error"; error: unknown };
     const queue: Item[] = [];
     let wake: (() => void) | undefined;
@@ -194,12 +249,13 @@ export class Runtime {
       ownTimer = setTimeout(() => ctrl.abort("own-budget"), Math.max(0, h.budget.ownMs - ownSpent));
     };
     const downstream = (event: unknown = input): Promise<unknown> => {
+      if (cancellation.aborted) return Promise.reject(cancellation.reason);
       if (inner) return inner;
       if (!active) return Promise.reject(new Error("Hook invocation has ended"));
       const parsed = meta.def.input.parse(event);
       pauseOwn();
       inner = (async () => {
-        const iterator = this.walk(i + 1, hooks, parsed, meta, depth + 1);
+        const iterator = this.walk(i + 1, hooks, parsed, {...meta, signal: cancellation}, depth + 1);
         while (true) {
           const item = await iterator.next();
           if (item.done) { innerResult = item.value; return item.value; }
@@ -244,6 +300,16 @@ export class Runtime {
             await output(item.value);
           }
         } else result = await wait(returned);
+        if(cancellation.aborted){
+          const handled=result!==undefined&&!isNextMarker(result)&&meta.def.responses.some(response=>
+            typeof result==='object'&&result!==null&&response.kind in result&&response.schema.safeParse(result).success);
+          // A completed notification has no fallback effect to resume. Retired
+          // service handlers must instead supply an explicit handled response.
+          if(meta.retirementGraceMs>0&&!ctrl.signal.aborted&&(handled||(result===undefined&&!this.resolvers.has(meta.def.name)))){
+            meta.cooperative.completed=true;return result??input;
+          }
+          throw cancellation.reason;
+        }
         // Returning an unawaited continuation also executes downstream exactly once.
         if (isNextMarker(result)) result = await downstream(result.event ?? input);
         else if (result === undefined) result = await downstream();
@@ -256,6 +322,12 @@ export class Runtime {
           } else meta.trace({ ts: Date.now(), event: meta.def.name, phase: "exit", plugin: h.plugin, detail: `response:${matched.kind}`, depth });
         }
       } catch (error) {
+        if (cancellation.aborted) {
+          if(meta.retirementGraceMs>0&&!ctrl.signal.aborted&&error===cancellation.reason&&!this.resolvers.has(meta.def.name)){
+            meta.cooperative.completed=true;return input;
+          }
+          throw cancellation.reason;
+        }
         const reason = ctrl.signal.aborted ? String(ctrl.signal.reason) : "error";
         if(reason==="consumer-closed")throw error;
         fail(["own-budget", "thread-budget", "yield-budget"].includes(reason) ? reason as Fault["kind"] : "error", error instanceof Error ? error.message : String(error));
@@ -278,12 +350,16 @@ export class Runtime {
       while (true) {
         if (!queue.length) await new Promise<void>(resolve => { wake = resolve; });
         const item = queue.shift()!;
+        if(item.kind==='yield'&&cancellation.aborted)throw cancellation.reason;
+        if(cancellation.aborted&&(!meta.retirementGraceMs||ctrl.signal.aborted))throw cancellation.reason;
         if (item.kind === "done") { drained = true; return item.value; }
         if (item.kind === "error") throw item.error;
         try {yield item.value;} finally {item.resume();}
       }
     } finally {
       active = false; if (!drained) ctrl.abort("consumer-closed");
+      cancellation.removeEventListener('abort', abort);
+      clearTimeout(retirementTimer);
       clearTimeout(ownTimer); clearTimeout(threadTimer);
     }
   }

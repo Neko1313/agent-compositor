@@ -123,6 +123,15 @@ not OS containment. Replacement execution services must preserve these semantics
 `ToolContext.request` propagates the tool's signal to host services without
 serializing it into catalog payloads. SDK callers may likewise pass an optional
 third `AbortSignal` argument to `HooksHost.emit`.
+The dispatcher also accepts an optional third signal on `Runtime.emit`.
+Caller cancellation settles the pending hook wait, including an asynchronous
+hook that ignores its signal; it revokes that invocation instead of treating
+cancellation as a plugin fault and falling through to a resolver. Late `next()`
+calls cannot start another effect. Plugin removal and host closure cancel their
+active emissions and release dispatcher timers. Independent user operations and
+retained background capabilities keep their existing ownership boundaries until
+their own owner or host closes. Already-started external effects are not rolled
+back, and synchronous JavaScript is not forcibly preempted.
 
 Catalog 0.21 adds `service.extension.control` and `service.marketplace.control`
 for the TUI management lane. They accept the corresponding control tool's

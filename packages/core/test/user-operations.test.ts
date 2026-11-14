@@ -59,6 +59,54 @@ it('keeps caller cancellation independent of the parent and records a truthful t
  expect(await work).toMatchObject({ok:false,error:expect.stringContaining('Cancelled UI action')});expect(worker.signal()!.aborted).toBe(true);expect(f.provider.requests[0].signal.aborted).toBe(false);expect(f.core.hasActiveOperations).toBe(false);expect(f.core.failure).toBeUndefined();
  expect(f.journal.filter(e=>e.type==='tool.operation').at(-1)).toMatchObject({phase:'completed',ok:false});f.provider.release();await running;
 });
+it('delivers cancelled terminal hooks while their SDK effects remain revoked',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'cancelled-terminal-')),worker=slow(),f=fixture([worker.tool],[],{cwd});
+ const observed:{event:string;aborted:boolean}[]=[],rejected:unknown[]=[];
+ const observe=async(event:string,current:any,$:any)=>{
+  if(!current.operationId||(event==='tool.operation'&&current.phase!=='completed'))return;
+  observed.push({event,aborted:$.signal.aborted});
+  try{await $.fs.write('forbidden.txt','cancelled observer effect');}catch(error){rejected.push(error);}
+ };
+ f.core.host.registerPlugin({name:'terminal-observer',version:'1.0.0',trust:'trusted'},
+  {'tool.result':(event,$)=>observe('tool.result',event,$),'tool.operation':(event,$)=>observe('tool.operation',event,$)});
+ try{
+  const running=f.core.submit('Main task');await wait(()=>f.provider.requests.length===1);const abort=new AbortController();
+  const work=f.core.invokeUserTool('slow',{}, {signal:abort.signal});await wait(worker.start);abort.abort(Error('Cancelled by caller'));
+  expect(await work).toMatchObject({ok:false});
+  expect(observed).toEqual([{event:'tool.result',aborted:true},{event:'tool.operation',aborted:true}]);expect(rejected).toHaveLength(2);
+  await expect(stat(join(cwd,'forbidden.txt'))).rejects.toMatchObject({code:'ENOENT'});
+  expect(f.journal.filter(event=>event.type==='tool.operation').at(-1)).toMatchObject({phase:'completed',ok:false});
+  expect(f.provider.requests[0].signal.aborted).toBe(false);f.provider.release();await running;
+ }finally{await f.core.close();await rm(cwd,{recursive:true,force:true});}
+});
+it('does not replay a terminal observer when cancellation races its already-running hook',async()=>{
+ const worker=slow(),f=fixture([worker.tool]),abort=new AbortController();let entered=0,release!:()=>void,api:any;
+ const pause=new Promise<void>(done=>{release=done;});
+ f.core.host.registerPlugin({name:'racing-observer',version:'1.0.0',trust:'trusted'},
+  {'tool.result':async(event,$)=>{if(!event.operationId)return;entered++;api=$;await pause;}});
+ try{
+  const running=f.core.submit('Main task');await wait(()=>f.provider.requests.length===1);
+  const work=f.core.invokeUserTool('slow',{}, {signal:abort.signal});await wait(worker.start);worker.finish();await wait(()=>entered===1);
+  expect(api.signal.aborted).toBe(false);abort.abort(Error('Cancel during observation'));expect(api.signal.aborted).toBe(true);release();
+  expect(await work).toMatchObject({ok:false});expect(entered).toBe(1);
+  expect(f.journal.filter(event=>event.type==='tool.result').at(-1)).toMatchObject({ok:true});
+  expect(f.journal.filter(event=>event.type==='tool.operation').at(-1)).toMatchObject({phase:'completed',ok:false});f.provider.release();await running;
+ }finally{release();}
+});
+it('shares one bounded cancellation grace across terminal observers and still journals and broadcasts every outcome',async()=>{
+ const worker=slow(),f=fixture([worker.tool]),abort=new AbortController();let entered=0,completedHook=0;
+ f.core.host.registerPlugin({name:'never-observer',version:'1.0.0',trust:'trusted',hookTimeouts:{'tool.result':300000,'tool.operation':300000}},
+  {'tool.result':async(event)=>{if(event.operationId){entered++;await new Promise(()=>{});}},
+   'tool.operation':event=>{if(event.phase==='completed')completedHook++;}});
+ const running=f.core.submit('Main task');await wait(()=>f.provider.requests.length===1);
+ const work=f.core.invokeUserTool('slow',{}, {signal:abort.signal});await wait(worker.start);const started=performance.now();abort.abort(Error('Cancel ignored observer'));
+ expect(await work).toMatchObject({ok:false});const elapsed=performance.now()-started;
+ expect(entered).toBe(1);expect(completedHook).toBe(0);expect(elapsed).toBeGreaterThanOrEqual(900);expect(elapsed).toBeLessThan(1800);
+ expect(f.journal.filter(event=>event.type==='tool.result').at(-1)).toMatchObject({ok:false});
+ expect(f.journal.filter(event=>event.type==='tool.operation').at(-1)).toMatchObject({phase:'completed',ok:false});
+ expect(f.events.filter(event=>event.kind==='catalog'&&event.event==='tool.operation').at(-1)?.input).toMatchObject({phase:'completed',ok:false});
+ expect(f.core.hasActiveOperations).toBe(false);expect(f.provider.requests[0].signal.aborted).toBe(false);f.provider.release();await running;
+});
 it('does not cancel a user tool when the parent turn is interrupted, and closes it on session teardown',async()=>{
  const worker=slow(),f=fixture([worker.tool]);const running=f.core.submit('Main task');await wait(()=>f.provider.requests.length===1);
  const work=f.core.invokeUserTool('slow',{});await wait(worker.start);f.core.interrupt();await running;expect(worker.signal()!.aborted).toBe(false);expect(f.core.hasActiveOperations).toBe(true);

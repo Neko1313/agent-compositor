@@ -349,7 +349,7 @@ does not alter raw results or verification; running jobs remain unfinished. See
 These are live-session jobs; session close stops
 them, and a single-shot headless command does not become a daemon.
 
-Headless execution reports a host interruption as unsuccessful (exit code 1) in
+Headless execution reports a Core interruption as unsuccessful (exit code 1) in
 `text`, `json`, and `stream-json` formats. Text output preserves any text already
 streamed and adds an interruption error. JSON results, including the final result
 line in `stream-json`, keep the `{type, sessionId, response, usage, error?}` shape:
@@ -358,6 +358,17 @@ interruption. If interrupted before output, `response` is empty; a resumed
 conversation's earlier answer is never reused. Completed turns and handled host
 commands remain successful (exit code 0 unless another error occurs); a handled
 command with no assistant output has an empty response.
+
+For the `compositor -p` binary, external SIGINT and SIGTERM request awaited
+Core/application shutdown before the final result. The first signal determines
+exit status: 130 for SIGINT or 143 for SIGTERM. Structured results retain their
+normal shape and report `Interrupted by SIGINT` or `Interrupted by SIGTERM` as an
+error. Foreground and background processes owned by the closing application are
+stopped; unrelated processes are preserved. Signal handlers are bound only after
+the real CLI parser selects headless mode, so interactive input keeps its own
+signal handling. Embedded `main({signal})` uses its caller's AbortSignal and
+returns an unsuccessful result without installing process listeners. SIGKILL
+cannot run this cleanup.
 
 The [workflows plugin](../plugins/workflows/README.md) uses the same follow-up
 queue for new `workflow_run` runs: default `completion:"wake"` resumes the

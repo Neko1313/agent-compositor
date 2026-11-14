@@ -249,6 +249,16 @@ Plain-session startup is checked with a real SDK plugin too: immediate EOF initi
 the plugin once without a model request, and startup finishes before the first
 model request in a second process. Its report is
 `dist/release/plain-startup-smoke-PLATFORM.json`.
+The installed headless signal gate runs six actual CLI cases: SIGINT and SIGTERM
+against an immediate SDK command, an ordinary foreground exec, and a held model
+with native and plugin-owned background work. It observes owned worker readiness
+before signaling the CLI, then requires their termination before fixture cleanup,
+an unrelated live control process, exactly one unsuccessful final result and exit
+130 or 143. All model traffic is loopback. Reports are written to
+`dist/release/headless-signals-smoke-PLATFORM.json`; the matching directory retains
+per-case input, stdout/stderr, journals, HTTP and PID evidence with hashes.
+CI preserves both the report and raw directory even when a gate fails. This is
+graceful signal-cleanup evidence, not a guarantee for SIGKILL or OS containment.
 The installed plain interface also receives a pasted main prompt plus an immediate
 control that must release a held local request, and a separate EOF case that must
 wait for a pending command after the main response completes. The bundled

@@ -22,7 +22,7 @@ Configuration + scoped selections + provider profiles
                                        |
                               Versioned JSONL protocol
                                        |
-                                 Ink renderer
+                             Ink / OpenTUI renderer
 ```
 
 `packages/core` contains the active multi-turn engine. `packages/agent` is a
@@ -302,6 +302,14 @@ terminal success requires a write acknowledgement. Replay closes unfinished
 tool exchanges with explicit unknown-outcome results without repeating effects.
 The session repository contract replaces history, journaling, search and resume
 together. Settings and window metadata have separate storage services.
+
+Headless process signals close the application before its final result. Core and
+application close calls join the same teardown, including managed agents,
+foreground shells and retained SDK processes. Caller cancellation can end a
+long lifecycle hook; a journal failure separately revokes further effects.
+Terminal outcome observation has a bounded grace with revoked caller authority,
+while its original journal/UI record remains host-owned. See
+[cancellation and cleanup contracts](core-customization.md#middleware-ordering-and-extension-events).
 
 Task children and independent agents have separate execution contexts.
 Independent agents can also use Git worktrees. Their Saved activity views read

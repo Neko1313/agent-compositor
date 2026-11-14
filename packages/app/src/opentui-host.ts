@@ -1141,7 +1141,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         replacementChannels.generation.abort(); replacementChannels.inbox.close(); return {deny: 'Could not resume this session'};
       }
       finally {switching = false;}
-    });
+    },{settleOnCancel:true,preserveResultOnCancel:true});
   }
   function unbind() {
     for(const request of [...agentRequests.values()])if(!active||!request.independent)request.close();

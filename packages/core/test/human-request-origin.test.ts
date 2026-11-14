@@ -135,13 +135,13 @@ it('revokes a detached child private form on actual parent Core close without bo
     seen=context;return new Promise(resolve=>signal.addEventListener('abort',()=>resolve(null),{once:true}));
   }});
   parent.host.setInvocationOriginProvider(()=>({operation:'parent UI'}));
-  const pending=parent.host.emit('service.agent.spawn',{prompt:'Detached child',agentId:'detached',detached:true});
+  const pending=parent.host.emit('service.agent.spawn',{prompt:'Detached child',agentId:'detached',detached:true}).catch(error=>error);
   await expect.poll(()=>Boolean(seen)).toBe(true);parent.interrupt();
   expect(seen.signal.aborted).toBe(false);expect(seen.serviceScope!.background).toBe(false);
   expect(seen.delegatedFrom).toBeUndefined();expect(seen.invocationOrigin).toBeUndefined();
   expect(seen.root.host).toBe(parent.host);expect(seen.root.signal.aborted).toBe(false);
   expect(seen.origin).toMatchObject({agentId:'detached',parent:{sessionId:parent.sessionId}});
-  await parent.close();await pending;expect(seen.signal.aborted).toBe(true);expect(seen.root.signal.aborted).toBe(true);
+  await parent.close();expect(await pending).toBeInstanceOf(Error);expect(seen.signal.aborted).toBe(true);expect(seen.root.signal.aborted).toBe(true);
 });
 
 it('retains only captured background producer labels when a handle is called under a newer tool',async()=>{

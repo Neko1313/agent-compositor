@@ -1511,7 +1511,8 @@ export class AppUI {
     if (!this.panelOptions.resume) return;
     this.core.runtime.setResolver(
       "service.session.control",
-      this.sessionResolver()
+      this.sessionResolver(),
+      {settleOnCancel:true,preserveResultOnCancel:true}
     );
   }
   private sessionResolver(): (args: any) => Promise<unknown> {

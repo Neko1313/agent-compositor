@@ -45,6 +45,12 @@ compositor [--plugins dir ...] [--resume [ID]] [--history] [--cwd dir] [--plain]
 - `/history`, `/sessions`, bare `/resume` — search saved chats by title, ID or conversation text; preview, rename and resume with keyboard or mouse.
 - `--cwd dir` — project root for config discovery and session storage.
 
+For `compositor -p`, SIGINT/SIGTERM close the owned Core/application resources
+before the final result, with exit status 130/143 and an interruption error.
+The first signal wins; interactive modes retain their own signal handling.
+Embedding `main({signal})` provides cancellation without process-wide listeners.
+See [headless results and shutdown](../../docs/agent-features.md#autonomous-execution-and-context-budgets).
+
 ## Provider
 
 Env wins over config:

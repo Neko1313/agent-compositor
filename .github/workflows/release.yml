@@ -225,6 +225,7 @@ jobs:
           name: installed-runtime-${{ matrix.platform }}
           path: |
             dist/release/*smoke-*.json
+            dist/release/headless-signals-smoke-${{ matrix.platform }}/
             dist/release/opentui-app-${{ matrix.platform }}/
             dist/release/opentui-managers-${{ matrix.platform }}/
             dist/release/opentui-navigation-${{ matrix.platform }}/

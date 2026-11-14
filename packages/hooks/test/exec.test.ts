@@ -26,6 +26,27 @@ it('cancels a direct tool service request and reaps its entire process group bef
  expect(await Promise.race([work,new Promise(done=>setTimeout(()=>done('still running'),500))])).toBe('cancelled');
  for(const pid of ids)await stopped(pid);
 });
+it('does not settle an aborted SDK execution before its actual child close',async()=>{
+ const f=await fixture(),abort=new AbortController(),reason=Error('Stop the exact SDK process');let ids:number[]=[];
+ const work=f.host.emit('service.exec.run',{plugin:'process-owner',cmd:process.execPath,args:[f.worker],timeoutMs:10000},abort.signal)
+  .then(()=>({error:undefined,pidPresent:true}),error=>{let pidPresent=true;try{process.kill(ids[0],0);}catch(caught:any){if(caught.code==='ESRCH')pidPresent=false;else throw caught;}return{error,pidPresent};});
+ ids=await f.started();abort.abort(reason);const result=await work;
+ expect(result.error).toBe(reason);expect(result.pidPresent).toBe(false);
+});
+it('joins retained background execution when the host closes',async()=>{
+ const f=await fixture();const work=f.api.exec.run(process.execPath,[f.worker],{timeoutMs:10000}).catch(error=>error),ids=await f.started();
+ f.host.close();await f.host.closeProcesses();
+ expect(()=>process.kill(ids[0],0)).toThrow();expect(await work).toBeInstanceOf(Error);
+});
+it('cancels one same-owner SDK execution without stopping its neighbor',async()=>{
+ const f=await fixture(),a=new AbortController(),b=new AbortController();
+ const first=f.host.emit('service.exec.run',{plugin:'process-owner',cmd:process.execPath,args:[f.worker],timeoutMs:10000},a.signal).catch(error=>error),ids=await f.started();
+ const pidFile=join(f.root,'other.pid'),other=join(f.root,'other.cjs');await writeFile(other,`require('node:fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));setInterval(()=>{},1000);`);
+ const second=f.host.emit('service.exec.run',{plugin:'process-owner',cmd:process.execPath,args:[other],timeoutMs:10000},b.signal).catch(error=>error);
+ let pid=0;await expect.poll(async()=>{pid=await readFile(pidFile,'utf8').then(Number,()=>0);return pid;},{timeout:2000}).toBeGreaterThan(0);pids.push(pid);
+ const reason=Error('Only first');a.abort(reason);expect(await first).toBe(reason);expect(()=>process.kill(ids[0],0)).toThrow();expect(()=>process.kill(pid,0)).not.toThrow();
+ b.abort();await second;expect(()=>process.kill(pid,0)).toThrow();
+});
 it('kills a retained background subprocess when its owning plugin is unloaded',async()=>{
  const f=await fixture();const work=f.api.exec.run(process.execPath,[f.worker],{timeoutMs:10000}).then(()=> 'completed',()=> 'cancelled');
  const ids=await f.started();f.host.unregisterPlugin('process-owner');

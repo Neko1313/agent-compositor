@@ -637,6 +637,45 @@ the host cannot be forcibly preempted, and already-started external effects are
 not rolled back. Tool implementations must cooperate with their supplied
 signal. These mechanisms are not process isolation.
 
+`Runtime.emit(name, input, signal?)` and `HooksHost.emit(name, input, signal?)`
+can receive caller cancellation separately from catalog data. It aborts the
+dispatcher wait and fences late continuations; it does not invoke the normal
+fault fallback or replay a downstream effect. Unregistering a plugin revokes its
+active invocations, and closing a hooks host revokes its remaining emissions.
+The two-argument behavior and ordinary budget policy remain available. Do not
+serialize live signals into an extension payload.
+
+Core-owned terminal records preserve cooperative plugin observation after an
+operation is cancelled. Their SDK authority remains the original cancelled
+authority; observation does not grant new effects. A shared 1000 ms grace starts
+when that authority is cancelled and covers its later terminal records. A hung
+observer cannot extend it, and cancellation during an existing observer never
+replays that hook. The authoritative outcome is still journaled and broadcast
+when observation expires; journal failure continues to fail closed.
+
+Only a resolver that owns a cancellation-aware resource may opt into
+`setResolver(name, handler, {settleOnCancel: true})`. Its actual promise is joined
+before the emission settles, including on cancellation. The standard SDK process
+and built-in shell services use this for process closure. Generic resolvers keep
+prompt cancellation; opting into settlement does not make an uncooperative
+provider safe. Hooks-host shutdown also joins retained standard SDK processes.
+An explicitly owned resolver can also use `preserveResultOnCancel: true` with
+settlement joining to return an already-started structured cancellation or
+committed lifecycle result. Standard shell/tool services and trusted application
+resume/archive controls use this ownership; generic resolvers do not acquire it.
+Effect authority is still revoked immediately, and retired invocations cannot
+start `next()` or a fallback effect. Host-controlled cooperative retirement has
+a separate 100 ms settlement bound for an already-running handled response;
+it does not wait indefinitely for an ignored hook.
+
+`AgentCore.close(signal?)` and `BuiltApp.close(signal?)` join one teardown promise.
+A caller can cancel an already-waiting lifecycle dispatch, including a declared
+long `session.end` hook; shell and SDK process closure still runs in the finalizer.
+Normal foreground interruption does not cancel those cleanup hooks. Journal
+failure separately revokes lifecycle effects, and remains available as
+`core.failure` while teardown completes. These are owner-lifetime controls, not
+OS isolation or a SIGKILL cleanup guarantee.
+
 A native hooks module can export `events: EventDef[]` alongside `hooks`. Define
 names under `plugin.<manifest-name>:<event>` using `defineEvent` and schemas.
 Definitions are local to the runtime, validated before registration, and removed

@@ -12,6 +12,7 @@ interface Options {
   windows(): readonly NavigationWindow[];
   open(id: string, signal: AbortSignal): void | Promise<void>;
   mainId?: string;
+  onWindowIntent?(): void;
 }
 const label = (text: string) => clean(text).replace(/\p{Bidi_Control}/gu, '');
 function query(text: string): string {
@@ -88,6 +89,7 @@ export function createWindowNavigation(layout: WindowLayoutSource, options: Opti
   }
   function openFinder() {
     if (!active) return;
+    options.onWindowIntent?.();
     cancelGesture();
     opening?.controller.abort(); opening = undefined;
     if (mode !== 'finder') {
@@ -103,6 +105,7 @@ export function createWindowNavigation(layout: WindowLayoutSource, options: Opti
   }
   function toggleArrange() {
     if (!active) return;
+    options.onWindowIntent?.();
     if (mode === 'finder') leaveFinder(true);
     cancelGesture();
     mode = mode === 'arrange' ? 'normal' : 'arrange';
@@ -113,6 +116,7 @@ export function createWindowNavigation(layout: WindowLayoutSource, options: Opti
     if (opening?.id === id) return;
     const entry = state.entries.find(entry => entry.id === id);
     if (!entry) return;
+    options.onWindowIntent?.();
     opening?.controller.abort(); opening = undefined;
     if (entry.state === 'unavailable') {error = 'This window needs a fresh view from its plugin before it can open'; refresh(); return;}
     const attempt = {id, controller: new AbortController()};
@@ -134,11 +138,13 @@ export function createWindowNavigation(layout: WindowLayoutSource, options: Opti
   function changeQuery(value: string, expected: number) {
     if (!active || mode !== 'finder' || expected !== state.revision || typeof value !== 'string') return;
     const next = query(value);
+    if (next !== text) options.onWindowIntent?.();
     if (next !== text) {opening?.controller.abort(); opening = undefined;}
     text = next; selected = matching(windows())[0]?.id; selectionRevision++; error = undefined; refresh();
   }
   function select(id: string, expected: number) {
     if (!active || mode !== 'finder' || expected !== state.revision || !state.entries.some(entry => entry.id === id)) return;
+    if (selected !== id || opening && opening.id !== id) options.onWindowIntent?.();
     if (opening && opening.id !== id) {opening.controller.abort(); opening = undefined;}
     selected = id; selectionRevision++; error = undefined; refresh();
   }

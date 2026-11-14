@@ -1,5 +1,102 @@
 # Project memory
 
+## OpenTUI window intent and native action ownership — 2026-11-14
+
+The configured host now defaults an unspecified first-publication focus to
+passive. Explicit plugin hints and configured true/false preferences remain
+compatible. Ordinary updates preserve closed/moved windows. A dedicated transient
+window-intent counter separates manual navigation from registration, viewport
+measurement, automatic opens and persistence. It includes idempotent Main and
+workspace choices, pane selection and Arrange/Finder intent. Same-result Finder
+boundary navigation preserves a current opening; Up/Down/Tab and repeated Enter
+are verified against a retained producer. No counter is saved or added to wire
+messages. The app-only layout API is windowIntentRevision, markWindowIntent and
+actAutomatic; renderer source contracts and plugin APIs are unchanged.
+
+Operations check captured intent before placement, rule relocation, opening and
+private-request focus. Captured service provenance distinguishes a real UI
+caller from retained background lineage, including foreign interceptors and
+stale ordinary handles. A current matching, signal-bound retained Finder route
+still opens its destination; an abandoned picker cannot create a late window.
+Late command publication still binds its work/cancellation owner even when its
+autofocus is suppressed. Closed matching-rule destinations remain closed.
+
+A current visible, focused normal-mode human response renews an ordinary
+operation's intent before answer/approval/cancel settlement. Unfocused, hidden,
+Finder/Arrange, stale-ID and duplicate approval callbacks grant no fresh focus.
+Background request owners remain passive. Placement has a separate answer-time
+intent: Save can apply its geometry and persist focus=true after navigation,
+without taking focus from the newer Main/workspace. Fresh Apply after F2 reopen
+still honors Focus the placed window. Resume completion similarly checks its
+admission epoch before forcing Main after asynchronous startup.
+
+Admitted native actions now consume mouse-down before any callback or flush can
+change windows. Semantic lines/tabs/rows, request buttons, approval and Main
+Send/Stop share the small public-event helper. Main only refocuses its editor if
+still active after submission. Source actions preselect their pane before
+capturing intent; ordinary body/title/separator navigation still works. Actual
+host regressions reproduce both same-workspace and cross-workspace stale-hit
+failures before the fix and pass afterward, including a later deliberate click.
+
+Validation: final standalone coverage passed 1965 tests, three optional skips,
+215 files; focused suites passed 144. App/renderer and full typecheck, generation
+and 106-page documentation checks/build passed. Unchanged source app six and
+navigation eight pass in
+dist/opentui-focus-intent-continuation-source-{app,navigation}.
+The current relocated Linux archive passes all 28 native cases: app six,
+navigation eight, managers five, cancellation three and requests six, all with
+errors:[] and PTY exit 0. Evidence:
+dist/opentui-focus-intent-current-native-{app,navigation,managers,cancellation,requests}.
+Ink window controls pass seven in dist/ink-focus-intent-current-native; the
+complete release smoke passes. Critical PNGs were inspected. Independent review
+cleared the bounded focus slice after the Finder correction and separately found
+no blocker in the fresh-response continuation fix. No paid/live model was used.
+
+Preserved counterexamples: dist/opentui-focus-intent-source records a real
+product race: a button opened Explicit on workspace 6 before viewport bubbling
+rehit its old coordinates as Passive. ANSI replay matches all captured rows.
+The later -source-mouse failure was a wrapped exact cursor token, corrected by
+real Main zoom before command admission or after the tested late-focus boundary;
+the exact cursor oracle remains. The initial native-app folder (without current)
+records another product failure: profile Save succeeded, but first-form zoom
+left its operation stale and hid the returning Models view behind Main. Fresh
+focused response intent fixes the unchanged Add/zoom/discover/pick/Save flow.
+Initial candidate identity remains in dist/opentui-focus-intent-initial-artifact.json.
+
+Current executable SHA-256:
+a8311aa14cffe8cda2227a465f2fb38f98cce7b1bcc2d577a1f33833d9b0dca5.
+Renderer SHA-256:
+66615da1c9c5221917168b32525a858d52011a9de7ae3d324d9376a7a7c80faa.
+PATH selects the immutable main-20261114-8ed5daba17e0-linux-x64 bundle; a5d28 and
+all earlier installations remain. Reports are
+dist/opentui-focus-intent-{artifact,local-install,verification}.json.
+It reports 0.8.0, a local main build, not a new public release. Ink remains the
+default; use compositor --renderer opentui for this frontend.
+
+Prior d98d288 main CI (Node 22.19.0/26), docs and release preparation passed.
+Native run 43522154584 passed verification, Linux x64 and both macOS jobs, but
+failed Linux ARM: APP_APPROVAL Enter arrived before the previous turn reached
+Main Ready, leaving the ordinary prompt unsent. The fixture now acknowledges
+Main Ready only before that ordinary prompt; busy slash-command coverage stays.
+Evidence: dist/remote-linux-arm64-43522154584. This also confirms the preceding
+two macOS harness corrections; the old runs remain failed. Current new-head
+remote checks must be observed after push.
+
+Keep the complete 1.0 objective active. The next large frontend gate is a shared
+host-side selected approval/question/form controller adapter, reusing registry
+leases, private FIFOs, cancellation, pure render and serialized input. Preserve
+validated approval once/session/project results rather than narrowing to bool.
+Only validated frames/cells and minimal identity/input ports may reach the
+renderer, not raw factory request/form defaults, leases or capabilities. Main
+needs explicit answer-versus-draft input ownership. Existing semantic history
+already uses selected leases in sessions.ts but rich cells need verification.
+Selected editor and placement still require their real capability/ownership
+paths. Documented custom-editor F2 submit conflicts with native F2 Windows and
+needs deliberate precedence; do not rename the fixture to hide it. This is a
+plan, not implemented parity. Appearance/ui.render, full wire parity, legacy
+conversation copies, exact delegated-child attribution, embedded CPU onboarding
+and broad real-model/self-development quality also remain open.
+
 ## Readable OpenTUI tiling on narrow screens — 2026-11-14
 
 Removed the adapter's blanket single-pane rule below 70 columns. Frames, split

@@ -17,11 +17,23 @@ async function setup() {
   const nav = createWindowNavigation(layout, {windows: () => catalog.map(entry => {
     const workspace = layout.snapshot().locations[entry.id];
     return ['open', 'closed'].includes(entry.state) ? {...entry, workspace, state: workspace === undefined ? 'closed' : 'open'} : entry;
-  }), open: (id, signal) => open(id, signal)});
+  }), open: (id, signal) => open(id, signal), onWindowIntent: layout.markWindowIntent});
   cleanups.push(() => nav.close());
   return {layout, nav, catalog: () => catalog, setCatalog(value: NavigationWindow[]) {catalog = value; nav.refresh();},
     setOpen(value: typeof open) {open = value;}, saved: () => saved};
 }
+
+it('counts explicit mode and picker intent without treating background inventory refresh as user navigation', async () => {
+  const f = await setup(), start = f.layout.windowIntentRevision;
+  f.nav.handle(key('0', ['alt']));expect(f.layout.windowIntentRevision).toBeGreaterThan(start);
+  const main = f.layout.windowIntentRevision;f.nav.toggleArrange();expect(f.layout.windowIntentRevision).toBeGreaterThan(main);
+  const arrange = f.layout.windowIntentRevision;f.nav.openFinder();expect(f.layout.windowIntentRevision).toBeGreaterThan(arrange);
+  const finder = f.layout.windowIntentRevision;f.nav.changeQuery('Tools', f.nav.snapshot().revision);
+  expect(f.layout.windowIntentRevision).toBeGreaterThan(finder);
+  const query = f.layout.windowIntentRevision;f.nav.refresh();f.layout.resize(150, 45);
+  expect(f.layout.windowIntentRevision).toBe(query);
+  f.nav.choose('tools', f.nav.snapshot().revision);expect(f.layout.windowIntentRevision).toBeGreaterThan(query);
+});
 
 it('keeps the optional normal keymap stable and preserves native form submission chords', async () => {
   const f = await setup();

@@ -50,6 +50,12 @@ and closed-window state. Narrow viewports keep every split that fits the shared
 to their focused branch; a narrow terminal can still show multiple row tiles.
 The deterministic preview retains its separate key map.
 
+Passive first publication does not take focus unless an explicit placement
+preference requests it. User-opened results respect newer window-navigation
+intent, including selecting the already-focused Main window. Window creation,
+paint and layout saving do not count as new user navigation. A delayed request
+can remain available without interrupting the editor the user selected next.
+
 Private request windows name the actual requesting plugin. Each UI operation
 keeps its own FIFO and resident native question/form state; background input
 opens passively with a separate lifetime. Shared approval cards retain exact

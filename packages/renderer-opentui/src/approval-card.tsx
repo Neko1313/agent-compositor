@@ -1,9 +1,10 @@
 /** @jsxImportSource @opentui/react */
-import {MouseButton,TextAttributes,type ScrollBoxRenderable} from '@opentui/core';
+import {TextAttributes,type ScrollBoxRenderable} from '@opentui/core';
 import {useKeyboard} from '@opentui/react';
 import {useRef} from 'react';
 import {color} from './colors.js';
 import type {ConversationApproval,ConversationSession} from './session.js';
+import {handleActionMouseDown} from './mouse-action.js';
 
 // Keep control and bidirectional formatting characters visible in the action being reviewed.
 function approvalText(value:string){
@@ -44,7 +45,7 @@ export function ApprovalCard({request,session,height,isActive}:{
     </scrollbox>
     <box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>
       {session.answerApproval?actions.map(action=><box key={action.key} height={1} paddingX={1} backgroundColor={color.rule}
-        onMouseDown={event=>{if(event.button===MouseButton.LEFT)answer(action.allow);}}>
+        onMouseDown={event=>{handleActionMouseDown(event,!answered.current&&current()&&!!session.answerApproval,()=>answer(action.allow));}}>
         <text selectable={false} fg={color.text} attributes={TextAttributes.BOLD}>{action.label}</text>
       </box>):<text fg={color.muted}>Waiting for host decision</text>}
     </box>

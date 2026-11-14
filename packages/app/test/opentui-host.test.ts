@@ -8,11 +8,12 @@ import {createOpenTuiHost} from '../src/opentui-host.js';
 import {connectWindowLayout} from '../src/opentui-windows.js';
 import type {UiSurfaceSource} from '@agent-compositor/renderer-opentui';
 import type {PlacementConfig} from '../src/placement.js';
+import {handleActionMouseDown} from '../../renderer-opentui/src/mouse-action.js';
 
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {for (const close of cleanup.splice(0).reverse()) await close();});
 
-async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny' | 'ask'; questionnaires?: boolean; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]; hookTimeouts?: Record<string, number>}[]} = {}) {
+async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny' | 'ask'; questionnaires?: boolean; models?: string[]; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]; hookTimeouts?: Record<string, number>}[]} = {}) {
   const root = await mkdtemp(join(tmpdir(), 'opentui-real-host-'));
   cleanup.push(() => rm(root, {recursive: true, force: true}));
   const cwd = join(root, 'project'), home = join(root, 'home');
@@ -27,7 +28,7 @@ async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny' |
   const requests: {model: string; authorization?: string; body: any}[] = [];
   const server = createServer(async (req, res) => {
     if (req.url === '/v1/models') {
-      res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({data: [{id: 'configured-model'}]})); return;
+      res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({data: (options.models ?? ['configured-model']).map(id => ({id}))})); return;
     }
     if (req.url !== '/v1/chat/completions') {res.writeHead(404).end(); return;}
     let raw = ''; for await (const chunk of req) raw += chunk;
@@ -84,6 +85,206 @@ async function connection(f: Awaited<ReturnType<typeof fixture>>) {
   return {models, form};
 }
 
+function focusGate() {
+  let release!: () => void, entered = false;
+  const ready = new Promise<void>(resolve => {release = resolve;});
+  cleanup.push(async () => release());
+  return {release, entered: () => entered, async wait(signal: AbortSignal) {
+    entered = true;let abort!: () => void;
+    try {await Promise.race([ready, new Promise<never>((_resolve, reject) => {
+      abort = () => reject(signal.reason);signal.addEventListener('abort', abort, {once: true});if (signal.aborted)abort();
+    })]);signal.throwIfAborted();} finally {signal.removeEventListener('abort', abort);}
+  }};
+}
+async function focusFixture(handler: (event: any, $: any) => unknown, ui?: PlacementConfig) {
+  const f = await fixture({ui, plugins: [{name: 'focus-probe', source: 'export default {};', commands: [
+    {name: '/focus-slow', description: 'Open a controlled view', ui: {site: 'slow'}},
+    {name: '/focus-launch', description: 'Launch a retained view', ui: {site: 'launcher'}},
+  ]}]});
+  f.host.core.host.unregisterPlugin('focus-probe');
+  f.host.core.host.registerPlugin({name: 'focus-probe', version: '1.0.0', trust: 'trusted', hookTimeouts: {'ui.press': 15000}}, {'ui.press': handler});
+  return f;
+}
+
+it('admits a passive first view without taking a held form, Main question or another workspace', async () => {
+  const f = await fixture();f.host.core.host.registerPlugin({name: 'passive', version: '1.0.0', trust: 'trusted'}, {});
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const question = f.host.session.snapshot().interaction!;
+  const {form} = await connection(f), request = form.snapshot().form!;
+  f.layout.act({type: 'moveWorkspace', id: 2});const intent = f.layout.windowIntentRevision;
+  await f.host.core.host.emit('service.ui.view', {plugin: 'passive', id: 'new', title: 'Passive view', view: {lines: [{text: 'Published while working'}]}});
+  expect(f.layout.snapshot()).toMatchObject({workspace: 2, focused: form.id, locations: {'plugin-passive-new': 2}});
+  expect(f.layout.windowIntentRevision).toBe(intent);expect(form.snapshot().form?.id).toBe(request.id);
+  expect(f.host.session.snapshot().interaction?.id).toBe(question.id);expect(f.requests).toHaveLength(1);
+  form.cancelForm!(request.id);f.host.session.cancelInteraction!(question.id);await main;
+});
+
+it('honors explicit first-publication focus preferences while ordinary updates keep a closed or moved view', async () => {
+  const f = await fixture({ui: {rules: [
+    {match: {plugin: 'passive', surface: 'on'}, focus: true, workspace: 5},
+    {match: {plugin: 'passive', surface: 'off'}, focus: false, workspace: 4},
+  ]}});
+  f.host.core.host.registerPlugin({name: 'passive', version: '1.0.0', trust: 'trusted'}, {});
+  const publish = (id: string, placement: any) => f.host.core.host.emit('service.ui.view', {plugin: 'passive', id, title: id, view: {lines: [{text: id}]}, placement});
+  await publish('plain', {focus: true, workspace: 3});expect(f.layout.snapshot()).toMatchObject({workspace: 3, focused: 'plugin-passive-plain'});
+  await publish('off', {focus: true});expect(f.layout.snapshot()).toMatchObject({workspace: 3, focused: 'plugin-passive-plain', locations: {'plugin-passive-off': 4}});
+  await publish('on', {focus: false});expect(f.layout.snapshot()).toMatchObject({workspace: 5, focused: 'plugin-passive-on'});
+  f.layout.act({type: 'moveWorkspace', id: 6});f.layout.act({type: 'open', id: 'session'});
+  const intent = f.layout.windowIntentRevision;await publish('on', {focus: true, workspace: 9});
+  expect(f.layout.snapshot()).toMatchObject({workspace: 1, focused: 'session', locations: {'plugin-passive-on': 6}});
+  expect(f.layout.windowIntentRevision).toBe(intent);
+  f.layout.act({type: 'open', id: 'plugin-passive-on'});f.layout.act({type: 'close'});f.layout.act({type: 'open', id: 'session'});
+  await publish('on', {focus: true});expect(f.layout.snapshot().locations['plugin-passive-on']).toBeUndefined();
+  expect(f.layout.snapshot().focused).toBe('session');
+});
+
+it.each(['Main', 'workspace', 'Arrange', 'Finder', 'pane'] as const)('preserves newer %s intent when a delayed requested view and its focus rule arrive', async intent => {
+  const gate = focusGate();
+  const f = await focusFixture(async (_event, $) => {await gate.wait($.signal);await $.ui.view('slow', 'Delayed view', {lines: [{text: 'Completed controlled open'}]}, {focus: true});},
+    {rules: [{match: {plugin: 'focus-probe', surface: 'slow'}, workspace: 3, focus: true}]});
+  await f.host.submit('/focus-slow');await expect.poll(gate.entered).toBe(true);
+  if (intent === 'Main')f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});
+  if (intent === 'workspace')f.layout.act({type: 'workspace', id: 2});
+  if (intent === 'Arrange')f.host.navigation.toggleArrange();
+  if (intent === 'Finder') {f.host.navigation.openFinder();f.host.navigation.changeQuery('Main', f.host.navigation.snapshot().revision);}
+  if (intent === 'pane') {
+    await f.host.core.host.emit('service.ui.view', {plugin: 'focus-probe', id: 'other', title: 'Other view', view: {lines: []}});
+    f.layout.act({type: 'open', id: 'plugin-focus-probe-other'});
+  }
+  const before = f.layout.snapshot(), epoch = f.layout.windowIntentRevision, navigation = f.host.navigation.snapshot();
+  gate.release();await expect.poll(() => f.find('plugin-focus-probe-slow')?.snapshot().busy).toBe(false);
+  expect(f.layout.snapshot()).toMatchObject({workspace: before.workspace, focused: before.focused, locations: {'plugin-focus-probe-slow': 3}});
+  expect(f.layout.windowIntentRevision).toBe(epoch);
+  expect(f.host.navigation.snapshot()).toMatchObject({mode: navigation.mode, query: navigation.query});
+  expect(f.requests).toHaveLength(0);expect(f.host.core.getMessages()).toEqual([]);
+});
+
+it('selects an unfocused semantic action before capturing its request focus, without counting its own bubbling click', async () => {
+  let done: unknown;
+  const f = await focusFixture(async (_event, $) => {done = await $.ui.form({title: 'One-click form', fields: [{id: 'name', label: 'Name', type: 'text'}], actions: [{id: 'save', label: 'Save'}]});});
+  await f.host.core.host.emit('service.ui.view', {plugin: 'focus-probe', id: 'launcher', title: 'Launcher', view: {lines: [{text: 'Open form', action: 'start'}]}, placement: {focus: false}});
+  const source = f.find('plugin-focus-probe-launcher')!;expect(f.layout.snapshot().focused).toBe('session');
+  source.press('start', source.snapshot().revision);const epoch = f.layout.windowIntentRevision;
+  expect(f.layout.snapshot().focused).toBe(source.id);
+  const frame = f.layout.snapshot().frames.find(frame => frame.surface === source.id)!;
+  f.layout.act({type: 'pointer', phase: 'down', kind: 'pane', x: frame.x + 2, y: frame.y + 2});
+  expect(f.layout.windowIntentRevision).toBe(epoch);
+  const form = await f.waitForm('One-click form');expect(f.layout.snapshot().focused).toBe(form.id);
+  expect(f.layout.windowIntentRevision).toBe(epoch);f.answer(form, 'save', {name: 'Kept'});
+  await expect.poll(() => done).toMatchObject({action: 'save', values: {name: 'Kept'}});
+});
+
+it('keeps a delayed normal private request passive after a newer idempotent Main selection', async () => {
+  const gate = focusGate();let result: unknown;
+  const f = await focusFixture(async (_event, $) => {await gate.wait($.signal);result = await $.ui.ask({question: 'Delayed private question', options: ['Continue'], allowOther: false});});
+  await f.host.submit('/focus-slow');await expect.poll(gate.entered).toBe(true);
+  f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});const epoch = f.layout.windowIntentRevision;
+  gate.release();await expect.poll(() => f.host.surfaces.snapshot().find(source => source.snapshot().interaction)?.snapshot().interaction?.kind).toBe('question');
+  const source = f.host.surfaces.snapshot().find(source => source.snapshot().interaction)!;
+  expect(f.layout.snapshot().focused).toBe('session');expect(f.layout.windowIntentRevision).toBe(epoch);
+  source.answerInteraction!(source.snapshot().interaction!.id, {answers: [{id: 'answer', selected: ['Continue']}]});
+  await expect.poll(() => result).toBe('Continue');
+});
+
+it.each([1, 6])('consumes a semantic control click before its focused destination opens on workspace %s', async workspace => {
+  const f = await focusFixture(async (_event, $) => {
+    await $.ui.view('slow', 'Explicit focus', {lines: [{text: 'Explicit destination'}]}, {workspace, focus: true});
+  });
+  f.layout.resize(240, 40);
+  const publish = (id: string, title: string, placement: {workspace: number; focus: boolean}, lines: any[] = []) =>
+    f.host.core.host.emit('service.ui.view', {plugin: 'focus-probe', id, title, placement, view: {lines}});
+  await publish('passive', 'Passive neighbor', {workspace, focus: false});
+  await publish('launcher', 'Controls', {workspace: 1, focus: false}, [{text: 'Publish focus true', action: 'open'}]);
+  const source = f.find('plugin-focus-probe-launcher')!;
+  f.layout.act({type: 'open', id: source.id});f.layout.act({type: 'swap'});
+  const original = f.layout.snapshot().frames.find(frame => frame.surface === source.id)!;
+  const point = {x: original.x + 2, y: original.y + 2};
+  const event = {button: 0, defaultPrevented: false, propagationStopped: false,
+    preventDefault() {this.defaultPrevented = true;}, stopPropagation() {this.propagationStopped = true;}};
+  expect(handleActionMouseDown(event, true, () => source.press('open', source.snapshot().revision))).toBe(true);
+  const epoch = f.layout.windowIntentRevision;
+  await expect.poll(() => f.find('plugin-focus-probe-slow')?.snapshot().busy).toBe(false);
+  const hit = f.layout.snapshot().frames.find(frame => point.x >= frame.x && point.x < frame.x + frame.width
+    && point.y >= frame.y && point.y < frame.y + frame.height);
+  expect(hit?.surface).toBe(workspace === 1 ? source.id : 'plugin-focus-probe-passive');
+  // Native child callbacks precede the viewport listener. Its live hit test is
+  // dangerous even when the old source still occupies these same coordinates.
+  if (!event.propagationStopped)f.layout.act({type: 'pointer', phase: 'down', kind: 'pane', ...point, revision: f.layout.snapshot().revision});
+  expect(f.layout.snapshot()).toMatchObject({workspace, focused: 'plugin-focus-probe-slow'});
+  expect(f.layout.windowIntentRevision).toBe(epoch);expect(event.defaultPrevented).toBe(true);
+  const passive = f.layout.snapshot().frames.find(frame => frame.surface === 'plugin-focus-probe-passive')!;
+  f.layout.act({type: 'pointer', phase: 'down', kind: 'pane', x: passive.x + 2, y: passive.y + 2, revision: f.layout.snapshot().revision});
+  expect(f.layout.snapshot().focused).toBe('plugin-focus-probe-passive');
+  expect(f.layout.windowIntentRevision).toBe(epoch + 1);expect(f.requests).toHaveLength(0);
+});
+
+it.each([false, true])('keeps retained view publication passive with launcher settled=%s', async settled => {
+  const gate = focusGate();let normalSignal: AbortSignal | undefined, publication: Promise<unknown> | undefined;
+  const f = await focusFixture(async (_event, $) => {
+    normalSignal = $.signal;const retained = $.background();
+    publication = gate.wait(retained.signal).then(() => retained.ui.view('background', 'Retained view', {lines: [{text: 'Independent publication'}]}));
+    if (!settled)await publication;
+  });
+  await f.host.submit('/focus-launch');await expect.poll(() => !!normalSignal).toBe(true);
+  if (settled)await expect.poll(() => normalSignal!.aborted).toBe(true);else expect(normalSignal!.aborted).toBe(false);
+  const epoch = f.layout.windowIntentRevision;gate.release();await publication;
+  const source = f.find('plugin-focus-probe-background')!;
+  expect(source.snapshot().busy).toBe(false);expect(f.layout.snapshot().focused).toBe('session');
+  expect(f.layout.windowIntentRevision).toBe(epoch);await expect.poll(() => normalSignal!.aborted).toBe(true);
+});
+
+it('does not reopen a retained closed identity through a stale requested publication and matching focus rule', async () => {
+  const gate = focusGate();
+  const f = await focusFixture(async (_event, $) => {await gate.wait($.signal);await $.ui.view('slow', 'Closed result', {lines: [{text: 'Available without reopening'}]}, {focus: true});},
+    {rules: [{match: {plugin: 'focus-probe', surface: 'slow'}, workspace: 3, focus: true}]});
+  const id = 'plugin-focus-probe-slow';
+  f.layout.register({id, label: 'Retained closed owner'}, {workspace: 3, focus: true});f.layout.act({type: 'close'});f.layout.act({type: 'open', id: 'session'});
+  await f.host.submit('/focus-slow');await expect.poll(gate.entered).toBe(true);
+  f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});gate.release();
+  await expect.poll(() => f.find(id)?.snapshot().busy).toBe(false);
+  expect(f.layout.snapshot().locations[id]).toBeUndefined();expect(f.layout.snapshot()).toMatchObject({workspace: 1, focused: 'session'});
+  f.host.navigation.openFinder();f.host.navigation.changeQuery('Closed result', f.host.navigation.snapshot().revision);
+  expect(f.host.navigation.snapshot().entries[0]).toMatchObject({id, state: 'closed'});
+  f.host.navigation.choose(id, f.host.navigation.snapshot().revision);
+  expect(f.layout.snapshot().focused).toBe(id);
+});
+
+it('keeps a foreign interceptor publication bound to its live caller focus eligibility rather than treating it as unscoped', async () => {
+  const gate = focusGate();
+  const f = await focusFixture(async (_event, $) => {await gate.wait($.signal);await $.ui.view('slow', 'Original result', {lines: []}, {focus: true});});
+  f.host.core.host.registerPlugin({name: 'focus-interceptor', version: '1.0.0', trust: 'trusted'}, {
+    'service.ui.view': async (event, $) => {
+      if (event.plugin === 'focus-probe' && event.id === 'slow')await $.ui.view('foreign', 'Foreign result', {lines: []}, {focus: true, workspace: 4});
+      return $.next();
+    },
+  });
+  await f.host.submit('/focus-slow');await expect.poll(gate.entered).toBe(true);
+  f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});gate.release();
+  await expect.poll(() => f.find('plugin-focus-probe-slow')?.snapshot().busy).toBe(false);
+  expect(f.find('plugin-focus-interceptor-foreign')).toBeDefined();
+  expect(f.layout.snapshot()).toMatchObject({workspace: 1, focused: 'session', locations: {'plugin-focus-interceptor-foreign': 4}});
+});
+
+it('does not promote a stale captured ordinary origin into passive explicit-focus authority', async () => {
+  const gate = focusGate();let later: Promise<unknown> | undefined;
+  const f = await focusFixture(async (_event, $) => {await $.ui.view('slow', 'Ordinary result', {lines: []});});
+  f.host.core.host.registerPlugin({name: 'capture-origin', version: '1.0.0', trust: 'trusted'}, {
+    'service.ui.view': (event, $) => {
+      if (event.plugin === 'focus-probe' && event.id === 'slow') {
+        const lifetime = f.host.core.host.currentServiceScope!.lifetime;
+        later = gate.wait(lifetime).then(() => f.host.core.host.emit('service.ui.view', {plugin: 'focus-probe', id: 'late', title: 'Stale origin result',
+          view: {lines: []}, placement: {focus: true, workspace: 4}}, new AbortController().signal));
+      }
+      return $.next();
+    },
+  });
+  await f.host.submit('/focus-slow');await expect.poll(() => f.find('plugin-focus-probe-slow')?.snapshot().busy).toBe(false);
+  f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});gate.release();await later;
+  expect(f.find('plugin-focus-probe-late')).toBeDefined();
+  expect(f.layout.snapshot()).toMatchObject({workspace: 1, focused: 'session', locations: {'plugin-focus-probe-late': 4}});
+});
+
 function commandWorker() {
   return {name: 'command-worker', commands: [{name: '/command-worker', description: 'Run a local test worker', execution: 'immediate'}], source: `export default {
     'command.invoke': async (event, $) => {
@@ -130,7 +331,9 @@ it('owns a real builtin exec approval separately from Main and executes only aft
   f.host.navigation.changeQuery('Approval · manual-worker', f.host.navigation.snapshot().revision);
   f.host.navigation.choose(source.id, f.host.navigation.snapshot().revision);
   expect(f.layout.snapshot().focused).toBe(source.id);
+  const approvalIntent = f.layout.windowIntentRevision;
   source.answerApproval!(request.id, true); source.answerApproval!(request.id, true);
+  expect(f.layout.windowIntentRevision).toBe(approvalIntent + 1);
   await expect.poll(() => result('allow')).toMatchObject({ok: true});
   expect(await readFile(join(f.cwd, 'effect-allow'), 'utf8')).toBe('once');
   await expect.poll(() => approval()).toBeUndefined();
@@ -215,6 +418,7 @@ it('keeps a passive background request alive through launcher cancellation and M
   f.layout.act({type: 'open', id: 'session'});
   const launcher = f.find('plugin-background-request-work')!;
   launcher.press('start', launcher.snapshot().revision);
+  f.layout.act({type: 'open', id: 'session'});
   const request = () => f.host.surfaces.snapshot().find(source => source.snapshot().interaction?.kind === 'question');
   await expect.poll(() => request()?.snapshot().title).toBe('Questions · background-request');
   const source = request()!, id = source.snapshot().interaction!.id;
@@ -226,7 +430,9 @@ it('keeps a passive background request alive through launcher cancellation and M
   f.host.session.interrupt!(); await main;
   expect(source.snapshot().interaction?.id).toBe(id);
   expect(f.requests).toHaveLength(1);
+  f.layout.act({type: 'open', id: source.id});const backgroundIntent = f.layout.windowIntentRevision;
   source.answerInteraction!(id, {answers: [{id: 'answer', selected: ['Continue']}]});
+  expect(f.layout.windowIntentRevision).toBe(backgroundIntent);
   expect(await background).toBe('Continue');
   await expect.poll(() => request()).toBeUndefined();
   expect(f.host.core.getOperations()).toEqual([]);
@@ -337,6 +543,31 @@ it('counts independent requests in the four-operation limit without falling back
   f.host.session.interrupt!(); await main;
 });
 
+it.each(['fresh', 'workspace', 'pane'] as const)('finishes a deferred successful resume while preserving %s window intent', async intent => {
+  const f = await fixture(), gate = focusGate(), previous = f.host.core, resume = f.app.resume;
+  f.layout.act({type: 'workspace', id: 2});
+  f.app.resume = async (...args) => {
+    const replacement = await resume(...args), start = replacement.start.bind(replacement);
+    replacement.start = async () => {await gate.wait(new AbortController().signal);await start();};
+    return replacement;
+  };
+  const resumed = previous.host.emit('service.session.control', {action: 'resume', id: previous.sessionId});
+  await expect.poll(gate.entered).toBe(true);expect(f.host.core).not.toBe(previous);
+  if (intent === 'workspace')f.layout.act({type: 'workspace', id: 3});
+  if (intent === 'pane') {
+    await f.host.core.host.emit('service.ui.view', {plugin: 'model-selector', id: 'resume-other', title: 'Chosen during resume',
+      view: {lines: [{text: 'Live replacement source'}]}, placement: {workspace: 4, focus: false}});
+    f.layout.act({type: 'open', id: 'plugin-model-selector-resume-other'});
+  }
+  const before = f.layout.snapshot(), epoch = f.layout.windowIntentRevision;
+  gate.release();expect((await resumed).value).toEqual({value: true});
+  expect(f.host.core.controlsReady).toBe(true);expect(f.layout.windowIntentRevision).toBe(epoch);
+  expect(f.layout.snapshot()).toMatchObject(intent === 'fresh' ? {workspace: 1, focused: 'session'}
+    : {workspace: before.workspace, focused: before.focused});
+  await f.host.submit('Continue after deferred resume');
+  expect(f.requests).toHaveLength(1);expect(f.host.session.snapshot().messages).toContainEqual({role: 'assistant', text: 'REAL_ROUTER_COMPLETED'});
+});
+
 it('keeps a committed resumed session recoverable when its startup fails', async () => {
   const f = await fixture(), previous = f.host.core;
   const resume = f.app.resume;
@@ -411,6 +642,109 @@ function profile(endpoint: string, key = 'FAKE_LOOPBACK_PRIVATE_KEY') {
   return {id: 'opentui-local', type: 'openai-compat', baseUrl: endpoint, model: 'configured-model', key, clearKey: false,
     maxOutputTokens: '1000', timeoutMs: '20000', scope: 'project', contextWindow: '', reasoningEffort: ''};
 }
+
+it('returns to the existing Models pane after adding, zooming, discovering and saving an actual provider while Main waits', async () => {
+  const f = await fixture({models: ['app-alpha', 'app-beta']});
+  await f.host.submit('/settings');const models = f.find('plugin-model-selector-models')!;
+  await expect.poll(() => models.snapshot().busy).toBe(false);
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const question = f.host.session.snapshot().interaction!.id;
+  models.press('add', models.snapshot().revision);
+  const preset = await f.waitForm('Add provider');
+  f.layout.act({type: 'zoom'});expect(f.layout.snapshot()).toMatchObject({fullscreen: true, focused: preset.id});
+  f.answer(preset, 'next', {preset: 'compatible'});
+  const form = await f.waitForm('New provider connection');
+  const values = {...profile(f.endpoint), id: 'ui-profile', model: 'app-alpha'};
+  f.answer(form, 'discover', values);
+  const picker = await f.waitForm('Available models');f.answer(picker, 'use', {model: 'app-beta'});
+  await expect.poll(() => form.snapshot().form?.request.description).toContain('Connection tested');
+  const request = form.snapshot().form!.id, epoch = f.layout.windowIntentRevision;
+  f.answer(form, 'save', {...values, model: 'app-beta', key: ''});
+  await expect.poll(() => models.snapshot().busy).toBe(false);
+  expect(models.snapshot().view?.lines[0].text).toBe('Active: ui-profile · app-beta');
+  expect(f.layout.snapshot().focused).toBe(models.id);
+  expect(f.layout.windowIntentRevision).toBe(epoch + 1);
+  const saved = await readFile(join(f.app.storage.paths.state, 'providers.json'), 'utf8');
+  expect(JSON.parse(saved).profiles['ui-profile'].model).toBe('app-beta');
+  expect(JSON.parse(await readFile(join(f.app.storage.paths.state, 'model.json'), 'utf8'))).toBe('ui-profile');
+  const completedIntent = f.layout.windowIntentRevision;
+  form.answerForm!(request, {action: 'save', values});
+  expect(f.layout.windowIntentRevision).toBe(completedIntent);
+  expect(await readFile(join(f.app.storage.paths.state, 'providers.json'), 'utf8')).toBe(saved);
+  expect(f.host.session.snapshot().interaction?.id).toBe(question);expect(f.requests).toHaveLength(1);
+  expect(JSON.stringify(f.events)).not.toContain(values.key);
+  f.host.session.interrupt!();await main;
+});
+
+it.each(['Main', 'workspace', 'unfocused'] as const)('preserves %s intent after an ordinary private form answer while its continuation is deferred', async intent => {
+  let gate!: ReturnType<typeof focusGate>, answers = 0;
+  const f = await focusFixture(async (_event, $) => {
+    const result = await $.ui.form({title: 'Controlled continuation', fields: [{id: 'value', label: 'Value', type: 'text'}], actions: [{id: 'save', label: 'Save'}]});
+    if (!result)return;answers++;await gate.wait($.signal);
+    await $.ui.view('launcher', 'Continuation result', {lines: [{text: result.values.value}]}, {focus: true});
+  });
+  gate = focusGate();
+  await f.host.core.host.emit('service.ui.view', {plugin: 'focus-probe', id: 'launcher', title: 'Launcher',
+    view: {lines: [{text: 'Open', action: 'open'}]}, placement: {focus: false}});
+  const launcher = f.find('plugin-focus-probe-launcher')!;launcher.press('open', launcher.snapshot().revision);
+  const form = await f.waitForm('Controlled continuation'), request = form.snapshot().form!.id;
+  f.layout.act({type: 'zoom'});
+  if (intent === 'unfocused')f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});
+  const answerIntent = f.layout.windowIntentRevision;
+  form.answerInteraction!(request, {action: 'save', values: {value: 'Exact answer'}});
+  expect(f.layout.windowIntentRevision).toBe(answerIntent + Number(intent !== 'unfocused'));
+  await expect.poll(gate.entered).toBe(true);
+  if (intent !== 'unfocused')f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});
+  if (intent === 'workspace')f.layout.act({type: 'workspace', id: 2});
+  const before = f.layout.snapshot(), epoch = f.layout.windowIntentRevision;
+  form.answerForm!(request, {action: 'save', values: {value: 'Stale answer'}});
+  expect(f.layout.windowIntentRevision).toBe(epoch);expect(answers).toBe(1);
+  gate.release();await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  expect(launcher.snapshot().view?.lines[0].text).toBe('Exact answer');
+  expect(f.layout.snapshot()).toMatchObject({workspace: before.workspace, focused: before.focused});
+  expect(f.layout.windowIntentRevision).toBe(epoch);expect(f.requests).toHaveLength(0);
+});
+
+it.each(['Finder', 'Arrange'] as const)('does not grant a hidden request callback new focus authority while %s owns input', async mode => {
+  let gate!: ReturnType<typeof focusGate>;
+  const f = await focusFixture(async (_event, $) => {
+    await $.ui.form({title: 'Parked request', fields: [{id: 'value', label: 'Value', type: 'text'}], actions: [{id: 'save', label: 'Save'}]});
+    await gate.wait($.signal);await $.ui.view('slow', 'Passive result', {lines: []}, {workspace: 4, focus: true});
+  });
+  gate = focusGate();await f.host.submit('/focus-slow');
+  const form = await f.waitForm('Parked request');
+  expect(f.layout.snapshot().focused).toBe(form.id);
+  if (mode === 'Finder')f.host.navigation.openFinder();else f.host.navigation.toggleArrange();
+  const epoch = f.layout.windowIntentRevision;
+  f.answer(form, 'save', {value: 'Programmatic answer'});
+  await expect.poll(gate.entered).toBe(true);expect(f.layout.windowIntentRevision).toBe(epoch);
+  gate.release();await expect.poll(() => f.find('plugin-focus-probe-slow')?.snapshot().busy).toBe(false);
+  expect(f.host.navigation.snapshot().mode).toBe(mode === 'Finder' ? 'finder' : 'arrange');
+  expect(f.layout.snapshot().workspace).toBe(1);expect(f.layout.snapshot().focused).not.toBe('plugin-focus-probe-slow');
+  expect(f.layout.windowIntentRevision).toBe(epoch);
+});
+
+it.each(['form', 'question'] as const)('renews only a current focused ordinary %s cancellation before its continuation', async kind => {
+  const f = await focusFixture(async (_event, $) => {
+    try {
+      if (kind === 'form')await $.ui.form({title: 'Cancel continuation', fields: [{id: 'value', label: 'Value', type: 'text'}], actions: [{id: 'save', label: 'Save'}]});
+      else await $.ui.ask({question: 'Cancel continuation', options: ['Continue'], allowOther: false});
+    } catch {}
+    await $.ui.view('launcher', 'Returned after cancel', {lines: [{text: 'Cancelled once'}]}, {focus: true});
+  });
+  await f.host.core.host.emit('service.ui.view', {plugin: 'focus-probe', id: 'launcher', title: 'Launcher',
+    view: {lines: [{text: 'Open', action: 'open'}]}, placement: {focus: false}});
+  const launcher = f.find('plugin-focus-probe-launcher')!;launcher.press('open', launcher.snapshot().revision);
+  await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().interaction?.kind === kind)).toBe(true);
+  const source = f.host.surfaces.snapshot().find(source => source.snapshot().interaction?.kind === kind)!, request = source.snapshot().interaction!.id;
+  f.layout.act({type: 'zoom'});const epoch = f.layout.windowIntentRevision;
+  if (kind === 'form')source.cancelForm!(request);else source.cancelInteraction!(request);
+  source.cancelInteraction!(request);
+  await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  expect(f.layout.snapshot().focused).toBe(launcher.id);expect(launcher.snapshot().view?.lines[0].text).toBe('Cancelled once');
+  expect(f.layout.windowIntentRevision).toBe(epoch + 1);
+});
 
 it('configures the actual provider in a separate private form while the main model question remains pending, then restores it', async () => {
   const f = await fixture();
@@ -944,6 +1278,53 @@ it('keeps /windows and the actual native placement editor out of model prompts, 
   expect(app.config.config.ui?.rules?.some(rule => rule.match.plugin === 'unrelated')).toBe(true);
 });
 
+it.each(['Main', 'workspace'] as const)('applies and saves placement geometry without stealing newer %s intent after a delayed save', async intent => {
+  const f = await fixture(), gate = focusGate();
+  await f.host.submit('/settings');
+  await expect.poll(() => f.find('plugin-model-selector-models')?.snapshot().busy).toBe(false);
+  const id = 'plugin-model-selector-models', save = f.app.savePlacement;
+  let saves = 0;
+  f.app.savePlacement = async rule => {saves++;await gate.wait(new AbortController().signal);return save(rule);};
+  await f.host.submit('/placement');
+  const form = await f.waitForm('Arrange plugin windows'), request = form.snapshot().form!;
+  const values = {window: id, site: 'inspector', workspace: '3', size: '0.25', relativeTo: 'session', focus: true};
+  const beforeAnswer = f.layout.windowIntentRevision;
+  f.answer(form, 'save', values);
+  expect(f.layout.windowIntentRevision).toBe(beforeAnswer + 1);
+  await expect.poll(gate.entered).toBe(true);
+  f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});
+  if (intent === 'workspace')f.layout.act({type: 'workspace', id: 2});
+  const before = f.layout.snapshot(), epoch = f.layout.windowIntentRevision;
+  form.answerForm!(request.id, {action: 'save', values});
+  expect(f.layout.windowIntentRevision).toBe(epoch);expect(saves).toBe(1);
+  gate.release();
+  await expect.poll(() => form.snapshot().form?.request.description).toContain('Rule saved');
+  expect(f.layout.snapshot()).toMatchObject({workspace: before.workspace, focused: before.focused, locations: {[id]: 3}});
+  expect(f.layout.windowIntentRevision).toBe(epoch);
+  expect(form.snapshot().form?.id).not.toBe(request.id);
+  const saved = await readFile(join(f.cwd, '.agent-compositor', 'agent-compositor.jsonc'), 'utf8');
+  expect(saved).toContain('"focus": true');expect(saved).toContain('"workspace": 3');
+  form.cancelForm!(form.snapshot().form!.id);
+});
+
+it('honors a fresh Focus=true placement Apply after reopening an old pending form through Finder', async () => {
+  const f = await fixture();await f.host.submit('/settings');
+  await expect.poll(() => f.find('plugin-model-selector-models')?.snapshot().busy).toBe(false);
+  const id = 'plugin-model-selector-models';
+  await f.host.submit('/placement');const form = await f.waitForm('Arrange plugin windows');
+  const request = form.snapshot().form!.id;
+  f.layout.act({type: 'close'});f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});
+  f.host.navigation.openFinder();f.host.navigation.changeQuery('Arrange plugin windows', f.host.navigation.snapshot().revision);
+  f.host.navigation.choose(form.id, f.host.navigation.snapshot().revision);
+  expect(f.layout.snapshot().focused).toBe(form.id);expect(form.snapshot().form?.id).toBe(request);
+  const beforeAnswer = f.layout.windowIntentRevision;
+  form.answerInteraction!(request, {action: 'apply', values: {window: id, site: 'inspector', workspace: '3', size: '0.25', relativeTo: 'session', focus: true}});
+  await expect.poll(() => form.snapshot().form?.request.description).toContain('Applied for this run');
+  expect(f.layout.snapshot()).toMatchObject({workspace: 3, focused: id, locations: {[id]: 3}});
+  expect(f.layout.windowIntentRevision).toBe(beforeAnswer + 1);
+  form.cancelForm!(form.snapshot().form!.id);expect(f.requests).toHaveLength(0);
+});
+
 it('admits the full placement selector boundary and explains overflow without silently dropping retained windows', async () => {
   const f = await fixture();
   f.host.core.host.registerPlugin({name: 'many-windows', version: '1.0.0', trust: 'trusted'}, {});
@@ -1136,6 +1517,30 @@ it('navigates real pending questions and private forms without changing their de
   nav.handle({kind: 'key', key: 'escape'});
   form.cancelForm!(request.id);
   f.host.session.cancelInteraction!(question.id); await main;
+});
+
+it.each(['up', 'down', 'tab'])('keeps a current single-result retained picker route live after boundary %s selection', async key => {
+  let gate!: ReturnType<typeof focusGate>, signal: AbortSignal | undefined, calls = 0, continued = false;
+  const f = await focusFixture(async (_event, $) => {
+    calls++;signal = $.signal;const retained = $.background();
+    await gate.wait(retained.signal);
+    await retained.ui.view('slow', 'Retained boundary destination', {lines: [{text: 'Current route completed'}]}, {workspace: 6, focus: true});
+    continued = !signal!.aborted;
+  });
+  gate = focusGate();const nav = f.host.navigation, id = 'plugin-focus-probe-slow';
+  nav.openFinder();nav.changeQuery('/focus-slow', nav.snapshot().revision);
+  expect(nav.snapshot().entries.map(entry => entry.id)).toEqual([id]);
+  nav.handle({kind: 'key', key: 'enter'});await expect.poll(gate.entered).toBe(true);
+  const epoch = f.layout.windowIntentRevision, selection = nav.snapshot().selectionRevision!;
+  nav.handle({kind: 'key', key});nav.handle({kind: 'key', key: 'enter'});
+  expect(nav.snapshot()).toMatchObject({mode: 'finder', opening: id, selected: id});
+  expect(nav.snapshot().selectionRevision).toBeGreaterThan(selection);
+  expect(f.layout.windowIntentRevision).toBe(epoch);expect(signal!.aborted).toBe(false);expect(calls).toBe(1);
+  gate.release();await expect.poll(() => nav.snapshot().mode).toBe('normal');
+  await expect.poll(() => f.find(id)?.snapshot().busy).toBe(false);
+  expect(continued).toBe(true);expect(calls).toBe(1);
+  expect(f.layout.snapshot()).toMatchObject({workspace: 6, focused: id});
+  expect(f.find(id)?.snapshot().view?.lines[0].text).toBe('Current route completed');expect(f.requests).toHaveLength(0);
 });
 
 it('awaits an actual unopened route destination and cancels late publication without blocking existing background producers', async () => {

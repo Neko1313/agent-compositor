@@ -242,6 +242,88 @@ try{
   assert.equal(await observe(()=>json(launch.navigation.formCalls),value=>value===1,'The caller must make one actual private form request'),1);
   await arrange();await paste('q');await key('Control+c');await absent('WINDOW MODE');assert.equal(await exists(launch.navigation.formReceipt),false);
 
+  // Completion gates simulate external work finishing, not a user action or
+  // a host/window mutation. Every focus and editor action still crosses the PTY.
+  const focusSpec=launch.navigation.focus,focusPrefix='plugin-navigation-probe-focus-';
+  const focusBefore=await layout(),focusTrees=[1,3].map(id=>focusBefore.windows.spaces.find(space=>space.id===id)?.tree);
+  const release=name=>writeFile(focusSpec.gates[name],'fixture completion\n');
+  const published=async mode=>{
+    await observe(()=>json(focusSpec.published[mode]),value=>value===true,'The public SDK producer must publish '+mode);
+    return observe(layout,value=>location(value,focusPrefix+mode)===6,'The actual published window must be available on workspace6');
+  };
+  const closeFocus=async title=>{await pick(title);await arrange();await key('q');await leave();};
+  // A deliberate slash command replaces the draft. Restore it through native
+  // typing before the asynchronous focus-preservation boundary is tested.
+  await command('/nav-focus passive');await observe(()=>json(focusSpec.started.passive),Boolean,'The passive launcher must actually start');
+  await observe(events,rows=>rows.filter(row=>row.type==='command.operation'&&row.name==='/nav-focus'&&row.phase==='completed').length===1,'The retained passive producer must outlive its completed launcher');
+  await main();await type('NAV_PENDING_DRAFT_47');await pick('Navigation private form');await wait('F_ORMvalue');
+  await release('passive');await published('passive');assert.equal((await layout()).windows.workspace,1);
+  await type('P');await wait('F_PORMvalue');await key('Backspace');await wait('F_ORMvalue');
+  assert.equal(await exists(launch.navigation.formReceipt),false);assert.equal(await json(launch.navigation.formCalls),1);await capture('03-passive-publication-keeps-form');
+
+  await pick('Navigation controls');await click('Publish focus true');await wait('FOCUS_PUBLICATION_TRUE');
+  await observe(layout,value=>value.windows.focused===focusPrefix+'true'&&value.windows.workspace===6,'A fresh explicit focus=true hint must retain its opt-in behavior');await closeFocus('Explicit focus');
+  await pick('Navigation controls');await click('Publish focus false');
+  const explicitFalse=await published('false');assert.equal(explicitFalse.windows.workspace,1);assert.equal(explicitFalse.windows.focused,'plugin-navigation-probe-control');
+  await click('Publish focus rule-false');
+  const ruleFalse=await published('rule-false');assert.equal(ruleFalse.windows.workspace,1);assert.equal(ruleFalse.windows.focused,'plugin-navigation-probe-control');
+  await click('Publish focus rule-true');await wait('FOCUS_PUBLICATION_RULE-TRUE');
+  await observe(layout,value=>value.windows.focused===focusPrefix+'rule-true'&&value.windows.workspace===6,'A configured focus=true rule must remain an explicit opt-in');await closeFocus('Configured focus');
+
+  // Keep the complete identifier visible before dispatch; zoom is a prior
+  // presentation choice, not an additional post-launch intent suppressing focus.
+  await main();const priorLateMainFullscreen=(await observe(layout,value=>value.windows.focused==='session'&&value.windows.workspace===1,'Main must own the presentation precondition')).windows.fullscreen;await setZoom(true);
+  await command('/nav-focus late-main');await observe(()=>json(focusSpec.started['late-main']),Boolean,'The ordinary late command must start before newer user intent');
+  await observe(layout,value=>value.windows.focused==='session'&&value.windows.workspace===1,'The delayed command must leave the already-focused Main visible before the idempotent Main key');await main();await type('NAV_PENDING_DRAFT_47');await key('Home');await key('ArrowRight');await key('Alt+0');
+  await release('late-main');const lateMain=await published('late-main');assert.equal(lateMain.windows.focused,'session');assert.equal(lateMain.windows.workspace,1);
+  await type('_');await wait('N_AV_PENDING_DRAFT_47');await key('Control+z');await wait('NAV_PENDING_DRAFT_47');
+  await observe(events,rows=>rows.filter(row=>row.type==='command.operation'&&row.name==='/nav-focus'&&row.phase==='completed').length===2,'The late Main command must finish after its passive publication');
+  await capture('03-late-publication-keeps-main');await setZoom(priorLateMainFullscreen);
+
+  await command('/nav-focus late-mode');await observe(()=>json(focusSpec.started['late-mode']),Boolean,'The second late command must start before navigation intent');
+  await main();await type('NAV_PENDING_DRAFT_47');await key('Home');await key('ArrowRight');await arrange();await key('3');
+  await observe(layout,value=>value.windows.workspace===3,'The user must switch to the original Unicode workspace');await finder('FOCUS_PRIVATE_47');await key('Home');await key('ArrowRight');
+  await release('late-mode');const lateMode=await published('late-mode');assert.equal(lateMode.windows.workspace,3);await wait(finderMarker);
+  await type('_');await wait('F_OCUS_PRIVATE_47');await key('Control+z');await wait('FOCUS_PRIVATE_47');await capture('03-late-publication-keeps-finder');
+  await key('Escape');await absent(finderMarker);if((await screen()).includes('WINDOW MODE'))await leave();
+  await observe(events,rows=>rows.filter(row=>row.type==='command.operation'&&row.name==='/nav-focus'&&row.phase==='completed').length===3,'All actual focus-probe command lifetimes must settle');
+  await main();await wait('NAV_PENDING_DRAFT_47');
+  const priorLateModeFullscreen=(await observe(layout,value=>value.windows.focused==='session'&&value.windows.workspace===1,'Main must be restored after the completed Finder publication')).windows.fullscreen;
+  // Publication and Finder preservation are already proved. Expose the complete
+  // identifier to read the unchanged native cursor without a wrapped-text oracle.
+  await setZoom(true);await type('_');await wait('N_AV_PENDING_DRAFT_47');await key('Control+z');await wait('NAV_PENDING_DRAFT_47');await setZoom(priorLateModeFullscreen);
+
+  await finder('/nav-retained');await key('Enter');await wait('Opening window…');
+  await observe(()=>json(focusSpec.retainedStarted),Boolean,'The selected retained route must really start');
+  const retainedPickerState=()=>page.evaluate(()=>{
+    const buffer=visual.terminal.buffer.active,lines=Array.from({length:visual.terminal.rows},(_,y)=>
+      Array.from({length:visual.terminal.cols},(_,x)=>buffer.getLine(y+buffer.viewportY)?.getCell(x)?.getChars()??''));
+    for(const[y,line]of lines.entries()){
+      const title=line.findIndex((_,x)=>Array.from('─ Windows ').every((char,index)=>line[x+index]===char));if(title<0)continue;
+      const left=line.lastIndexOf('┌',title),right=line.findIndex((char,index)=>index>title&&char==='┐');if(left<0||right<=left)continue;
+      const text=row=>lines[row]?.slice(left+1,right).join('').trim()??'';
+      const entry=lines[y+3],label=entry?.findIndex((char,x)=>x>left&&x<right&&char==='/');
+      return{query:text(y+1),count:text(y+2),entry:text(y+3),
+        selected:label>=0&&Boolean(buffer.getLine(y+3+buffer.viewportY)?.getCell(label)?.isBold()),
+        opening:lines.slice(y+4,y+22).some((_,index)=>text(y+4+index)==='Opening window…')};
+    }
+  });
+  const retainedSelection=await observe(retainedPickerState,value=>value.query==='/nav-retained'&&value.count==='1 windows · ↑↓ select · Enter open'
+    &&value.entry.startsWith('/nav-retained')&&value.selected&&value.opening,'The sole selected Finder destination must remain opening behind its completion gate');
+  for(const boundaryKey of ['ArrowUp','ArrowDown','Tab','Enter'])await key(boundaryKey);
+  assert.deepEqual(await observe(retainedPickerState,value=>value.query===retainedSelection.query&&value.entry===retainedSelection.entry&&value.selected&&value.opening,
+    'Boundary navigation and repeated Enter must preserve the current opening destination'),retainedSelection);
+  await release('retained');
+  await absent(finderMarker);await wait('RETAINED_PICKER_DESTINATION');
+  await observe(layout,value=>value.windows.workspace===6&&value.windows.focused==='plugin-navigation-probe-retained','The unchanged matching Finder attempt must focus its retained destination');
+  await observe(()=>json(focusSpec.retainedFinished),Boolean,'The retained route must finish through its public SDK handle');await closeFocus('Retained route');
+  for(const title of ['Passive publication','Explicit passive','Configured passive','Late Main publication','Late mode publication'])await closeFocus(title);
+  await pick('Navigation private form');await wait('F_ORMvalue');
+  const focusRestored=await layout();assert.deepEqual([1,3].map(id=>focusRestored.windows.spaces.find(space=>space.id===id)?.tree),focusTrees);
+  assert.equal(focusRestored.windows.axis,focusBefore.windows.axis);assert.equal(await exists(launch.navigation.formReceipt),false);assert.equal(await json(launch.navigation.formCalls),1);await noRequests(1);await noResult('ask_user');
+  report.focusPublication={passiveAfterLauncher:true,explicitHints:[true,false],configuredRules:[true,false],idempotentMainIntent:true,
+    arrangeFinderWorkspaceIntent:true,mainAndFinderCursor:true,retainedPicker:true,canonicalTreesPreserved:true};
+
   // An ordinary built-in route and the existing Unicode window provide an
   // isolated two-leaf workspace. No fixture or window-controller mutation is used.
   const models='plugin-model-selector-models',unicode='plugin-navigation-probe-unicode';
@@ -312,7 +394,7 @@ try{
   await noRequests(2);assert.equal((await events()).filter(event=>event.type==='tool.result'&&event.tool==='ask_user').length,1);
   report.checks.push('An independent private form survives Arrange and Main navigation with its exact field cursor/value; only its explicit submit returns values, and only explicit Main submit answers the model');
 
-  await command('APP_APPROVAL');await wait('Approval required');await wait('Tool: write');await noResult('write');assert.equal(await exists(launch.navigation.approvalFile),false);
+  await waitMain('Main · Ready');await command('APP_APPROVAL');await wait('Approval required');await wait('Tool: write');await noResult('write');assert.equal(await exists(launch.navigation.approvalFile),false);
   await arrange();await page.keyboard.type('yn');await key('Alt+y');await key('Alt+n');await paste('q');await key('Enter');await absent('WINDOW MODE');
   await wait('Approval required');await noRequests(3);await noResult('write');await arrange();await key('Control+c');await absent('WINDOW MODE');await wait('Approval required');
   await finder('Main');await key('Control+c');await absent(finderMarker);await wait('Approval required');await noResult('write');
@@ -321,7 +403,7 @@ try{
   report.checks.push('The ordinary file-write permission remains pending through Arrange/Finder input and Ctrl+C; explicit Alt+N alone denies it and the isolated target file stays absent');
 
   await finder('/nav-slow');await key('Enter');await wait('Opening window…');await observe(()=>json(launch.navigation.slowStarted),Boolean,'Slow route must really begin');
-  await key('Control+u');await type('/nav-fast');await key('Enter');await absent(finderMarker);await wait('CURRENT_SELECTED_ROUTE');
+  await key('Control+u');await type('/nav-fast');await key('Enter');await absent(finderMarker);await wait('CURRENT_SELECTED_ROUTE');await release('slow');
   await observe(()=>json(launch.navigation.slowFinished),Boolean,'Cancelled route producer must finish its bounded late callback');
   assert.equal(location(await layout(),'plugin-navigation-probe-slow'),undefined);assert.ok(!(await screen()).includes('LATE_CANCELLED_ROUTE'));
   await pick('Navigation controls');await click('Refresh inventory');await observe(()=>json(launch.navigation.refreshStarted),Boolean,'Real refresh action must start');
@@ -387,14 +469,22 @@ try{
   assert.equal(location(restored,'plugin-navigation-probe-fast'),undefined);assert.deepEqual(await sessionFiles(),originalJournal);
   await waitMain('APP_APPROVAL_SETTLED: denied');await command('APP_RESTORED');await waitMain('APP_RESTORED: Production retained');await wait('Main · Ready');await noRequests(5);
   await capture('07-restored-navigation-layout');await writeFile(join(output,'restored-layout.json'),JSON.stringify(restored,null,2));
-  const privateValues=['PRIVATE_窗_47','P_RIVATE_窗_47','BATCH_窗_47','F_XORMvalue'];
+  const privateValues=['PRIVATE_窗_47','P_RIVATE_窗_47','BATCH_窗_47','F_XORMvalue','FOCUS_PRIVATE_47','F_OCUS_PRIVATE_47'];
   const modelBodies=JSON.stringify((await traces()).map(row=>row.body)),sessionText=await journal();for(const value of privateValues){assert.ok(!modelBodies.includes(value));assert.ok(!sessionText.includes(value));}
   assert.ok(!/MaxListenersExceededWarning|Possible EventEmitter memory leak detected/.test(await readFile(join(output,'terminal.ansi'),'utf8')));
   report.customRatio=customRatio;report.sessionId=originalJournal[0].slice(0,-6);report.privacy={finderAndFormAbsentFromModel:true,finderAndFormAbsentFromJournal:true,inputLogExcluded:'Raw input records synthetic test queries and form values'};
   report.splitTarget={siblings:[pane,partner],ratio:customRatio,visibleAxes:['rows','columns'],hidden:['size-limited','zoomed'],noTarget:['empty','lone'],mouseResize:true};
   report.checks.push('Arrange identifies the nearest nested split, grows either focused side and accepts a real painted-divider drag; hidden/no-target states and narrow exits remain honest, and exact geometry, closed windows and the original journal survive restart without private Finder/form text entering model requests or history');
   report.checks.push('Readable narrow tiling keeps two windows of at least 24×6 cells in columns at 60×24 and rows at 38×24, supports actual divider pointer/keyboard resize, collapses only below the available minimum and preserves pending Main/form editors plus the canonical tree through widening and restart');
+  report.checks.push('Passive first publication and late command completion preserve active form, Main and Finder cursors after newer window intent; explicit hints and configured focus rules remain compatible, and only the unchanged matching retained Finder route opens its destination');
   await main();await key('Control+c');await observe(async()=>ptyExit,value=>value===0,'Actual CLI must exit cleanly');report.ptyExitCode=ptyExit;assert.deepEqual(report.errors,[]);report.ok=true;
 }catch(error){report.errors.push(error instanceof Error?error.stack:String(error));if(page){await writeFile(join(output,'failure.txt'),await page.evaluate(()=>window.visual?.text()??'').catch(()=>''));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
   if(launch)await readFile(join(launch.state,'layout.json')).then(data=>writeFile(join(output,'failure-layout.json'),data)).catch(()=>{});
-}finally{await browser?.close();if(server?.exitCode===null){server.kill('SIGTERM');await serverExit;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}
+}finally{
+  if(launch?.navigation?.focus)try{
+    const receipts={};for(const name of await readdir(launch.navigation.state))if(/^(focus-|retained-|slow-).*\.json$/.test(name))receipts[name]=await json(join(launch.navigation.state,name));
+    await writeFile(join(output,'focus-receipts.json'),JSON.stringify(receipts,null,2));
+  }catch(error){report.ok=false;report.errors.push('Could not preserve focus fixture receipts: '+error);}
+  await browser?.close();if(server?.exitCode===null){server.kill('SIGTERM');await serverExit;}
+  await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;
+}

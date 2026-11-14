@@ -4,6 +4,7 @@ import {flushSync, useKeyboard} from '@opentui/react';
 import {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import type {UiTextView} from '@agent-compositor/events';
 import {color} from './colors.js';
+import {handleActionMouseDown} from './mouse-action.js';
 import {Interaction} from './interaction.js';
 import {ApprovalCard} from './approval-card.js';
 import {surfaceActions} from './surface-actions.js';
@@ -53,9 +54,11 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     fieldId.current=field?.id;
   },[focused,searching,state.busy,view?.input?.id,view?.input?.value]);
 
-  const press=(key:string)=>{
-    if(isVisible()&&!hasSurfaceRequest(source.snapshot()))source.press(key,state.revision);
+  const canPress=()=>{
+    const current=source.snapshot();
+    return isVisible()&&current.revision===state.revision&&!hasSurfaceRequest(current);
   };
+  const press=(key:string)=>{if(canPress())source.press(key,state.revision);};
   useKeyboard(key=>{
     if(key.defaultPrevented||!isActive()||hasSurfaceRequest(source.snapshot()))return;
     if(key.name==='escape'&&!key.meta&&!key.ctrl&&searching){key.preventDefault();flushSync(()=>setSearching(false));return;}
@@ -96,9 +99,9 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     const chosen=Boolean(target&&target===action&&!searching);
     return <box key={key} id={elementId(key)} flexShrink={0}
       backgroundColor={chosen?color.rule:undefined} onMouseDown={event=>{
-        if(event.button===MouseButton.LEFT&&target&&isVisible()){
+        if(target)handleActionMouseDown(event,canPress(),()=>{
           flushSync(()=>{setSelected(target);setSearching(false);});press(target);
-        }
+        });
       }}>
       <text selectable={!target} wrapMode="word" fg={chosen?color.accent:toneColor[line.tone??'text']}
         attributes={line.bold||chosen?TextAttributes.BOLD:TextAttributes.NONE}>{literal(line.text)}</text>
@@ -108,9 +111,9 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     {view?.tabs&&<box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>
       {view.tabs.map(tab=><box key={tab.id} id={elementId('tab-'+tab.id)} height={1} paddingX={1}
         backgroundColor={tab.selected?color.accent:color.panel} onMouseDown={event=>{
-          if(event.button===MouseButton.LEFT&&!tab.disabled&&isVisible()){
+          handleActionMouseDown(event,!tab.disabled&&canPress(),()=>{
             flushSync(()=>{setSelected(tab.action);setSearching(false);});press(tab.action);
-          }
+          });
         }}><text selectable={false} fg={tab.disabled?color.muted:tab.selected?color.background:color.text}>{literal(tab.label)}</text></box>)}
     </box>}
     {view?.input&&<box height={1} flexShrink={0} flexDirection="row" onMouseDown={event=>{
@@ -138,9 +141,10 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
         {view.table.rows.map(row=><box key={row.id} flexDirection="column" flexShrink={0}>
           <box id={elementId('row-'+row.id)} flexDirection={narrow?'column':'row'}
             backgroundColor={row.action===action?color.rule:undefined} onMouseDown={event=>{
-              if(event.button===MouseButton.LEFT&&row.action&&isVisible()){
-                flushSync(()=>{setSelected(row.action);setSearching(false);});press(row.action);
-              }
+              const target=row.action;
+              if(target)handleActionMouseDown(event,canPress(),()=>{
+                flushSync(()=>{setSelected(target);setSearching(false);});press(target);
+              });
             }}>
             {row.cells.map((cell,index)=><text key={index} selectable={!row.action} wrapMode={narrow?'word':'none'}
               {...(narrow?{}:{flexBasis:0,flexGrow:view.table!.columns[index].width??1})} truncate={!narrow}

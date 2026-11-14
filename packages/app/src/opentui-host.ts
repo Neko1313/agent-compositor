@@ -9,10 +9,11 @@ import {createInteractionInbox} from './opentui-interactions.js';
 import {resolvePlacement, type PlacementConfig} from './placement.js';
 import {clean} from './presentation.js';
 import {createWindowNavigation, type NavigationWindow} from './opentui-navigation.js';
+import type {DynamicWindowLayout} from './opentui-windows.js';
 
 export {connectConversation, connectPluginTable} from './opentui-conversation.js';
 
-export type OpenTuiWindowLayout = WindowLayoutSource & {
+export type OpenTuiWindowLayout = WindowLayoutSource & Pick<DynamicWindowLayout, 'windowIntentRevision' | 'markWindowIntent' | 'actAutomatic'> & {
   register(pane: {id: string; label: string; transient?: boolean}, placement?: SurfacePlacement): void;
   relocate(id: string, placement: SurfacePlacement): void;
   detach(id: string): void;
@@ -35,6 +36,8 @@ type Operation = {
   core: AgentCore;
   controller: AbortController;
   active: boolean;
+  windowIntent: number;
+  placementAnswerIntent?: number;
   kind: 'action' | 'change' | 'request';
   open?: boolean;
   opened: Set<string>;
@@ -227,6 +230,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
           if (reloadFailed) {if (active) notice(retryMessage()); return;}
           if (reloading) {if (active) notice('Plugin reload is applying. Try the action again when it finishes.'); return;}
           if (!admitted(surface, revision) || !surface.state.view || !actions(surface.state.view).has(action)) return;
+          // Select before admitting the action; the bubbling pane click is then idempotent.
+          layout.act({type: 'focus', id: surface.source.id});
           press(surface, action);
         },
         change(field, value, revision) {
@@ -274,6 +279,20 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
   function live(op: Operation): boolean {
     return active && op.active && op.core === core && operations.get(op.id) === op && !op.controller.signal.aborted;
   }
+  const mayFocus = (op: Operation) => live(op) && op.windowIntent === layout.windowIntentRevision;
+  function publicationIntent(owner: string, id: string, ambient?: Operation): {op?: Operation; allowed: boolean} {
+    const scope = core.host.currentServiceScope;
+    const captured = scope ? scope.origin : ambient;
+    const op = captured && typeof captured === 'object' ? captured as Operation : undefined;
+    if (!scope?.background) {
+      if (captured === undefined) return {allowed: true};
+      return op && live(op) ? {op, allowed: mayFocus(op)} : {allowed: false};
+    }
+    // A retained producer may satisfy only its still-current, matching picker destination.
+    const picker = ambient && live(ambient) && ambient.owner === owner && ambient.navigationSignal
+      && !ambient.navigationSignal.aborted && ambient.site === id ? ambient : undefined;
+    return {op: picker, allowed: !picker || mayFocus(picker)};
+  }
   async function emit(op: Operation, event: 'ui.press' | 'ui.change', input: Record<string, unknown>) {
     if (!live(op)) return;
     const result = await op.core.host.emit(event, input, op.controller.signal);
@@ -296,7 +315,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     if (operations.size >= 4) {notice('Four interface operations are already active'); return;}
     if (navigationSignal?.aborted) return;
     const op: Operation = {id: randomUUID(), owner, site, core, controller: new AbortController(), active: true, kind, open,
-      opened: new Set(), destinations: new Set(), navigationSignal};
+      windowIntent: layout.windowIntentRevision, opened: new Set(), destinations: new Set(), navigationSignal};
     const abortNavigation = () => op.controller.abort();
     navigationSignal?.addEventListener('abort', abortNavigation, {once: true});
     operations.set(op.id, op);
@@ -386,21 +405,38 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     const id = 'ui-request-' + op.id;
     const surface = createSurface(id, op.owner, 'Settings');
     op.inbox = requests; op.surface = surface;
+    let answeredApproval: string | undefined;
     const current = () => live(op) && surface.active && surfaceMap.get(id) === surface;
+    const renewIntent = () => {
+      const state = layout.snapshot();
+      if (op.kind === 'request' || navigation && navigation.snapshot().mode !== 'normal'
+        || state.focused !== id || !state.frames.some(frame => frame.surface === id)) return;
+      // Capture the human action before its continuation can await or open another request.
+      layout.markWindowIntent();
+      if (op.owner === '@host' && op.site === 'host:placement') op.placementAnswerIntent = layout.windowIntentRevision;
+      else op.windowIntent = layout.windowIntentRevision;
+    };
     surface.source.answerApproval = (requestId, allow) => {
-      if (current() && surface.state.approval?.id === requestId) requests.answer(requestId, allow === true);
+      if (!current() || surface.state.approval?.id !== requestId || answeredApproval === requestId) return;
+      answeredApproval = requestId;
+      renewIntent();
+      requests.answer(requestId, allow === true);
     };
     surface.source.answerInteraction = (requestId, value) => {
-      if (current() && surface.state.interaction?.id === requestId) requests.answerInteraction(requestId, value);
+      if (!current() || surface.state.interaction?.id !== requestId) return;
+      renewIntent();
+      requests.answerInteraction(requestId, value);
     };
     surface.source.cancelInteraction = requestId => {
-      if (current() && surface.state.interaction?.id === requestId) requests.cancelInteraction(requestId);
+      if (!current() || surface.state.interaction?.id !== requestId) return;
+      renewIntent();
+      requests.cancelInteraction(requestId);
     };
     surface.source.answerForm = (requestId, value) => {
-      if (current() && surface.state.form?.id === requestId) requests.answerInteraction(requestId, value);
+      if (surface.state.form?.id === requestId) surface.source.answerInteraction!(requestId, value);
     };
     surface.source.cancelForm = requestId => {
-      if (current() && surface.state.form?.id === requestId) requests.cancelInteraction(requestId);
+      if (surface.state.form?.id === requestId) surface.source.cancelInteraction!(requestId);
     };
     let shown: string | undefined;
     op.off = requests.subscribe(() => {
@@ -414,9 +450,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
       const requestId = approval?.id ?? interaction?.id;
       if (requestId && requestId !== shown) {
         shown = requestId;
-        const focus = op.kind !== 'request';
+        const focus = op.kind !== 'request' && mayFocus(op);
         layout.register({id, label: title, transient: true}, {site: 'split', focus});
-        if (focus) layout.act({type: 'open', id});
+        if (focus) layout.actAutomatic({type: 'open', id});
         destination(op, id);
       }
     });
@@ -433,6 +469,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
         ?? windows.find(surface => surface.source.id === layout.snapshot().focused) ?? windows[0];
       const value = draft ?? {...current.placement, workspace: layout.snapshot().locations[current.source.id] ?? current.placement?.workspace ?? layout.snapshot().workspace};
       const label = (surface: Surface) => (surface.state.title + ' · ' + surface.owner).slice(0, 200);
+      op.placementAnswerIntent = undefined;
       const result = await ownRequests(op).form('@host', {
         title: 'Arrange plugin windows', description: message ?? 'Apply for this run, or save a project rule. Closing this window keeps the operation pending; Cancel ends it.',
         fields: [
@@ -462,7 +499,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
         placementConfig.rules = [...(placementConfig.rules ?? []).filter(existing =>
           existing.match.plugin !== target.owner || existing.match.surface !== target.semantic), rule];
         target.placement = placement;
-        layout.relocate(selected, placement);
+        layout.relocate(selected, {...placement, focus: placement.focus === true
+          && op.placementAnswerIntent === layout.windowIntentRevision});
         draft = placement;
         message = result.action === 'save' ? 'Rule saved. Placement applied.' : 'Applied for this run. Save the rule to keep it.';
       } catch {message = 'Choose an available neighbor, workspace 1–9 and size from 0.1 to 0.8. Saving must finish before the rule is applied.';}
@@ -515,27 +553,31 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
       const config = placementConfig;
       surface.semantic = semantic;
       const placement = resolvePlacement(config, owner, semantic, surface.placement ?? event.input.placement as SurfacePlacement | undefined);
+      const intent = publicationIntent(owner, id, origin);
+      const op = intent.op?.owner === owner ? intent.op : undefined;
+      const requested = !!(op?.open && (op.site === id || op.site.startsWith('command:') && op.owner === owner));
+      const allowed = intent.allowed;
+      const admission = {...placement, focus: allowed && (placement.focus ?? false)};
       surface.placement = placement;
       publish(surface, {title: String(event.input.title), view: parsed.data,
         busy: [...operations.values()].some(op => op.site === id)
-          || !!(origin && live(origin) && origin.open && origin.site.startsWith('command:') && origin.owner === owner)});
+          || !!(op?.open && op.site.startsWith('command:'))});
       windowTitles.set(id, {title: surface.state.title, owner});
-      layout.register({id, label: surface.state.title}, placement);
+      layout.register({id, label: surface.state.title}, admission);
       if (placementAdmissions.get(id) !== owner) {
         placementAdmissions.set(id, owner);
         if (config.rules?.some(rule =>
-          (!rule.match.plugin || rule.match.plugin === owner) && (!rule.match.surface || rule.match.surface === semantic)))
-          layout.relocate(id, placement);
+          (!rule.match.plugin || rule.match.plugin === owner) && (!rule.match.surface || rule.match.surface === semantic))
+          && (layout.snapshot().locations[id] !== undefined || requested && allowed))
+          layout.relocate(id, admission);
       }
-      const op = context.getStore();
-      if (op && live(op)) {
-        const requested = op.open && (op.site === id || op.site.startsWith('command:') && op.owner === owner);
+      if (op) {
         const focus = (event.input.placement as SurfacePlacement | undefined)?.focus === true
           && resolvePlacement(config, owner, semantic, {...placement, focus: true}).focus !== false;
-        if (!op.opened.has(id) && (requested || focus)) {
+        if (requested) {op.open = false; op.site = id;}
+        if (allowed && !op.opened.has(id) && (requested || focus)) {
           op.opened.add(id);
-          if (requested) {op.open = false; op.site = id;}
-          layout.act({type: 'open', id});
+          layout.actAutomatic({type: 'open', id});
         }
         if (op.site === id && op.owner === owner && !op.published) op.published = surface;
         if (op.site === id && op.owner === owner) destination(op, id);
@@ -566,6 +608,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
       if (args.action !== 'resume') return (await next.host.emit('service.session.store', args)).value;
       const current = context.getStore();
       if (!next.controlsReady || switching || reloading || [...operations.values()].some(op => op !== current)) return {deny: 'Wait until current operations finish'};
+      const windowIntent = layout.windowIntentRevision;
       switching = true;
       const replacementChannels = createChannels();
       let replacement: AgentCore | undefined;
@@ -578,7 +621,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
         bind(replacement, replacementChannels);
         await next.close();
         await context.exit(() => replacement!.start());
-        layout.act({type: 'open', id: 'session'});
+        if (windowIntent === layout.windowIntentRevision) layout.actAutomatic({type: 'open', id: 'session'});
         changed();
         return {value: true};
       } catch {
@@ -677,6 +720,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     return [...entries.values()];
   }
   function dispatch(command: NonNullable<ReturnType<typeof route>>, signal?: AbortSignal) {
+    layout.markWindowIntent();
     return runOperation(command.owner, command.site, op => command.command
       ? op.core.invokeCommand(command.command, op.controller.signal)
       : emit(op, 'ui.press', {site: command.site, key: command.key}), undefined, 'action', true, signal);
@@ -702,9 +746,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
   }
   function openNavigationWindow(id: string, signal: AbortSignal): void | Promise<void> {
     if (!active || signal.aborted) throw Error('Window is unavailable');
-    if (id === 'session') {layout.act({type: 'open', id}); return;}
+    if (id === 'session') {layout.actAutomatic({type: 'open', id}); return;}
     const source = surfaceMap.get(id);
-    if (source?.active) {layout.act({type: 'open', id}); return;}
+    if (source?.active) {layout.actAutomatic({type: 'open', id}); return;}
     const candidate = uiRoutes().get(id);
     if (!candidate || !core.host.hasPlugin(candidate.owner) || reloadPromise || reloadFailed) throw Error('Window is unavailable');
     const command = route(candidate.command);
@@ -728,7 +772,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     if (reloadFailed && name !== '/reload') throw Error(retryMessage());
     if (name === '/chat') {layout.act({type: 'open', id: 'session'}); return;}
     if (name === '/windows') {navigation?.openFinder(); return;}
-    if (name === '/placement') {runOperation('@host', 'host:placement', arrange); return;}
+    if (name === '/placement') {layout.markWindowIntent();runOperation('@host', 'host:placement', arrange); return;}
     if (name === '/reload') {pendingReload = true; reloadFailed = false; notice('Plugin reload queued until current operations finish'); await reloadIfReady(); return;}
     const command = route(text);
     if (command) {
@@ -744,7 +788,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
   try {bind(initialCore, initialChannels);}
   catch (error) {initialChannels.generation.abort(); initialChannels.inbox.close(); void initialCore.close(); throw error;}
   layout.register({id: 'session', label: 'Main'});
-  navigation = createWindowNavigation(layout, {windows: inventory, open: openNavigationWindow});
+  navigation = createWindowNavigation(layout, {windows: inventory, open: openNavigationWindow, onWindowIntent: layout.markWindowIntent});
   let lastFocus: string | undefined;
   offLayout = layout.subscribe(() => {
     reportVisibility();

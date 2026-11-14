@@ -6,16 +6,17 @@ import type {QuestionSpec, UiForm} from '@agent-compositor/events';
 import {color} from './colors.js';
 import {editSecret, emptyQuestionDraft, initialFormValues, questionAnswers, questionDraft, toggleQuestionOption, type QuestionDraft} from './input-state.js';
 import type {ConversationInteraction, ConversationSession} from './session.js';
+import {handleActionMouseDown} from './mouse-action.js';
 
 function display(value: string) {
   return value.replace(/[\p{Cc}\p{Bidi_Control}\p{Zl}\p{Zp}]/gu, point =>
     '\\u' + point.charCodeAt(0).toString(16).padStart(4, '0'));
 }
 
-function Button({label, onPress, selected, disabled}: {label: string; onPress(): void; selected?: boolean; disabled?: boolean}) {
+function Button({label, onPress, isActive, selected, disabled}: {label: string; onPress(): void; isActive(): boolean; selected?: boolean; disabled?: boolean}) {
   return <box height={1} flexShrink={0} paddingX={1} backgroundColor={selected ? color.accent : color.panel}
     onMouseDown={event => {
-      if (event.button === MouseButton.LEFT && !disabled) onPress();
+      handleActionMouseDown(event, !disabled && isActive(), onPress);
     }}>
     <text selectable={false} fg={disabled ? color.muted : selected ? color.background : color.text}>{label}</text>
   </box>;
@@ -233,7 +234,7 @@ export function Interaction({interaction, session, editing, focused, width, heig
     title={' ' + (interaction.kind === 'form' ? 'Form' : 'Question') + ' · ' + display(title) + ' '} titleColor={color.running}>
     {!editing && <box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1}>
       <text fg={color.muted} flexGrow={1} truncate>{interaction.kind === 'question' ? display(question?.question ?? title) : display(interaction.plugin)}</text>
-      <Button label={interaction.kind === 'form' ? 'Edit form' : 'Edit answer'} onPress={() => {if (current()) setEditing(true);}} />
+      <Button label={interaction.kind === 'form' ? 'Edit form' : 'Edit answer'} isActive={current} onPress={() => {if (current()) setEditing(true);}} />
     </box>}
     <box visible={editing} flexGrow={1} flexBasis={0} minHeight={0} flexDirection="column">
       <scrollbox ref={scroller} flexGrow={1} flexBasis={0} minHeight={1} focusable={false} scrollX={false} scrollY
@@ -294,16 +295,17 @@ export function Interaction({interaction, session, editing, focused, width, heig
       {interaction.error && <text paddingX={1} fg={color.error} wrapMode="word">{display(interaction.error)}</text>}
       <box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
         {interaction.kind === 'question' && questions.length > 1 && <>
-          <Button label="Back" disabled={page === 0} onPress={() => changePage(page - 1)} />
-          <Button label="Next" disabled={page === questions.length - 1} onPress={() => changePage(page + 1)} />
+          <Button label="Back" isActive={active} disabled={page === 0} onPress={() => changePage(page - 1)} />
+          <Button label="Next" isActive={active} disabled={page === questions.length - 1} onPress={() => changePage(page + 1)} />
         </>}
         {interaction.kind === 'question'
-          ? <Button label="Submit" selected onPress={() => submit()} />
+          ? <Button label="Submit" selected isActive={active} disabled={!session.answerInteraction} onPress={() => submit()} />
           : interaction.request.actions.map((action, index) => <Button key={action.id} label={display(action.label)}
+              isActive={active} disabled={action.id === 'cancel' ? !session.cancelInteraction : !session.answerInteraction}
               selected={target === interaction.request.fields.length + index} onPress={() => submit(action.id)} />)}
         {(interaction.kind !== 'form' || !interaction.request.actions.some(action => action.id === 'cancel')) &&
-          <Button label="Cancel" onPress={cancel} />}
-        {draftToggle&&<Button label="Draft" onPress={() => {if (current()) setEditing(false);}} />}
+          <Button label="Cancel" isActive={current} disabled={!session.cancelInteraction} onPress={cancel} />}
+        {draftToggle&&<Button label="Draft" isActive={current} onPress={() => {if (current()) setEditing(false);}} />}
       </box>
       <text height={1} truncate paddingX={1} fg={color.muted}>{width < 55 ? 'Tab fields · Alt+Enter ' + display(submitLabel) :
         'Tab fields · Space choose · Alt+Enter ' + display(submitLabel) + ' · Esc cancel'}</text>

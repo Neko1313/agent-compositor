@@ -14,6 +14,28 @@ function memory(initial?: unknown) {
 }
 const ids = (tree: any): string[] => !tree ? [] : tree.surface ? [tree.surface] : tree.children.flatMap(ids);
 
+it('counts transient manual window intent separately from registration, viewport changes, automatic focus and saves', async () => {
+  const storage = memory({windows: state(split('horizontal', .7, leaf('session'), leaf('tools')))});
+  const layout = await connectWindowLayout(storage, {panes});expect(layout.windowIntentRevision).toBe(0);
+  layout.resize(140, 40);layout.register({id: 'passive', label: 'Passive'}, {focus: false});
+  await expect.poll(() => layout.snapshot().saving).toBe(false);
+  layout.actAutomatic({type: 'open', id: 'tools'});expect(layout.windowIntentRevision).toBe(0);
+  layout.act({type: 'open', id: 'tools'});expect(layout.windowIntentRevision).toBe(1);
+  layout.act({type: 'workspace', id: 1});expect(layout.windowIntentRevision).toBe(2);
+  const frame = layout.snapshot().frames.find(frame => frame.surface === 'tools')!;
+  layout.act({type: 'pointer', phase: 'down', kind: 'pane', x: frame.x + 2, y: frame.y + 2});
+  expect(layout.windowIntentRevision).toBe(2);
+  layout.act({type: 'pointer', phase: 'down', kind: 'title', x: frame.x + 2, y: frame.y});
+  expect(layout.windowIntentRevision).toBe(3);layout.act({type: 'pointer', phase: 'cancel', x: 0, y: 0});
+  const divider = layout.snapshot().splitTarget!.divider!;
+  layout.act({type: 'pointer', phase: 'down', kind: 'separator', x: divider.x, y: divider.y});
+  expect(layout.windowIntentRevision).toBe(4);layout.act({type: 'pointer', phase: 'cancel', x: 0, y: 0});
+  layout.resize(120, 30);layout.markWindowIntent();expect(layout.windowIntentRevision).toBe(5);
+  await expect.poll(() => layout.snapshot().saving).toBe(false);expect(layout.windowIntentRevision).toBe(5);
+  await layout.disconnect();expect(JSON.stringify(storage.saved)).not.toContain('windowIntent');
+  const restored = await connectWindowLayout(storage, {panes});expect(restored.windowIntentRevision).toBe(0);await restored.disconnect();
+});
+
 it('reads AppUI layout envelopes, preserves legacy views and keeps late owners out of rendering and hit testing', async () => {
   const tree = split('horizontal', .7, leaf('session'), split('vertical', .3, leaf('plugin-late-pane'), leaf('window-7')));
   const views = [{id: 'window-7', title: 'Earlier conversation', kind: 'session'}];

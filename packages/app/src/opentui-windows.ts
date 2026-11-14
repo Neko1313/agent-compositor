@@ -5,6 +5,9 @@ import type {WindowLayoutAction, WindowLayoutSnapshot, WindowLayoutSource, Windo
 export interface WindowPane {id: string; label: string; transient?: boolean}
 export type WindowPlacement = Parameters<WindowManager['place']>[1];
 export interface DynamicWindowLayout extends WindowLayoutSource {
+  readonly windowIntentRevision: number;
+  markWindowIntent(): void;
+  actAutomatic(action: WindowLayoutAction): void;
   register(pane: WindowPane, placement?: WindowPlacement): void;
   relocate(id: string, placement?: WindowPlacement): void;
   detach(id: string): void;
@@ -106,7 +109,8 @@ export async function connectWindowLayout(storage: Storage, options: {
     wm.restore(defaults, known);
   }
   let active = true;
-  let width = 0, height = 0, revision = 0;
+  let width = 0, height = 0, revision = 0, windowIntentRevision = 0, automatic = 0;
+  const markWindowIntent = () => {if (active) windowIntentRevision++;};
   let gesture: Gesture | undefined;
   let drop: WindowLayoutSnapshot['drop'];
   let pointer: WindowLayoutSnapshot['pointer'] = 'default';
@@ -235,9 +239,11 @@ export async function connectWindowLayout(storage: Storage, options: {
       const frame = hit(x, y);
       const handle = action.kind === 'title' ? undefined : separator(x, y);
       if (handle) {
+        if (!automatic) markWindowIntent();
         gesture = {kind: 'resize', handle, width, height};
         pointer = handle.node.axis === 'horizontal' ? 'ew-resize' : 'ns-resize';
       } else if (frame && action.kind !== 'separator') {
+        if (!automatic && (action.kind === 'title' || wm.focused !== frame.surface)) markWindowIntent();
         wm.focused = frame.surface;
         if (action.kind === 'title' && y === frame.y) {
           gesture = {kind: 'move', surface: frame.surface, x, y, moved: false, width, height};
@@ -284,6 +290,12 @@ export async function connectWindowLayout(storage: Storage, options: {
   if (!loaded && !error) persist();
   state = snapshot();
   return {
+    get windowIntentRevision() {return windowIntentRevision;},
+    markWindowIntent,
+    actAutomatic(this: DynamicWindowLayout, action) {
+      automatic++;
+      try {this.act(action);} finally {automatic--;}
+    },
     snapshot: () => state,
     subscribe(listener) { if (!active) return () => {}; listeners.add(listener); return () => { listeners.delete(listener); }; },
     register(pane, placement) {
@@ -353,6 +365,7 @@ export async function connectWindowLayout(storage: Storage, options: {
     act(action) {
       if (!active) return;
       if (action.type === 'pointer') { point(action); return; }
+      if (!automatic) markWindowIntent();
       if (gesture) { cancel(); publish(); }
       const original = wm.snapshot();
       const before = JSON.stringify(original);

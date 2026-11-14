@@ -16,6 +16,7 @@ import {surfaceRequestStatus} from './surface.js';
 import type {WindowNavigationSource,WindowNavigationSnapshot} from './navigation.js';
 import {WindowFinder} from './navigation-view.js';
 import {splitTargetLabel} from './split-target.js';
+import {handleActionMouseDown} from './mouse-action.js';
 
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
@@ -121,17 +122,23 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
     }
   });
 
-  function send() {
+  function messageInput() {
     const input = editor.current;
     const current = selected.snapshot();
     if (!isActive() || editing || !input) return;
     const text = input.plainText;
     if (!text.trim()) return;
     if ((current.running || current.approval || current.interaction?.kind === 'question') && !selected.isImmediateCommand?.(text)) return;
+    return {input, text};
+  }
+  function send() {
+    const pending = messageInput();
+    if (!pending) return;
+    const {input, text} = pending;
     selected.submit(text);
     input.setText('');
     setImmediate(false);
-    input.focus();
+    if (isActive()) input.focus();
   }
 
   return (
@@ -172,7 +179,7 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
         <Ghost media={composerMedia} enabled={!editing && focused && animations && wide && height >= 20} active={state.running} />
         {focused && <box height={1} paddingX={1} backgroundColor={canSend ? color.accent : color.panel}
           onMouseDown={event => {
-            if (event.button === MouseButton.LEFT) send();
+            handleActionMouseDown(event, Boolean(messageInput()), send);
           }}>
           <text selectable={false} fg={canSend ? color.background : color.muted}
             attributes={TextAttributes.BOLD}>Send</text>
@@ -181,7 +188,8 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
       {focused && <box flexDirection="row" columnGap={1} height={1}>
         <text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : width >= fullHint.length + 2 ? fullHint : inputHint}</text>
         {state.running && selected.interrupt && <box height={1} paddingX={1} backgroundColor={color.panel} onMouseDown={event => {
-          if (event.button === MouseButton.LEFT && isActive()) flushSync(() => selected.interrupt?.());
+          handleActionMouseDown(event, isActive() && selected.snapshot().running && !!selected.interrupt,
+            () => flushSync(() => selected.interrupt?.()));
         }}><text selectable={false} fg={color.running}>Stop</text></box>}
       </box>}
     </box>

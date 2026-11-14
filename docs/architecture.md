@@ -92,6 +92,19 @@ saved ratios. Rendering, split cues and pointer hit testing share that geometry;
 compact metadata describes an actual single-frame size fallback, not a width
 threshold or explicit zoom.
 
+Window-navigation intent is transient and separate from layout revisions or
+Finder filtering revisions. Explicit navigation invalidates an older operation's
+permission to autofocus; publication, viewport measurement and persistence do
+not create new user intent. The host applies that decision before placement or
+opening can change focus. Trusted service provenance separates retained passive
+publication from a live user operation, while a current signal-bound Finder
+attempt can still receive its requested retained destination. This policy does
+not change plugin lifetimes, command cancellation or the saved tiling tree.
+An admitted native action consumes its mouse-down before invoking the callback.
+Opening or moving a window cannot reinterpret that same click against the new
+layout. Unhandled body, title and separator clicks still reach window selection
+and gestures normally.
+
 OpenTUI input callbacks are bound to a specific Core generation and captured
 capability origin. Each UI operation has one private request FIFO; retained
 background input gets an independent bounded owner. Shared native components

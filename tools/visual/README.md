@@ -66,7 +66,15 @@ at 60×24, two rows fit at 38×24, and insufficient height at 38×16 projects on
 the focused window. It checks actual minimum 24×6 tile bounds, visible divider
 geometry, pointer and keyboard resize, cancellation, canonical tree preservation,
 and the still-pending Main question and private form. Widening and the final CLI
-restart retain the exact saved tree and fractions. The separate deterministic preview
+restart retain the exact saved tree and fractions. A focus-publication flow uses
+abort-aware file gates to finish ordinary public SDK producers after the user
+selects Main, edits a private form, enters Arrange/Finder or changes workspace.
+Passive first views and late commands must preserve that intent and native cursor;
+explicit focus hints and configured rules keep their opt-in/opt-out behavior.
+The same controlled gate proves a still-selected retained Finder route can open,
+while an abandoned route cannot create a late window. Gate files control fixture
+completion only; all user interaction still crosses the actual terminal.
+The separate deterministic preview
 retains its development keymap.
 Artifacts default to `dist/visual-opentui-navigation/`; `VISUAL_EXECUTABLE` selects
 a complete extracted native candidate rather than a source override.

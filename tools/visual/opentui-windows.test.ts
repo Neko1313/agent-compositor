@@ -14,6 +14,46 @@ const leaves = (tree: any): string[] => !tree ? [] : tree.surface ? [tree.surfac
 const frame = (layout: Awaited<ReturnType<typeof connectWindowLayout>>, id: string) =>
   layout.snapshot().frames.find(frame => frame.surface === id)!;
 
+it('keeps directional swap distinct from edge retiling and restores the reshaped raw preview tree', async () => {
+  const leaf = (surface: string) => ({surface});
+  const split = (axis: string, ratio: number, a: unknown, b: unknown) => ({axis, ratio, children: [a, b]});
+  const tree = split('horizontal', .65, leaf('main'), split('vertical', .7, leaf('side'), leaf('workflows')));
+  const storage = memory({version: 1, workspace: 1, focused: 'main', axis: 'horizontal', fullscreen: true,
+    spaces: [{id: 1, tree, focus: 'main'}]});
+  const layout = await connectWindowLayout(storage, {panes});
+  layout.resize(160, 40);
+  layout.act({type: 'direction', key: 'right', move: true});
+  expect(layout.snapshot()).toMatchObject({focused: 'main', fullscreen: true});
+  await expect.poll(() => layout.snapshot().saving).toBe(false);
+  expect((storage.saved.at(-1) as any).spaces[0].tree).toEqual(
+    split('horizontal', .65, leaf('side'), split('vertical', .7, leaf('main'), leaf('workflows'))));
+  layout.act({type: 'direction', key: 'left', move: true});
+  await expect.poll(() => layout.snapshot().saving).toBe(false);
+  expect((storage.saved.at(-1) as any).spaces[0].tree).toEqual(tree);
+
+  layout.act({type: 'retile', key: 'right'});
+  expect(layout.snapshot()).toMatchObject({focused: 'main', fullscreen: false,
+    splitTarget: {axis: 'horizontal', ratio: .5, focusedChild: 1}});
+  expect(layout.snapshot().frames).toEqual([
+    {surface: 'side', x: 0, y: 0, width: 80, height: 28},
+    {surface: 'main', x: 80, y: 0, width: 80, height: 28},
+    {surface: 'workflows', x: 0, y: 28, width: 160, height: 12},
+  ]);
+  layout.act({type: 'resize', delta: .05});
+  await layout.disconnect();
+  const saved = storage.saved.at(-1) as any;
+  expect(saved.windows).toBeUndefined();
+  expect(saved.spaces[0].tree).toEqual(split('vertical', .7,
+    split('horizontal', .45, leaf('side'), leaf('main')), leaf('workflows')));
+  expect(leaves(saved.spaces[0].tree)).toEqual(['side', 'main', 'workflows']);
+  const restored = await connectWindowLayout(storage, {panes});
+  restored.resize(160, 40);
+  expect(restored.snapshot()).toMatchObject({focused: 'main', fullscreen: false,
+    splitTarget: {axis: 'horizontal', ratio: .45, focusedChild: 1}});
+  expect(restored.snapshot().locations.plugins).toBeUndefined();
+  await restored.disconnect();
+});
+
 it('keeps a real nested tree, workspace ownership and intentionally closed panes across restoration', async () => {
   const storage = memory();
   const layout = await connectWindowLayout(storage, {panes});

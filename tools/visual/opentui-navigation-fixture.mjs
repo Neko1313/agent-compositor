@@ -46,6 +46,7 @@ async function panes($,focus=false){
     {text:'NAV_GENERATION_'+generation},
     {text:'Refresh inventory',action:'refresh'},
     {text:'Open private form',action:'form'},
+    {text:'Open retile workspace',action:'retile'},
     ...['true','false','rule-false','rule-true'].map(mode=>({text:'Publish focus '+mode,action:'focus:'+mode})),
   ]},{site:'inspector',workspace:1,focus});
   for(let index=1;index<=12;index++){
@@ -56,11 +57,21 @@ async function panes($,focus=false){
   await $.ui.view('unicode','Заметки 窗口',{lines:[{text:'UNICODE_WINDOW'}]},{workspace:3,focus:false});
   await $.storage.set('panes',true);
 }
+async function retile($){
+  await $.storage.set('retile',true);
+  await $.ui.view('retile-a','Retile A',{lines:[{text:'RETILE_A'}]},{workspace:7,focus:false});
+  await $.ui.view('retile-b','Retile B',{lines:[{text:'RETILE_B'}]},
+    {workspace:7,site:'sidebar',size:.35,relativeTo:'plugin-navigation-probe-retile-a',focus:false});
+  await $.ui.view('retile-c','Retile C',{lines:[{text:'RETILE_C'}]},
+    {workspace:7,site:'inspector',size:.3,relativeTo:'plugin-navigation-probe-retile-b',focus:false});
+  await $.storage.set('retile-ready',true);
+}
 async function start($,reload=false){
   const previous=await $.storage.get('generation')||0;
   await $.storage.set('generation',previous+1);
   if(reload){await $.storage.set('reload-started',true);await pause(800);}
   if(await $.storage.get('panes'))await panes($);
+  if(await $.storage.get('retile'))await retile($);
   await $.storage.set('ready',{generation:previous+1});
 }
 async function form($){
@@ -86,6 +97,7 @@ export default {
   'ui.press':async(event,$)=>{
     if(event.key==='command:/nav-panes'){await panes($,true);return;}
     if(event.key==='command:/nav-form'||event.key==='form'){await form($);return;}
+    if(event.key==='retile'){await retile($);return;}
     if(event.key.startsWith('focus:')){await focusView($,event.key.slice('focus:'.length));return;}
     if(event.key==='command:/nav-retained'){
       const retained=$.background();await retained.storage.set('retained-started',true);await gate(retained,'retained');
@@ -117,7 +129,7 @@ export default {
     {match:{plugin:'navigation-probe',surface:'focus-rule-true'},focus:true,workspace:6},
   ]};await writeFile(configFile,JSON.stringify(config));
   const state=join(paths.state,'plugin-state/navigation-probe');
-  return{state,focus:{gates:Object.fromEntries(['passive','late-main','late-mode','retained','slow'].map(name=>[name,join(gates,name)])),
+  return{state,retile:{ready:join(state,'retile-ready.json'),ids:Object.fromEntries(['a','b','c'].map(name=>[name,'plugin-navigation-probe-retile-'+name]))},focus:{gates:Object.fromEntries(['passive','late-main','late-mode','retained','slow'].map(name=>[name,join(gates,name)])),
     started:Object.fromEntries(['passive','late-main','late-mode'].map(name=>[name,join(state,'focus-started-'+name+'.json')])),
     published:Object.fromEntries(['passive','true','false','rule-false','rule-true','late-main','late-mode'].map(name=>[name,join(state,'focus-published-'+name+'.json')])),
     launcher:join(state,'focus-launcher-completed.json'),retainedStarted:join(state,'retained-started.json'),retainedFinished:join(state,'retained-finished.json')},formReceipt:join(state,'form-result.json'),formCalls:join(state,'form-calls.json'),ready:join(state,'ready.json'),

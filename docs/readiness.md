@@ -430,6 +430,10 @@ resident editors preserve independent draft/form state; the deterministic
 preview retains its separate development keymap. Verification must include
 actual batched keyboard/paste, protected questions/approvals, live route
 replacement and narrow terminal geometry, not only host parser tests.
+Arrange also supports Ctrl+Arrow edge retiling independently of Shift swaps.
+The nine-flow navigation gate includes a real three-window nested rearrangement,
+nearest-split resizing, no-neighbor behavior, pending Main/form preservation and
+exact restoration of the keyboard-created tree after process restart.
 
 Selected approval, question and private-form controllers now use the shared
 host lease adapter and independent request FIFOs. The renderer receives validated

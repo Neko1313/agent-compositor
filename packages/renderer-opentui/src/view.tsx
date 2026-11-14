@@ -494,7 +494,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         <text height={1} wrapMode="none" fg={color.running} truncate>{layout.gesture
           ? (layout.gesture === 'resize' ? 'Mouse resize · Esc cancel' : 'Move window · Esc cancel')
           : splitTargetLabel(layout, width)}</text>
-        <text height={1} wrapMode="none" fg={color.text} truncate>{width>=88?'h/j/k/l focus · Shift move · b columns · v rows · +/− resize · f zoom · q close · 1–9 workspace · w windows · i type · Esc exit':width>=48?'h/j/k/l focus · Shift move · b/v split · +/− size · w windows · i type · Esc exit':'Esc exit · i type · w windows'}</text>
+        <text height={1} wrapMode="none" fg={color.text} truncate>{width>=140?'h/j/k/l focus · Shift swap · Ctrl+arrows edge · b/v split · +/− resize · f zoom · q close · 1–9 workspace · w windows · i type · Esc exit':width>=88?'Esc exit · i type · hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/−':width>=48?'Esc exit · i type · Ctrl+arrows edge':'Esc exit · i type · w windows'}</text>
       </>:<text height={1} wrapMode="none" fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':layout.fullscreen&&width<60?'Zoomed · Alt+W f tiles':(layout.fullscreen?'Zoomed · Alt+W f tiles · ':'')+`Alt+W Arrange · ${editorOwns?'Alt+W w Windows':'F2 Windows'} · Alt+0 Main`+(width>=88?' · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'')}</text>}
     </box>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {controls.map((type, index) => layoutButton('F' + (controlStart + index) + ' ' +

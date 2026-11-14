@@ -71,6 +71,39 @@ it('applies explicit Arrange actions while consuming typing, pasted q and Ctrl+C
   expect(Object.keys(f.layout.snapshot().locations)).toHaveLength(beforeClose);
 });
 
+it('retiles only exact nonrepeated Ctrl+Arrow in Arrange while preserving native editing elsewhere', async () => {
+  const f = await setup(), initial = f.layout.snapshot();
+  for (const direction of ['left', 'right', 'up', 'down'])
+    expect(f.nav.handle(key(direction, ['ctrl']))).toBe(false);
+  expect(f.layout.snapshot()).toBe(initial);
+
+  f.nav.toggleArrange();
+  const intent = f.layout.windowIntentRevision;
+  expect(f.nav.handle(key('right', ['control']))).toBe(true);
+  const moved = f.layout.snapshot();
+  expect(moved.focused).toBe('session');
+  expect(moved.locations).toEqual(initial.locations);
+  expect(moved.frames).not.toEqual(initial.frames);
+  expect(moved.frames.find(frame => frame.surface === 'session')!.x).toBeGreaterThan(0);
+  expect(f.layout.windowIntentRevision).toBeGreaterThan(intent);
+
+  const after = f.layout.windowIntentRevision;
+  expect(f.nav.handle(key('left', ['ctrl'], true))).toBe(true);
+  for (const modifiers of [['ctrl', 'shift'], ['ctrl', 'alt'], ['ctrl', 'super'], ['ctrl', 'hyper']])
+    expect(f.nav.handle(key('left', modifiers))).toBe(true);
+  expect(f.nav.handle(key('h', ['ctrl']))).toBe(true);
+  expect(f.layout.snapshot()).toBe(moved);
+  expect(f.layout.windowIntentRevision).toBe(after);
+
+  f.nav.openFinder();
+  for (const direction of ['left', 'right', 'up', 'down'])
+    expect(f.nav.handle(key(direction, ['ctrl']))).toBe(false);
+  expect(f.layout.snapshot()).toBe(moved);
+  f.nav.handle(key('escape'));f.nav.handle(key('escape'));
+  expect(f.nav.snapshot().mode).toBe('normal');
+  expect(f.nav.handle(key('left', ['ctrl']))).toBe(false);
+});
+
 it('keeps native finder editing and paste at the caret while bounding private query data and stale choice receipts', async () => {
   const f = await setup();
   f.nav.openFinder(); const revision = f.nav.snapshot().revision;

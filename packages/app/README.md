@@ -198,6 +198,11 @@ only open windows on the current workspace. F2 also restores closed windows and
 finds windows on other workspaces.
 Arrange names and highlights the selected split, with its saved proportions and
 the side `+` grows. Hidden targets retain an explanatory status.
+In this OpenTUI Arrange mode, Ctrl+arrows retile the focused window at the same
+edge of its directional neighbor, creating a nested split as needed. The moved
+window keeps focus and a successful move exits zoom; no neighbor means no change.
+Shift+direction swaps windows. Ctrl+arrows keep native editing behavior outside
+Arrange, and held keys do not repeat a retile.
 Manual approvals, questions and forms from UI tools have private request windows.
 Retained background requests stay independent of their launcher and Main; F2
 reopens a hidden request with its native field state. Ctrl+C in a request window

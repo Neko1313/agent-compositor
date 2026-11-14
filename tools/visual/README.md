@@ -93,6 +93,13 @@ explicit focus hints and configured rules keep their opt-in/opt-out behavior.
 The same controlled gate proves a still-selected retained Finder route can open,
 while an abandoned route cannot create a late window. Gate files control fixture
 completion only; all user interaction still crosses the actual terminal.
+The ninth flow publishes three ordinary windows on workspace7 through the public
+plugin API. Shift+direction must retain center swapping; Ctrl+Arrow in Arrange
+must edge-drop the focused window, retain the unaffected outer ratio, resize only
+the new nearest split and do nothing when no directional neighbor exists. Main's
+pending Production answer, parked draft/cursor and independent form stay intact.
+The resulting keyboard-created topology is retained through the same reload and
+restart checks and inspected again from the actual restored window.
 The separate deterministic preview
 retains its development keymap.
 Artifacts default to `dist/visual-opentui-navigation/`; `VISUAL_EXECUTABLE` selects

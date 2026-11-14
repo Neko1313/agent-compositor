@@ -191,6 +191,11 @@ export function createWindowNavigation(layout: WindowLayoutSource, options: Opti
     if (mode === 'arrange' && key === 'c' && modifiers.includes('ctrl') && !modifiers.includes('meta')) {
       if (!input.repeated) {mode = 'normal'; refresh();} return true;
     }
+    if (mode === 'arrange' && modifiers.length === 1 && modifiers[0] === 'ctrl'
+      && (key === 'left' || key === 'right' || key === 'up' || key === 'down')) {
+      if (!input.repeated) layout.act({type: 'retile', key});
+      refresh(); return true;
+    }
     const normalized = mode === 'normal' ? modifiers.filter(value => value !== 'meta') : modifiers;
     const command = windowControl({kind: 'key', key: input.key, modifiers: normalized});
     if (mode === 'normal' && command && !['focus', 'move', 'workspace', 'moveWorkspace'].includes(command.type)) return false;

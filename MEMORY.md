@@ -1,5 +1,64 @@
 # Project memory
 
+## Keyboard edge retiling implementation — 2026-11-14
+
+Continue toward the complete 1.0 objective. The previous goal turn was progress:
+history/placement and its measured bench corrections are committed through
+667e864. Revalidated exact-head build-only 43565255261: verification and all four
+native jobs succeeded, publication skipped. CI 43565250163, documentation
+43565250121 and plugin preparation 43565250064 also passed. The downloaded
+four-platform audit proves 192 OpenTUI checks and 32 smoke reports, with matching
+evidence digests; dist/opentui-workspace-controllers-verification.json retains
+the exact installed 133b4462/34ac4ba5 bundle and both earlier failed runs.
+
+Arrange now routes exact nonrepeated Ctrl+Arrow to an explicit retile action.
+Normal/Finder native input and Shift+direction center swaps keep their contracts;
+Ctrl+H/J/K/L are not aliases. The adapter finds a live directional neighbor in
+logical geometry, then reuses canonical edge drop. Successful retiling retains
+source focus and clears zoom. Missing/unavailable/unmeasured neighbors leave
+geometry, zoom and disk unchanged. Unaffected ratios, other workspaces and closed
+identities survive; bounded-tree failures roll back transactionally.
+
+Focused adapter/preview tests pass 53 cases, with four directions, hidden live
+neighbors, exact nested persistence, restart and rollback. The navigation test
+first failed on unchanged geometry, then passed with all ten navigation cases;
+it also checks native editing and mixed/repeated modifier isolation. The real
+PTY scenario adds a ninth flow using only public plugin placements and keys.
+Its single old-installed-runtime RED reaches the missing Ctrl+Right behavior:
+the exact initial .65/.70 three-window tree and old Shift swap roundtrip pass,
+but the immutable old executable leaves the tree unchanged. The recorded packet
+is CSI 1;5C, with one held loopback request. Evidence and cleanup are recorded in
+dist/opentui-edge-retile-old-native-red; no successful PTY exit is claimed for
+that intentionally failed run. Source/native final gates remain required.
+
+The first new-source run passed the exact topology/focus/ratio assertions, then
+found a bench measurement error: selectedDivider's optional width argument is
+the tile width, not the viewport width. Both new calls now require the exact
+90-cell half of the 180-column workspace; divider geometry/RGB assertions stay
+strict. Preserved failure: dist/opentui-keyboard-retile-source. The corrected
+source run passes all nine flows, PTY 0, errors:[], in
+dist/opentui-keyboard-retile-source-frame-fixed. Its 23 capture points are stable
+on the first attempt; the bounded batch including both new nested/restored PNGs,
+Main/private-form and narrow layouts is inspected. Independent code review is
+clear. Final standalone coverage passes 2082 tests, three optional skips and
+226 files. Native build and relocated runtime gates remain required.
+
+Final local typecheck, generation, docs generation/check (106 pages), native build
+and release smoke pass. All 56 relocated native checks pass, errors:[], runner 0
+and all relevant PTYs 0: navigation 9, workspace controllers 8, editor 6, app 6,
+managers 5, cancellation 3, requests 6, controllers 6 and Ink windows 7.
+dist/opentui-keyboard-retile-artifact.json records the immutable archive under
+dist/keyboard-retile-artifacts and executable 38e1ae68d1c317255df6d4acdb39d4e3a9db5673ffc09d6ba14b3137df9199a9,
+renderer 49ead88141533be166133f1e9264d48ff9229732ea1355a98f89f6be5830ce5d,
+archive d82eb14c15e2d080d8880ec11d35420508d2a73542260f852e758578367d59ee.
+The independent final review rehashed all three and inspected eight native PNGs,
+including exact new/restored topology, narrow hints and Main/private-form state.
+New-head remote CI and four-platform proof remain required before this candidate
+gate is closed. No paid/live-model calls were used. Ink remains the default and
+the broader 1.0 migration, onboarding and real-development requirements stay open.
+Canonical UI, architecture, app and bench guides are updated; the deferred agent
+feature comparison is unaffected because this is a frontend navigation contract.
+
 ## History bench refreshed-list acknowledgement — 2026-11-14
 
 Bench-only correction 6101bca passed Node 22/26 CI 43563635476,

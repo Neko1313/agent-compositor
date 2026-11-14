@@ -50,6 +50,7 @@ export type WindowLayoutAction =
   | {type: 'orient' | 'swap' | 'zoom' | 'close'}
   | {type: 'resize'; delta: number}
   | {type: 'direction'; key: WindowDirection; move?: boolean}
+  | {type: 'retile'; key: WindowDirection}
   | {type: 'workspace' | 'moveWorkspace'; id: number}
   | {type: 'pointer'; phase: 'down' | 'move' | 'up' | 'cancel'; x: number; y: number;
       kind?: 'title' | 'pane' | 'separator'; revision?: number; workspace?: number};

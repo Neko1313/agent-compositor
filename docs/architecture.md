@@ -92,6 +92,11 @@ saved ratios. Rendering, split cues and pointer hit testing share that geometry;
 compact metadata describes an actual single-frame size fallback, not a width
 threshold or explicit zoom.
 
+Arrange-only Ctrl+arrows select a live directional neighbor from logical
+geometry and reuse canonical edge-drop retiling. Shift+direction keeps center
+swap semantics. Unmeasured or missing neighbors leave the tree unchanged;
+successful retiling retains source focus and clears zoom like a pointer drop.
+
 Window-navigation intent is transient and separate from layout revisions or
 Finder filtering revisions. Explicit navigation invalidates an older operation's
 permission to autofocus; publication, viewport measurement and persistence do

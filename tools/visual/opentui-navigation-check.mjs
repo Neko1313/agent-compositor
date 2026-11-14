@@ -72,6 +72,10 @@ try{
   async function pick(query){await finder(query);await key('Enter');await absent(finderMarker);}
   async function arrange(){await key('Alt+w');await wait('WINDOW MODE');}
   async function leave(){await key('Escape');await absent('WINDOW MODE');}
+  async function normalScene(){await page.waitForFunction(()=>{
+    const terminal=visual.terminal,text=visual.text(),toolbar=terminal.buffer.active.getLine(terminal.buffer.active.viewportY+1)?.translateToString(true)??'';
+    return terminal.modes?.synchronizedOutputMode!==true&&toolbar.includes('Alt+W Arrange')&&!text.includes('WINDOW MODE')&&!text.includes('windows · ↑↓ select · Enter open');
+  });}
   async function setZoom(enabled){
     await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
@@ -241,6 +245,39 @@ try{
   await pick('/nav-form');await wait('Navigation private form');await wait('FORMvalue');await key('Home');await key('ArrowRight');await type('_');await wait('F_ORMvalue');
   assert.equal(await observe(()=>json(launch.navigation.formCalls),value=>value===1,'The caller must make one actual private form request'),1);
   await arrange();await paste('q');await key('Control+c');await absent('WINDOW MODE');assert.equal(await exists(launch.navigation.formReceipt),false);
+
+  // Public plugin placement hints build three ordinary windows on an isolated
+  // workspace. Every subsequent exchange, edge drop and resize is terminal input.
+  const retileSpec=launch.navigation.retile,retileIds=retileSpec.ids;
+  const retileTree=value=>value.windows.spaces.find(space=>space.id===7)?.tree;
+  const retileBefore=await layout(),retileProtected=retileBefore.windows.spaces.filter(space=>space.id!==7).map(({id,tree})=>({id,tree}));
+  await main();await setZoom(true);await wait('NAV_PENDING_DRAFT_47');await key('Home');await key('ArrowRight');
+  await pick('Navigation controls');await setZoom(true);await click('Open retile workspace');
+  await observe(()=>json(retileSpec.ready),value=>value===true,'The public SDK caller must publish all three retile panes');
+  await pick('Retile A');await setZoom(false);await arrange();
+  const retileInitial={axis:'horizontal',ratio:.65,children:[{surface:retileIds.a},{axis:'vertical',ratio:.7,children:[{surface:retileIds.b},{surface:retileIds.c}]}]};
+  await observe(layout,value=>value.windows.workspace===7&&value.windows.focused===retileIds.a&&JSON.stringify(retileTree(value))===JSON.stringify(retileInitial),
+    'The public placement hints must create columns(.65)[A,rows(.70)[B,C]]');
+  await key('Shift+ArrowRight');
+  const retileSwapped={...retileInitial,children:[{surface:retileIds.b},{axis:'vertical',ratio:.7,children:[{surface:retileIds.a},{surface:retileIds.c}]}]};
+  await observe(layout,value=>value.windows.focused===retileIds.a&&JSON.stringify(retileTree(value))===JSON.stringify(retileSwapped),'Shift+direction must retain the existing center-swap contract');
+  await key('Shift+ArrowLeft');await observe(layout,value=>JSON.stringify(retileTree(value))===JSON.stringify(retileInitial),'The reverse swap must restore the original topology and ratios');
+  const retileExpected={axis:'vertical',ratio:.7,children:[{axis:'horizontal',ratio:.5,children:[{surface:retileIds.b},{surface:retileIds.a}]},{surface:retileIds.c}]};
+  await key('Control+ArrowRight');
+  const retiled=await observe(layout,value=>value.windows.focused===retileIds.a&&!value.windows.fullscreen&&JSON.stringify(retileTree(value))===JSON.stringify(retileExpected),
+    'Ctrl+Right in Arrange must edge-drop A right of B while preserving the untouched .70 split');
+  assert.equal(retiled.windows.axis,retileBefore.windows.axis);assert.deepEqual(retiled.windows.spaces.filter(space=>space.id!==7).map(({id,tree})=>({id,tree})),retileProtected);
+  assert.deepEqual(leaves(retileTree(retiled)).sort(),Object.values(retileIds).sort());await targetCue(retileIds.a,180);await selectedDivider('horizontal','Retile A',90);
+  await key('+');await observe(layout,value=>Math.abs(splitFor(retileTree(value),retileIds.a).ratio-.45)<1e-9&&retileTree(value).ratio===.7,'Nearest resize must grow focused A without changing the outer .70 ratio');
+  await key('-');await observe(layout,value=>JSON.stringify(retileTree(value))===JSON.stringify(retileExpected),'Reverse resize must restore the exact edge-dropped tree');await targetCue(retileIds.a,180);await capture('08-keyboard-edge-retiling');
+  const beforeNoNeighbor=(await layout()).windows;await key('Control+ArrowRight');await leave();await normalScene();
+  assert.deepEqual((await layout()).windows,beforeNoNeighbor,'No directional neighbor must leave topology, focus, fullscreen and ratios unchanged');
+  await main();await setZoom(true);await wait('NAV_PENDING_DRAFT_47');await type('_');await wait('N_AV_PENDING_DRAFT_47');await key('Control+z');await wait('NAV_PENDING_DRAFT_47');
+  await key('Alt+i');await wait('[x] Production');await key('Alt+i');await noRequests(1);await noResult('ask_user');
+  await pick('Navigation private form');await wait('F_ORMvalue');await type('Y');await wait('F_YORMvalue');await key('Backspace');await wait('F_ORMvalue');
+  await setZoom(retileBefore.windows.fullscreen);assert.equal(await exists(launch.navigation.formReceipt),false);assert.equal(await json(launch.navigation.formCalls),1);
+  report.keyboardRetile={workspace:7,initial:retileInitial,retiled:retileExpected,source:retileIds.a,unaffectedRatio:.7,swapPreserved:true,nearestResize:true,noNeighborNoop:true,pendingMainAndForm:true};
+  report.checks.push('Ctrl+Arrow in Arrange edge-retiles a real three-window workspace while Shift+direction still swaps; nearest resize and no-neighbor behavior preserve the unaffected ratio, pending Main answer/draft and independent form cursor');
 
   // Completion gates simulate external work finishing, not a user action or
   // a host/window mutation. Every focus and editor action still crosses the PTY.
@@ -466,10 +503,12 @@ try{
   await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0&&visual.text().includes('Main'),generation);
   await observe(()=>json(launch.navigation.ready),value=>value.generation===3,'Restart must load the same plugin state');await main();
   const restored=await observe(layout,value=>JSON.stringify(value.windows)===JSON.stringify(beforeRestart.windows),'Restart must restore the exact nested tree, ratio, focus,workspace and closed windows');
+  assert.deepEqual(retileTree(restored),retileExpected,'The keyboard-created topology and untouched .70 ratio must survive the real CLI restart');
   assert.equal(location(restored,'plugin-navigation-probe-fast'),undefined);assert.deepEqual(await sessionFiles(),originalJournal);
+  await pick('Retile A');await setZoom(false);await arrange();await targetCue(retileIds.a,180);await selectedDivider('horizontal','Retile A',90);await capture('08-restored-keyboard-retiling');await leave();await main();
   await waitMain('APP_APPROVAL_SETTLED: denied');await command('APP_RESTORED');await waitMain('APP_RESTORED: Production retained');await wait('Main · Ready');await noRequests(5);
   await capture('07-restored-navigation-layout');await writeFile(join(output,'restored-layout.json'),JSON.stringify(restored,null,2));
-  const privateValues=['PRIVATE_窗_47','P_RIVATE_窗_47','BATCH_窗_47','F_XORMvalue','FOCUS_PRIVATE_47','F_OCUS_PRIVATE_47'];
+  const privateValues=['PRIVATE_窗_47','P_RIVATE_窗_47','BATCH_窗_47','F_XORMvalue','F_YORMvalue','FOCUS_PRIVATE_47','F_OCUS_PRIVATE_47'];
   const modelBodies=JSON.stringify((await traces()).map(row=>row.body)),sessionText=await journal();for(const value of privateValues){assert.ok(!modelBodies.includes(value));assert.ok(!sessionText.includes(value));}
   assert.ok(!/MaxListenersExceededWarning|Possible EventEmitter memory leak detected/.test(await readFile(join(output,'terminal.ansi'),'utf8')));
   report.customRatio=customRatio;report.sessionId=originalJournal[0].slice(0,-6);report.privacy={finderAndFormAbsentFromModel:true,finderAndFormAbsentFromJournal:true,inputLogExcluded:'Raw input records synthetic test queries and form values'};

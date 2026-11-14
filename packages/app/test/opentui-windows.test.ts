@@ -477,6 +477,105 @@ it('cycles and moves only registered panes without losing their unavailable sibl
     split('vertical', .4, leaf('tools'), leaf('plugin-late-pane')), leaf('session')));
 });
 
+it.each([
+  {key: 'left', axis: 'horizontal', before: ['tools', 'session'], after: ['session', 'tools']},
+  {key: 'right', axis: 'horizontal', before: ['session', 'tools'], after: ['tools', 'session']},
+  {key: 'up', axis: 'vertical', before: ['tools', 'session'], after: ['session', 'tools']},
+  {key: 'down', axis: 'vertical', before: ['session', 'tools'], after: ['tools', 'session']},
+] as const)('retiles the focused leaf at its neighbor\'s $key edge and unzooms', async ({key, axis, before, after}) => {
+  const storage = memory({windows: {...state(split(axis, .65, leaf(before[0]), leaf(before[1]))), fullscreen: true}});
+  const layout = await connectWindowLayout(storage, {panes});
+  layout.resize(120, 40);
+  expect(layout.snapshot().frames).toHaveLength(1);
+  layout.act({type: 'retile', key});
+  expect(layout.snapshot()).toMatchObject({focused: 'session', fullscreen: false});
+  expect(layout.snapshot().frames.map(frame => frame.surface)).toEqual(after);
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(split(axis, .5, leaf(after[0]), leaf(after[1])));
+  expect(storage.saved.at(-1).windows.spaces[0].focus).toBe('session');
+});
+
+it('retiles through the live projection while preserving detached branches, closed identities, unrelated ratios and restart state', async () => {
+  const target = split('horizontal', .25, leaf('plugin-detached-pane'), leaf('tools'));
+  const tree = split('horizontal', .65, leaf('session'), split('vertical', .7, target, leaf('inspector')));
+  const remote = split('vertical', .3, leaf('remote-a'), leaf('remote-b'));
+  const expected = split('vertical', .7,
+    split('horizontal', .25, leaf('plugin-detached-pane'), split('horizontal', .5, leaf('tools'), leaf('session'))),
+    leaf('inspector'));
+  const currentPanes = [...panes, ...['inspector', 'closed', 'remote-a', 'remote-b', 'plugin-detached-pane']
+    .map(id => ({id, label: id}))];
+  const storage = memory({windows: {...state(tree), fullscreen: true, spaces: [
+    {id: 1, tree, focus: 'session'}, {id: 2, tree: remote, focus: 'remote-b'}]},
+    registered: currentPanes.map(pane => pane.id)});
+  const layout = await connectWindowLayout(storage, {panes: currentPanes});
+  layout.resize(38, 10);
+  layout.detach('plugin-detached-pane');
+  expect(layout.snapshot().frames.map(frame => frame.surface)).toEqual(['session']);
+  layout.act({type: 'retile', key: 'right'});
+  expect(layout.snapshot()).toMatchObject({workspace: 1, focused: 'session', fullscreen: false,
+    locations: {session: 1, tools: 1, inspector: 1, 'remote-a': 2, 'remote-b': 2}});
+  expect(layout.snapshot().locations['plugin-detached-pane']).toBeUndefined();
+  expect(layout.snapshot().locations.closed).toBeUndefined();
+  expect(layout.snapshot().splitTarget).toMatchObject({axis: 'horizontal', ratio: .5, focusedChild: 1});
+  layout.resize(160, 50);
+  const expanded = layout.snapshot().frames;
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces).toEqual([
+    {id: 1, tree: expected, focus: 'session'}, {id: 2, tree: remote, focus: 'remote-b'},
+  ]);
+  expect(new Set(ids(expected)).size).toBe(4);
+  expect(storage.saved.at(-1).registered).toContain('closed');
+
+  const restored = await connectWindowLayout(storage, {panes: currentPanes.filter(pane => pane.id !== 'plugin-detached-pane')});
+  restored.resize(160, 50);
+  expect(restored.snapshot().frames).toEqual(expanded);
+  expect(restored.snapshot()).toMatchObject({workspace: 1, focused: 'session', fullscreen: false});
+  restored.register({id: 'closed', label: 'Still closed'});
+  expect(restored.snapshot().locations.closed).toBeUndefined();
+  restored.register({id: 'plugin-detached-pane', label: 'Reloaded'}, {workspace: 3, focus: false});
+  expect(restored.snapshot().locations['plugin-detached-pane']).toBe(1);
+  expect(restored.snapshot().focused).toBe('session');
+  await restored.disconnect();
+  expect(storage.saved.at(-1).windows.spaces[0].tree).toEqual(expected);
+});
+
+it.each([
+  {name: 'an outer edge', tree: split('horizontal', .7, leaf('session'), leaf('tools')), key: 'left', measured: true},
+  {name: 'an unavailable neighbor', tree: split('horizontal', .7, leaf('session'), leaf('plugin-late-pane')), key: 'right', measured: true},
+  {name: 'a single leaf', tree: leaf('session'), key: 'right', measured: true},
+  {name: 'an empty workspace', tree: undefined, key: 'right', measured: true},
+  {name: 'an unmeasured viewport', tree: split('horizontal', .7, leaf('session'), leaf('tools')), key: 'right', measured: false},
+  {name: 'an invalid direction', tree: split('horizontal', .7, leaf('session'), leaf('tools')), key: 'sideways', measured: true},
+] as const)('keeps focus, zoom and disk unchanged when retile has $name', async ({tree, key, measured}) => {
+  const focused = tree ? 'session' : 'input';
+  const storage = memory({windows: {...state(tree, focused), fullscreen: true}});
+  const layout = await connectWindowLayout(storage, {panes});
+  if (measured) layout.resize(120, 40);
+  const before = layout.snapshot();
+  layout.act({type: 'retile', key: key as 'right'});
+  expect(layout.snapshot()).toMatchObject({focused: before.focused, fullscreen: before.fullscreen,
+    frames: before.frames, locations: before.locations});
+  await layout.disconnect();
+  expect(storage.saved).toEqual([]);
+});
+
+it('rolls back an edge retile that would exceed the retained canonical tree depth', async () => {
+  let target: unknown = leaf('tools');
+  for (let index = 0; index < 23; index++) target = split('vertical', .5, leaf('late-' + index), target);
+  const tree = split('horizontal', .5, split('vertical', .5, leaf('session'), leaf('inspector')), target);
+  const storage = memory({windows: {...state(tree), fullscreen: true}});
+  const layout = await connectWindowLayout(storage, {panes: [...panes, {id: 'inspector', label: 'Inspector'}]});
+  layout.resize(120, 40);
+  expect(layout.snapshot().error).toBeUndefined();
+  const before = layout.snapshot();
+  layout.act({type: 'retile', key: 'right'});
+  expect(layout.snapshot()).toMatchObject({focused: before.focused, fullscreen: true,
+    frames: before.frames, locations: before.locations});
+  expect(layout.snapshot().error).toContain('Could not update window layout: Error: Invalid bounded window tree');
+  await layout.disconnect();
+  expect(storage.saved).toEqual([]);
+});
+
 it('cycles backward through current logical panes while excluding detached, closed and other-workspace identities', async () => {
   const tree = split('horizontal', .7, split('vertical', .4, leaf('session'), leaf('plugin-detached-pane')),
     split('vertical', .6, leaf('tools'), leaf('inspector')));

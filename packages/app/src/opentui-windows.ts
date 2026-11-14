@@ -406,6 +406,16 @@ export async function connectWindowLayout(storage: Storage, options: {
           } else if (!action.move) wm.focused = view.focused;
           break;
         }
+        case 'retile': {
+          if (!['left', 'right', 'up', 'down'].includes(action.key) || width <= 0 || height <= 0) return;
+          const source = view.focused;
+          view.direction(action.key, width, height);
+          if (source !== view.focused && registry.has(source) && registry.has(view.focused)) {
+            const edge = {left: 'left', right: 'right', up: 'top', down: 'bottom'} as const;
+            wm.drop(source, view.focused, edge[action.key]);
+          }
+          break;
+        }
         case 'workspace': if (validWorkspace(action.id)) wm.switchTo(action.id); break;
         case 'moveWorkspace': if (validWorkspace(action.id)) {wm.focused = view.focused; wm.moveWorkspace(action.id);} break;
       }

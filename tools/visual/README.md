@@ -193,6 +193,10 @@ intended focused pane before measuring physical cells. A completed terminal
 write can precede final reopened-pane geometry. The helper resets its three
 observations when frame, ownership or geometry changes, then sends one click;
 it does not retry a missed action or relax the selected-answer assertion.
+Appearance's final exit check waits for the exact restored prompt's journal turn
+to complete and for the Ready footer before sending its single Ctrl+C. Streamed
+answer text alone can precede Core finalization; Ctrl+C during that interval
+correctly interrupts the active turn rather than exiting an idle application.
 
 `npm run visual:opentui-child` runs ten actual configured-CLI checks in isolated
 native and selected-controller compositions (six plus four). Ordinary model

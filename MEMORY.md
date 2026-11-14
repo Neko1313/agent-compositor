@@ -1,5 +1,25 @@
 # Project memory
 
+## Editor admission completion acknowledgement — 2026-11-14
+
+The 1a7e5c9 editor build is installed locally and its 47 controlled native checks
+pass. Build-only run 43554289536 fails verification before any platform build:
+2027 tests pass, one new host test reads the initial conversation idle snapshot
+as completion after Core admission. Node 22 main CI passes; the failed release
+run stays failed. Local/native product proof is not a passed remote matrix.
+
+Reproduced the exact failure deterministically with a supported prompt.submit
+gate: admission is accepted and Core is running while the conversation's later
+turn.start frame is not published, there is no user message and HTTP count is
+zero. Preserve this admitted-but-unpublished state in the test. After releasing
+the gate, require the exact Unicode HTTP user message and actual assistant
+completion before checking final idle. The original privacy, Core message,
+request count and consumed-draft checks remain. No product, timeout, API or
+permission change. RED evidence: /tmp/compositor-editor-admission-gap-red.txt.
+The correction changes only this test and project memory; canonical behavior
+documentation and the already-verified immutable runtime payload are unchanged.
+New-head CI and four-platform native verification must be observed.
+
 ## Selected OpenTUI editor and visible window ownership — 2026-11-14
 
 The user's UI direction is an observable i3-like window manager: independent

@@ -134,8 +134,11 @@ async function editorInput(f: Awaited<ReturnType<typeof fixture>>, input: Parame
 }
 
 it('sends a selected editor draft through actual Core admission without leaking the unsubmitted private checkpoint', async () => {
-  const data: unknown[] = [];
+  const data: unknown[] = [], admission = focusGate();
   const f = await controllerFixture({editor: editorFactory([], data)});
+  f.host.core.host.registerPlugin({name: 'editor-admission-gap', version: '1.0.0', trust: 'trusted'}, {
+    'prompt.submit': async (_event, $) => {await admission.wait($.signal);},
+  });
   expect(f.host.session.snapshot().editor).toMatchObject({available: true, kind: 'editor'});
   expect(data[0]).toMatchObject({sessionId: f.host.core.sessionId, commands: expect.any(Function), files: expect.any(Function)});
   await editorInput(f, {kind: 'text', text: 'PRIVATE_DRAFT 窗🙂'});
@@ -143,6 +146,14 @@ it('sends a selected editor draft through actual Core admission without leaking 
   expect(f.requests).toHaveLength(0);expect(JSON.stringify(await f.app.store.load(f.host.core.sessionId, f.cwd))).not.toContain('PRIVATE_DRAFT');
   await editorInput(f, {kind: 'key', key: 'f2'});
   expect(f.host.session.snapshot().editor?.admission).toMatchObject({type: 'submit', status: 'accepted'});
+  await expect.poll(admission.entered).toBe(true);
+  // Admission precedes turn.start: the existing conversation still paints idle.
+  expect(f.host.core.getState()).toBe('running');expect(f.host.session.snapshot().running).toBe(false);
+  expect(f.host.core.getMessages().some(message => message.role === 'user' && message.content === 'PRIVATE_DRAFT 窗🙂')).toBe(false);
+  expect(f.requests).toHaveLength(0);
+  admission.release();
+  await expect.poll(() => f.requests.filter(request => request.body.messages.filter((message: any) => message.role === 'user').at(-1)?.content === 'PRIVATE_DRAFT 窗🙂')).toHaveLength(1);
+  await expect.poll(() => f.host.session.snapshot().messages.at(-1)).toEqual({role: 'assistant', text: 'REAL_ROUTER_COMPLETED'});
   await expect.poll(() => f.host.session.snapshot().running).toBe(false);
   expect(f.host.core.getMessages().some(message => message.role === 'user' && message.content === 'PRIVATE_DRAFT 窗🙂')).toBe(true);
   expect(f.requests).toHaveLength(1);expect(f.host.session.snapshot().editor?.view.lines[0].text).toBe('MASKED EDITOR 0');

@@ -23,8 +23,7 @@ widgets in place, including the parked editor, private standard controls and
 Finder; changing a theme does not replace their input owners. The bundled amber
 and mono themes specify explicit selection foreground/background pairs so the
 selection remains readable with either frontend's defaults. The separate
-`ui.render` status override supplied by this plugin still applies to Ink;
-OpenTUI public render overrides remain a migration gate.
+`ui.render` status override supplied by this plugin applies to both frontends.
 
 Tools no longer occupy an empty window at startup. In Ink, `Alt+t` opens detailed
 tool activity. In OpenTUI, F2 Windows can open canonical Tools, while Arrange
@@ -115,10 +114,9 @@ requires the normal focus fallback; other publications do not take focus.
 
 ## Replace a view
 
-This section describes Ink's existing render override path. Public `ui.render`
-and `ui.invalidate` adaptation for OpenTUI remain separate migration work;
-appearance support does not expose private controllers or editor checkpoints
-to these hooks.
+Ink and the configured OpenTUI frontend invoke the same public render hook.
+Each frontend supplies its own public defaults and actual drawable viewport.
+Private controllers and editor checkpoints remain outside this hook.
 
 The app invokes the existing `ui.render` hook. Keep the catalog's
 `{ tree: ... }` response envelope, with a portable text view inside:
@@ -130,7 +128,7 @@ export default {
     return {
       tree: {
         lines: [
-          ...event.props.lines.slice(0, 1), // retain workspace controls
+          ...event.props.lines.slice(0, 1), // retain the host's first status row
           { text: "My workspace · / commands", tone: "muted" },
         ],
       },
@@ -148,6 +146,27 @@ views, preserving keyboard access to offscreen actions. Props also include
 title/status and plugin identity where applicable. `event.viewport` reports
 drawable content columns and rows, excluding window chrome.
 
+OpenTUI adds `props.pane`, the actual window identity. Copies share a semantic
+site but retain separate viewports, scroll and cache entries. Plugin props also
+retain the original `plugin` and local `surface` identity. Rendered actions emit
+`ui.press` against that original actual pane, including `session`, `tools` and
+`window-N`; they do not change the action's permission or operation scope.
+
+The OpenTUI normal-mode status has two public rows: a constant Main state and
+workspace, then a generic window-navigation hint. `hints: false` leaves the
+second default row empty. The existing `ui-theme` hook decorates that second
+row. Workspace buttons and the top command toolbar retain their native hit
+areas. Arrange and Windows navigation use their own private footer instead.
+
+OpenTUI's conversation input is the positively admitted Main transcript.
+Tools hook input likewise contains only those Main tool records. Local Tools
+diagnostics may contain independent UI-operation activity; their raw arguments
+and results are never forwarded to render hooks. No public props contain parked
+drafts, selected editor or request frames, form defaults/answers, private history
+and placement capabilities, Finder queries or composer attachments. Ordinary
+producer-declared semantic search fields remain public; private forms use the
+[controller boundary](ui-controllers.md).
+
 An explicit `placement: {focus: true}` on `$.ui.view` also focuses an existing or
 reopened pane in its current workspace. It does not retile an existing pane or
 undo a user's move/resize. Saved placement rules with `focus: false` remain
@@ -158,9 +177,11 @@ Lines accept `text`, `tone`, `bold`, `selected`. Tones are `text`, `muted`,
 background and foreground. Optional view `hint` supplies the focused-panel
 shortcut line; editable input metadata can supply a `label` (default Search).
 Output is sanitized, wrapped and clipped to the viewport.
-Returning `undefined` or `$.next()` continues the chain. Invalid views or
-thrown errors preserve the default. The first valid tree returned by the
-hook chain wins, following normal tier ordering.
+Returning `undefined` or `$.next()` continues the normal tier/priority chain.
+The runtime treats an envelope-valid `{tree: ...}` as a terminal response; the
+frontend then validates that tree as `UiTextView`. An invalid final tree keeps
+the working default rather than calling later providers. Runtime faults follow
+the normal chain policy, so a later valid response can still supply the view.
 
 Results are cached until visible inputs change. After changing private
 plugin state outside rendering, request a refresh:
@@ -174,6 +195,22 @@ Async results for an obsolete viewport, theme or plugin instance are
 discarded. Render hooks are read-only: state writes and UI mutation services
 are rejected, including after an `await`. Update state in another hook and
 invalidate afterward.
+
+OpenTUI paints its resident native default immediately for a changed public
+input, then accepts only a result for the current pane, viewport and generation.
+It keeps producer defaults separate from overrides, including when invalidating
+or scrolling. Native input/controller owners are not replaced. Semantic plugin,
+Tools and Help actions remain accessible by keyboard and mouse; Main transcript
+actions use the mouse while its existing history-scroll shortcuts and composer
+keys retain their owners. Replacement `input` metadata does not replace a
+producer's field or acquire a private input capability.
+
+Pending OpenTUI render changes coalesce to the latest request. At most two
+actual emissions per pane identity and 512 across the registry remain in flight,
+including aborted hooks that have not settled. Hide, unload, reload, Core
+replacement and shutdown revoke obsolete results and actions. Native layout
+clamping of a short override does not change the saved default-scroll position;
+an actual user scroll does. Invalidation never opens a window or submits model work.
 
 Text input, approval/question dialogs and placement settings use selected private
 controllers; see [their behavior contracts](ui-controllers.md). With the standard

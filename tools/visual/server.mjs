@@ -12,6 +12,7 @@ import {seedOpenTuiEditorFixture,editorModelResponse} from './opentui-editor-fix
 import {seedOpenTuiWorkspaceControllersFixture} from './opentui-workspace-controllers-fixture.mjs';
 import {seedOpenTuiConversationCopiesFixture,conversationCopiesModelResponse} from './opentui-conversation-copies-fixture.mjs';
 import {seedOpenTuiAppearanceFixture,appearanceModelResponse} from './opentui-appearance-fixture.mjs';
+import {seedOpenTuiRenderFixture,renderModelResponse} from './opentui-render-fixture.mjs';
 import {questionsSample,questionsReply} from './questions-sample.ts';
 import {markdownSample} from './markdown-sample.ts';
 import {storagePaths} from '../../packages/config/src/storage.ts';
@@ -157,8 +158,8 @@ async function start(ws) {
   if(process.env.VISUAL_OPENTUI_APP){
     const sessions=appStarts?(await readdir(join(appLaunch.state,'sessions'))).filter(name=>name.endsWith('.jsonl')):[];
     let resumeId=sessions[0]?.slice(0,-6);
-    if(appStarts&&process.env.VISUAL_OPENTUI_CONVERSATION_COPIES){
-      const current=JSON.parse(await readFile(appLaunch.conversationCopies.active,'utf8'));
+    if(appStarts&&(process.env.VISUAL_OPENTUI_CONVERSATION_COPIES||process.env.VISUAL_OPENTUI_RENDER)){
+      const current=JSON.parse(await readFile((appLaunch.conversationCopies??appLaunch.render.shared).active,'utf8'));
       if(typeof current.id!=='string'||!sessions.includes(current.id+'.jsonl'))throw Error('Actual copy fixture startup must identify an existing journal');
       resumeId=current.id;
     }else if(appStarts&&process.env.VISUAL_OPENTUI_WORKSPACE_CONTROLLERS){
@@ -218,6 +219,10 @@ const server = Bun.serve({
       if(process.env.VISUAL_OPENTUI_APPEARANCE){
         if(appRequests>24||credential==='unexpected')return new Response('Unexpected isolated appearance request',{status:400});
         return appearanceModelResponse(prompt,body);
+      }
+      if(process.env.VISUAL_OPENTUI_RENDER){
+        if(appRequests>24||credential==='unexpected')return new Response('Unexpected isolated public render request',{status:400});
+        return renderModelResponse(prompt,body);
       }
       if(process.env.VISUAL_OPENTUI_EDITOR&&typeof prompt==='string'&&prompt.startsWith('APP_EDITOR_')){
         if(appRequests>16||credential==='unexpected')return new Response('Unexpected isolated editor request',{status:400});
@@ -375,6 +380,7 @@ if(process.env.VISUAL_OPENTUI_APP){
  const workspaceControllers=process.env.VISUAL_OPENTUI_WORKSPACE_CONTROLLERS?await seedOpenTuiWorkspaceControllersFixture(cwd,paths):undefined;
  const conversationCopies=process.env.VISUAL_OPENTUI_CONVERSATION_COPIES?await seedOpenTuiConversationCopiesFixture(cwd,paths,process.env.VISUAL_OPENTUI_COPY_COMPOSITION??'native'):undefined;
  const appearance=process.env.VISUAL_OPENTUI_APPEARANCE?await seedOpenTuiAppearanceFixture(cwd,paths,process.env.VISUAL_OPENTUI_APPEARANCE_COMPOSITION??'native'):undefined;
+ const publicRender=process.env.VISUAL_OPENTUI_RENDER?await seedOpenTuiRenderFixture(cwd,paths,process.env.VISUAL_OPENTUI_RENDER_COMPOSITION??'native'):undefined;
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['network-proxy','todos','slash-commands','model-selector','provider-auth','session-manager',
   ...(process.env.VISUAL_OPENTUI_MANAGERS?['extension-manager','marketplace-manager','local-flow-probe']:[]),
   ...(process.env.VISUAL_OPENTUI_NAVIGATION?['navigation-probe']:[]),...(cancellation?['cancellation-probe']:[]),...(requests?['request-probe']:[]),
@@ -382,9 +388,9 @@ if(process.env.VISUAL_OPENTUI_APP){
   ...(editor?[editor.provider,editor.requester,'extension-manager',...(editor.selectedProvider?[editor.selectedProvider]:[])]:[]),
   ...(workspaceControllers?[workspaceControllers.provider,workspaceControllers.requester,workspaceControllers.observer,'extension-manager']:[]),
   ...(conversationCopies?[conversationCopies.provider,conversationCopies.requester,conversationCopies.observer,'extension-manager',...(conversationCopies.selectedProvider?[conversationCopies.selectedProvider]:[])]:[]),
-  ...(appearance?appearance.plugins:[])],
-  ...((controllers||editor||workspaceControllers||conversationCopies||appearance)?{ui:{controllers:(controllers??editor??workspaceControllers??conversationCopies??appearance).selected}}:{}),
-  ...((cancellation||requests||controllers||editor||workspaceControllers||conversationCopies||appearance)?{permissions:{rules:(cancellation??requests??controllers??editor??workspaceControllers??conversationCopies??appearance).rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
+  ...(appearance?appearance.plugins:[]),...(publicRender?publicRender.plugins:[])],
+  ...((controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender)?{ui:{controllers:(controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender).selected}}:{}),
+  ...((cancellation||requests||controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender)?{permissions:{rules:(cancellation??requests??controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender).rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
  await writeFile(join(paths.state,'providers.json'),JSON.stringify({profiles:{bootstrap:{type:'openai-compat',baseUrl,model:'app-start',contextWindow:65536,timeoutMs:300000}}}));
  await writeFile(join(paths.state,'model.json'),JSON.stringify('bootstrap'));
  await writeFile(join(paths.home,'credentials.json'),JSON.stringify({bootstrap:{accessToken:appBootKey}}),{mode:0o600});
@@ -401,6 +407,7 @@ if(process.env.VISUAL_OPENTUI_APP){
  if(workspaceControllers)appLaunch.workspaceControllers=workspaceControllers;
  if(conversationCopies)appLaunch.conversationCopies=conversationCopies;
  if(appearance)appLaunch.appearance=appearance;
+ if(publicRender)appLaunch.render=publicRender;
  if(process.env.VISUAL_OPENTUI_MANAGERS){
   const catalogRoot=join(cwd,'local-flow-catalog'),source=join(catalogRoot,'plugins/local-flow-probe');
   await mkdir(join(catalogRoot,'.claude-plugin'),{recursive:true});await mkdir(source,{recursive:true});

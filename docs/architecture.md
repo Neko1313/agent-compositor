@@ -226,6 +226,17 @@ layout intent. Main tool details use exact live call occurrences admitted in the
 current noninteractive Main turn, excluding UI operations and unknown historical
 groups; reused provider IDs cannot promote private historical arguments.
 
+OpenTUI's public render adapter owns stable per-pane sources, including separate
+Main/Tools/Help copies and status. It builds explicit public defaults and calls
+the normal read-only hook chain, then validates the final portable tree. Numeric
+drawable measurements and explicit user scroll receipts enter a bounded cache;
+only current source/viewport/generation results and displayed actions survive.
+Producer defaults never come from the previous override. Status defaults are
+host-owned public data; private controller/editor/Finder objects are excluded.
+Tools' local diagnostic aggregate is not a public render input: only positively
+admitted Main tool records enter that projection. Native default-scroll memory
+survives override clamping, while private input owners stay resident.
+
 Streaming text updates are composed on a 16 ms timer instead of rebuilding the
 Markdown transcript for every provider delta. The catalog's `assistant.text`
 precursor is still available to plugins; the UI consumes the subsequent rewritten

@@ -116,7 +116,8 @@ try{
     const terminal=visual.terminal,buffer=terminal.buffer.active;
     return terminal.cols===180&&terminal.rows===50&&terminal.modes?.synchronizedOutputMode!==true
       &&buffer.getLine(buffer.viewportY+3)?.getCell(179)?.getChars()==='┐'
-      &&buffer.getLine(buffer.viewportY+48)?.getCell(179)?.getChars()==='┘';
+      &&buffer.getLine(buffer.viewportY+47)?.getCell(179)?.getChars()==='┘'
+      &&/(?:Ready|Working|Approval needed|Answer needed) · WS [1-9]/.test(buffer.getLine(buffer.viewportY+48)?.translateToString(true,0,180)??'');
   });
   await main();await setZoom(true);await command('APP_QUESTION');await wait('Main · Question');await wait('Alt+I answer');
   await type(draft);await key('Home');await key('ArrowRight');await key('F4');await noModelWork();

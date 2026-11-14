@@ -2,7 +2,7 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {randomUUID} from 'node:crypto';
 import type {AgentCore, AgentCoreOptions, LoopEvent} from '@agent-compositor/core';
 import {uiTextViewSchema, surfacePlacementSchema, type SurfacePlacement, type UiTextView} from '@agent-compositor/events';
-import type {AppearanceSnapshot, AppearanceSource, ComposerMedia, ConversationSession, ConversationWindow, ConversationWindowRegistry, UiSurfaceRegistry, UiSurfaceSnapshot, UiSurfaceSource, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
+import type {AppearanceSnapshot, AppearanceSource, ComposerMedia, ConversationSession, ConversationWindow, ConversationWindowRegistry, PublicRenderMeasurement, UiSurfaceRegistry, UiSurfaceSnapshot, UiSurfaceSource, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {BuiltApp} from './build.js';
 import {connectConversation} from './opentui-conversation.js';
 import {createInteractionInbox} from './opentui-interactions.js';
@@ -18,6 +18,8 @@ import {createOpenTuiHistoryController} from './opentui-history-controller.js';
 import {createOpenTuiPlacementController} from './opentui-placement-controller.js';
 import type {PluginWindow} from './plugin-panel.js';
 import {AppearanceContributions} from './appearance-contributions.js';
+import {createOpenTuiPublicRender} from './opentui-public-render.js';
+import {publicConversationView, publicStatusView, publicToolsView, publicWaiting} from './opentui-public-view.js';
 
 export {connectConversation, connectPluginTable} from './opentui-conversation.js';
 
@@ -168,9 +170,32 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   let editor: ReturnType<typeof createOpenTuiEditor> | undefined, offEditor: (() => void) | undefined;
   let editorDraft: UiEditorState = {text: '', cursor: 0};
   const pending = new Set<Promise<unknown>>();
+  const publicRendering = createOpenTuiPublicRender({
+    describe: describePublic,
+    render(input, signal) {
+      const owner = core;
+      if (!active || !owner || reloading || reloadFailed) return Promise.resolve({value: undefined});
+      // Rendering is not an interactive operation and cannot inherit a private
+      // request's origin or signal. HooksHost retains its normal render guard.
+      return context.exit(() => owner.host.withoutServiceScope(() => owner.host.emit('ui.render', input, signal)));
+    },
+    press(id, action) {
+      if (!active || navigation?.snapshot().mode !== 'normal' || layout.snapshot().gesture) return;
+      if (id !== 'status' && !layout.snapshot().frames.some(frame => frame.surface === id)) return;
+      const surface = surfaceMap.get(id);
+      if (surface) {
+        if (!surface.active || !surface.semantic || !surface.state.view || privateSurface(surface.state)) return;
+        layout.act({type: 'focus', id});press(surface, action);
+      } else if (id === 'status' || isMainPane(id) || auxiliary.has(id)) {
+        if (id !== 'status') layout.act({type: 'focus', id});
+        runOperation('@host', id, op => emit(op, 'ui.press', {site: id, key: action}));
+      }
+    },
+  });
   const changed = () => {
     sessionState = {...conversation.snapshot(), ...(editor ? {editor: editor.snapshot()} : {}), ...(localNotice ? {notice: localNotice} : {})};
     if (mainBinding?.owner === core) mainBinding.state = sessionState;
+    publicRendering.refresh();
     for (const fn of sessionListeners) fn();
   };
   const registryChanged = () => {
@@ -193,7 +218,45 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   };
   function publishAppearance() {
     appearanceState = Object.freeze({revision: appearanceState.revision + 1, appearance: appearanceContributions.snapshot()});
+    publicRendering.invalidate();
     for (const listener of appearanceListeners) listener();
+  }
+  function privateSurface(state: UiSurfaceSnapshot) {
+    return Boolean(state.controller || state.approval || state.interaction || state.form);
+  }
+  function describePublic(id: string, metrics: PublicRenderMeasurement) {
+    if (!active || !core) return;
+    const current = layout.snapshot(), presentation = appearanceState.appearance.presentation ?? {};
+    const status = publicWaiting(mainBinding?.state), props = {pane: id, status};
+    if (id === 'status') {
+      if (navigation?.snapshot().mode !== 'normal') return;
+      const defaultView = publicStatusView(mainBinding?.state, current.workspace, current.fullscreen, presentation, metrics.columns);
+      return {site: 'status', defaultView, props: {...props, workspace: current.workspace, lines: defaultView.lines}};
+    }
+    if (!current.frames.some(frame => frame.surface === id)) return;
+    const descriptor = descriptors().find(view => view.id === id);
+    if (descriptor?.kind === 'session' && mainBinding) {
+      // Never spread the conversation snapshot: it also owns private inputs,
+      // requests, selected controllers and editor checkpoints.
+      const defaultView = publicConversationView({messages: mainBinding.state.messages, error: mainBinding.state.error}, presentation, metrics);
+      return {site: 'conversation', defaultView, props: {...props, title: descriptor.title, lines: defaultView.lines,
+        scrollable: true, scrollOffset: metrics.scrollOffset, fieldRows: [], hostScrollKeys: true}};
+    }
+    const auxiliaryPane = auxiliary.get(id);
+    if (auxiliaryPane) {
+      const defaultView = auxiliaryPane.kind === 'tools' ? publicToolsView(mainBinding?.state.messages ?? [], metrics)
+        : auxiliaryPane.state.view ?? {lines: []};
+      return {site: auxiliaryPane.kind, defaultView, props: {...props, title: auxiliaryPane.state.title, lines: defaultView.lines,
+        scrollable: true, scrollOffset: metrics.scrollOffset, fieldRows: [], hostScrollKeys: true}};
+    }
+    const surface = surfaceMap.get(id), state = surface?.state;
+    if (!surface?.active || !surface.semantic || !state?.view || privateSurface(state) || !core.host.hasPlugin(surface.owner)) return;
+    const view = state.view, field = view.input;
+    const fieldRows = field ? [{text: clean((field.label ?? 'Search') + ': ' + (field.value || field.placeholder || '')), tone: 'accent' as const}] : [];
+    return {site: 'plugin:' + surface.owner + '/' + surface.semantic, defaultView: view, props: {...props,
+      title: state.title, lines: view.lines, ...(view.table ? {table: view.table} : {}), ...(view.tabs ? {tabs: view.tabs} : {}),
+      ...(view.raster ? {raster: view.raster} : {}), plugin: surface.owner, surface: surface.semantic,
+      scrollable: true, scrollOffset: metrics.scrollOffset, fieldRows, hostScrollKeys: (view.scrollKeys ?? (field ? 'plugin' : 'host')) === 'host'}};
   }
   const descriptors = (): readonly HostWindowView[] => [{id: 'session', title: 'Main', kind: 'session'}, ...layout.hostViews()];
   const isMainPane = (id: string) => descriptors().some(view => view.id === id && view.kind === 'session');
@@ -221,6 +284,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     const current = () => active && core === binding.owner && mainBinding === binding && !binding.channels.generation.signal.aborted;
     const ports = new Map<string, ConversationSession>();
     mainWindows = Object.freeze(descriptors().filter(view => view.kind === 'session').map(view => {
+      publicRendering.register(view.id, hostWindowIdentities.get(view.id) ?? binding);
       const inputActive = () => {
         const state = layout.snapshot();
         return current() && navigation?.snapshot().mode === 'normal' && !state.gesture && state.focused === view.id
@@ -266,12 +330,14 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     item.source = Object.freeze({id: view.id, snapshot: () => item.state,
       subscribe(fn: () => void) {if (!active) return () => {};listeners.add(fn);return () => {listeners.delete(fn);};}, press() {}, change() {}});
     auxiliary.set(view.id, item);
+    publicRendering.register(view.id, item);
   }
   function updateTools() {
     for (const item of auxiliary.values()) if (item.kind === 'tools') {
       item.state = immutable({revision: item.state.revision + 1, title: item.state.title, view: auxiliaryView('tools')});
       for (const fn of item.listeners) fn();
     }
+    publicRendering.refresh();
   }
   function createWindow(kind: HostWindowKind): boolean {
     if (!active) return false;
@@ -324,12 +390,16 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   function publish(surface: Surface, value: Omit<UiSurfaceSnapshot, 'revision'>) {
     if (!active || !surface.active) return;
     surface.state = immutable({...value, revision: surface.state.revision + 1});
+    if (surface.semantic && surface.state.view && !privateSurface(surface.state)) publicRendering.register(surface.source.id, surface);
+    else publicRendering.remove(surface.source.id);
+    publicRendering.refresh(surface.source.id);
     for (const fn of surface.listeners) fn();
     navigation?.refresh();
   }
   function remove(surface: Surface, retain = false) {
     if (!surface.active) return;
     surface.active = false;
+    publicRendering.remove(surface.source.id);
     const controller=privateWindows.get(surface);privateWindows.delete(surface);controller?.close();
     changes.delete(surface);
     // A handler may remove its own view before resuming a chat or opening a form.
@@ -793,6 +863,11 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   }
   function receive(event: LoopEvent) {
     if (!active || event.kind !== 'catalog') return;
+    if (event.event === 'ui.invalidate') {
+      const scope = core.host.currentServiceScope;
+      if (!scope?.lifetime.aborted && !scope?.signal.aborted) publicRendering.invalidate();
+      return;
+    }
     if (event.event === 'ui.appearance') {
       const scope = core.host.currentServiceScope;
       if (scope?.lifetime.aborted || scope?.signal.aborted) return;
@@ -820,6 +895,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     }
     if (event.event === 'ui.pluginRemoved') {
       const owner = String(event.input.plugin);
+      publicRendering.invalidate();
       if (appearanceContributions.remove(owner)) publishAppearance();
       for (const [id, contribution] of composerViews) if (contribution.owner === owner) {
         reportVisible(id, owner, false, false, 0, 0); composerViews.delete(id);
@@ -902,6 +978,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     nextChannels.core = next;
     const nextInbox = nextChannels.inbox;
     core = next; inbox = nextInbox;
+    publicRendering.reset();
     appearanceContributions.clear();publishAppearance();
     inbox.bind(next);
     offOrigin = next.host.setInvocationOriginProvider(() => context.getStore());
@@ -914,6 +991,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     sessionState = conversation.snapshot();
     if (bindGeneration) {toolsText = '';updateTools();}
     mainBinding = {owner: next, channels: nextChannels, generation: ++bindGeneration, conversation, state: sessionState};
+    publicRendering.register('status', nextChannels);
+    for (const [id, pane] of auxiliary) publicRendering.register(id, pane);
     rebuildMainWindows();
     navigation?.refresh();
     offConversation = conversation.subscribe(changed);
@@ -970,6 +1049,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     });
   }
   function unbind() {
+    publicRendering.reset();
     offHistory?.();offHistory=undefined;
     offEditor?.();offEditor = undefined;
     if (editor) {editorDraft = editor.checkpoint();editor.close();editor = undefined;}
@@ -1008,7 +1088,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     reloadPromise = work;
     pending.add(work);
     try {return await work;}
-    finally {pending.delete(work); if (reloadPromise === work) reloadPromise = undefined;}
+    finally {pending.delete(work); if (reloadPromise === work) reloadPromise = undefined;publicRendering.invalidate();}
   }
   function route(text: string): {owner: string; site: string; key?: string; command?: string;host?:'placement'} | undefined {
     const name = text.trim().split(/\s+/)[0];
@@ -1202,6 +1282,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     mainTarget: () => mainTarget(true), createWindow});
   let lastFocus: string | undefined;
   offLayout = layout.subscribe(() => {
+    // Focus, close/workspace and measured frame changes revoke pending public
+    // work before React can report its next drawable content measurements.
+    publicRendering.invalidate();
     reportVisibility();
     const focused = layout.snapshot().focused;
     if (isMainPane(focused)) mainAnchor = focused;
@@ -1213,7 +1296,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   return {
     get session() {return mainPorts.get('session')!;}, conversationWindows,
     mainSession: (id: string) => mainPorts.get(id), isMainPane, createWindow,
-    surfaces, composerMedia, navigation, appearance, get core() {return core;}, submit,
+    surfaces, composerMedia, navigation, appearance, publicRender: publicRendering.slots, get core() {return core;}, submit,
     cancelOperation(surfaceId: string): boolean {
       if (!active) return false;
       let cancelled = false;
@@ -1223,10 +1306,11 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       }
       return cancelled;
     },
-    async start() {if (!active || started) return; started = true; await core.start();},
+    async start() {if (!active || started) return; started = true;try {await core.start();} finally {publicRendering.invalidate();}},
     async close() {
       if (!active) return;
       active = false;
+      publicRendering.close();
       navigation?.close();
       changes.clear();
       offLayout?.();

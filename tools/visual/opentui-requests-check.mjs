@@ -108,7 +108,8 @@ try{
     const terminal=visual.terminal,buffer=terminal.buffer.active;
     return terminal.cols===180&&terminal.rows===50&&terminal.modes?.synchronizedOutputMode!==true
       &&buffer.getLine(buffer.viewportY+3)?.getCell(179)?.getChars()==='┐'
-      &&buffer.getLine(buffer.viewportY+48)?.getCell(179)?.getChars()==='┘';
+      &&buffer.getLine(buffer.viewportY+47)?.getCell(179)?.getChars()==='┘'
+      &&/(?:Ready|Working|Approval needed|Answer needed) · WS [1-9]/.test(buffer.getLine(buffer.viewportY+48)?.translateToString(true,0,180)??'');
   });
   await command('APP_QUESTION');await wait('MAIN_QUESTION: choose deployment');
   await click('Edit answer');await click('[ ] Production');await wait('[x] Production');await click('Draft');

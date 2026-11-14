@@ -5,8 +5,8 @@ Switch between slate, amber and mono themes. Demonstrates appearance and ui.rend
 `/theme slate|amber|mono` publishes portable appearance in Ink and the opt-in
 OpenTUI frontend. Amber and mono include explicit selection color pairs for
 readable text with either frontend's defaults. The status-text `ui.render`
-override currently applies to Ink; OpenTUI render overrides remain separate
-migration work. See [appearance semantics](../../docs/ui-theming.md).
+override applies through the public `ui.render` hook in both frontends.
+See [appearance and render semantics](../../docs/ui-theming.md).
 
 ## Use
 

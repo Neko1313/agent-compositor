@@ -98,7 +98,7 @@ for(const composition of ['native','selected']){
     if(launch.executable){assert.equal(hash(await readFile(launch.executable)),launch.sha256);result.executable={path:launch.executable,sha256:launch.sha256};
       const file=join(dirname(launch.executable),'node_modules/@agent-compositor/renderer-opentui/index.js');result.renderer={path:file,sha256:hash(await readFile(file))};}
     await page.evaluate(()=>visual.terminal.resize(180,50));await page.waitForFunction(()=>{const t=visual.terminal,b=t.buffer.active;
-      return t.cols===180&&t.rows===50&&t.modes?.synchronizedOutputMode!==true&&b.getLine(b.viewportY+3)?.getCell(179)?.getChars()==='┐'&&b.getLine(b.viewportY+48)?.getCell(179)?.getChars()==='┘';});
+      return t.cols===180&&t.rows===50&&t.modes?.synchronizedOutputMode!==true&&b.getLine(b.viewportY+3)?.getCell(179)?.getChars()==='┐'&&b.getLine(b.viewportY+47)?.getCell(179)?.getChars()==='┘'&&/(?:Ready|Working|Approval needed|Answer needed) · WS [1-9]/.test(b.getLine(b.viewportY+48)?.translateToString(true,0,180)??'');});
     await main();await setZoom(true);await editor('');await wait('viewport 7');await wait('F9 history scroll');await wait('F2 sends · Enter inserts a line');
 
     if(composition==='native'){

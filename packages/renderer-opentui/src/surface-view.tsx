@@ -1,31 +1,39 @@
 /** @jsxImportSource @opentui/react */
-import {MouseButton, TextAttributes, type InputRenderable, type ScrollBoxRenderable} from '@opentui/core';
+import {MouseButton, type InputRenderable, type ScrollBoxRenderable} from '@opentui/core';
 import {flushSync, useKeyboard} from '@opentui/react';
 import {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import type {UiTextView} from '@agent-compositor/events';
 import {useAppearance} from './appearance.js';
-import {handleActionMouseDown} from './mouse-action.js';
 import {Interaction} from './interaction.js';
 import {ApprovalCard} from './approval-card.js';
 import {surfaceActions} from './surface-actions.js';
 import type {UiSurfaceSource} from './surface.js';
 import {createSurfaceRequestSession,hasSurfaceRequest,surfaceInteraction} from './surface.js';
-import {SurfaceRaster} from './surface-raster.js';
+import {TextViewContent,TextViewTabs,literalViewText as literal} from './text-view.js';
+import type {PublicRenderSlotSource} from './public-render.js';
+import {usePublicRenderMeasurement,usePublicRenderSnapshot,usePublicScrollMemory} from './public-render-view.js';
+import {createConversationScrollMemory} from './conversation-scroll.js';
 import {ControllerFrame} from './controller-view.js';
 import {isWindowController} from './controller.js';
 
-const literal=(text:string)=>text.replace(/[\p{Cc}\p{Bidi_Control}\p{Zl}\p{Zp}]/gu,point=>'\\u'+point.charCodeAt(0).toString(16).padStart(4,'0'));
-
-export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
+export function SurfaceView({source,focused,width,height,isActive,isVisible,publicRender}: {
   source:UiSurfaceSource;focused:boolean;width:number;height:number;isActive():boolean;isVisible():boolean;
+  publicRender?:PublicRenderSlotSource;
 }) {
-  const {color,tones:toneColor,presentation}=useAppearance();
+  const {color,presentation}=useAppearance();
   const state=useSyncExternalStore(source.subscribe,source.snapshot);
-  const view=state.view;
+  const publicState=usePublicRenderSnapshot(publicRender);
+  const override=hasSurfaceRequest(state)?undefined:publicState.override;
+  // Render hooks cannot replace the producer's input field or acquire its owner.
+  const view=override?{...override,input:state.view?.input,scrollKeys:state.view?.scrollKeys}:state.view;
   const input=useRef<InputRenderable>(null);
   const fieldId=useRef<string|undefined>(undefined);
   const syncingInput=useRef(false);
   const scroller=useRef<ScrollBoxRenderable>(null);
+  const memory=useMemo(()=>{const memory=createConversationScrollMemory();memory.reset(source);memory.record(source.id,{top:0,followBottom:false});return memory;},[source]);
+  const publicVisible=isVisible()&&!hasSurfaceRequest(state);
+  const scrollReady=usePublicScrollMemory(scroller,source.id,publicVisible,source,memory,Boolean(override));
+  const publicScroll=usePublicRenderMeasurement(publicRender,scroller,publicVisible,undefined,
+    {ready:scrollReady,input:offset=>{if(override)memory.record(source.id,{top:offset,followBottom:false});}});
   const [selected,setSelected]=useState<string>();
   const [searching,setSearching]=useState(false);
   const actions=surfaceActions(view);
@@ -39,14 +47,13 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     locate(row.action,'row-'+row.id);
     if(row.expanded)row.details?.forEach((line,index)=>locate(line.action,'detail-'+row.id+'-'+index));
   });
-  const narrow=width<60;
   const activeRequest=useRef(isActive);activeRequest.current=isActive;
   const requestSession=useMemo(()=>createSurfaceRequestSession(source,()=>activeRequest.current()),[source]);
   const interaction=surfaceInteraction(state);
   useLayoutEffect(()=>{
     const id=action?locations.get(action):undefined;
     if(id)scroller.current?.scrollChildIntoView(id);
-  },[action,state.revision,width,height]);
+  },[action,state.revision,publicState.revision,width,height]);
   useLayoutEffect(()=>{
     const field=view?.input;
     if(input.current&&field&&(fieldId.current!==field.id||(!state.busy&&(!focused||!searching)&&input.current.value!==field.value))){
@@ -58,9 +65,10 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
 
   const canPress=()=>{
     const current=source.snapshot();
-    return isVisible()&&current.revision===state.revision&&!hasSurfaceRequest(current);
+    return isVisible()&&current.revision===state.revision&&!hasSurfaceRequest(current)
+      &&(!publicRender||publicRender.snapshot().revision===publicState.revision);
   };
-  const press=(key:string)=>{if(canPress())source.press(key,state.revision);};
+  const press=(key:string)=>{if(canPress()){if(override)publicRender?.press(key,publicState.revision);else source.press(key,state.revision);}};
   useKeyboard(key=>{
     if(key.defaultPrevented||!isActive()||hasSurfaceRequest(source.snapshot()))return;
     if(key.name==='escape'&&!key.meta&&!key.ctrl&&searching){key.preventDefault();flushSync(()=>setSearching(false));return;}
@@ -71,7 +79,7 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
       return;
     }
     if(key.name==='pageup'||key.name==='pagedown'){
-      key.preventDefault();scroller.current?.scrollBy(key.name==='pageup'?-1:1,'viewport');return;
+      key.preventDefault();publicScroll.input();scroller.current?.scrollBy(key.name==='pageup'?-1:1,'viewport');return;
     }
     if(searching)return;
     if(key.ctrl||key.meta||key.super||key.hyper)return;
@@ -98,28 +106,9 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     </box>}
   </box>;
 
-  function line(line:UiTextView['lines'][number],key:string){
-    const target=line.action;
-    const chosen=Boolean(target&&target===action&&!searching);
-    return <box key={key} id={elementId(key)} flexShrink={0}
-      backgroundColor={line.selected?color.selectionBackground:chosen?color.actionBackground:undefined} onMouseDown={event=>{
-        if(target)handleActionMouseDown(event,canPress(),()=>{
-          flushSync(()=>{setSelected(target);setSearching(false);});press(target);
-        });
-      }}>
-      <text selectable={!target} wrapMode="word" fg={line.selected?color.selectionText:chosen?color.actionText:toneColor[line.tone??'text']}
-        attributes={line.bold||line.selected||chosen?TextAttributes.BOLD:TextAttributes.NONE}>{literal(line.text)}</text>
-    </box>;
-  }
+  const select=(target:string)=>{setSelected(target);setSearching(false);};
   return <box flexGrow={1} flexDirection="column" paddingX={1} minHeight={0}>
-    {view?.tabs&&<box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>
-      {view.tabs.map(tab=><box key={tab.id} id={elementId('tab-'+tab.id)} height={1} paddingX={1}
-        backgroundColor={tab.selected?color.selectionBackground:color.panel} onMouseDown={event=>{
-          handleActionMouseDown(event,!tab.disabled&&canPress(),()=>{
-            flushSync(()=>{setSelected(tab.action);setSearching(false);});press(tab.action);
-          });
-        }}><text selectable={false} fg={tab.disabled?color.muted:tab.selected?color.selectionText:color.text}>{literal(tab.label)}</text></box>)}
-    </box>}
+    {view&&<TextViewTabs view={view} elementId={elementId} canPress={canPress} press={press} select={select}/>}
     {view?.input&&<box height={1} flexShrink={0} flexDirection="row" onMouseDown={event=>{
       if(event.button===MouseButton.LEFT&&isVisible()&&!hasSurfaceRequest(source.snapshot()))flushSync(()=>setSearching(true));
     }}>
@@ -134,34 +123,13 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
           if(!syncingInput.current&&isActive()&&searching&&!hasSurfaceRequest(current)&&current.view?.input?.id===view.input!.id)source.change(view.input!.id,value,current.revision);
         }} />
     </box>}
-    <scrollbox ref={scroller} flexGrow={1} flexBasis={0} minHeight={1} focusable={false} scrollY scrollX={false}>
+    <scrollbox ref={scroller} flexGrow={1} flexBasis={0} minHeight={1} focusable={false} scrollY scrollX={false} onMouse={publicScroll.onMouse}>
       {!view&&<text fg={color.muted}>Waiting for this view</text>}
-      {view?.raster&&<SurfaceRaster raster={view.raster} width={width-2} height={height} visible={isVisible()}/>}
-      {view?.lines.map((row,index)=>line(row,'line-'+index))}
-      {view?.table&&<>
-        {!narrow&&<box flexDirection="row">{view.table.columns.map((column,index)=><text key={index} flexBasis={0}
-          flexGrow={column.width??1} fg={color.muted} truncate>{literal(column.label)}</text>)}</box>}
-        {!view.table.rows.length&&<text fg={color.muted}>{literal(view.table.empty??'No rows')}</text>}
-        {view.table.rows.map(row=><box key={row.id} flexDirection="column" flexShrink={0}>
-          <box id={elementId('row-'+row.id)} flexDirection={narrow?'column':'row'}
-            backgroundColor={row.action===action?color.actionBackground:undefined} onMouseDown={event=>{
-              const target=row.action;
-              if(target)handleActionMouseDown(event,canPress(),()=>{
-                flushSync(()=>{setSelected(target);setSearching(false);});press(target);
-              });
-            }}>
-            {row.cells.map((cell,index)=><text key={index} selectable={!row.action} wrapMode={narrow?'word':'none'}
-              {...(narrow?{}:{flexBasis:0,flexGrow:view.table!.columns[index].width??1})} truncate={!narrow}
-              fg={row.action===action?color.actionText:toneColor[row.tone??'text']}>
-              {literal((narrow?view.table!.columns[index].label+': ':'')+cell)}
-            </text>)}
-          </box>
-          {row.expanded&&row.details?.map((detail,index)=>line(detail,'detail-'+row.id+'-'+index))}
-        </box>)}
-      </>}
+      {view&&<TextViewContent view={view} width={width-2} height={height} visible={isVisible()} action={action} narrow={width<60} linesActive={!searching}
+        elementId={elementId} canPress={canPress} press={press} select={select}/>}
     </scrollbox>
     {state.error&&<text wrapMode="word" fg={color.error}>{literal(state.error)}</text>}
     {state.busy&&<text fg={color.running}>Working…</text>}
-    {focused&&(view?.hint||presentation.hints)&&<text truncate fg={color.muted}>{view?.hint??(view?.input?'Tab search/actions · ↑↓ select · Enter activate':'↑↓ select · Enter activate · PgUp/PgDn scroll')}</text>}
+    {focused&&(view?.hint||presentation.hints)&&<text truncate fg={color.muted}>{literal(view?.hint??(view?.input?'Tab search/actions · ↑↓ select · Enter activate':'↑↓ select · Enter activate · PgUp/PgDn scroll'))}</text>}
   </box>;
 }

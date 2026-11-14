@@ -229,7 +229,43 @@ receipts. The fixture validates manifests, catalog hook names and appearance
 schemas before launch. Its Finder oracle checks the current selection colors
 and each supported border style. Models use only the normal saved loopback
 profile; these checks do not establish live-model or physical-terminal quality.
-The public `ui.render` override and complete wire protocol remain separate gates.
+The complete wire protocol remains a separate gate.
+
+`npm run visual:opentui-render` exercises the configured CLI's public
+`ui.render`/`ui.invalidate` contract in five native-control and three
+selected-control checks. The actual bundled `/theme amber|mono|slate` hook must
+replace the second status row; saving a theme or changing colors alone does not
+pass. Configured normal mode reserves exactly two status rows; Arrange/Finder
+retain their private footer. The fixture covers `conversation`, `tools`, `help`,
+`status` and `plugin:<owner>/<surface>`, including independently measured Main
+copies, original producer data and producer-owned native input.
+
+Trusted fixture hooks exercise default-first rendering behind an external gate,
+the real tier/continuation chain, invalid opaque final trees, throw/timeout
+fallback, asynchronous read-only effect guards and invalidation. Actual mouse
+and keyboard input activates render-added rows/tabs/expanded table details;
+graphics-disabled output must retain the raster's supplied alt text. This
+proves the portable fallback, not physical terminal media support. Main public
+actions preserve its native or selected editor's Unicode draft/cursor/undo.
+When the original selected editor truncates its single text row in a narrow
+copy, the check retains that exact view and width: it verifies the visible
+edit/caret and Unicode suffix, plus a private SHA256/UTF16/cursor receipt from
+the original controller snapshot after its real input handler. Raw drafts are
+never added to that receipt or to public render props.
+Private request/form/controller values and UI-tool arguments/results must not
+enter public hook props or model traffic. An ordinary UI-tool operation's
+documented journal audit is not reclassified as a privacy failure.
+
+Real extension disable/re-enable, manager Apply, fork/resume and process restart
+exercise stale hook results, checkpoint ownership, saved theme/context and exact
+window/view metadata. Unsent drafts are retained in-process; restart does not
+promise unsaved input. Manifests, generated module imports, catalog hook names
+and valid override trees are preflighted before a PTY run. Artifacts default to
+`dist/visual-opentui-render/` with per-composition reports, immutable runtime
+hashes, same-buffer captures, public render receipts, original input/ANSI and
+private-value scan results. The input log intentionally contains synthetic typed
+values and is excluded from privacy claims. CI runs the source scenario; every
+native release target runs the same scenario from a fresh relocated archive.
 
 
 Known-label Finder opens in the controller, request-window, manager and

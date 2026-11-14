@@ -501,11 +501,28 @@ call occurrences prevent provider-ID reuse from exposing private arguments.
 The real source and relocated Linux native theme/multi-publisher/private-request/
 reload/restart scenarios each pass eight cases, with native and selected controls,
 both PTYs exiting 0 and sixteen retained captures. The same archive passes all
-64 earlier native checks. Exact-head four-platform checks remain candidate
-requirements; pure resolution tests are narrower.
+64 earlier native checks. The exact 6ff63f4 candidate passes all four native
+platforms, with 260 downloaded OpenTUI checks and 32 installed-runtime smoke
+reports independently audited. The earlier cdb2d4a macOS bench failures remain
+preserved, with exact ANSI/input diagnoses and scoped acknowledgment repairs.
+This closes the appearance checkpoint; pure resolution tests are narrower.
 
-Remaining frontend gates include public render overrides, complete
-wire-protocol parity and exact delegated-child request attribution. Ordinary UI
+Public render adaptation now registers explicit per-pane public slots for
+conversation, Tools, Help, status and ordinary plugin views. The runtime keeps
+normal chain ordering and render-only effect guards; the host validates final
+trees and fences asynchronous results and displayed actions by current source,
+viewport and generation. Native default-scroll state and resident private input
+owners remain independent of replacement public content. Two public normal-mode
+status rows expose the real bundled theme hook. Local Tools diagnostic arguments
+from UI operations never enter the public render projection. The complete actual
+CLI scenario passes eight cases from source and a relocated Linux native archive
+(native five, selected three), including exact action, privacy, coalescing and
+stale-generation receipts. The same immutable archive passes all 72 preceding
+native cases. Independent local archive, receipt and screenshot review passes;
+exact-head four-platform verification remains required before closing this gate.
+
+Remaining frontend gates include complete wire-protocol parity and exact
+delegated-child request attribution. Ordinary UI
 operations and retained plugin services now receive independent
 approval/question/questionnaire/form windows. Verification
 keeps Main pending while real guarded tools, separate same-owner questions,

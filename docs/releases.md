@@ -108,6 +108,14 @@ Source and all four relocated native jobs require the same appearance gate.
 Reports, terminal input/output, screenshots and executable/renderer identities
 are retained with the other installed-runtime evidence, including on failure.
 
+`npm run visual:opentui-render` adds the public hook gate in native/selected
+compositions. It exercises the actual bundled theme status override, every public
+site and differently sized copies, default-first asynchronous rendering, normal
+hook-chain validation/effect guards, invalidation, rendered actions/table/tabs/
+raster, private input isolation and stale results across lifecycle changes.
+Source and all four relocated native jobs require this gate and retain its
+actual input/output, screenshots, receipts and executable/renderer identities.
+
 User and project plugin directories take precedence over the distribution's
 supplied packages. Since v0.4.0, plugins remain inactive until explicitly enabled
 in user or project scope; installation alone never activates them. The repository

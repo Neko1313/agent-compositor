@@ -4,6 +4,7 @@ import {useRenderer} from '@opentui/react';
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import type {UiTextView} from '@agent-compositor/events';
 import {useAppearance} from './appearance.js';
+import {appearanceText} from './colors.js';
 
 type Raster=NonNullable<UiTextView['raster']>;
 function Pixels({raster,width,height}:{raster:Raster;width:number;height:number}){
@@ -35,5 +36,5 @@ export function SurfaceRaster({raster,width,height,visible}:{raster:Raster;width
   const graphics=process.env.AGENT_GRAPHICS??'auto';
   if(supported&&(graphics==='auto'||graphics==='kitty')&&process.env.NO_COLOR===undefined&&process.env.TERM!=='dumb')
     return <Pixels raster={raster} width={width} height={Math.max(1,Math.min(height-3,Math.ceil(width/2)))}/>;
-  return raster.alt?<text fg={color.muted} wrapMode="word">{raster.alt}</text>:null;
+  return raster.alt?<text fg={color.muted} wrapMode="word">{appearanceText(raster.alt)}</text>:null;
 }

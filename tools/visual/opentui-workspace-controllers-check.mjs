@@ -41,7 +41,7 @@ try{
   async function setZoom(enabled){await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');await wait('WINDOW MODE · '+(enabled?'Zoomed':'Tiled'));await key('Escape');await normal();if(enabled)await wait('Zoomed · Alt+W f tiles');}
   async function resize(columns,rows=50){await page.evaluate(({columns,rows})=>visual.terminal.resize(columns,rows),{columns,rows});await page.waitForFunction(({columns,rows})=>{const t=visual.terminal,b=t.buffer.active;
-    return t.cols===columns&&t.rows===rows&&t.modes?.synchronizedOutputMode!==true&&b.getLine(b.viewportY+3)?.getCell(columns-1)?.getChars()==='┐'&&b.getLine(b.viewportY+rows-2)?.getCell(columns-1)?.getChars()==='┘';},{columns,rows});}
+    return t.cols===columns&&t.rows===rows&&t.modes?.synchronizedOutputMode!==true&&b.getLine(b.viewportY+3)?.getCell(columns-1)?.getChars()==='┐'&&b.getLine(b.viewportY+rows-3)?.getCell(columns-1)?.getChars()==='┘'&&/(?:Ready|Working|Approval needed|Answer needed) · WS [1-9]/.test(b.getLine(b.viewportY+rows-2)?.translateToString(true,0,columns)??'');},{columns,rows});}
   let pointerAttempt=0;
   async function click(label,index=1){const attempt=++pointerAttempt,handle=await page.waitForFunction(({label,index,attempt})=>{
     const t=visual.terminal,b=t.buffer.active;if(t.modes?.synchronizedOutputMode===true){delete window.__workspacePointer;return;}

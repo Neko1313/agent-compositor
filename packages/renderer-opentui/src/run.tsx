@@ -13,6 +13,7 @@ import {useKeyboard} from '@opentui/react';
 import {createEditorInputOwnership} from './editor-ownership.js';
 import type {ConversationWindowRegistry} from './conversation-windows.js';
 import {AppearanceProvider,type AppearanceSource} from './appearance.js';
+import type {PublicRenderSlots} from './public-render.js';
 
 // Closed windows keep native widgets resident. The host admits at most 256
 // panes, each with up to two keyboard hooks; SDK and desktop handlers use the
@@ -28,6 +29,7 @@ export interface OpenTuiOptions {
   composerMedia?: ComposerMedia;
   conversationWindows?: ConversationWindowRegistry;
   appearance?:AppearanceSource;
+  publicRender?:PublicRenderSlots;
   windowLayout: WindowLayoutSource;
   stdin?: NodeJS.ReadStream;
   stdout?: NodeJS.WriteStream;
@@ -87,7 +89,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     return <AppearanceProvider source={options.appearance}><ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
       animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership}
-      conversationWindows={options.conversationWindows} /></AppearanceProvider>;
+      conversationWindows={options.conversationWindows} publicRender={options.publicRender} /></AppearanceProvider>;
   }
   try {
     renderer.keyInput.setMaxListeners(keyboardListenerLimit);
@@ -110,5 +112,6 @@ export type {ComposerMedia} from './ghost.js';
 export type {ConversationSession, ConversationSnapshot, ConversationApproval, ConversationInteraction, Message} from './session.js';
 export type {ConversationWindow, ConversationWindowRegistry} from './conversation-windows.js';
 export type {AppearanceSource,AppearanceSnapshot} from './appearance.js';
+export type {PublicRenderSlotSnapshot,PublicRenderMeasurement,PublicRenderSlotSource,PublicRenderSlots} from './public-render.js';
 export type {ConversationController, ConversationEditor, WindowController, ControllerInput, ControllerView, ControllerCell} from './controller.js';
 export type {WindowLayoutSource, WindowLayoutSnapshot, WindowLayoutAction, WindowFrame, WindowDirection, WindowDropEdge, WindowSplitTarget} from './layout.js';

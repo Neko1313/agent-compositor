@@ -24,6 +24,9 @@ import {controllerBlocksInput} from './controller.js';
 import type {EditorInputOwnership} from './editor-ownership.js';
 import {conversationInputWindow,groupConversationWindows,type ConversationWindowRegistry,type ConversationWindow} from './conversation-windows.js';
 import {createConversationScrollMemory} from './conversation-scroll.js';
+import type {PublicRenderSlots,PublicRenderSlotSource} from './public-render.js';
+import {usePublicRenderMeasurement,usePublicRenderSnapshot,usePublicScrollMemory as useConversationScroll} from './public-render-view.js';
+import {TextViewContent,TextViewTabs} from './text-view.js';
 
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
@@ -82,16 +85,6 @@ function SessionTab({ session, label, ...tab }: Omit<TabProps, 'label'> & { sess
 
 type ScrollMemory=ReturnType<typeof createConversationScrollMemory>;
 
-function useConversationScroll(history:React.RefObject<ScrollBoxRenderable|null>,paneId:string,visible:boolean,epoch:string|number,memory:ScrollMemory){
-  useLayoutEffect(()=>{
-    const box=history.current;
-    memory.reset(epoch);
-    if(!box||!visible)return;
-    const cancel=memory.restore(paneId,box);
-    return()=>{cancel();if(!box.isDestroyed)memory.capture(paneId,box);};
-  },[paneId,visible,epoch,memory]);
-}
-
 function TranscriptMessages({session}: {session:ConversationSession}){
   const {color,presentation}=useAppearance();
   const state=useSyncExternalStore(useSessionSubscription(session),()=>session.snapshot());
@@ -112,23 +105,66 @@ function TranscriptMessages({session}: {session:ConversationSession}){
   </>;
 }
 
+/** Only the public transcript changes; native editors and request widgets stay resident. */
+function PublicTranscript({session,paneId,source,width,height,isVisible}: {
+  session:ConversationSession;paneId:string;source?:PublicRenderSlotSource;width:number;height:number;isVisible():boolean;
+}){
+  const state=usePublicRenderSnapshot(source),[action,setAction]=useState<string>();
+  const view=state.override,elementId=(key:string)=>'public-history-'+paneId+'-'+key;
+  const canPress=()=>Boolean(view&&source&&isVisible()&&source.snapshot().revision===state.revision);
+  const press=(action:string)=>{if(canPress())source?.press(action,state.revision);};
+  return <>
+    <box visible={!view} flexDirection="column" gap={1} flexShrink={0}><TranscriptMessages session={session}/></box>
+    {view&&<box flexDirection="column" flexShrink={0}>
+      <TextViewTabs view={view} elementId={elementId} canPress={canPress} press={press} select={setAction}/>
+      <TextViewContent view={view} width={width} height={height} visible={isVisible()} action={action}
+        elementId={elementId} canPress={canPress} press={press} select={setAction}/>
+    </box>}
+  </>;
+}
+
+function PublicStatus({source,visible}:{source?:PublicRenderSlotSource;visible:boolean}){
+  const state=usePublicRenderSnapshot(source),scroller=useRef<ScrollBoxRenderable>(null);
+  const [action,setAction]=useState<string>();
+  const publicScroll=usePublicRenderMeasurement(source,scroller,visible);
+  const view=state.override??state.defaultView;
+  const canPress=()=>Boolean(visible&&source&&source.snapshot().revision===state.revision);
+  const press=(action:string)=>{if(canPress())source?.press(action,state.revision);};
+  const elementId=(key:string)=>'public-status-'+key;
+  return <box visible={visible} height={2} flexShrink={0} paddingX={1} flexDirection="column" minWidth={0}>
+    <scrollbox ref={scroller} width="100%" height={2} minHeight={2} minWidth={0} focusable={false} scrollX={false} scrollY onMouse={publicScroll.onMouse}
+      verticalScrollbarOptions={{visible:false}}>
+      {view&&<>
+        <TextViewTabs view={view} elementId={elementId} canPress={canPress} press={press} select={setAction}/>
+        <TextViewContent view={view} width={scroller.current?.viewport.width??1} height={2} visible={visible} action={action}
+          elementId={elementId} canPress={canPress} press={press} select={setAction}/>
+      </>}
+    </scrollbox>
+  </box>;
+}
+
 /** Inactive copies have their own history, without another editor or request controller. */
-function ConversationCopy({window,visible,memory}: {window:ConversationWindow;visible:boolean;memory:ScrollMemory}){
+function ConversationCopy({window,visible,memory,width,height,isVisible,publicRender}: {
+  window:ConversationWindow;visible:boolean;memory:ScrollMemory;width:number;height:number;isVisible():boolean;publicRender?:PublicRenderSlotSource;
+}){
   const {color}=useAppearance();
   const history=useRef<ScrollBoxRenderable>(null),session=window.session;
   const state=useSyncExternalStore(useSessionSubscription(session),()=>session.snapshot());
-  useConversationScroll(history,window.id,visible,session.generation??session.id,memory);
+  const publicState=usePublicRenderSnapshot(publicRender);
+  const scrollReady=useConversationScroll(history,window.id,visible,session.generation??session.id,memory,Boolean(publicState.override));
+  const publicScroll=usePublicRenderMeasurement(publicRender,history,visible&&isVisible(),{columns:2,rows:2},
+    {ready:scrollReady,input:offset=>{if(publicState.override)memory.record(window.id,{top:offset,followBottom:false});}});
   const pending=state.controller?.kind??(state.approval?'approval':state.interaction?.kind);
   return <box flexDirection="column" flexGrow={1} minHeight={0}>
-    <scrollbox ref={history} flexGrow={1} flexBasis={0} minHeight={0} focusable={false} scrollX={false} scrollY
+    <scrollbox ref={history} flexGrow={1} flexBasis={0} minHeight={0} focusable={false} scrollX={false} scrollY onMouse={publicScroll.onMouse}
       stickyScroll stickyStart="bottom" contentOptions={{paddingX:1,paddingY:1,gap:1}}>
-      <TranscriptMessages session={session}/>
+      <PublicTranscript session={session} paneId={window.id} source={publicRender} width={Math.max(1,width-2)} height={height} isVisible={isVisible}/>
     </scrollbox>
     {pending&&<text fg={color.running} truncate>{pending[0].toUpperCase()+pending.slice(1)+' pending · focus this window to answer'}</text>}
   </box>;
 }
 
-function Conversation({ selected, paneId, visible, scrollMemory, animations, composerMedia, focused, width, height, isActive, isVisible,editorOwnership }: {
+function Conversation({ selected, paneId, visible, scrollMemory, animations, composerMedia, focused, width, height, isActive, isVisible,editorOwnership,publicRender }: {
   selected: ConversationSession;
   paneId:string;
   visible:boolean;
@@ -141,10 +177,12 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   isActive(): boolean;
   isVisible(): boolean;
   editorOwnership?:EditorInputOwnership;
+  publicRender?:PublicRenderSlotSource;
 }) {
   const {color,presentation,customText}=useAppearance();
   const textColor=customText?parseColor(color.text):composerForeground;
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
+  const publicState=usePublicRenderSnapshot(publicRender);
   const editor = useRef<TextareaRenderable>(null);
   const history = useRef<ScrollBoxRenderable>(null);
   const [inputMode, setInputMode] = useState<{id: string; epoch:string|number; editing: boolean}>();
@@ -156,7 +194,9 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   const requestId=state.controller?.id??state.interaction?.id;
   const requestEpoch=selected.generation??selected.id;
   const editing = Boolean(requestId && inputMode?.id === requestId && inputMode.epoch===requestEpoch && inputMode.editing);
-  useConversationScroll(history,paneId,visible&&!editing,selected.generation??selected.id,scrollMemory);
+  const scrollReady=useConversationScroll(history,paneId,visible&&!editing,selected.generation??selected.id,scrollMemory,Boolean(publicState.override));
+  const publicScroll=usePublicRenderMeasurement(publicRender,history,visible&&!editing&&isVisible(),{columns:2,rows:state.approval?0:2},
+    {ready:scrollReady,input:offset=>{if(publicState.override)scrollMemory.record(paneId,{top:offset,followBottom:false});}});
   const ownsEditor=()=>{
     const current=selected.snapshot(),request=current.controller?.id??current.interaction?.id;
     const mode=currentInput.current.inputMode;
@@ -188,7 +228,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
     if (focused && state.approval) history.current?.scrollTo(Infinity);
   }, [focused, selected.id, state.approval?.id]);
   useLayoutEffect(()=>{
-    if(state.editor?.scroll)history.current?.scrollBy(-state.editor.scroll.rows);
+    if(state.editor?.scroll){publicScroll.input();history.current?.scrollBy(-state.editor.scroll.rows);}
   },[selected.id,state.editor?.id,state.editor?.scroll?.revision]);
 
   useKeyboard(key => {
@@ -205,6 +245,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
     }
     if (!editing && !selected.snapshot().editor && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
       key.preventDefault();
+      publicScroll.input();
       history.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
     }
   });
@@ -231,9 +272,9 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   return (
     <box flexDirection="column" flexGrow={1} minHeight={0}>
       <scrollbox ref={history} visible={!editing} flexGrow={1} flexBasis={0} minHeight={0}
-        focusable={false} scrollX={false} stickyScroll stickyStart="bottom"
+        focusable={false} scrollX={false} stickyScroll stickyStart="bottom" onMouse={publicScroll.onMouse}
         contentOptions={{ paddingX: 1, paddingY: state.approval ? 0 : 1, gap: 1 }}>
-        <TranscriptMessages session={selected}/>
+        <PublicTranscript session={selected} paneId={paneId} source={publicRender} width={Math.max(1,width-2)} height={height} isVisible={()=>!editing&&isVisible()}/>
       </scrollbox>
 
       {!editing && state.notice && <text fg={color.muted} wrapMode="word">{state.notice}</text>}
@@ -335,7 +376,7 @@ function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSour
   return <Tab {...tab} label={state.title+(status?' · '+status:'')} />;
 }
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows }: {
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows,publicRender }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
@@ -346,6 +387,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   navigation?:WindowNavigationSource;
   editorOwnership?:EditorInputOwnership;
   conversationWindows?:ConversationWindowRegistry;
+  publicRender?:PublicRenderSlots;
 }) {
   const appearance=useAppearance(),{color,presentation}=appearance;
   const editorOwns=useSyncExternalStore(editorOwnership?.subscribe??(()=>()=>{}),editorOwnership?.snapshot??(()=>false));
@@ -600,9 +642,10 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
           drop={layout.drop?.surface === pane.id ? layout.drop.edge : undefined}>
           {(width, height) => pane.session
             ? residentByPane.has(pane.id)||!frame?null:<ConversationCopy window={{id:pane.id,label:pane.label,session:pane.session}}
-                visible memory={histories.current.get(pane.session.conversationId??pane.session.id)!}/>
+                visible memory={histories.current.get(pane.session.conversationId??pane.session.id)!} width={width} height={height}
+                isVisible={isVisible} publicRender={publicRender?.slot(pane.id)}/>
             :pane.surface?<SurfaceView source={pane.surface} focused={focused} width={width} height={height}
-              isActive={isActive} isVisible={isVisible}/>
+              isActive={isActive} isVisible={isVisible} publicRender={publicRender?.slot(pane.id)}/>
             : pane.id === 'workflows' && workflowTable
               ? <PluginTable source={workflowTable} width={width} focused={focused} isActive={isActive} isVisible={isVisible} />
               : pluginManager && <Plugins source={pluginManager} visible={Boolean(frame)} focused={focused}
@@ -623,7 +666,8 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
           backgroundColor={color.background} flexDirection="column" minHeight={0} minWidth={0}>
           <Conversation selected={window.session} paneId={window.id} visible={Boolean(frame)} scrollMemory={memory}
             animations={animations} composerMedia={composerMedia} focused={Boolean(frame)&&layout.focused===window.id&&!layout.gesture&&navigationState.mode==='normal'}
-            width={Math.max(1,(frame?.width??3)-2)} height={Math.max(1,(frame?.height??3)-2)} isActive={isActive} isVisible={isVisible} editorOwnership={editorOwnership}/>
+            width={Math.max(1,(frame?.width??3)-2)} height={Math.max(1,(frame?.height??3)-2)} isActive={isActive} isVisible={isVisible} editorOwnership={editorOwnership}
+            publicRender={publicRender?.slot(window.id)}/>
         </box>;
       })}
       {!layout.frames.length&&<text fg={color.muted}>{navigation?'Empty workspace · F2 Windows opens or restores a window':'Empty workspace · open a pane above'}</text>}
@@ -633,7 +677,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         <WindowFinder source={navigation} width={layout.width} height={layout.height}/>
       </box>}
     </box>
-    {navigation?<box flexDirection="column" paddingX={1} flexShrink={0}>
+    {navigation?<>
+      {publicRender&&<PublicStatus source={publicRender.slot('status')} visible={navigationState.mode==='normal'}/>}
+      <box visible={!publicRender||navigationState.mode!=='normal'} flexDirection="column" paddingX={1} flexShrink={0}>
       {navigationState.mode==='arrange'?<>
         <text height={1} wrapMode="none" fg={color.accent} attributes={TextAttributes.BOLD} truncate>{'WINDOW MODE · '+(layout.fullscreen?'Zoomed':'Tiled')+' · '+(navigationState.focusedLabel??'Empty workspace')}</text>
         <text height={1} wrapMode="none" fg={color.running} truncate>{layout.gesture
@@ -641,7 +687,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
           : splitTargetLabel(layout, width)}</text>
         {presentation.hints&&<text height={1} wrapMode="none" fg={color.text} truncate>{width>=176?'hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/− size · f zoom · q close · n Main · t Tools · ? Help · 1–9 workspace · w windows · i type · Esc exit':width>=140?'Esc exit · i type · n Main · t Tools · ? Help · hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/− size':width>=88?'Esc exit · i type · hjkl focus · Shift swap · Ctrl+arrows edge · n Main':width>=48?'Esc exit · i type · n new · Ctrl+arrows edge':'Esc exit · i type · n new Main'}</text>}
       </>:presentation.hints&&<text height={1} wrapMode="none" fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':layout.fullscreen&&width<60?'Zoomed · Alt+W f tiles':(layout.fullscreen?'Zoomed · Alt+W f tiles · ':'')+`Alt+W Arrange · ${editorOwns?'Alt+W w Windows':'F2 Windows'} · Alt+0 Main`+(width>=88?' · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'')}</text>}
-    </box>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
+    </box></>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {controls.map((type, index) => layoutButton('F' + (controlStart + index) + ' ' +
         (type === 'zoom' && layout.fullscreen ? 'Unzoom' : controlLabels[index]), { type }))}
       {width >= 88 && <>

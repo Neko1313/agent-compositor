@@ -45,7 +45,9 @@ the original private request is not attached as hidden native fallback data.
 Unavailable selections fail closed when opened, without a native replacement.
 Portable appearance now updates native semantic colors/chrome without replacing
 selected owners; explicit controller-cell colors remain literal. Public render
-overrides and full wire adaptation remain migration gates. The host can
+overrides apply only to public presentation slots, including the Main transcript;
+they cannot replace private request/editor frames or acquire their inputs.
+Full wire adaptation remains a migration gate. The host can
 inspect selection through `core.host.controllers.selectedOwner(kind)`, which
 returns metadata without creating a controller or receiving private input.
 

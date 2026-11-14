@@ -1,5 +1,121 @@
 # Project memory
 
+## Public OpenTUI render adaptation implementation — 2026-11-14
+
+The preceding goal turn was progress: appearance and its measured bench repairs
+are committed through 6ff63f4. A fresh authoritative run observation confirms
+build-only release 43588036399 succeeded, including verification and all four
+native jobs; publication was skipped. CI 43588016907, docs 43588016994 and plugin
+preparation 43588016922 also pass. The downloaded, digest-verified four-platform
+audit proves 260 OpenTUI checks plus 32 installed-runtime smoke reports, with
+all_four_pass:true and no problems. Linux x64 matches the installed b17ca1a9 /
+232d942c payload and 8ab12ac2 immutable archive. The failed cdb2d4a run remains
+separate and fully retained. dist/opentui-appearance-corrected-verification.json
+records the completed bounded checkpoint; the full 1.0 objective remains open.
+
+The next implementation covers all advertised public ui.render sites and
+ui.invalidate: conversation, Tools, Help, status and ordinary semantic/legacy
+plugin panes, including copies with separate actual drawable viewports and
+scroll state. Preserve runtime hook-chain semantics and final-tree validation,
+default-first native rendering, stale result fencing and render-only effect
+guards. Keep producer defaults separate from painted overrides. Public hook
+props must exclude private drafts/controllers/Finder and raw UI-operation tool
+arguments/results. Native editors and private request owners remain resident.
+The canonical read-only next-slice findings are in
+dist/opentui-next-migration-findings-cdb2d4a.json.
+
+Implementation now connects all five public site families through the real
+read-only runtime chain, with per-pane defaults, final-tree validation and
+displayed-action admission. The backend cache passes 15 focused cases; six
+real BuiltApp/Core host integrations cover public sites, copies, private
+boundaries, actual busy-Main actions and lifecycle/placement preservation.
+The combined OpenTUI app/renderer set passes 353 tests across 29 files, with
+app typecheck passing. No full coverage or new-source CLI claim is made yet.
+
+One genuine old installed-runtime RED is retained in
+dist/opentui-render-old-native-red: actual /theme amber saves and changes native
+chrome with zero HTTP completions, but its existing ui.render status prefix is
+absent. Native renderer probes then exposed and repaired a real new-path defect:
+a short override clamps the shared scroller and loses the old default position.
+The same existing per-pane scroll memory now captures measured default state,
+ignores override-only clamps and restores after layout before reporting geometry.
+Actual native/real-cache probes prove Main 10/copy 20 positions, the same native
+textarea and Unicode draft, follow-bottom after growth and independent explicit
+input at zero. Failed probes and their diagnoses remain separate. These are
+native component proofs, not the still-required actual CLI/archive gate.
+
+The first actual source CLI run passes its first native case: all five public
+site families, differently sized copies/actions and the real bundled theme
+status override. Its next assertion expects a third held render while two old
+invocations already fill the deliberately bounded per-pane bucket. The resized
+working default is visible and the latest request is correctly coalesced.
+Preserve dist/opentui-render-source-first as a fixture-oracle failure. The
+corrected scenario must prove the bound and resized default first, release one
+identified obsolete gate, then observe the exact new viewport request and
+stale-result rejection. No timeout, geometry, action or privacy criterion changes.
+
+The corrected source-coalesced run passes the first two native cases, including
+the exact two-call bound, new 116-by-30 held viewport, chain behavior, invalid
+trees, faults, effect guards and invalidation. Its next failure is another
+measured fixture input error: after a detail click already exits search, an
+unnecessary Escape is sent two milliseconds before Left. The SDK decodes that
+packet as Alt+Left and correctly focuses the neighboring window. The repair
+removes that unnecessary Escape, retaining the real Left/Enter, exact focus and
+once-only action oracles. Preserve the failed source-coalesced input/ANSI/PNG
+and diagnosis; the fresh source-keyboard run remains required.
+
+The source-keyboard run passes all five native cases, then reveals a selected
+fixture oracle expecting the entire scalar on a truncated 31-column custom
+editor line. The actual field shows the edit/caret and correct UTF-16 length;
+its original selected view deliberately truncates. Preserve that failure.
+The new fixture observer reads the original private snapshot after actual input
+and records only its hash, UTF-16 length/cursor and original lease identity.
+It preserves the controller object, factory, methods/returns and visible view.
+The oracle requires both the focused clipped field and exact full private value.
+
+The complete source-private-state CLI run passes all eight cases (native five,
+selected three), both final PTYs 0, errors:[] and actual runner 0. It verifies
+real status hooks, all public sites/copies/actions, bounded async coalescing,
+opaque-chain fallback/effect guards, private boundaries and lifecycle/restart.
+Standalone full coverage passes 2196 tests with three optional skips in 238
+files. Full typecheck, gen, docs:gen and docs:check pass; logs use
+/tmp/compositor-public-render-*. Canonical guides and the new source/four-native
+gate are updated. Compiled archive proof and exact-head remote gates remain
+required; neither source success nor this implementation closes full 1.0.
+
+The immutable relocated candidate records f0900c52 executable, dc7f7dae renderer
+and 7edd60a5 archive in dist/opentui-render-artifact.json. Native build and all
+installed-runtime smoke reports pass. The full local native matrix passes all
+80 cases across twelve runners, with seventeen recorded PTYs 0, exact payload
+hashes, expected negative business receipts and loopback/privacy checks. The
+new render native/selected compositions also prove actual pane/viewport/copy
+identities and joined held/released invocation versions. No retries or source
+changes were needed in that native matrix. Source review checks eight critical
+captures and 22 uniquely identified released gates; failed source folders remain
+separate. Independent final native review and exact-head remote gates remain.
+
+Independent final LOCAL review now rehashes the full archive, executable and
+renderer, verifies archived members against relocated bytes, reads all twelve
+runner reports and inspects exactly eight current critical PNGs. It confirms
+80 cases, all seventeen PTYs 0, actual public site/action/viewport/gate receipts,
+56 selected private state hashes without raw draft text, privacy scans and
+honest narrow-field clipping. The exact independent ui-theme package 9e89cdc4
+also passes source PR twelve and artifact four cases, with current identity,
+plan/workspace and evidence hashes verified. Three actual Ink package PNGs pass;
+older immutable packages remain intact. Full canonical docs:check passes.
+The bounded local candidate is ready for commit/push and exact-head remote
+verification. The complete 1.0 objective and its remaining gates stay open.
+
+The internal port uses a pure per-actual-pane slot lookup and revisioned public
+default/override snapshots. Renderer measurements contain numeric drawable
+geometry/scroll and visibility, with explicit input-versus-layout scroll origin
+to prevent native override clamping feeding the render cache. Host status uses
+two normal-mode public rows, separate from the unchanged native top controls;
+Arrange and Finder retain private footers. The existing real ui-theme hook must
+produce its status prefix through ui.render. No default renderer switch, full
+wire migration, delegated-child attribution, physical-media or broad 1.0 claim
+is part of this bounded implementation. No paid model calls are needed.
+
 ## Appearance candidate remote verification failures — 2026-11-14
 
 Portable appearance is committed and pushed through cdb2d4a, with the exact

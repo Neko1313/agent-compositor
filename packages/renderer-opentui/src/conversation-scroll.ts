@@ -30,6 +30,11 @@ export function createConversationScrollMemory() {
   }
 
   return {
+    /** An explicit public scroll can update a saved position while an override is painted. */
+    record(paneId:string,position:Position):boolean {
+      if(!Number.isFinite(position.top)||position.top<0||position.top>Number.MAX_SAFE_INTEGER||typeof position.followBottom!=='boolean')return false;
+      positions.set(paneId,{top:Math.floor(position.top),followBottom:position.followBottom});return true;
+    },
     capture(paneId: string, box: ConversationScrollBoxLike): boolean {
       cancel(box);
       const maximum = range(box);
@@ -38,7 +43,7 @@ export function createConversationScrollMemory() {
       positions.set(paneId, {top, followBottom: top >= maximum});
       return true;
     },
-    restore(paneId: string, box: ConversationScrollBoxLike): () => void {
+    restore(paneId: string, box: ConversationScrollBoxLike,onRestored?:()=>void): () => void {
       cancel(box);
       if (box.isDestroyed) return () => {};
       const attempt: Restore = {active: true};
@@ -48,10 +53,11 @@ export function createConversationScrollMemory() {
         attempt.active = false;
         pending.delete(box);
         const maximum = range(box);
-        if (maximum === undefined) return;
+        if (maximum === undefined) {onRestored?.();return;}
         // Another resident/read-only instance can capture this pane before layout.
         const position = positions.get(paneId);
         box.scrollTo(!position || position.followBottom ? Infinity : Math.min(position.top, maximum));
+        onRestored?.();
       });
       return () => {
         attempt.active = false;

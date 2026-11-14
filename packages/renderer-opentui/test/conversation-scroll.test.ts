@@ -72,3 +72,19 @@ it('clears all pane positions and pending boxes only when the conversation epoch
   memory.restore('a', a);memory.restore('b', b);a.layout();b.layout();
   expect(a.calls).toEqual([25, Infinity]);expect(b.calls).toEqual([40, Infinity]);
 });
+
+it('records explicit override input without treating a clamped short view as default bottom-following',()=>{
+  const memory=createConversationScrollMemory(),source=box(0,1,10);
+  expect(memory.record('a',{top:0,followBottom:false})).toBe(true);
+  for(const top of [-1,NaN,Infinity,Number.MAX_VALUE])expect(memory.record('a',{top,followBottom:true})).toBe(false);
+  expect(memory.record('a',{top:5,followBottom:undefined as unknown as boolean})).toBe(false);
+  source.scrollHeight=100;memory.restore('a',source);source.layout();expect(source.calls).toEqual([0]);
+  memory.record('b',{top:3.9,followBottom:false});memory.restore('b',source);source.layout();expect(source.calls).toEqual([0,3]);
+});
+
+it('acknowledges restoration after the native offset is applied and never acknowledges cancelled work',()=>{
+  const memory=createConversationScrollMemory(),source=box(),observed:number[]=[];
+  memory.record('a',{top:10,followBottom:false});memory.restore('a',source,()=>observed.push(source.scrollTop));
+  expect(observed).toEqual([]);source.layout();expect(observed).toEqual([10]);
+  const cancel=memory.restore('a',source,()=>observed.push(-1));cancel();source.layout();expect(observed).toEqual([10]);
+});

@@ -193,6 +193,11 @@ optional hints and current Main tool details in place. Enable `ui-theme` for
 `/theme slate|amber|mono`; its choice survives reload/restart. Private editor and
 request owners remain mounted. See [appearance semantics](../../docs/ui-theming.md).
 
+The public `ui.render`/`ui.invalidate` path covers conversation, Tools, Help,
+status and plugin views, including separate window copies. Its two normal-mode
+status rows are public defaults; window-navigation footers and private input
+controllers retain native ownership. See [view plugins](../../docs/ui-theming.md#replace-a-view).
+
 See the [application frontend guide](../../docs/02-ui.md#experimental-opentui-application-frontend)
 for controls, private-form behavior and current migration limits. Its stable
 Alt+W Arrange, F2 Windows and Alt+0 Main controls retain resident native editors

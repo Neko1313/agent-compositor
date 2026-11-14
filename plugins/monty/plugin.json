@@ -1,6 +1,6 @@
 {
   "name": "monty",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Replaceable Python sandbox provider using Monty. No filesystem, network or shell capabilities are supplied.",
   "trust": "trusted",
   "provides": [

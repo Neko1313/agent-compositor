@@ -1,6 +1,6 @@
 {
   "name": "doctor",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "/doctor — sanity report: env vars (AGENT_BASE_URL/AGENT_API_KEY/AGENT_MODEL) and a live provider ping (Claude Code /doctor analog). Drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [

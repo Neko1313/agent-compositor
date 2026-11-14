@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+
+<!-- plugin-release:auto:start -->
+- avoid repeated approval prompts for refused calls ([b58c249](https://github.com/Neko1313/agent-compositor/commit/b58c249d51a575b26b54539fcb8fe5bf951add47))
+- run configured application in OpenTUI windows ([d158c10](https://github.com/Neko1313/agent-compositor/commit/d158c10942245428e3e08667d76dd1c4c315a044))
+<!-- plugin-release:auto:end -->
+
 ## 1.4.1
 
 <!-- plugin-release:auto:start -->

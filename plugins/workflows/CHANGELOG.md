@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0
+
+<!-- plugin-release:auto:start -->
+- run configured application in OpenTUI windows ([d158c10](https://github.com/Neko1313/agent-compositor/commit/d158c10942245428e3e08667d76dd1c4c315a044))
+- support private controllers in OpenTUI windows ([eb18d77](https://github.com/Neko1313/agent-compositor/commit/eb18d7764e9eac63f7a5471c3e68ec46dc857ad2))
+<!-- plugin-release:auto:end -->
+
 ## 1.6.1
 
 <!-- plugin-release:auto:start -->

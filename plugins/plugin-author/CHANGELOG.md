@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.0
+
+<!-- plugin-release:auto:start -->
+- recognize project checks and preserve refusal evidence ([facc8ea](https://github.com/Neko1313/agent-compositor/commit/facc8eada572cab7dbb29c1131ec4627a1f36be4))
+- avoid repeated approval prompts for refused calls ([b58c249](https://github.com/Neko1313/agent-compositor/commit/b58c249d51a575b26b54539fcb8fe5bf951add47))
+- preserve literal source in model-facing read results ([f1557fb](https://github.com/Neko1313/agent-compositor/commit/f1557fb297569b8290e75b50defea47e80f6a46d))
+- isolate Todo state and normalize active status aliases ([3df8a39](https://github.com/Neko1313/agent-compositor/commit/3df8a391a0a353e8c5405dd3142b8bfe87ffad4a))
+- preserve class tool contracts during composition ([0e03507](https://github.com/Neko1313/agent-compositor/commit/0e0350728f070983c23a33bd944913fce90743b9))
+- **BREAKING:** preserve surrounding source on partial file overwrites ([d6e7857](https://github.com/Neko1313/agent-compositor/commit/d6e7857db32d09ea952a31464e4c18e65d0eaf05))
+  whole-file write refuses a nonempty existing excerpt by default. For intentional extraction pass allowPartialOverwrite: true. Existing malformed UTF-8 files cannot be safely replaced by the text writer.
+- tile plugin management beside active agents ([e65c6d9](https://github.com/Neko1313/agent-compositor/commit/e65c6d93a025b3158512eec17bd43441846e6a99))
+- add native questions and private plugin forms ([c459a8e](https://github.com/Neko1313/agent-compositor/commit/c459a8e4499cf053c144407a2bf563aca1fa9dc1))
+- run configured application in OpenTUI windows ([d158c10](https://github.com/Neko1313/agent-compositor/commit/d158c10942245428e3e08667d76dd1c4c315a044))
+<!-- plugin-release:auto:end -->
+
 ## 1.4.0
 
 <!-- plugin-release:auto:start -->

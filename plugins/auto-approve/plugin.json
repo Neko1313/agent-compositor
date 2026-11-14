@@ -1,6 +1,6 @@
 {
   "name": "auto-approve",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "trust": "trusted",
   "description": "Opt-in task-context review for console, plugin, MCP and workflow actions, with structured approval/refusal/uncertainty and binding host denies.",
   "provides": [

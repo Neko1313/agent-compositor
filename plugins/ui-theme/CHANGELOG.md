@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+<!-- plugin-release:auto:start -->
+- run configured application in OpenTUI windows ([d158c10](https://github.com/Neko1313/agent-compositor/commit/d158c10942245428e3e08667d76dd1c4c315a044))
+- declare an explicit amber selection foreground ([f580d7e](https://github.com/Neko1313/agent-compositor/commit/f580d7e7947b45909b6750c3461e2e2e5eecadbb))
+<!-- plugin-release:auto:end -->
+
 ## 1.1.1
 
 <!-- plugin-release:auto:start -->

@@ -1,6 +1,6 @@
 {
   "name": "slash-commands",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "/help, /status, /usage — command palette harvested from Claude Code / Gemini CLI slash-command UX. Drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [

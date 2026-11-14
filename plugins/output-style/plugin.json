@@ -1,6 +1,6 @@
 {
   "name": "output-style",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Output style for assistant text (Claude Code output-styles analog). /style terse strips filler openers ('Sure!', 'Certainly!'…), /style off disables. Rewrites assistant.text pre-render, so this plugin is trusted (render-only hooks see the opaque element tree). Drop this folder to remove.",
   "trust": "trusted",
   "capabilities": [

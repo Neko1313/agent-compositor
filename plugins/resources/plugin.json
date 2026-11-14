@@ -1,9 +1,22 @@
 {
   "name": "resources",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Independent process CPU and memory charts; no agent tool or model request.",
   "trust": "trusted",
-  "capabilities": ["ui"],
-  "commands": [{"name": "/resources", "description": "Open process CPU and memory charts", "ui": {"site": "resources"}}],
-  "compositor": {"standard": 1, "apiVersion": 1}
+  "capabilities": [
+    "ui"
+  ],
+  "commands": [
+    {
+      "name": "/resources",
+      "description": "Open process CPU and memory charts",
+      "ui": {
+        "site": "resources"
+      }
+    }
+  ],
+  "compositor": {
+    "standard": 1,
+    "apiVersion": 1
+  }
 }

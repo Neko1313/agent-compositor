@@ -93,15 +93,30 @@ try{
   async function rawInput(data){await page.evaluate(data=>socket.send(JSON.stringify({type:'input',data})),data);}
   async function paste(value){await rawInput('\x1b[200~'+value+'\x1b[201~');}
   let pointerAttempt=0;
-  async function click(label){const attempt=++pointerAttempt;
-    const point=await page.waitForFunction(({label,attempt})=>{
-      const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(label));if(row<0){delete window.__navigationPointer;return;}
-      const col=lines[row].indexOf(label)+Math.min(1,label.length-1),rect=document.querySelector('.xterm-screen').getBoundingClientRect();
-      const signature=[row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height].join(':'),previous=window.__navigationPointer;
-      if(previous?.attempt!==attempt||previous.signature!==signature){window.__navigationPointer={attempt,signature,count:1};return;}
-      if(++previous.count<3)return;
-      return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};
-    },{label,attempt},{polling:'raf'});const value=await point.jsonValue();await page.mouse.click(value.x,value.y);
+  async function click(label,owner='Main'){const attempt=++pointerAttempt;
+    const point=await page.waitForFunction(({label,owner,attempt})=>{
+      const terminal=visual.terminal,buffer=terminal.buffer.active,reset=()=>{delete window.__navigationPointer;};
+      if(terminal.modes?.synchronizedOutputMode===true){reset();return;}
+      const cells=Array.from({length:terminal.rows},(_,y)=>Array.from({length:terminal.cols},(_,x)=>buffer.getLine(buffer.viewportY+y)?.getCell(x)?.getChars()??'')),lines=cells.map(row=>row.join('')),text=lines.join('\n');
+      // Reopening can paint a complete frame before the two-row public footer
+      // occupies its final geometry. Its old body coordinates are not ready.
+      if(!lines[1]?.includes('Alt+W Arrange')||text.includes('WINDOW MODE')||text.includes('windows · ↑↓ select · Enter open')
+        ||!/^(?:Ready|Working|Approval needed|Answer needed) · WS [1-9]$/.test(lines[terminal.rows-2]?.trim()??'')
+        ||!lines[terminal.rows-1]?.includes('Alt+W Arrange')){reset();return;}
+      const corners={'┌':['┐','└','┘'],'╭':['╮','╰','╯'],'╔':['╗','╚','╝']};
+      for(let top=0;top<terminal.rows-2;top++)for(let left=0;left<terminal.cols;left++){
+        const ends=corners[cells[top][left]];if(!ends)continue;const right=cells[top].findIndex((ch,x)=>x>left&&ch===ends[0]);if(right<0)continue;
+        const header=cells[top].slice(left+1,right).join('');if(header.replace(/^[─═] /u,'').split(' · focused ')[0]!==owner||!header.includes(' · focused '))continue;
+        const bottom=cells.findIndex((row,y)=>y>top&&row[left]===ends[1]&&row[right]===ends[2]);if(bottom<0||bottom>terminal.rows-3){reset();return;}
+        for(let row=top+1;row<bottom;row++){
+          const line=cells[row].slice(left+1,right).join(''),offset=line.indexOf(label);if(offset<0)continue;
+          let prefix='',col=left+1;while(col<right&&prefix.length<offset)prefix+=cells[row][col++];col+=Math.min(1,label.length-1);
+          const rect=document.querySelector('.xterm-screen').getBoundingClientRect(),signature=JSON.stringify([visual.frames,text,owner,left,right,top,bottom,row,col,terminal.cols,terminal.rows,rect.x,rect.y,rect.width,rect.height]),previous=window.__navigationPointer;
+          if(previous?.attempt!==attempt||previous.signature!==signature){window.__navigationPointer={attempt,signature,count:1};return;}
+          if(++previous.count<3)return;return{x:rect.x+(col+.5)*rect.width/terminal.cols,y:rect.y+(row+.5)*rect.height/terminal.rows};
+        }
+      }reset();
+    },{label,owner,attempt},{polling:'raf'});const value=await point.jsonValue();await page.mouse.click(value.x,value.y);
   }
   async function capture(name){const attempts=[];
     for(let attempt=0;attempt<2;attempt++){
@@ -290,7 +305,7 @@ try{
   const retileTree=value=>value.windows.spaces.find(space=>space.id===7)?.tree;
   const retileBefore=await layout(),retileProtected=retileBefore.windows.spaces.filter(space=>space.id!==7).map(({id,tree})=>({id,tree}));
   await main();await setZoom(true);await wait('NAV_PENDING_DRAFT_47');await key('Home');await key('ArrowRight');
-  await pick('Navigation controls');await setZoom(true);await click('Open retile workspace');
+  await pick('Navigation controls');await setZoom(true);await click('Open retile workspace','Navigation controls');
   await observe(()=>json(retileSpec.ready),value=>value===true,'The public SDK caller must publish all three retile panes');
   await pick('Retile A');await setZoom(false);await arrange();
   const retileInitial={axis:'horizontal',ratio:.65,children:[{surface:retileIds.a},{axis:'vertical',ratio:.7,children:[{surface:retileIds.b},{surface:retileIds.c}]}]};
@@ -336,13 +351,13 @@ try{
   await type('P');await wait('F_PORMvalue');await key('Backspace');await wait('F_ORMvalue');
   assert.equal(await exists(launch.navigation.formReceipt),false);assert.equal(await json(launch.navigation.formCalls),1);await capture('03-passive-publication-keeps-form');
 
-  await pick('Navigation controls');await click('Publish focus true');await wait('FOCUS_PUBLICATION_TRUE');
+  await pick('Navigation controls');await click('Publish focus true','Navigation controls');await wait('FOCUS_PUBLICATION_TRUE');
   await observe(layout,value=>value.windows.focused===focusPrefix+'true'&&value.windows.workspace===6,'A fresh explicit focus=true hint must retain its opt-in behavior');await closeFocus('Explicit focus');
-  await pick('Navigation controls');await click('Publish focus false');
+  await pick('Navigation controls');await click('Publish focus false','Navigation controls');
   const explicitFalse=await published('false');assert.equal(explicitFalse.windows.workspace,1);assert.equal(explicitFalse.windows.focused,'plugin-navigation-probe-control');
-  await click('Publish focus rule-false');
+  await click('Publish focus rule-false','Navigation controls');
   const ruleFalse=await published('rule-false');assert.equal(ruleFalse.windows.workspace,1);assert.equal(ruleFalse.windows.focused,'plugin-navigation-probe-control');
-  await click('Publish focus rule-true');await wait('FOCUS_PUBLICATION_RULE-TRUE');
+  await click('Publish focus rule-true','Navigation controls');await wait('FOCUS_PUBLICATION_RULE-TRUE');
   await observe(layout,value=>value.windows.focused===focusPrefix+'rule-true'&&value.windows.workspace===6,'A configured focus=true rule must remain an explicit opt-in');await closeFocus('Configured focus');
 
   // Keep the complete identifier visible before dispatch; zoom is a prior
@@ -481,7 +496,7 @@ try{
   await key('Control+u');await type('/nav-fast');await key('Enter');await absent(finderMarker);await wait('CURRENT_SELECTED_ROUTE');await release('slow');
   await observe(()=>json(launch.navigation.slowFinished),Boolean,'Cancelled route producer must finish its bounded late callback');
   assert.equal(location(await layout(),'plugin-navigation-probe-slow'),undefined);assert.ok(!(await screen()).includes('LATE_CANCELLED_ROUTE'));
-  await pick('Navigation controls');await click('Refresh inventory');await observe(()=>json(launch.navigation.refreshStarted),Boolean,'Real refresh action must start');
+  await pick('Navigation controls');await click('Refresh inventory','Navigation controls');await observe(()=>json(launch.navigation.refreshStarted),Boolean,'Real refresh action must start');
   await finder('Nav pane 12');await wait('WS 2');await observe(()=>json(launch.navigation.refreshFinished),Boolean,'Real refresh must remove its source');await wait('Unavailable');
   await key('Enter');await wait('fresh view from its plugin');
   const removed=await observe(layout,value=>location(value,'plugin-navigation-probe-pane12')===undefined,'Saved layout must acknowledge removal of the unavailable pane');assert.equal(location(removed,'plugin-navigation-probe-pane12'),undefined);

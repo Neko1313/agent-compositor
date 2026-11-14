@@ -1,5 +1,53 @@
 # Project memory
 
+## Complete-frame navigation acceptance in progress — 2026-11-15
+
+The full 1.0 goal remains active. The delegated/managed request implementation is
+committed and pushed as 3281bdab925316f1fb3ac5ceb778eb333116ae33. Its exact sealed
+23315fd3 archive is installed; prior 0e374daf install is retained. Local2328
+tests, all32 PR plugin contracts, docs/types, canonical8 smokes and native95
+pass with independent shipping-byte/receipt/visual reviews. Worktree runtime
+inputs remain the same727 rows/fingerprintc732e028.
+
+Source CI43616108553 passes Node22 but fails Node26 navigation after1/9 checks:
+the final reopened Main Edit answer click targets row41 while the final button
+is row40. The digest-verified CI artifact, input, ANSI and PNG are retained under
+dist/opentui-child-remote-3281bda/ci-node26-failure. Official xterm replay exactly
+matches final cells: synchronized frame93 contains the transient row41 without
+normal footer; frames94–96 have the final two-row footer and row40 button.
+Both frames are complete, so sync=false alone is insufficient. There are no
+output timestamps or broker receipts proving the exact input admission branch;
+do not claim that selected Production was lost or a product input bug is proven.
+
+The narrowly corrected navigation body-click helper waits for the complete
+normal footer, exact focused owner, physical cell positions and three unchanged
+full-frame/geometry observations. It retains one click, the20s limit and all
+nine exact business oracles. An offline old/new predicate RED/GREEN is retained.
+Fresh source navigation and a focused rerun against the exact sealed archive
+both pass all nine checks with PTYs 0 and no errors. The actual provider receives
+Production after the real close/reopen mouse path. Supplemental reports live in
+dist/opentui-navigation-body-ack-{source,native}-20261115; the archive review
+rehashes the original executable, renderer and archive and inspects two critical
+PNGs. This is bench-only; preserve the original failing CI and all executed
+archive95 proof. The unchanged727 build inputs justify reuse of that original
+runtime evidence, not a claim that the full95 were rerun with the new helper.
+Build-only release43616152753 remains live on exact3281. Both Linux artifacts
+already prove88 OpenTUI checks +8 smokes each; macOS ARM's downloaded artifact
+also passes88+8, while Intel remains live. The macOS auditor now accepts only the
+known /var→/private/var path alias with exact suffix equality and records both raw
+and normalized paths. Its original mismatch audit is retained. The actual CLI
+checker already requires realpath equality. The global
+old-head audit stays false while its source CI is failed. No job retry or tag.
+
+Read-only next-gate plans are saved in dist/opentui-native-terminal-gate-plan.json
+and dist/compositor-10-development-gate-plan.json. Original Ghost assets remain
+byte-preserved; actual Kitty/tmux binaries are absent, and no physical-media pass
+is claimed. The authoritative paid-test admission ledger is $49.871518 committed
+of the original $50, leaving $0.128482,426 reported/two pending. The partial
+Standard estimate is not actual billing or a refund. No paid calls or budget
+mutation occurred. Broader real development/model, onboarding, sustained-session
+and trust gates remain open; continue within authorization.
+
 ## Delegated and managed human request ownership in progress — 2026-11-15
 
 Keep the complete 1.0 objective active. The preceding user-facing turn reported

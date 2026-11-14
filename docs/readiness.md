@@ -7,7 +7,8 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
-The full 1.0 objective remains active. Native protocol revision `57cb73a` passes
+The full 1.0 objective remains active. The preceding native protocol revision
+`57cb73a` passes
 source CI, documentation and release preparation. Its build-only release
 43602516244 fails the four-platform gate: Linux x64 passes all 78 OpenTUI checks;
 Linux ARM loses selected-form paste, macOS ARM fails a second Finder transition,
@@ -15,14 +16,14 @@ and macOS Intel reaches generation 3 without completing the startup ready write.
 The downloaded artifacts preserve 150 of 312 expected OpenTUI reports and all
 32 installed-runtime smoke reports. These failures remain failures.
 
-Current source repairs the exact selected-controller paste admission race while
+Revision `3281bda` repairs the exact selected-controller paste admission race while
 retaining strict painted-revision checks for mouse/actions. The shared Finder
 helper waits for observed normal-mode output before its next F2; navigation
 declares an explicit startup lifecycle budget and retains awaited phase receipts.
-Source controller, request and navigation scenarios pass independently. A fresh
-immutable archive and exact-head four-platform matrix remain required.
+Source controller, request and navigation scenarios pass independently. Its
+immutable archive and current exact-head matrix are recorded below.
 
-The next implementation gives ordinary delegated and persistent managed agents
+Revision `3281bda` gives ordinary delegated and persistent managed agents
 distinct private request windows, actual producer registries and Core-owned
 lifetime/provenance. Managed input must survive Main resume and use committed
 replacement channels, while stale Main descendants are revoked. Native and
@@ -39,8 +40,24 @@ runners and twenty-two PTYs, canonical installed-runtime smoke and independent
 source/payload/receipt/visual review. All 5879 shipping entries match the relocated
 archive. An initial installer extraction exhausted the local memory-backed
 temporary directory; its failed evidence is retained, and the unchanged payload
-passes the canonical smoke using disk temporary storage. A fresh exact-head
-four-platform run remains required; the older failed run is not reclassified.
+passes the canonical smoke using disk temporary storage.
+
+The exact `3281bda` build-only release 43616152753 is still running. Both Linux
+platforms and macOS ARM pass with 88 OpenTUI checks and eight installed-runtime
+smokes each, verified in their actual downloaded artifacts. macOS Intel remains
+live. Source CI passes Node 22 but fails Node 26 navigation
+after one check. Preserved terminal replay shows that the old click helper accepts
+a transient reopened-pane frame before its final two-row footer changes the
+button's row. The evidence does not identify the exact input admission branch
+or prove that the selected answer was lost.
+
+The corrected helper requires the complete normal footer, focused owner and
+stable full-frame geometry before its single click. All nine business oracles,
+including the actual model-received Production answer, pass in fresh source and
+sealed-archive navigation runs. The executable and renderer remain unchanged.
+Fresh exact-head CI and four-platform verification are required after committing
+this bench-only repair; the original failures and original 95-check proof remain
+unaltered.
 This checkpoint does not close physical-terminal media, CPU-assisted
 onboarding, broad real-model development, sustained-session or trust gates.
 
@@ -582,8 +599,10 @@ settles. Screenshots and final files prove the correct Tools show/hide effects;
 the corrected bench waits for those exact saved states. It still needs a fresh
 matrix and does not turn the failed run into success.
 
-Remaining frontend gates include full protocol acceptance evidence, exact
-delegated-child request attribution and physical terminal/media coverage. Ordinary UI
+The subsequent `3281bda` checkpoint locally verifies the production protocol and
+exact delegated/managed request attribution, including the original selected
+controller leases. Its exact-head source/platform qualification remains open
+as recorded above. Physical terminal/media coverage is still required. Ordinary UI
 operations and retained plugin services now receive independent
 approval/question/questionnaire/form windows. Verification
 keeps Main pending while real guarded tools, separate same-owner questions,

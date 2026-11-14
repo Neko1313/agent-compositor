@@ -27,7 +27,7 @@ function freeze<T>(value: T): T {
 }
 
 /** Host-only window policy. Native widgets retain their own drafts, cursor and undo. */
-export function createWindowNavigation(layout: WindowLayoutSource, options: Options): WindowNavigationSource & {refresh(): void; close(): void} {
+export function createWindowNavigation(layout: WindowLayoutSource, options: Options): Omit<WindowNavigationSource,'handle'> & {handle(input:WindowNavigationInput):boolean;refresh(): void; close(): void} {
   let active = true, revision = 0, mode: WindowNavigationSnapshot['mode'] = 'normal';
   let selectionRevision = 0;
   let returnMode: 'normal' | 'arrange' = 'normal';

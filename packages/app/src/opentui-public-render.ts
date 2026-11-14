@@ -5,7 +5,7 @@ export interface OpenTuiPublicRenderOptions {
   describe(id: string, metrics: PublicRenderMeasurement): {site: string; props: Record<string, unknown>; defaultView: UiTextView} | undefined;
   render(input: {site: string; surface: 'terminal'; props: Record<string, unknown>; viewport: {columns: number; rows: number}},
     signal: AbortSignal): Promise<{value: unknown}>;
-  press(id: string, action: string): void;
+  press(id: string, action: string): void|boolean;
 }
 type Input = Parameters<OpenTuiPublicRenderOptions['render']>[0];
 type Description = {key: string; input: Input; defaultView: UiTextView};
@@ -118,10 +118,10 @@ export function createOpenTuiPublicRender(options: OpenTuiPublicRenderOptions) {
           entry.metrics = next;refreshEntry(entry);
         },
         press(action, revision) {
-          if (!current(entry) || !entry.metrics.visible || typeof action !== 'string' || entry.state.revision !== revision || !entry.state.override) return;
+          if (!current(entry) || !entry.metrics.visible || typeof action !== 'string' || entry.state.revision !== revision || !entry.state.override) return false;
           refreshEntry(entry);
-          if (!current(entry) || entry.state.revision !== revision || !entry.state.override || !actions(entry.state.override).has(action)) return;
-          try {options.press(id, action);} catch {/* Host admission failures do not become public render data. */}
+          if (!current(entry) || entry.state.revision !== revision || !entry.state.override || !actions(entry.state.override).has(action)) return false;
+          try {return options.press(id, action)!==false;} catch {return false;}
         },
       };
       entry.source = source;

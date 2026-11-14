@@ -1,4 +1,6 @@
-import type { WireMessage } from "@agent-compositor/protocol";
+import {declareMessage, type RenderMessage, type WireMessage} from "@agent-compositor/protocol";
+
+const MAX_PANE_DIMENSION = 10000;
 
 /**
  * SessionPane — accumulates a turn's visible text and flushes it to a wire
@@ -19,7 +21,6 @@ export class SessionPane {
   private flushedComplete = 0;
   private flushedPartial = "";
   private dirty = false;
-  private seq = 0;
 
   constructor(
     private readonly pane: string,
@@ -27,16 +28,32 @@ export class SessionPane {
     private readonly surface = "session",
   ) {}
 
-  /** declare the surface once, before the first render */
+  /** Declare a pane and initialize its grid; later calls preserve its text. */
   declarePane(columns = 80, rows = 24): void {
-    this.sink({
-      v: 1,
+    if (!Number.isSafeInteger(columns) || columns < 1 || columns > MAX_PANE_DIMENSION ||
+        !Number.isSafeInteger(rows) || rows < 1 || rows > MAX_PANE_DIMENSION)
+      throw new RangeError("Pane dimensions must be integers from 1 to 10000");
+    this.sink(declareMessage.parse({
       type: "declare",
-      surfaces: [{ id: this.surface, pane: this.pane, columns, rows, chrome: true }],
+      surfaces: [{ id: this.surface, kind: "pane", site: this.pane, title: this.pane }],
+    }));
+    const lines = [...this.complete, this.partial];
+    // Ragged rows are valid grid data. Only one blank row needs the requested
+    // width, so the allocation is O(columns + rows + text), not their product.
+    const grid = Array.from({length: Math.max(rows, lines.length)}, (_, row) => {
+      const cells = this.cells(lines[row] ?? "");
+      if (row === 0) while (cells.length < columns) cells.push({ch: " "});
+      return cells;
     });
+    this.sink({type: "render", surface: this.surface, mode: "full", grid, flush: true});
+    this.sink({type: "render", surface: this.surface, mode: "diff", ops: [this.cursor()], flush: true});
+    this.flushedComplete = this.complete.length;
+    this.flushedPartial = this.partial;
+    this.dirty = false;
   }
 
   append(delta: string): void {
+    if (!delta) return;
     const parts = delta.split("\n");
     this.partial += parts[0];
     for (let i = 1; i < parts.length; i++) {
@@ -53,30 +70,26 @@ export class SessionPane {
   /** flush pending text as a diff render (no-op when nothing changed) */
   flush(): void {
     if (!this.dirty) return;
-    const ops: Array<Record<string, unknown>> = [];
-    if (this.flushedPartial.length > 0) {
-      ops.push({ op: "clear", y: this.flushedComplete, x: 0, len: this.flushedPartial.length });
-    }
-    let y = this.flushedComplete;
+    const ops: NonNullable<RenderMessage["ops"]> = [];
+    let row = this.flushedComplete;
     for (let i = this.flushedComplete; i < this.complete.length; i++) {
-      ops.push({ op: "set", y: y++, x: 0, text: this.complete[i] });
+      ops.push({ op: "set", row: row++, col: 0, cells: this.cells(this.complete[i]) });
     }
-    if (this.partial.length > 0) {
-      ops.push({ op: "set", y, x: 0, text: this.partial });
+    if (this.partial.length > 0 && (row !== this.flushedComplete || this.partial !== this.flushedPartial)) {
+      ops.push({ op: "set", row, col: 0, cells: this.cells(this.partial) });
     }
-    if (ops.length > 0) {
-      this.sink({
-        v: 1,
-        type: "render",
-        surface: this.surface,
-        pane: this.pane,
-        seq: ++this.seq,
-        mode: "diff",
-        ops,
-      } as unknown as WireMessage);
-    }
+    ops.push(this.cursor());
+    this.sink({type: "render", surface: this.surface, mode: "diff", ops, flush: true});
     this.flushedComplete = this.complete.length;
     this.flushedPartial = this.partial;
     this.dirty = false;
+  }
+
+  private cells(text: string): NonNullable<RenderMessage["grid"]>[number] {
+    return Array.from(text, ch => ({ch}));
+  }
+
+  private cursor(): Extract<NonNullable<RenderMessage["ops"]>[number], {op: "cursor"}> {
+    return {op: "cursor", row: this.complete.length, col: Array.from(this.partial).length};
   }
 }

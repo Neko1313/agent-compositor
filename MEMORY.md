@@ -1,5 +1,89 @@
 # Project memory
 
+## OpenTUI protocol migration in progress — 2026-11-14
+
+The full 1.0 goal remains active. The preceding status turn was a verified wait
+on live build-only run 43595821961; this turn implements the next protocol
+checkpoint rather than reducing the objective. Exact 730d86c CI, documentation
+and plugin preparation pass.
+Its build-only release 43595821961 fails both macOS appearance checks; both Linux
+jobs pass. Downloaded and digest-verified artifacts retain 264 of 292 expected
+OpenTUI checks and all 32 smoke reports. The macOS failures are one-shot reads
+before asynchronous layout persistence: screenshots show the correct Tools
+show/hide result with Saving layout, and final files retain the expected focus
+and copy. Preserve the failed run and all four ZIPs. The checker now observes
+those exact saved states; a fresh matrix is still required.
+
+Protocol 0.7 adds explicitly negotiated, data-only native-state/input/receipt/
+media messages. The actual OpenTUI application now uses JSONL encode/decode and
+an asynchronous source/send stream through a host-only broker. Opaque ports,
+connection epochs, display revisions, exact request/action admission and bounded
+duplicate receipts retain authority in the host. Renderer-local adapters retain
+native widgets and map FIFO controller tickets; keyboard/paste waits only for
+admission, not model completion. Native replay needs duplex protocol and actual
+input because local textarea draft/undo is deliberately absent from host frames.
+
+Source CLI navigation nine and public-render native/selected eight scenarios
+pass through this new production path with PTYs 0/errors:[]. Two critical
+current PNGs were inspected. Permanent real SDK/actual-host tests also cover
+delayed admission, same-packet Unicode paste, failed-startup rejection, old-Core
+queued-input revocation and delayed Ctrl+C. Separate lifetime tests cover EOF,
+negotiation failure, blocked iterators and late outbound transport failure.
+These are scoped proofs; no frozen new archive or remote matrix claim yet.
+
+A complete public grid OpenTUI source/send client reuses the neutral protocol
+grid reducer with compatible Ink reexports, preserving toolkit-independent
+state semantics and real same-log presentation tests. The public SessionPane
+now emits canonical schema-valid declare/full/diff/cursor/flush messages, with
+1..10000 dimension hints and no oversized rectangular blank allocation.
+The streaming JSONL decoder preserves UTF-8 scalars split across byte chunks.
+The new API-client PTY gate additionally found a genuine pointer-only repaint
+defect; its failed evidence is retained and the client explicitly schedules
+the changed pointer. Full API, archive and exact-head four-platform verification
+remain required. No paid model calls, default-renderer switch, physical-terminal
+media claim or completion of broader 1.0 work is part of this checkpoint.
+
+The finished public API source scenario passes five checks in three actual Bun
+PTYs after the measured pointer fix and shared literal text policy. All five
+current PNGs and 23 evidence hashes are independently reviewed. Pure grid/state
+extraction is byte-identical to prior Ink code apart from local imports; raw
+mutation/toLines stays unchanged. Literal controls, Bidi and lone surrogates are
+escaped only at both paint boundaries and compared through actual same-log
+Ink/OpenTUI frames. Preserve the earlier missing-browser and pointer failures.
+The native source iterator also validates every frame before dispatch; malformed
+JavaScript input now rejects and cleans up rather than waiting silently.
+
+After installing the exact offline lockfile dependency tree, standalone full
+coverage passes 2272 tests with three optional skips in 249 files (25.03s).
+The earlier development coverage logs remain separate. Final full typecheck,
+gen/docs:gen/docs:check and canonical Bun release:smoke pass. An additional Node
+smoke pass is retained separately and is not substituted for the Bun command.
+No test/browser/build ran concurrently with the standalone coverage command.
+
+The frozen Linux candidate in dist/opentui-wire-artifact.json records bb8943dc
+executable, 465003a2 renderer and 0e374daf immutable archive. Its conservative
+716-file build-source fingerprint is 1964e25c. Full local native verification
+passes 85 checks in thirteen runners and twenty PTYs 0, with expected negative
+business receipts kept separate from process failures. The final five checks
+load the exact archived renderer module and prove valid JSONL full/diff/flush,
+input/pointer/resize, negative-handshake cleanup and blocked-source stop.
+dist/opentui-wire-native-suites.json records exact payload hashes and receipt
+identity. Independent final local review and a new exact-head remote 312-check
+plus 32-smoke matrix remain required before this checkpoint can close. Keep the
+complete 1.0 goal open and the old 730d86c failed matrix unchanged.
+
+Independent final LOCAL review passes in
+dist/opentui-wire-independent-local-review-20261114.json. It rehashes all 5879
+archive entries (4550 regular files) against relocated bytes, all 716 source
+inputs and their fingerprint, thirteen raw runner finals against reports,
+85 checks/twenty PTYs 0 and all archived API evidence. Thirteen current critical
+PNGs were inspected, including all five archived-wire captures; 41 actual API
+codec frames and 23 evidence hashes agree with input and cleanup receipts.
+Selected field clipping is described honestly using the original observer's
+56 private hash checkpoints. No remote claim or default renderer switch follows
+from this local review. The candidate is ready for commit/push and a fresh
+exact-head four-platform run; the complete 1.0 goal remains active.
+
 ## Public OpenTUI render adaptation implementation — 2026-11-14
 
 The preceding goal turn was progress: appearance and its measured bench repairs

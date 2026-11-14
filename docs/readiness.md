@@ -521,8 +521,30 @@ stale-generation receipts. The same immutable archive passes all 72 preceding
 native cases. Independent local archive, receipt and screenshot review passes;
 exact-head four-platform verification remains required before closing this gate.
 
-Remaining frontend gates include complete wire-protocol parity and exact
-delegated-child request attribution. Ordinary UI
+Protocol 0.7 now has data-only native presentation/input messages and an actual
+application broker. The production OpenTUI path serializes and decodes those
+messages through an asynchronous stream; resident widgets no longer call host
+ports directly. The separate complete grid client retains the compatible 0.6
+message semantics. Source CLI navigation nine and native/selected public-view
+eight scenarios pass through the new production path, including batched command
+and paste, private fields, reload/resume and restart. Exact-head four-platform
+verification is still required before closing this checkpoint.
+The frozen local Linux candidate now passes all 85 checks across thirteen
+runners, with twenty PTYs exiting 0. This includes five public grid API checks
+against the renderer module extracted from that exact archive. Full locked
+coverage passes 2272 tests with three optional skips; typecheck, generation,
+documentation and the canonical installed-runtime smoke command pass. Independent
+review of the archive, extracted members, source hashes and screenshots passes. Exact-head
+remote verification remains required; these local results do not establish
+physical-terminal or broad 1.0 readiness.
+The preceding 730d86c release run remains failed: both Linux jobs pass, while
+the two macOS appearance checks read saved layout before asynchronous persistence
+settles. Screenshots and final files prove the correct Tools show/hide effects;
+the corrected bench waits for those exact saved states. It still needs a fresh
+matrix and does not turn the failed run into success.
+
+Remaining frontend gates include full protocol acceptance evidence, exact
+delegated-child request attribution and physical terminal/media coverage. Ordinary UI
 operations and retained plugin services now receive independent
 approval/question/questionnaire/form windows. Verification
 keeps Main pending while real guarded tools, separate same-owner questions,

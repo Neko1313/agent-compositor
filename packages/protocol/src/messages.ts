@@ -1,4 +1,5 @@
 import { z } from "zod";
+import {nativeStateMessage,nativeInputMessage,nativeReceiptMessage,nativeMediaMessage} from './native.js';
 
 /** Wire message schemas. One direction per message; JSONL-framed. */
 
@@ -142,6 +143,10 @@ export const wireMessage = z.discriminatedUnion("type", [
   focusMessage,
   invalidateMessage,
   byeMessage,
+  nativeStateMessage,
+  nativeInputMessage,
+  nativeReceiptMessage,
+  nativeMediaMessage,
 ]);
 
 export type HelloMessage = z.infer<typeof helloMessage>;

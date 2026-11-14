@@ -267,6 +267,31 @@ private-value scan results. The input log intentionally contains synthetic typed
 values and is excluded from privacy claims. CI runs the source scenario; every
 native release target runs the same scenario from a fresh relocated archive.
 
+`npm run visual:opentui-wire` checks the public grid `source`/`send` API in
+three real Bun PTY processes, without constructing an AppUI or injecting Core
+state. The normal process paints a schema-validated JSONL log, exercises
+full/diff/flush, styled cells and window chrome, and routes native keyboard,
+Unicode paste and global mouse input to the current wire focus. Pointer changes
+must appear in actual ANSI output even when no text frame changes. The other
+processes verify rejection cleanup and explicit stop with a blocked source.
+Five checks retain their PNGs, original ANSI/input, codec log, exact identities
+and final process exits under `dist/visual-opentui-wire/`.
+
+Set `VISUAL_RENDERER_MODULE` to an absolute relocated
+`compositor/node_modules/@agent-compositor/renderer-opentui/index.js` to exercise
+the exact archived API module; the report records its SHA256. Without this
+override the fixture imports the source renderer. The package-client gate is
+separate from the configured CLI checks above, which now use protocol 0.7's
+native presentation/input profile through the production asynchronous stream.
+Pure grid/state and actual SDK tests compare the Ink/OpenTUI painted checkpoints
+from the same encoded log, including unflushed diffs and literal control text.
+Native draft/undo replay also requires the real input stream; host snapshots
+alone intentionally omit the built-in textarea's local state.
+
+The appearance scenario waits for the exact persisted Tools show/hide result,
+including focus and retained copies. An awaited plugin publication is not an
+acknowledgment that the asynchronous layout file has finished saving.
+
 
 Known-label Finder opens in the controller, request-window, manager and
 cancellation checks share [opentui-finder.mjs](opentui-finder.mjs). The helper

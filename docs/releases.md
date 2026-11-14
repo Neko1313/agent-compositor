@@ -116,6 +116,16 @@ raster, private input isolation and stale results across lifecycle changes.
 Source and all four relocated native jobs require this gate and retain its
 actual input/output, screenshots, receipts and executable/renderer identities.
 
+The configured application's OpenTUI checks use the native presentation profile
+of protocol 0.7 through the production asynchronous message path. A separate
+`npm run visual:opentui-wire` gate exercises the compatible public grid
+`source`/`send` client in a real PTY: schema-valid full/diff/flush output,
+focus-routed keyboard/paste/global mouse, and cleanup after EOF, rejection and a
+blocked source. Each native job points `VISUAL_RENDERER_MODULE` at the exact
+relocated archive's renderer entry, recording its hash with the input, ANSI,
+screenshots and process exits. This API-client fixture does not replace the
+configured application's lifecycle scenarios or physical-terminal media checks.
+
 User and project plugin directories take precedence over the distribution's
 supplied packages. Since v0.4.0, plugins remain inactive until explicitly enabled
 in user or project scope; installation alone never activates them. The repository

@@ -20,8 +20,8 @@ export interface UiSurfaceSource {
   id: string;
   snapshot(): UiSurfaceSnapshot;
   subscribe(listener: () => void): () => void;
-  press(action: string, revision: number): void;
-  change(field: string, value: string, revision: number): void;
+  press(action: string, revision: number): void|boolean;
+  change(field: string, value: string, revision: number): void|boolean;
   answerApproval?(id: string, allow: boolean): void;
   answerInteraction?(id: string, value: unknown): void;
   cancelInteraction?(id: string): void;

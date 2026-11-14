@@ -33,7 +33,7 @@ describe("handshake", () => {
     const renderer = hello("renderer", caps(["terminal"]));
     const ack = answerHello(core, renderer);
     expect(ack.ok).toBe(true);
-    expect(ack.version).toBe("0.6.0");
+    expect(ack.version).toBe("0.7.0");
   });
 
   it("fails with no shared surface", () => {
@@ -103,5 +103,30 @@ describe("codec", () => {
         '{"type":"bye"}',
       ]);
     })();
+  });
+
+  it("preserves UTF-8 across every byte boundary in a JSONL stream", async () => {
+    const messages: WireMessage[] = [
+      {type: "input", surface: "editor", data: {kind: "text", text: "Я\u{1F431}界e\u0301", paste: true}},
+      {type: "bye", reason: "完成"},
+    ];
+    const bytes = new TextEncoder().encode(messages.map(encodeMessage).join("").trimEnd());
+    async function* chunks() {for (const byte of bytes) yield Uint8Array.of(byte);}
+    const actual: WireMessage[] = [];
+    for await (const message of decodeStream(chunks())) actual.push(message);
+    expect(actual).toEqual(messages);
+  });
+
+  it("accepts mixed decoded strings and bytes without carrying stale UTF-8 state", async () => {
+    async function* chunks() {
+      yield new TextEncoder().encode('{"type":"focus","surface":"一"}\n');
+      yield '{"type":"focus","surface":"二"}\n';
+      yield new TextEncoder().encode('{"type":"bye","reason":"三"}');
+    }
+    const actual: WireMessage[] = [];
+    for await (const message of decodeStream(chunks())) actual.push(message);
+    expect(actual).toEqual([
+      {type: "focus", surface: "一"}, {type: "focus", surface: "二"}, {type: "bye", reason: "三"},
+    ]);
   });
 });

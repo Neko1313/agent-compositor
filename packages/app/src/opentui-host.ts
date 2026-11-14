@@ -180,16 +180,17 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       return context.exit(() => owner.host.withoutServiceScope(() => owner.host.emit('ui.render', input, signal)));
     },
     press(id, action) {
-      if (!active || navigation?.snapshot().mode !== 'normal' || layout.snapshot().gesture) return;
-      if (id !== 'status' && !layout.snapshot().frames.some(frame => frame.surface === id)) return;
+      if (!active || navigation?.snapshot().mode !== 'normal' || layout.snapshot().gesture) return false;
+      if (id !== 'status' && !layout.snapshot().frames.some(frame => frame.surface === id)) return false;
       const surface = surfaceMap.get(id);
       if (surface) {
-        if (!surface.active || !surface.semantic || !surface.state.view || privateSurface(surface.state)) return;
-        layout.act({type: 'focus', id});press(surface, action);
+        if (!surface.active || !surface.semantic || !surface.state.view || privateSurface(surface.state)) return false;
+        layout.act({type: 'focus', id});return press(surface, action);
       } else if (id === 'status' || isMainPane(id) || auxiliary.has(id)) {
         if (id !== 'status') layout.act({type: 'focus', id});
-        runOperation('@host', id, op => emit(op, 'ui.press', {site: id, key: action}));
+        return Boolean(runOperation('@host', id, op => emit(op, 'ui.press', {site: id, key: action})));
       }
+      return false;
     },
   });
   const changed = () => {
@@ -440,22 +441,22 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         id, snapshot: () => surface.state,
         subscribe(fn) {surface.listeners.add(fn); return () => {surface.listeners.delete(fn);};},
         press(action, revision) {
-          if (reloadFailed) {if (active) notice(retryMessage()); return;}
-          if (reloading) {if (active) notice('Plugin reload is applying. Try the action again when it finishes.'); return;}
-          if (!admitted(surface, revision) || !surface.state.view || !actions(surface.state.view).has(action)) return;
+          if (reloadFailed) {if (active) notice(retryMessage()); return false;}
+          if (reloading) {if (active) notice('Plugin reload is applying. Try the action again when it finishes.'); return false;}
+          if (!admitted(surface, revision) || !surface.state.view || !actions(surface.state.view).has(action)) return false;
           // Select before admitting the action; the bubbling pane click is then idempotent.
           layout.act({type: 'focus', id: surface.source.id});
-          press(surface, action);
+          return press(surface, action);
         },
         change(field, value, revision) {
-          if (reloadFailed) {if (active) notice(retryMessage()); return;}
-          if (reloading) {if (active) notice('Plugin reload is applying. Retry this input after it finishes.'); return;}
+          if (reloadFailed) {if (active) notice(retryMessage()); return false;}
+          if (reloading) {if (active) notice('Plugin reload is applying. Retry this input after it finishes.'); return false;}
           if (!admitted(surface, revision) || surface.state.view?.input?.id !== field
-            || typeof value !== 'string' || value.length > 4000) return;
+            || typeof value !== 'string' || value.length > 4000) return false;
           changes.set(surface, {field, value});
           if (!surface.state.busy) publish(surface, {...surface.state, busy: true});
           if (operations.size >= 4) notice('Interface input queued until an operation finishes');
-          drainChanges();
+          drainChanges();return true;
         },
       },
     };
@@ -466,7 +467,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     return active && surface.active && surfaceMap.get(surface.source.id) === surface
       && revision === surface.state.revision && core.host.hasPlugin(surface.owner);
   }
-  function press(surface: Surface, action: string) {
+  function press(surface: Surface, action: string):boolean {
     const managers: Record<string, string> = {
       'plugin-extension-manager-extensions': 'extension-manager',
       'plugin-marketplace-manager-marketplaces': 'marketplace-manager',
@@ -475,19 +476,20 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     if (Object.hasOwn(managers, surface.source.id) && managers[surface.source.id] === surface.owner) {
       if (action.startsWith('navigate:')) {
         const name = action.slice('navigate:'.length);
-        if (['extensions', 'marketplace', 'reload', 'placement', 'settings'].includes(name))
+        if (['extensions', 'marketplace', 'reload', 'placement', 'settings'].includes(name)) {
           track(submit('/' + name).catch(() => {if (active) notice('The navigation action could not finish. Retry /reload if the reload failed.');}));
-        return;
+          return true;
+        }
+        return false;
       }
       if (action.startsWith('manage:') || action === 'updates') {
         const id = 'plugin-extension-manager-extensions', owner = 'extension-manager';
         const target = surfaceMap.get(id);
-        runOperation(owner, id, op => emit(op, 'ui.press', {site: id, key: action}), target?.owner === owner ? target : undefined, 'action', true);
-        return;
+        return Boolean(runOperation(owner, id, op => emit(op, 'ui.press', {site: id, key: action}), target?.owner === owner ? target : undefined, 'action', true));
       }
     }
-    runOperation(surface.owner, surface.source.id,
-      op => emit(op, 'ui.press', {site: surface.source.id, key: action}), surface);
+    return Boolean(runOperation(surface.owner, surface.source.id,
+      op => emit(op, 'ui.press', {site: surface.source.id, key: action}), surface));
   }
   function live(op: Operation): boolean {
     return active && op.active && op.core === core && operations.get(op.id) === op && !op.controller.signal.aborted;
@@ -1296,7 +1298,15 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   return {
     get session() {return mainPorts.get('session')!;}, conversationWindows,
     mainSession: (id: string) => mainPorts.get(id), isMainPane, createWindow,
+    canNativeViewport(source:ConversationSession) {
+      return active&&source.isCurrent?.()!==false&&source.paneId===mainAnchor&&mainPorts.get(mainAnchor)===source
+        &&layout.snapshot().frames.some(frame=>frame.surface===mainAnchor);
+    },
     surfaces, composerMedia, navigation, appearance, publicRender: publicRendering.slots, get core() {return core;}, submit,
+    immediateCommands() {
+      return [...new Set(['/chat', '/reload', '/windows', '/placement', '/plugins', '/settings', '/models', '/providers',
+        ...app.commands().map(command => command.name)].filter(name => immediate(name)))];
+    },
     cancelOperation(surfaceId: string): boolean {
       if (!active) return false;
       let cancelled = false;

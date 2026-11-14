@@ -26,8 +26,8 @@ export interface WindowNavigationSnapshot {
 export interface WindowNavigationSource {
   snapshot(): WindowNavigationSnapshot;
   subscribe(listener: () => void): () => void;
-  /** A true result consumes the native event synchronously. */
-  handle(input: WindowNavigationInput): boolean;
+  /** Remote admission may be asynchronous; later native input waits for it. */
+  handle(input: WindowNavigationInput): boolean|Promise<boolean>;
   toggleArrange(): void;
   openFinder(): void;
   choose(id: string, revision: number): void;

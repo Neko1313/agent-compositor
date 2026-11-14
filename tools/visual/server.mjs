@@ -155,6 +155,7 @@ async function start(ws) {
   let command = process.env.VISUAL_EXECUTABLE
     ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
     : ['bun', join(import.meta.dir, process.env.VISUAL_OPENTUI === '1' ? 'opentui-sample.ts' : 'fixture.ts'), cwd];
+  if(process.env.VISUAL_OPENTUI_WIRE==='1')command=['bun',join(import.meta.dir,'opentui-wire-fixture.mjs')];
   if(process.env.VISUAL_OPENTUI_APP){
     const sessions=appStarts?(await readdir(join(appLaunch.state,'sessions'))).filter(name=>name.endsWith('.jsonl')):[];
     let resumeId=sessions[0]?.slice(0,-6);

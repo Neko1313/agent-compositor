@@ -1,7 +1,7 @@
 {
   "name": "@agent-compositor/protocol",
   "version": "0.1.0",
-  "description": "Wire protocol between core and renderers: JSONL messages, capability handshake, grid rendering.",
+  "description": "Versioned JSONL protocol: capability negotiation, cell grids and private native presentation.",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@agent-compositor/events": "^0.3.0",
     "zod": "^4.6.7"
   }
 }

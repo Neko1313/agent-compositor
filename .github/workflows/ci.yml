@@ -91,6 +91,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-render
+      - name: Check OpenTUI public wire client
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-wire
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -138,6 +142,7 @@ jobs:
             dist/visual-opentui-conversation-copies/
             dist/visual-opentui-appearance/
             dist/visual-opentui-render/
+            dist/visual-opentui-wire/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

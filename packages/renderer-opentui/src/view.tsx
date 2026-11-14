@@ -263,10 +263,16 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
     const pending = messageInput();
     if (!pending) return;
     const {input, text} = pending;
-    if(selected.submit(text)===false)return;
-    input.setText('');
-    setImmediate(false);
-    if (isActive()) input.focus();
+    const result=selected.submit(text);
+    const accepted=(value:void|boolean)=>{
+      if(value===false)return;
+      // The wire admission queue holds later input until this receipt. Also
+      // protect callers without that queue from clearing a newer native draft.
+      if(input.plainText===text&&selected.isCurrent?.()!==false){input.setText('');setImmediate(false);}
+      if(isActive())input.focus();
+    };
+    if(result&&typeof result==='object')void result.then(value=>flushSync(()=>accepted(value)));
+    else accepted(result);
   }
 
   return (

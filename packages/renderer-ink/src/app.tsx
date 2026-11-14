@@ -1,5 +1,6 @@
 import React, { useEffect, useReducer } from "react";
 import { Box, Text, useInput, usePaste, useStdin, useApp } from "ink";
+import { literalCellText } from "@agent-compositor/protocol";
 import type { InputData } from "./keys.js";
 import { mapInputs } from "./keys.js";
 import type { RendererStore } from "./run.js";
@@ -25,7 +26,7 @@ function SegmentRow({ segments, height, width }: { segments: Segment[]; height: 
     <Box height={height} width={width}>
       <Text wrap="truncate-end">
         {segments.map((s, i) => (
-          <Text key={i} {...styleProps(s.style)}>{s.text}</Text>
+          <Text key={i} {...styleProps(s.style)}>{literalCellText(s.text)}</Text>
         ))}
       </Text>
     </Box>
@@ -56,7 +57,7 @@ function SurfaceView({
     >
       {!isBar && decl.title ? <Box height={1} flexDirection="row">
         <Box flexGrow={1} flexShrink={1} overflow="hidden"><Text bold={focused || hovered} color={focused || hovered ? chrome?.accent : chrome?.muted}
-          backgroundColor={chrome?.titleBackground} wrap="truncate">{` ${drop ? `Drop ${drop === "center" ? "to swap" : drop} · ${decl.title}` : decl.title}`.padEnd(Math.max(0, (width ?? 0) - (controls ? 8 : 2)))}</Text></Box>
+          backgroundColor={chrome?.titleBackground} wrap="truncate">{literalCellText(` ${drop ? `Drop ${drop === "center" ? "to swap" : drop} · ${decl.title}` : decl.title}`).padEnd(Math.max(0, (width ?? 0) - (controls ? 8 : 2)))}</Text></Box>
         {controls && (width ?? 0) >= 14 ? <Text color={focused ? chrome?.accent ?? "cyan" : chrome?.muted ?? "gray"}
           backgroundColor={chrome?.titleBackground}>{focused || hovered || chrome?.controls !== "focus" ? "[F][x]" : "      "}</Text> : null}
       </Box> : null}

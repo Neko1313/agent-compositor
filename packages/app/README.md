@@ -188,6 +188,13 @@ frontend. Settings forms run in separate windows while Main remains active or
 waits for a human answer. This is distinct from `npm run opentui:preview`, which
 uses isolated deterministic demonstration sessions.
 
+The application host and native frontend exchange versioned JSONL messages,
+including in the same process. Protocol 0.7 negotiates native presentation and
+input separately from the compatible cell-grid profile. The host keeps plugin
+functions, permissions and private controller leases; OpenTUI keeps its resident
+widgets. Input receipts confirm admission without waiting for a model turn.
+See the [protocol contract](../../docs/03-contracts.md#native-presentation-profile).
+
 Portable appearance updates colors, title borders/controls, role labels, welcome,
 optional hints and current Main tool details in place. Enable `ui-theme` for
 `/theme slate|amber|mono`; its choice survives reload/restart. Private editor and

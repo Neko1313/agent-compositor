@@ -22,7 +22,7 @@ export interface PublicRenderSlotSource {
   snapshot():PublicRenderSlotSnapshot;
   subscribe(listener:()=>void):()=>void;
   measure(metrics:PublicRenderMeasurement):void;
-  press(action:string,revision:number):void;
+  press(action:string,revision:number):void|boolean;
 }
 
 export interface PublicRenderSlots {

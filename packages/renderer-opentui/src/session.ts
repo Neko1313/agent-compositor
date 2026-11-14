@@ -38,7 +38,7 @@ export interface ConversationSession {
   isCurrent?():boolean;
   snapshot(): ConversationSnapshot;
   subscribe(callback: () => void): () => void;
-  submit(text: string): void|boolean;
+  submit(text: string): void|boolean|Promise<boolean>;
   isImmediateCommand?(text: string): boolean;
   interrupt?(): void;
   answerApproval?(id: string, allow: boolean): void;

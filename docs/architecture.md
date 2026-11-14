@@ -84,7 +84,8 @@ metadata from the same projected/canonical split selection as keyboard changes.
 Its copied geometry comes from the readable layout used for pointer hit testing;
 saved proportions remain separate. The renderer uses it for an Arrange cue and
 receives no mutable tree or persistence authority. Hidden targets carry a reason
-without a fabricated divider. This is an in-process frontend adapter capability.
+without a fabricated divider. This metadata crosses the native presentation
+protocol as data; the host retains the mutable tree and persistence authority.
 The adapter uses the same readable projection at every width: a split retains
 both children when each can receive at least 24 columns and 6 rows. Insufficient
 areas collapse to their focused branch without mutating the canonical tree or
@@ -202,7 +203,10 @@ or execute extension modules. [UI controller contracts](ui-controllers.md) and
 [appearance hooks](ui-theming.md) describe the two extension mechanisms.
 
 The opt-in `--renderer opentui` frontend binds the actual application through
-renderer-neutral conversation snapshots and semantic plugin sources. The host
+the negotiated native presentation profile of protocol 0.7. A host-only broker
+serializes conversation snapshots and semantic plugin sources; renderer-local
+adapters reconstruct observable data sources and send identified inputs through
+the same protocol. No host callback, Core object or private lease crosses it. The host
 retains provider/session/permission ownership and the same tiling engine; the
 renderer receives views and revision-checked actions. Explicit UI operations
 own separate abort signals and private form windows, so they can coexist with a
@@ -212,8 +216,15 @@ input capture commits focus before subsequent keys/paste, while resident editors
 remain mounted. Opening a declared UI route retains navigation ownership until
 its current surface or form is ready; changing selection cancels that opening.
 The deterministic preview omits this capability and keeps its development keys.
-This adapter is still migrating toward the full
-replacement and wire-protocol coverage described above; Ink remains the default.
+Native input waits only for a protocol admission receipt. Queued keys and paste
+then reach the resident widget selected by the acknowledged host state; Core
+generation changes revoke queued old input. Controller completion remains a
+separate frame acknowledgment and model work does not block navigation.
+The legacy grid OpenTUI client and Ink reuse the same pure protocol grid reducer
+while retaining separate toolkit views. Same-log tests compare the actual painted
+frames, including unflushed diffs. Native replay additionally needs terminal
+input because local draft/undo is not a host snapshot. Wider platform and
+terminal evidence remains part of the migration gates; Ink remains the default.
 
 Ink and OpenTUI share validated per-plugin appearance contribution semantics.
 Valid publications replace one owner and move it to latest field precedence;

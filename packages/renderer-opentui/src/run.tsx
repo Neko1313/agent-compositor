@@ -34,7 +34,9 @@ export interface OpenTuiOptions {
   stdin?: NodeJS.ReadStream;
   stdout?: NodeJS.WriteStream;
   environment?: Readonly<Record<string,string>>;
-  onCtrlC?(): 'exit'|'handled';
+  onCtrlC?(): 'exit'|'handled'|Promise<'exit'|'handled'>;
+  /** Only protocol admission is awaited, never an agent or controller task. */
+  inputAdmission?:{pending():boolean;settled():Promise<void>;generation():string};
   signal?:AbortSignal;
 }
 
@@ -52,9 +54,15 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   const editorOwnership=createEditorInputOwnership();
   const abort=()=>renderer.destroy();
   options.signal?.addEventListener('abort',abort,{once:true});
-  const captureKey=(key:KeyEvent)=>{
-    if(key.defaultPrevented||!options.navigation)return;
+  let replaying=false,draining=false,inputFailure:unknown;
+  type QueuedInput={generation:string}&({kind:'key';key:KeyEvent}|{kind:'paste';event:PasteEvent});
+  const queued:QueuedInput[]=[];
+  const generation=()=>options.inputAdmission?.generation()??'';
+  const settled=()=>options.inputAdmission?.settled()??Promise.resolve();
+  function consumeKey(key:KeyEvent):boolean|Promise<boolean>{
+    if(!options.navigation)return false;
     let consumed=false;
+    let admission:boolean|Promise<boolean>=false;
     flushSync(()=>{
       if(options.windowLayout.snapshot().gesture&&isWindowGestureCancelKey(key)){
         options.windowLayout.act({type:'pointer',phase:'cancel',x:0,y:0});consumed=true;return;
@@ -64,27 +72,59 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
       const input:WindowNavigationInput={kind:'key',key:legacy?String('!@#$%^&*('.indexOf(legacy[1])+1):key.name,
         text:key.sequence,modifiers:[...(key.ctrl?['ctrl']:[]),...(key.meta||key.option||legacy?['alt']:[]),
           ...(key.shift||legacy?['shift']:[]),...(key.super?['super']:[]),...(key.hyper?['hyper']:[])],repeated:key.repeated};
-      consumed=options.navigation!.handle(input);
+      admission=options.navigation!.handle(input);
     });
-    if(consumed){key.preventDefault();key.stopPropagation();}
-  };
+    return consumed||admission;
+  }
+  function consume(item:QueuedInput):boolean|Promise<boolean>{
+    return item.kind==='key'?consumeKey(item.key):options.navigation?.handle({kind:'paste',text:''})??false;
+  }
+  function replay(item:QueuedInput,consumed:boolean){
+    if(consumed||item.generation!==generation()||options.signal?.aborted)return;
+    replaying=true;
+    try{flushSync(()=>{
+      if(item.kind==='key')renderer.keyInput.processParsedKey({...item.key});
+      else renderer.keyInput.processPaste(item.event.bytes,item.event.metadata);
+    });}finally{replaying=false;}
+  }
+  async function drain(first?:{item:QueuedInput;admission:Promise<boolean>}){
+    try{
+      if(first){replay(first.item,await first.admission);await settled();}
+      while(queued.length&&!options.signal?.aborted){
+        const item=queued.shift()!;await settled();
+        if(item.generation!==generation())continue;
+        replay(item,await consume(item));await settled();
+      }
+    }catch(error){inputFailure=error;renderer.destroy();}
+    finally{draining=false;}
+  }
+  function capture(item:QueuedInput,event:KeyEvent|PasteEvent){
+    if(event.defaultPrevented||replaying)return;
+    if(draining||options.inputAdmission?.pending()){
+      event.preventDefault();event.stopPropagation();queued.push(item);
+      if(!draining){draining=true;void drain();}return;
+    }
+    const admission=consume(item);
+    if(typeof admission!=='boolean'){
+      event.preventDefault();event.stopPropagation();draining=true;void drain({item,admission});
+    }else if(admission){event.preventDefault();event.stopPropagation();}
+  }
+  const captureKey=(key:KeyEvent)=>capture({kind:'key',key,generation:generation()},key);
   const capturePaste=(event:PasteEvent)=>{
-    if(event.defaultPrevented||!options.navigation)return;
-    // Paste belongs to native editors in normal/finder modes. Arrange ignores it.
-    // A /windows submission and its following paste can share one parser packet.
-    // Commit the newly focused native query field before paste is dispatched.
-    let consumed=false;
-    flushSync(()=>{
-      if(options.navigation!.snapshot().mode==='arrange')consumed=options.navigation!.handle({kind:'paste',text:''});
-    });
-    if(consumed){event.preventDefault();event.stopPropagation();}
+    // Preserve the original bytes/caret edit while a preceding window command
+    // crosses the transport. Only admission, not model completion, serializes it.
+    capture({kind:'paste',event,generation:generation()},event);
   };
-  if(options.navigation){renderer.keyInput.prependListener('keypress',captureKey);renderer.keyInput.prependListener('paste',capturePaste);}
+  if(options.navigation||options.inputAdmission){renderer.keyInput.prependListener('keypress',captureKey);renderer.keyInput.prependListener('paste',capturePaste);}
   function Desktop(){
     useKeyboard(key=>{
       if(key.defaultPrevented||!options.onCtrlC||!key.ctrl||key.meta||key.name!=='c')return;
       key.preventDefault();
-      if(!key.repeated&&options.onCtrlC()==='exit')renderer.destroy();
+      if(!key.repeated){
+        const result=options.onCtrlC();
+        if(typeof result==='string'){if(result==='exit')renderer.destroy();}
+        else void result.then(decision=>{if(decision==='exit')renderer.destroy();},error=>{inputFailure=error;renderer.destroy();});
+      }
     });
     return <AppearanceProvider source={options.appearance}><ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
@@ -96,14 +136,20 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     if(options.signal?.aborted)return;
     createRoot(renderer).render(<Desktop />);
     await renderer.closed;
+    if(inputFailure)throw inputFailure;
   } finally {
     options.signal?.removeEventListener('abort',abort);
-    if(options.navigation){renderer.keyInput.off('keypress',captureKey);renderer.keyInput.off('paste',capturePaste);}
+    queued.length=0;
+    if(options.navigation||options.inputAdmission){renderer.keyInput.off('keypress',captureKey);renderer.keyInput.off('paste',capturePaste);}
     renderer.destroy();
     await renderer.closed;
   }
 }
-export const runOpenTuiRenderer=runConversationPrototype;
+export {runOpenTuiNativeRenderer,type OpenTuiNativeOptions} from './native-run.js';
+export {createNativePresentationClient,type NativePresentationClient} from './native-client.js';
+export {runOpenTuiWireRenderer,runOpenTuiWireRenderer as runOpenTuiRenderer} from './wire-run.js';
+export type {OpenTuiWireRendererOptions,OpenTuiWireRendererHandle,OpenTuiWireGraphics} from './wire-run.js';
+export {OpenTuiWireStore} from './wire-store.js';
 export type {UiSurfaceRegistry,UiSurfaceSource,UiSurfaceSnapshot} from './surface.js';
 export type {WindowNavigationSource,WindowNavigationSnapshot,WindowNavigationEntry,WindowNavigationInput} from './navigation.js';
 export type {PluginTableSource} from './table.js';

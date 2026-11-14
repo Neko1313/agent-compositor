@@ -174,7 +174,70 @@ Text `input` data may include `paste: true` when the renderer can distinguish pa
 
 The acceptance test is behavioral: two renderers on the same event log must produce identical user-visible output. `@agent-compositor/renderer-ink` is the reference terminal implementation (Ink 8, grid state machine + React view); a web/desktop renderer can replace it without touching the core.
 
+### Native presentation profile
+
+Protocol 0.7 keeps the 0.6 cell messages compatible and adds an explicitly
+negotiated native presentation profile. Both peers advertise
+`native-presentation-v1` and `native-input-v1` in `hello.capabilities.elements`.
+An ordinary grid peer never receives native messages. The configured OpenTUI
+application uses this profile over an asynchronous JSONL-decoded message stream,
+including when the host and renderer share a process.
+
+| Direction | Message | Purpose |
+| --- | --- | --- |
+| host → renderer | `native-state` | Revisioned conversation, window, surface, layout, appearance and public-view data |
+| renderer → host | `native-input` | An identified input addressed to an opaque current port or a declared host control |
+| host → renderer | `native-receipt` | Accepted or rejected input admission, with optional controller ticket or navigation decision |
+| host → renderer | `native-media` | Separate bounded RGBA frames and cell dimensions for subscribed composer media |
+
+The [schemas](../packages/protocol/src/native.ts) describe data only. The host
+retains Core objects, plugin functions, controller factories, private checkpoints
+and leases. A renderer is a trusted private presentation endpoint: visible
+selected-editor text and private request frames may cross this connection. They
+are not added to public `ui.render` props, model context or broadcast events.
+This profile does not expose a network server or grant an external peer access.
+
+Each connection has an epoch, each state has a monotonic revision, and each
+source identity has an opaque port. Replacing a source revokes its old port even
+when its visible window ID stays the same. Ordinary snapshot updates retain
+renderer-local widgets and subscriptions. A Core generation change also fences
+queued native input. The host remains authoritative for visibility, focus,
+navigation policy, declared actions, request IDs and permissions.
+
+Input IDs are monotonic within a connection. The broker retains the last 512
+receipts: an identical duplicate returns its original receipt, a changed payload
+with that ID is rejected, and older IDs outside the cache cannot run again.
+Acceptance means frontend admission; it does not claim that a tool, model turn or
+asynchronous controller task has finished. Controller tickets are acknowledged
+by later frame `inputRevision` values. The client maps those host tickets to
+local FIFO field changes so an intermediate frame cannot overwrite newer typing.
+Later keyboard/paste input waits for admission, not model completion. A rejected
+submission leaves its draft available; an accepted receipt cannot clear a newer
+draft or a replacement editor.
+
+Native host snapshots intentionally omit the built-in textarea's local draft,
+caret and undo stack. Native replay evidence therefore includes duplex protocol
+ordering and the real terminal input stream; host snapshots alone cannot replay
+all local editing. The unchanged grid profile retains the same-log acceptance
+rule above, including full/diff, flush, cursor, styling and raster fallback.
+
+The OpenTUI module exports `runOpenTuiRenderer` (also named
+`runOpenTuiWireRenderer`) for the grid `source`/`send` contract and
+`runOpenTuiNativeRenderer` for this negotiated application profile. The direct
+port-based `runConversationPrototype` remains a development fixture. Renderers
+clean up on EOF, abort, source failure or explicit stop without waiting forever
+for an uncooperative source iterator. The public agent `SessionPane` emits
+schema-valid grid messages; its `declarePane(columns, rows)` dimension hints
+must be integers between 1 and 10000 inclusive.
+
 Renderers own: cell-grid semantics (full/diff ops, scroll, cursor), style mapping to their toolkit, input key mapping. Renderers never own: focus policy for panes they didn't draw, event ordering, plugin state.
+
+Cell-grid text and titles are literal display data. Both grid renderers paint control,
+unpaired-surrogate, bidirectional-control and line/paragraph-separator characters
+as visible `\uXXXX` text, including in titles. Raw grid state is preserved;
+cell text never becomes a terminal escape or an extra layout instruction.
+This shared display rule replaces the older Ink-only interpretation of control
+characters and prevents the two frontends from applying different text policies.
 
 ## Implementation status
 

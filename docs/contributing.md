@@ -34,11 +34,13 @@ TypeScript suite and coverage checks. For terminal behavior, follow
 The Node 26 CI job also runs `npm run visual:opentui-app`,
 `npm run visual:opentui-managers`, `npm run visual:opentui-navigation`,
 `npm run visual:opentui-cancellation`, `npm run visual:opentui-requests` and
-`npm run visual:opentui-controllers`
-with the bench's Chromium browser. Native release jobs repeat those commands against an archive
-extracted outside the checkout on each declared platform, retaining its report,
-terminal captures and executable/asset identities. Each scenario uses isolated
-profiles and a local HTTP fixture; no live API key or paid request is required.
+`npm run visual:opentui-controllers`, the remaining configured-application
+scenarios in the bench guide, and `npm run visual:opentui-wire` with Chromium.
+Native release jobs repeat the application checks against a relocated archive's
+executable on each declared platform. The public grid API check instead loads
+that archive's exact renderer module through `VISUAL_RENDERER_MODULE`.
+Reports retain terminal captures and executable/module identities. Scenarios use
+isolated profiles and local fixtures; no live API key or paid request is required.
 
 ## Update documentation with behavior
 

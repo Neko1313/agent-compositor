@@ -29,6 +29,7 @@
     "opentui:preview": "bun tools/visual/opentui-sample.ts",
     "visual:opentui-ghost": "bun tools/visual/opentui-ghost-check.mjs",
     "visual:opentui": "node tools/visual/opentui-check.mjs",
+    "visual:opentui-wire": "node tools/visual/opentui-wire-check.mjs",
     "visual:opentui-app": "node tools/visual/opentui-app-check.mjs",
     "visual:opentui-managers": "node tools/visual/opentui-managers-check.mjs",
     "visual:opentui-navigation": "node tools/visual/opentui-navigation-check.mjs",

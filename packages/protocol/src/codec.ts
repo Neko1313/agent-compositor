@@ -41,8 +41,11 @@ export async function* decodeStream(
   source: AsyncIterable<string | Uint8Array>,
 ): AsyncGenerator<WireMessage, void, void> {
   let buf = "";
+  const decoder = new TextDecoder();
   for await (const chunk of source) {
-    buf += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+    // A transport may split a multi-byte scalar between arbitrary byte chunks.
+    // Flush pending bytes before an already-decoded string starts a new segment.
+    buf += typeof chunk === "string" ? decoder.decode() + chunk : decoder.decode(chunk, {stream: true});
     let idx: number;
     while ((idx = buf.indexOf("\n")) !== -1) {
       const line = buf.slice(0, idx);
@@ -50,5 +53,6 @@ export async function* decodeStream(
       if (line.trim()) yield decodeLine(line);
     }
   }
+  buf += decoder.decode();
   if (buf.trim()) yield decodeLine(buf); // final line without trailing newline
 }

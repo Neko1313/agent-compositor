@@ -4,6 +4,8 @@ import {pathToFileURL} from 'node:url';
 import type {BuiltApp} from './build.js';
 import {createOpenTuiHost} from './opentui-host.js';
 import {connectWindowLayout} from './opentui-windows.js';
+import {decodeLine,encodeMessage,type WireMessage} from '@agent-compositor/protocol';
+import {createOpenTuiWireHost} from './opentui-wire.js';
 
 /** Resolve relocatable native assets beside the executable, never through cwd. */
 async function rendererModule():Promise<typeof import('@agent-compositor/renderer-opentui')>{
@@ -22,21 +24,27 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
   const stop=new AbortController();
   let startup:Promise<void>|undefined;
   let startupFailure:unknown;
+  let broker:ReturnType<typeof createOpenTuiWireHost>|undefined;
+  const queue:WireMessage[]=[];
+  let wake:(()=>void)|undefined,ended=false;
+  const source:AsyncIterable<WireMessage>={async *[Symbol.asyncIterator](){
+    while(!ended||queue.length){
+      if(!queue.length)await new Promise<void>(resolve=>{wake=resolve;});
+      while(queue.length)yield queue.shift()!;
+    }
+  }};
+  const end=()=>{ended=true;wake?.();wake=undefined;};
   try{
     const windows=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'},{id:'tools',label:'Tools'}],initial:['session']});
     layout=windows;
     host=createOpenTuiHost(app,windows,{onExit:()=>stop.abort()});
     const current=host;
-    const {runOpenTuiRenderer}=await rendererModule();
+    const {runOpenTuiNativeRenderer}=await rendererModule();
     startup=current.start().then(async()=>{
       const command=startupCommand??(await app.shouldOfferSetup?.()?'/setup':undefined);
       if(command&&!stop.signal.aborted)await current.submit(command);
     }).catch(error=>{startupFailure=error;stop.abort(error);});
-    await runOpenTuiRenderer([current.session],{
-      stdin,stdout,environment:Object.fromEntries(Object.entries(env).filter((entry):entry is [string,string]=>entry[1]!==undefined)),
-      signal:stop.signal,windowLayout:windows,surfaces:current.surfaces,composerMedia:current.composerMedia,navigation:current.navigation,
-      conversationWindows:current.conversationWindows,appearance:current.appearance,publicRender:current.publicRender,
-      animations:env.AGENT_GRAPHICS!=='off'&&!env.NO_COLOR&&env.AGENT_REDUCED_MOTION!=='1',
+    broker=createOpenTuiWireHost({host:current,layout:windows,onFailure:error=>{startupFailure=error;stop.abort(error);},
       onCtrlC:()=>{
         if(current.navigation.handle({kind:'key',key:'c',modifiers:['ctrl']}))return 'handled';
         const focused=windows.snapshot().focused;
@@ -53,10 +61,16 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
         if(current.core.getState()==='running'){current.core.interrupt();return 'handled';}
         return 'exit';
       },
-    });
+    },message=>{queue.push(decodeLine(encodeMessage(message)));wake?.();wake=undefined;});
+    broker.hello();
+    const renderer=await runOpenTuiNativeRenderer({source,send:message=>broker?.receive(decodeLine(encodeMessage(message))),
+      stdin,stdout,environment:Object.fromEntries(Object.entries(env).filter((entry):entry is [string,string]=>entry[1]!==undefined)),
+      signal:stop.signal,animations:env.AGENT_GRAPHICS!=='off'&&!env.NO_COLOR&&env.AGENT_REDUCED_MOTION!=='1'});
+    await renderer.waitUntilExit;
     if(startupFailure)throw startupFailure;
   }finally{
     stop.abort(new Error('Terminal closed'));
+    end();broker?.close();
     await host?.close();
     await startup;
     await layout?.disconnect();

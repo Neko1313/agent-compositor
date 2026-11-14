@@ -83,6 +83,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-conversation-copies
+      - name: Check configured OpenTUI portable appearance
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-appearance
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -128,6 +132,7 @@ jobs:
             dist/visual-opentui-editor/
             dist/visual-opentui-workspace-controllers/
             dist/visual-opentui-conversation-copies/
+            dist/visual-opentui-appearance/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

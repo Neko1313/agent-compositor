@@ -1,5 +1,133 @@
 # Project memory
 
+## Portable OpenTUI appearance implementation — 2026-11-14
+
+The previous goal turn was progress, committed and pushed as f2ca0c4. Fresh
+GitHub observation confirms its exact-head build-only release 43577214963 is
+completed/success. Verification and all four native platforms pass; publication
+is skipped. CI 43577199139, docs 43577199183 and plugin preparation 43577199063
+also pass. Downloaded artifacts prove 228 OpenTUI cases and 32 smoke reports,
+with no audit problems. The exact tested 231412b4/acef6119 payload is installed;
+dist/opentui-conversation-copies-verification.json retains the evidence and
+dist/opentui-next-migration-findings-f2ca0c4.json records remaining frontend gaps.
+
+The next implementation covers the complete existing ui.appearance contract,
+including ten colors, border/control policy and all presentation fields. It
+does not close public ui.render/invalidation, wire parity, delegated-child
+attribution, physical terminal/media or broader real-development gates. Keep
+the full 1.0 objective open. Preserve native defaults where fields are absent;
+share validated contribution semantics with Ink rather than inventing a schema.
+The host supplies only immutable merged partial appearance data. Native React
+context updates decoration without remounting editor/controller owners. Explicit
+showTools is a publication-time intent, not a continuously enforced layout rule.
+
+The real old installed-runtime RED is in dist/opentui-appearance-old-native-red-valid:
+an actual bundled /theme amber command saves the choice and publishes the valid
+contribution with zero HTTP calls, but the frozen old payload keeps its default
+accent and single corners. The earlier old-native-red folder is a fixture
+path/invalid observer preflight failure, not product evidence. All generated
+manifests and hook names now preflight before the actual scenario.
+
+Renderer pure appearance/chrome geometry checks pass 12 cases; renderer typecheck
+passes. App host/shared semantics, safe Main tool detail projection and actual
+source/native appearance verification are still in progress. Private operation
+tool calls and human-request arguments must not become public transcript detail;
+unknown replayed custom-tool outcomes must remain neutral rather than claim
+success. No paid/live-model calls are used in this work.
+
+The complete backend focused set passes 193 tests and app typecheck. Full
+standalone coverage then passes 2148 tests with three optional skips and 234
+files. Full typecheck, generation, docs generation and docs:check pass; logs
+use /tmp/compositor-appearance-*. The native renderer unit seam verifies live
+theme/labels/details/hints, the same Unicode editor/cursor, private Finder
+occlusion and exact title-control zoom dispatch in
+dist/opentui-appearance-native-probe-complete. Its two earlier probe failures
+were an unscoped Other-tab check and treating trailing mouse-up as the zoom
+command; they are diagnostics, not product failures or actual-CLI proof.
+
+Independent review found and fixed preview-only Plugins selection styling in
+one batch. Selected rows and danger buttons now use the explicit selection pair;
+unselected danger text retains its semantic color. Bundled amber declares its
+own light selectionText, yielding 10.01:1 contrast against the dark selection
+background without changing native defaults or guessing renderer colors.
+
+Tool detail provenance is positively admitted per exact live Main call object
+after a noninteractive turn.start, not provider IDs. Historical calls, idle/UI
+operations and result-only unknown IDs cannot be promoted. Context replacement
+and disconnect clear provenance. Tests cover actual idle calls, reused IDs,
+cloned context, live Main, concurrent private calls and human argument redaction.
+The documented idle invokeUserTool lane and Core/journal formats are unchanged.
+
+The actual first source appearance run passes the first three native cases,
+including all ten colors, contribution ordering, chrome and presentation. Its
+next assertion misreads a correctly wrapped 31-cell Unicode draft as one row.
+The corrected bounded textarea reader is verified against the same ANSI in
+official xterm/Unicode 11, matching all 50 final rows and rejecting the wrong
+draft. The second source-wrapped run gets past that assertion, then requires
+the wide toolbar text in a 38-column layout. The positive mode acknowledgment
+now follows the actual width<42 toolbar policy, with exact state exclusions.
+Both failed runs remain separate. The fresh source-narrow-mode run is active;
+complete source/native appearance and exact-head remote gates remain required.
+
+The complete source appearance scenario now passes eight cases (native five,
+selected three), both final PTYs 0, errors:[] and runner 0, in
+dist/opentui-appearance-source-unzoomed-palette. Sixteen captures are retained;
+the bench author visually inspected eight critical native/selected/narrow/reload
+and restart PNGs. Later failed attempts are fixture observations: reload notices
+must be read in Main before restoring the exact manager context; the retained
+manager row is Extensions rather than its Plugins query alias; xterm toolbar
+reads must end at actual terminal.cols after a resize; restored global zoom
+must be explicitly left before reading an otherwise hidden palette. All exact
+RGB, whole-tree/view, cursor/undo, receipt/privacy and no-extra-HTTP assertions
+remain. Failed folders are distinct and preserved.
+
+Final code review found one real new-projection correctness issue: Core's tool
+invocation ok:true does not prove exec exit 0. Before artifact freeze, classify
+known structured exec/exec_output receipts without parsing result prose or
+arbitrary custom business results. Nonzero exit must be error; background start
+and completed polls of running processes are neutral observations. This changes
+no Core/lane/journal contract. Actual Core regressions and final full checks
+remain required before building the immutable candidate.
+
+The shell-outcome correction is complete. Actual Core/OS tests distinguish
+foreground exit 0/1/-1, background launch and running/final exec_output polls;
+text-only/invalid outputs remain neutral and custom lookalike bodies retain
+generic invocation semantics. Projection tests pass 25 cases and the focused
+app set passes 210. Final standalone coverage passes 2165 tests with three
+optional skips in 234 files; full typecheck, gen, docs:gen and docs:check pass.
+Independent review finds no blocker in the final classifier. The changed
+ui-theme package passes all 15 declared package tests and its unique source PR
+certificate passes 12 cases with 39 verified evidence references. Native archive
+verification, exact-head remote certification and installation remain pending.
+
+The native build and installed-runtime smoke pass. The initial build waited on
+the upstream Callix fetch and was explicitly terminated; the next build used
+the already cached archive only after matching its pinned 38eb61f0 digest.
+The immutable local candidate is b17ca1a9 executable, 232d942c renderer and
+8ab12ac2 archive in dist/opentui-appearance-artifact.json. All 72 actual native
+checks pass across eleven runners, including appearance native five/selected
+three, every runner 0 and recorded final PTY 0. The strict aggregate validates
+expected negative business receipts separately, recursive errors/privacy,
+loopback launch identities and payload hashes before/after. No source changes
+or retries were needed in this native matrix. The separate ui-theme 1.1.1
+candidate archive a7758563 is a plugin archive, not the full host archive;
+its artifact certification and independent final PNG review remain pending.
+
+The exact independent ui-theme archive passes all four artifact cases, including
+its real Ink PTY. Strict certificate verification matches the current source,
+plan, workspace and archive; eleven unique evidence files and three key PNGs
+were independently checked. This is local candidate certification, with no tag
+or plugin publication. The full host archive remains unchanged.
+
+Independent final local review rehashes all three immutable payload identities,
+reads every one of the eleven successful runner reports and visually checks
+exactly eight critical native/selected/narrow/private/reload/restart PNGs. It
+confirms readable selection/chrome, retained drafts, exact reload receipts,
+five loopback completions per composition and rejected expired publications;
+private values are absent from public traces. The bounded appearance candidate
+passes review. Final canonical docs:check also passes. Exact new-head remote
+verification and installation are the next checkpoint, not full 1.0 completion.
+
 ## Main window-copy migration implementation — 2026-11-14
 
 The previous goal turn was progress. Current implementation started from clean

@@ -13,6 +13,7 @@ export interface DynamicWindowLayout extends WindowLayoutSource {
   hostViews(): readonly HostWindowView[];
   createHostView(kind: HostWindowKind): HostWindowView;
   registerClosed(pane: WindowPane): void;
+  setVisible(id: string, visible: boolean, placement?: WindowPlacement): void;
   register(pane: WindowPane, placement?: WindowPlacement): void;
   relocate(id: string, placement?: WindowPlacement): void;
   detach(id: string): void;
@@ -407,6 +408,20 @@ export async function connectWindowLayout(storage: Storage, options: {
       const before = wm.snapshot();
       try {wm.relocate(id, placement); retainedIds(wm.snapshot());}
       catch (cause) {wm.restore(before, retainedIds(before)); publish(); throw cause;}
+      if (JSON.stringify(before) !== JSON.stringify(wm.snapshot())) persist();
+      publish();
+    },
+    setVisible(id, visible, placement) {
+      if (!active || !registry.has(id)) return;
+      if (typeof visible !== 'boolean' || !validPlacement(placement)) throw Error('Invalid passive window visibility');
+      if (wm.has(id) === visible) return;
+      cancel();
+      const before = wm.snapshot();
+      try {
+        if (visible) wm.place(id, {...placement, focus: false});
+        else wm.forget(id);
+        retainedIds(wm.snapshot());
+      } catch (cause) {wm.restore(before, retainedIds(before));publish();throw cause;}
       if (JSON.stringify(before) !== JSON.stringify(wm.snapshot())) persist();
       publish();
     },

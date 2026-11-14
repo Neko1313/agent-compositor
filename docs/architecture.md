@@ -215,6 +215,17 @@ The deterministic preview omits this capability and keeps its development keys.
 This adapter is still migrating toward the full
 replacement and wire-protocol coverage described above; Ink remains the default.
 
+Ink and OpenTUI share validated per-plugin appearance contribution semantics.
+Valid publications replace one owner and move it to latest field precedence;
+null/unload removes only that owner. OpenTUI receives an immutable, revisioned
+merged partial appearance snapshot and applies its own defaults through React
+context. No plugin function, Core object or private request crosses that source.
+Theme updates retain resident input/controller identities. Publication-sensitive
+Tools visibility stays in the host so ordinary decoration updates cannot replay
+layout intent. Main tool details use exact live call occurrences admitted in the
+current noninteractive Main turn, excluding UI operations and unknown historical
+groups; reused provider IDs cannot promote private historical arguments.
+
 Streaming text updates are composed on a 16 ms timer instead of rebuilding the
 Markdown transcript for every provider delta. The catalog's `assistant.text`
 precursor is still available to plugins; the UI consumes the subsequent rewritten

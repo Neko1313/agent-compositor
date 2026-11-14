@@ -2,7 +2,7 @@
 import {TextAttributes,type ScrollBoxRenderable} from '@opentui/core';
 import {useKeyboard} from '@opentui/react';
 import {useRef} from 'react';
-import {color} from './colors.js';
+import {useAppearance} from './appearance.js';
 import type {ConversationApproval,ConversationSession} from './session.js';
 import {handleActionMouseDown} from './mouse-action.js';
 
@@ -18,6 +18,7 @@ const actions=[
 export function ApprovalCard({request,session,height,isActive}:{
   request:ConversationApproval;session:ConversationSession;height:number;isActive():boolean;
 }){
+  const {color,chrome}=useAppearance();
   const scroller=useRef<ScrollBoxRenderable>(null),answered=useRef(false);
   const current=()=>isActive()&&session.snapshot().approval?.id===request.id;
   function answer(allow:boolean){
@@ -35,7 +36,7 @@ export function ApprovalCard({request,session,height,isActive}:{
     if(!action||!session.answerApproval)return;
     key.preventDefault();if(!key.repeated)answer(action.allow);
   });
-  return <box flexDirection="column" flexShrink={0} paddingX={1} border borderColor={color.running}
+  return <box flexDirection="column" flexShrink={0} paddingX={1} border borderStyle={chrome.borderStyle} borderColor={color.running}
     backgroundColor={color.panel} title=" Approval required " titleColor={color.running}>
     <scrollbox ref={scroller} maxHeight={Math.max(1,Math.min(12,Math.floor(height/3)))}
       focusable={false} scrollX={false} scrollY contentOptions={{minHeight:0}}>

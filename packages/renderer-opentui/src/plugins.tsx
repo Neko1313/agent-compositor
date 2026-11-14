@@ -2,7 +2,7 @@
 import { MouseButton, TextAttributes, type ScrollBoxRenderable } from '@opentui/core';
 import { useKeyboard } from '@opentui/react';
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { color } from './colors.js';
+import {useAppearance} from './appearance.js';
 
 export type PluginManagerAction = 'install' | 'enable' | 'disable' | 'update' | 'remove';
 
@@ -46,12 +46,12 @@ function Button({ label, onPress, selected, disabled, danger }: {
   disabled?: boolean;
   danger?: boolean;
 }) {
-  const highlight = danger ? color.error : color.accent;
-  const background = selected && !disabled ? highlight : color.panel;
+  const {color}=useAppearance();
+  const background = selected && !disabled ? color.selectionBackground : color.panel;
   return <box height={1} flexShrink={0} paddingX={1} backgroundColor={background} onMouseDown={event => {
     if (!disabled && event.button === MouseButton.LEFT) onPress();
   }}>
-    <text selectable={false} fg={disabled ? color.muted : selected ? color.background : color.text}>
+    <text selectable={false} fg={disabled ? color.muted : selected ? color.selectionText : danger ? color.error : color.text}>
       {label}
     </text>
   </box>;
@@ -61,6 +61,7 @@ export function Plugins({ source, visible, focused, width, height, isActive, isV
   source: PluginManagerSource; visible: boolean; focused: boolean; width: number; height: number;
   isActive(): boolean; isVisible(): boolean;
 }) {
+  const {color,presentation}=useAppearance();
   const state = useSyncExternalStore(source.subscribe, source.snapshot);
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string>();
@@ -164,10 +165,10 @@ export function Plugins({ source, visible, focused, width, height, isActive, isV
         focusable={false} scrollX={false} scrollY>
         {rows.map(item => (
           <box key={item.id} id={'plugin-row-' + item.id} flexDirection="row" height={1}
-            backgroundColor={item === row ? color.panel : undefined} onMouseDown={event => {
+            backgroundColor={item === row ? color.optionBackground : undefined} onMouseDown={event => {
               if (event.button === MouseButton.LEFT) choose(item.id);
             }}>
-            <text flexGrow={1} flexBasis={0} selectable={false} truncate wrapMode="none" fg={item === row ? color.accent : color.text}>
+            <text flexGrow={1} flexBasis={0} selectable={false} truncate wrapMode="none" fg={item === row ? color.actionText : color.text}>
               {(item === row ? '› ' : '  ') + item.name + (item.marketplace ? '@' + item.marketplace : '')}
             </text>
           </box>
@@ -205,7 +206,7 @@ export function Plugins({ source, visible, focused, width, height, isActive, isV
     {state.working ? <text fg={color.running}>Working…</text> :
       state.status && <text wrapMode="word" fg={color.muted}>{state.status}</text>}
     {state.error && <text wrapMode="word" fg={color.error}>{state.error}</text>}
-    {focused && <text fg={color.muted} wrapMode="word">
+    {focused && (presentation.hints||confirming) && <text fg={color.muted} wrapMode="word">
       {confirming ? 'Y confirm removal · Esc cancel' : searching ? 'Enter or Esc returns to results' :
         narrow ? '/ search · ↑↓ rows · ←→ action · Enter run' : '/ search · ↑↓ select plugin · ←→ select action · Enter run · R refresh'}
     </text>}

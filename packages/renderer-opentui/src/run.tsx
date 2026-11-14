@@ -12,6 +12,7 @@ import type {WindowNavigationInput,WindowNavigationSource} from './navigation.js
 import {useKeyboard} from '@opentui/react';
 import {createEditorInputOwnership} from './editor-ownership.js';
 import type {ConversationWindowRegistry} from './conversation-windows.js';
+import {AppearanceProvider,type AppearanceSource} from './appearance.js';
 
 // Closed windows keep native widgets resident. The host admits at most 256
 // panes, each with up to two keyboard hooks; SDK and desktop handlers use the
@@ -26,6 +27,7 @@ export interface OpenTuiOptions {
   navigation?:WindowNavigationSource;
   composerMedia?: ComposerMedia;
   conversationWindows?: ConversationWindowRegistry;
+  appearance?:AppearanceSource;
   windowLayout: WindowLayoutSource;
   stdin?: NodeJS.ReadStream;
   stdout?: NodeJS.WriteStream;
@@ -82,10 +84,10 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
       key.preventDefault();
       if(!key.repeated&&options.onCtrlC()==='exit')renderer.destroy();
     });
-    return <ConversationView sessions={sessions} workflowTable={options.workflowTable}
+    return <AppearanceProvider source={options.appearance}><ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
       animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership}
-      conversationWindows={options.conversationWindows} />;
+      conversationWindows={options.conversationWindows} /></AppearanceProvider>;
   }
   try {
     renderer.keyInput.setMaxListeners(keyboardListenerLimit);
@@ -107,5 +109,6 @@ export type {PluginManagerSource, PluginManagerSnapshot, PluginManagerRow, Plugi
 export type {ComposerMedia} from './ghost.js';
 export type {ConversationSession, ConversationSnapshot, ConversationApproval, ConversationInteraction, Message} from './session.js';
 export type {ConversationWindow, ConversationWindowRegistry} from './conversation-windows.js';
+export type {AppearanceSource,AppearanceSnapshot} from './appearance.js';
 export type {ConversationController, ConversationEditor, WindowController, ControllerInput, ControllerView, ControllerCell} from './controller.js';
 export type {WindowLayoutSource, WindowLayoutSnapshot, WindowLayoutAction, WindowFrame, WindowDirection, WindowDropEdge, WindowSplitTarget} from './layout.js';

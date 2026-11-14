@@ -15,6 +15,7 @@ import {
 } from "./placement.js";
 import { WindowManager, type ResizeHandle, type DropEdge } from "./windows.js";
 import { windowControl } from "./window-controls.js";
+import {AppearanceContributions} from './appearance-contributions.js';
 import {
   hello,
   answerHello,
@@ -27,9 +28,7 @@ import type {
 } from "@agent-compositor/core";
 import {
   surfacePlacementSchema,
-  uiAppearanceSchema,
   uiTextViewSchema,
-  type UiAppearance,
 } from "@agent-compositor/events";
 import {
   clean,
@@ -81,7 +80,7 @@ export class AppUI {
   core: AgentCore;
   private sink?: (message: WireMessage) => void;
   private transcript: TranscriptBlock[] = [];
-  private appearances = new Map<string, UiAppearance>();
+  private appearances = new AppearanceContributions();
   private theme = appearanceFrom([]);
   private viewCache = new Map<string, { key: string; rows?: Row[]; view?: UiTextView }>();
   private hitRows = new Map<string, Row[]>();
@@ -722,6 +721,8 @@ export class AppUI {
         this.status = "Working";
       }
       if (name === "ui.appearance" || name === "ui.pluginRemoved") {
+        const scope = this.core.host.currentServiceScope;
+        if (name === 'ui.appearance' && (scope?.lifetime.aborted || scope?.signal.aborted)) return;
         const plugin = String(input.plugin ?? "custom");
         if (name === "ui.pluginRemoved") {
           for(const [id,owner]of this.closedPluginWindows)if(owner===plugin)this.closedPluginWindows.delete(id);
@@ -745,24 +746,17 @@ export class AppUI {
               })
               .catch(() => {});
           }
-        if (name === "ui.pluginRemoved" || input.appearance === null)
-          this.appearances.delete(plugin);
+        let showTools: boolean | undefined;
+        if (name === 'ui.pluginRemoved') this.appearances.remove(plugin);
         else {
-          const parsed = uiAppearanceSchema.safeParse(input.appearance);
-          if (parsed.success) {
-            this.appearances.delete(plugin);
-            this.appearances.set(plugin, parsed.data);
-          }
+          const publication = this.appearances.publish(plugin, input.appearance);
+          if (!publication.accepted) return;
+          showTools = publication.showTools;
         }
-        this.theme = appearanceFrom(this.appearances.values());
+        this.theme = appearanceFrom([this.appearances.snapshot()]);
         this.viewCache.clear();
-        if (
-          name === "ui.appearance" &&
-          input.appearance &&
-          (input.appearance as UiAppearance).presentation?.showTools !==
-            undefined
-        ) {
-          if (this.theme.presentation.showTools)
+        if (showTools !== undefined) {
+          if (showTools)
             this.windows.place("tools", {
               site: "sidebar",
               size: 0.3,

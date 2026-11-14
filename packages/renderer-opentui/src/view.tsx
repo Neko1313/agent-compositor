@@ -1,8 +1,10 @@
 /** @jsxImportSource @opentui/react */
-import { MouseButton, RGBA, TextAttributes, type BoxRenderable, type KeyBinding, type MouseEvent, type OptimizedBuffer, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
+import { MouseButton, RGBA, TextAttributes, parseColor, type BoxRenderable, type KeyBinding, type MouseEvent, type OptimizedBuffer, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
 import { flushSync, useKeyboard, useRenderer, useTerminalDimensions } from '@opentui/react';
 import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { color } from './colors.js';
+import {useAppearance} from './appearance.js';
+import {appearanceText} from './colors.js';
+import {contains,finderRectangle,titleControls,titleSegments} from './window-chrome.js';
 import { Ghost, type ComposerMedia } from './ghost.js';
 import { Interaction } from './interaction.js';
 import { isWindowGestureCancelKey, windowActionForKey, type WindowFrame, type WindowLayoutAction, type WindowLayoutSource } from './layout.js';
@@ -26,8 +28,6 @@ import {createConversationScrollMemory} from './conversation-scroll.js';
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
 const composerForeground = RGBA.defaultForeground();
-const targetForeground = RGBA.fromHex(color.running);
-const targetBackground = RGBA.fromHex(color.background);
 
 const editorKeys: KeyBinding[] = [
   { name: 'return', action: 'submit' },
@@ -49,16 +49,17 @@ interface TabProps {
 }
 
 function Tab({ label, index, selected, onSelect,showShortcut=true,id }: TabProps) {
+  const {color}=useAppearance();
   const shortcut = showShortcut&&index < 11 ? `F${index + 2} ` : '';
   return (
     <box
       id={id} paddingX={1} height={1} maxWidth="100%"
-      backgroundColor={selected ? color.accent : color.panel}
+      backgroundColor={selected ? color.selectionBackground : color.panel}
       onMouseDown={event => {
         if (event.button === MouseButton.LEFT) onSelect();
       }}
     >
-      <text selectable={false} truncate fg={selected ? color.background : color.text}
+      <text selectable={false} truncate fg={selected ? color.selectionText : color.text}
         attributes={selected ? TextAttributes.BOLD : TextAttributes.NONE}>
         {`${shortcut}${label}`}
       </text>
@@ -92,12 +93,20 @@ function useConversationScroll(history:React.RefObject<ScrollBoxRenderable|null>
 }
 
 function TranscriptMessages({session}: {session:ConversationSession}){
+  const {color,presentation}=useAppearance();
   const state=useSyncExternalStore(useSessionSubscription(session),()=>session.snapshot());
   return <>
-    {state.messages.length===0&&!state.error&&<text fg={color.muted}>No messages yet</text>}
+    {state.messages.length===0&&!state.error&&<text fg={color.muted} wrapMode="word">{presentation.welcome}</text>}
     {state.messages.map((message,index)=><box key={index} flexShrink={0} flexDirection="column">
-      <text attributes={TextAttributes.BOLD} fg={message.role==='user'?color.muted:color.accent}>{message.role==='user'?'You':session.label}</text>
-      <text wrapMode="word" fg={color.text}>{message.text}</text>
+      {message.role==='tool'?<>
+        <text wrapMode="word" fg={message.tool.state==='error'?color.error:message.tool.state==='done'?color.success:color.muted}>
+          {({running:'…',done:'✓',error:'!',complete:'·'} as const)[message.tool.state]+' '+appearanceText(message.tool.name)+(message.text?' · '+appearanceText(message.text,true):'')}
+        </text>
+        {presentation.toolDetails&&message.tool.args&&<text wrapMode="word" fg={color.muted}>{appearanceText(message.tool.args,true)}</text>}
+      </>:<>
+        <text attributes={TextAttributes.BOLD} fg={message.role==='user'?color.muted:color.accent}>{message.role==='user'?presentation.userLabel:presentation.agentLabel??session.label}</text>
+        <text wrapMode="word" fg={color.text}>{message.text}</text>
+      </>}
     </box>)}
     {state.error&&<text wrapMode="word" fg={color.error}>{`Error: ${state.error}`}</text>}
   </>;
@@ -105,6 +114,7 @@ function TranscriptMessages({session}: {session:ConversationSession}){
 
 /** Inactive copies have their own history, without another editor or request controller. */
 function ConversationCopy({window,visible,memory}: {window:ConversationWindow;visible:boolean;memory:ScrollMemory}){
+  const {color}=useAppearance();
   const history=useRef<ScrollBoxRenderable>(null),session=window.session;
   const state=useSyncExternalStore(useSessionSubscription(session),()=>session.snapshot());
   useConversationScroll(history,window.id,visible,session.generation??session.id,memory);
@@ -132,6 +142,8 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   isVisible(): boolean;
   editorOwnership?:EditorInputOwnership;
 }) {
+  const {color,presentation,customText}=useAppearance();
+  const textColor=customText?parseColor(color.text):composerForeground;
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
   const editor = useRef<TextareaRenderable>(null);
   const history = useRef<ScrollBoxRenderable>(null);
@@ -240,18 +252,18 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
         backgroundColor={composerBackground} flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
         <textarea ref={editor} focused={focused && !editing && !state.editor}
             height={editorHeight} flexGrow={1} flexBasis={0} minWidth={1} wrapMode="word"
-            textColor={composerForeground} focusedTextColor={composerForeground} cursorColor={composerForeground}
+            textColor={textColor} focusedTextColor={textColor} cursorColor={textColor}
             placeholder={`Message ${selected.label}…`} placeholderColor={color.muted}
             onKeyDown={key => { if (!isActive() || editing || selected.snapshot().editor) key.preventDefault(); }}
             onPaste={event => { if (!isActive() || editing || selected.snapshot().editor) event.preventDefault(); }}
             onContentChange={() => setImmediate(Boolean(selected.isImmediateCommand?.(editor.current?.plainText ?? '')))}
             keyBindings={editorKeys} onSubmit={send} />
         <Ghost media={composerMedia} enabled={!editing && focused && animations && wide && height >= 20} active={state.running} />
-        {focused && <box height={1} paddingX={1} backgroundColor={canSend ? color.accent : color.panel}
+        {focused && <box height={1} paddingX={1} backgroundColor={canSend ? color.selectionBackground : color.panel}
           onMouseDown={event => {
             handleActionMouseDown(event, Boolean(messageInput()), send);
           }}>
-          <text selectable={false} fg={canSend ? color.background : color.muted}
+          <text selectable={false} fg={canSend ? color.selectionText : color.muted}
             attributes={TextAttributes.BOLD}>Send</text>
         </box>}
       </box>
@@ -269,7 +281,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
         <Ghost media={composerMedia} enabled={!editing&&focused&&animations&&wide&&height>=20} active={state.running}/>
       </box>}
       {focused && <box flexDirection="row" columnGap={1} height={1}>
-        <text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.controller?' · Ctrl+C cancel request':'') + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : state.editor?selectedHint:width >= fullHint.length + 2 ? fullHint : inputHint}</text>
+        {presentation.hints&&<text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.controller?' · Ctrl+C cancel request':'') + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : state.editor?selectedHint:width >= fullHint.length + 2 ? fullHint : inputHint}</text>}
         {state.controller&&<box height={1} paddingX={1} backgroundColor={color.panel} onMouseDown={event=>{
           handleActionMouseDown(event,isActive()&&selected.snapshot().controller?.id===state.controller?.id,()=>setEditing(!editing));
         }}><text selectable={false} fg={color.accent}>{editing?'Draft':'Answer'}</text></box>}
@@ -296,9 +308,10 @@ function Tile({ pane, frame, focused, drop, children }: {
   drop?: string;
   children(width: number, height: number): React.ReactNode;
 }) {
+  const {color,chrome}=useAppearance();
   return <box visible={Boolean(frame)} position="absolute" left={frame?.x ?? 0} top={frame?.y ?? 0}
     width={frame?.width ?? 1} height={frame?.height ?? 1} minWidth={0} minHeight={0}
-    flexDirection="column" border backgroundColor={color.background}
+    flexDirection="column" border borderStyle={chrome.borderStyle} backgroundColor={color.background}
     borderColor={drop ? color.running : focused ? color.accent : color.rule}
     title={' ' + pane.label + (drop ? ' · drop ' + drop + ' ' : focused ? ' · focused ' : ' ')}
     titleColor={drop ? color.running : focused ? color.accent : color.muted}>
@@ -334,6 +347,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   editorOwnership?:EditorInputOwnership;
   conversationWindows?:ConversationWindowRegistry;
 }) {
+  const appearance=useAppearance(),{color,presentation}=appearance;
   const editorOwns=useSyncExternalStore(editorOwnership?.subscribe??(()=>()=>{}),editorOwnership?.snapshot??(()=>false));
   const navigationState=useSyncExternalStore((navigation??emptyNavigation).subscribe,(navigation??emptyNavigation).snapshot);
   const published=useSyncExternalStore(surfaces.subscribe,surfaces.snapshot);
@@ -368,7 +382,15 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   const workspaceButtons = useRef(new Map<number, BoxRenderable>());
   const nativeGestureHeld = useRef(false);
   const normalPointerUp = useRef(false);
+  const [pointerCell,setPointerCell]=useState<{x:number;y:number}>();
+  const hoveredFrame=!layout.gesture&&navigationState.mode!=='finder'&&pointerCell
+    ?layout.frames.find(frame=>pointerCell.y===frame.y&&contains(frame,pointerCell.x,pointerCell.y)):undefined;
+  const hoveredTitle=hoveredFrame?.surface;
+  const hoveredControl=Boolean(hoveredFrame&&pointerCell&&titleControls(hoveredFrame,true).some(control=>contains(control,pointerCell.x,pointerCell.y)));
+  const chromeState=useRef({appearance,panes,hoveredTitle});
+  chromeState.current={appearance,panes,hoveredTitle};
   const { width, height } = useTerminalDimensions();
+  useLayoutEffect(()=>{setPointerCell(undefined);},[navigationState.mode,layout.workspace,width,height]);
   const controlStart = Math.max(6, panes.length + 2);
   // Commit native widget focus before the parser delivers the next key in a batch.
   const act = useCallback((action: WindowLayoutAction) => {
@@ -390,13 +412,46 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     renderer.requestRender();
   }), [renderer, windowLayout]);
   useLayoutEffect(() => {
-    renderer.setMousePointer(layout.pointer);
-  }, [renderer, layout.pointer]);
+    renderer.setMousePointer(hoveredControl&&!layout.gesture&&navigationState.mode!=='finder'?'pointer':layout.pointer);
+  }, [renderer, layout.pointer,layout.gesture,hoveredControl,navigationState.mode]);
   useLayoutEffect(() => () => { renderer.setMousePointer('default'); }, [renderer]);
   const measure = useCallback(function (this: BoxRenderable) {
     if (this.width > 0 && this.height > 0) windowLayout.resize(this.width, this.height);
   }, [windowLayout]);
+  useLayoutEffect(()=>{
+    const paintChrome=(buffer:OptimizedBuffer)=>{
+      const bounds=viewport.current;if(!bounds)return;
+      const current=windowLayout.snapshot(),mode=navigation?.snapshot().mode??'normal';
+      const {appearance:theme,panes,hoveredTitle}=chromeState.current,{color,chrome}=theme;
+      const background=parseColor(color.titleBackground);
+      const finder=mode==='finder'?finderRectangle(current.width,current.height):undefined;
+      const glyphs=chrome.borderStyle==='double'?['╔','═','╗']:chrome.borderStyle==='rounded'?['╭','─','╮']:['┌','─','┐'];
+      const draw=(frame:WindowFrame,label:string,focused:boolean,drop?:string,privateFinder=false)=>{
+        const hovered=hoveredTitle===frame.surface,controls=titleControls(frame,!privateFinder
+          &&(chrome.controls==='always'||focused||hovered||mode==='arrange'));
+        const border=parseColor(drop?color.running:focused?color.accent:color.rule);
+        const title=parseColor(drop?color.running:focused||hovered?color.accent:color.muted);
+        const titleWidth=Math.max(0,(controls[0]?.x??frame.x+frame.width-1)-(frame.x+2));
+        for(const segment of titleSegments(frame,privateFinder?undefined:finder)){
+          buffer.pushScissorRect(bounds.x+segment.x,bounds.y+segment.y,segment.width,1);
+          try{
+            buffer.drawText(glyphs[0]+glyphs[1].repeat(Math.max(0,frame.width-2))+glyphs[2],bounds.x+frame.x,bounds.y+frame.y,border,background);
+            buffer.drawTextFit(' '+appearanceText(label)+(drop?' · drop '+drop:focused&&!privateFinder?' · focused':'')+' ',
+              bounds.x+frame.x+2,bounds.y+frame.y,titleWidth,title,background,false);
+            if(controls.length)buffer.drawText('[F][x]',bounds.x+controls[0].x,bounds.y+frame.y,title,background,focused?TextAttributes.BOLD:TextAttributes.NONE);
+          }finally{buffer.popScissorRect();}
+        }
+      };
+      for(const frame of current.frames){const pane=panes.find(pane=>pane.id===frame.surface);if(pane)
+        draw(frame,pane.label,current.focused===pane.id,current.drop?.surface===pane.id?current.drop.edge:undefined);}
+      if(finder)draw({...finder,surface:'@finder'},'Windows',true,undefined,true);
+    };
+    renderer.addPostProcessFn(paintChrome);renderer.requestRender();
+    return()=>renderer.removePostProcessFn(paintChrome);
+  },[renderer,windowLayout,navigation]);
+  useLayoutEffect(()=>{renderer.requestRender();},[renderer,appearance,hoveredTitle]);
   useLayoutEffect(() => {
+    const targetForeground=parseColor(color.running),targetBackground=parseColor(color.background);
     if (!navigation) return;
     const paintSplit = (buffer: OptimizedBuffer) => {
       const current = windowLayout.snapshot(), bounds = viewport.current;
@@ -418,7 +473,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     renderer.addPostProcessFn(paintSplit);
     renderer.requestRender();
     return () => renderer.removePostProcessFn(paintSplit);
-  }, [renderer, windowLayout, navigation]);
+  }, [renderer, windowLayout, navigation,color.running,color.background]);
   useLayoutEffect(() => {
     const bounds = viewport.current;
     if (bounds && bounds.width > 0 && bounds.height > 0) windowLayout.resize(bounds.width, bounds.height);
@@ -444,6 +499,20 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     const state = windowLayout.snapshot();
     const x = event.x - bounds.x, y = event.y - bounds.y;
     const frame = state.frames.find(frame => x >= frame.x && x < frame.x + frame.width && y >= frame.y && y < frame.y + frame.height);
+    const controlsFor=(frame:WindowFrame)=>titleControls(frame,appearance.chrome.controls==='always'
+      ||state.focused===frame.surface||hoveredTitle===frame.surface||navigationState.mode==='arrange');
+    const control=frame&&!state.gesture?controlsFor(frame).find(control=>contains(control,x,y)):undefined;
+    if(phase==='move'){
+      setPointerCell(previous=>previous?.x===x&&previous?.y===y?previous:{x,y});
+    }
+    if(phase==='down'&&control){
+      event.preventDefault();event.stopPropagation();
+      flushSync(()=>{
+        if(windowLayout.snapshot().focused!==control.surface)windowLayout.act({type:'focus',id:control.surface});
+        windowLayout.act({type:control.action});
+      });
+      return;
+    }
     const workspace = phase === 'up' ? [...workspaceButtons.current].find(([, button]) =>
       event.x >= button.x && event.x < button.x + button.width && event.y >= button.y && event.y < button.y + button.height)?.[0] : undefined;
     normalPointerUp.current = phase === 'up';
@@ -464,9 +533,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     </box>;
   }
   function navigationButton(label:string,active:boolean,run:()=>void){
-    return <box height={1} paddingX={1} backgroundColor={active?color.accent:color.panel}
+    return <box height={1} paddingX={1} backgroundColor={active?color.selectionBackground:color.panel}
       onMouseDown={event=>{if(event.button===MouseButton.LEFT)flushSync(run);}}>
-      <text selectable={false} fg={active?color.background:color.text}>{label}</text>
+      <text selectable={false} fg={active?color.selectionText:color.text}>{label}</text>
     </box>;
   }
   const stripPanes=navigation?panes.filter(pane=>layout.locations[pane.id]===layout.workspace):panes;
@@ -480,12 +549,12 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       return <box key={id} height={1} width={navigation?3:undefined} flexShrink={0}
         paddingLeft={navigation?1:undefined} paddingX={navigation?undefined:1}
         ref={button=>{if(button)workspaceButtons.current.set(id,button);else workspaceButtons.current.delete(id);}}
-        backgroundColor={selected?color.accent:navigation&&hasWindows?color.panel:undefined}
+        backgroundColor={selected?color.selectionBackground:navigation&&hasWindows?color.panel:undefined}
         onMouseDown={event=>{
           if(event.button===MouseButton.LEFT&&!windowLayout.snapshot().gesture)act({type:'workspace',id});
         }}>
         <text selectable={false} attributes={selected||navigation&&hasWindows?TextAttributes.BOLD:TextAttributes.NONE}
-          fg={selected?color.background:navigation&&hasWindows?color.text:color.muted}>
+          fg={selected?color.selectionText:navigation&&hasWindows?color.text:color.muted}>
           {String(id)+(navigation?(hasWindows?'*':' '):'')}
         </text>
       </box>;
@@ -570,8 +639,8 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         <text height={1} wrapMode="none" fg={color.running} truncate>{layout.gesture
           ? (layout.gesture === 'resize' ? 'Mouse resize · Esc cancel' : 'Move window · Esc cancel')
           : splitTargetLabel(layout, width)}</text>
-        <text height={1} wrapMode="none" fg={color.text} truncate>{width>=176?'hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/− size · f zoom · q close · n Main · t Tools · ? Help · 1–9 workspace · w windows · i type · Esc exit':width>=140?'Esc exit · i type · n Main · t Tools · ? Help · hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/− size':width>=88?'Esc exit · i type · hjkl focus · Shift swap · Ctrl+arrows edge · n Main':width>=48?'Esc exit · i type · n new · Ctrl+arrows edge':'Esc exit · i type · n new Main'}</text>
-      </>:<text height={1} wrapMode="none" fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':layout.fullscreen&&width<60?'Zoomed · Alt+W f tiles':(layout.fullscreen?'Zoomed · Alt+W f tiles · ':'')+`Alt+W Arrange · ${editorOwns?'Alt+W w Windows':'F2 Windows'} · Alt+0 Main`+(width>=88?' · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'')}</text>}
+        {presentation.hints&&<text height={1} wrapMode="none" fg={color.text} truncate>{width>=176?'hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/− size · f zoom · q close · n Main · t Tools · ? Help · 1–9 workspace · w windows · i type · Esc exit':width>=140?'Esc exit · i type · n Main · t Tools · ? Help · hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/− size':width>=88?'Esc exit · i type · hjkl focus · Shift swap · Ctrl+arrows edge · n Main':width>=48?'Esc exit · i type · n new · Ctrl+arrows edge':'Esc exit · i type · n new Main'}</text>}
+      </>:presentation.hints&&<text height={1} wrapMode="none" fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':layout.fullscreen&&width<60?'Zoomed · Alt+W f tiles':(layout.fullscreen?'Zoomed · Alt+W f tiles · ':'')+`Alt+W Arrange · ${editorOwns?'Alt+W w Windows':'F2 Windows'} · Alt+0 Main`+(width>=88?' · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'')}</text>}
     </box>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {controls.map((type, index) => layoutButton('F' + (controlStart + index) + ' ' +
         (type === 'zoom' && layout.fullscreen ? 'Unzoom' : controlLabels[index]), { type }))}

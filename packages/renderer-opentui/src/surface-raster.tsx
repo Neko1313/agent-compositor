@@ -3,7 +3,7 @@ import {CliRenderEvents,NativeImage,resolveImageRenderProtocol,type ImageRendera
 import {useRenderer} from '@opentui/react';
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import type {UiTextView} from '@agent-compositor/events';
-import {color} from './colors.js';
+import {useAppearance} from './appearance.js';
 
 type Raster=NonNullable<UiTextView['raster']>;
 function Pixels({raster,width,height}:{raster:Raster;width:number;height:number}){
@@ -20,6 +20,7 @@ function Pixels({raster,width,height}:{raster:Raster;width:number;height:number}
 
 /** Preserve producer RGBA data; unsupported terminals retain the supplied text view. */
 export function SurfaceRaster({raster,width,height,visible}:{raster:Raster;width:number;height:number;visible:boolean}){
+  const {color}=useAppearance();
   const renderer=useRenderer();
   const [supported,setSupported]=useState(false);
   useEffect(()=>{

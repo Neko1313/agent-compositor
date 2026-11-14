@@ -3,7 +3,7 @@ import {MouseButton, TextAttributes, type InputRenderable, type ScrollBoxRendera
 import {flushSync, useKeyboard} from '@opentui/react';
 import {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import type {UiTextView} from '@agent-compositor/events';
-import {color} from './colors.js';
+import {useAppearance} from './appearance.js';
 import {handleActionMouseDown} from './mouse-action.js';
 import {Interaction} from './interaction.js';
 import {ApprovalCard} from './approval-card.js';
@@ -14,12 +14,12 @@ import {SurfaceRaster} from './surface-raster.js';
 import {ControllerFrame} from './controller-view.js';
 import {isWindowController} from './controller.js';
 
-const toneColor={text:color.text,muted:color.muted,accent:color.accent,success:color.accent,warning:color.running,danger:color.error};
 const literal=(text:string)=>text.replace(/[\p{Cc}\p{Bidi_Control}\p{Zl}\p{Zp}]/gu,point=>'\\u'+point.charCodeAt(0).toString(16).padStart(4,'0'));
 
 export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
   source:UiSurfaceSource;focused:boolean;width:number;height:number;isActive():boolean;isVisible():boolean;
 }) {
+  const {color,tones:toneColor,presentation}=useAppearance();
   const state=useSyncExternalStore(source.subscribe,source.snapshot);
   const view=state.view;
   const input=useRef<InputRenderable>(null);
@@ -102,23 +102,23 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     const target=line.action;
     const chosen=Boolean(target&&target===action&&!searching);
     return <box key={key} id={elementId(key)} flexShrink={0}
-      backgroundColor={chosen?color.rule:undefined} onMouseDown={event=>{
+      backgroundColor={line.selected?color.selectionBackground:chosen?color.actionBackground:undefined} onMouseDown={event=>{
         if(target)handleActionMouseDown(event,canPress(),()=>{
           flushSync(()=>{setSelected(target);setSearching(false);});press(target);
         });
       }}>
-      <text selectable={!target} wrapMode="word" fg={chosen?color.accent:toneColor[line.tone??'text']}
-        attributes={line.bold||chosen?TextAttributes.BOLD:TextAttributes.NONE}>{literal(line.text)}</text>
+      <text selectable={!target} wrapMode="word" fg={line.selected?color.selectionText:chosen?color.actionText:toneColor[line.tone??'text']}
+        attributes={line.bold||line.selected||chosen?TextAttributes.BOLD:TextAttributes.NONE}>{literal(line.text)}</text>
     </box>;
   }
   return <box flexGrow={1} flexDirection="column" paddingX={1} minHeight={0}>
     {view?.tabs&&<box flexDirection="row" flexWrap="wrap" columnGap={1} flexShrink={0}>
       {view.tabs.map(tab=><box key={tab.id} id={elementId('tab-'+tab.id)} height={1} paddingX={1}
-        backgroundColor={tab.selected?color.accent:color.panel} onMouseDown={event=>{
+        backgroundColor={tab.selected?color.selectionBackground:color.panel} onMouseDown={event=>{
           handleActionMouseDown(event,!tab.disabled&&canPress(),()=>{
             flushSync(()=>{setSelected(tab.action);setSearching(false);});press(tab.action);
           });
-        }}><text selectable={false} fg={tab.disabled?color.muted:tab.selected?color.background:color.text}>{literal(tab.label)}</text></box>)}
+        }}><text selectable={false} fg={tab.disabled?color.muted:tab.selected?color.selectionText:color.text}>{literal(tab.label)}</text></box>)}
     </box>}
     {view?.input&&<box height={1} flexShrink={0} flexDirection="row" onMouseDown={event=>{
       if(event.button===MouseButton.LEFT&&isVisible()&&!hasSurfaceRequest(source.snapshot()))flushSync(()=>setSearching(true));
@@ -144,7 +144,7 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
         {!view.table.rows.length&&<text fg={color.muted}>{literal(view.table.empty??'No rows')}</text>}
         {view.table.rows.map(row=><box key={row.id} flexDirection="column" flexShrink={0}>
           <box id={elementId('row-'+row.id)} flexDirection={narrow?'column':'row'}
-            backgroundColor={row.action===action?color.rule:undefined} onMouseDown={event=>{
+            backgroundColor={row.action===action?color.actionBackground:undefined} onMouseDown={event=>{
               const target=row.action;
               if(target)handleActionMouseDown(event,canPress(),()=>{
                 flushSync(()=>{setSelected(target);setSearching(false);});press(target);
@@ -152,7 +152,7 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
             }}>
             {row.cells.map((cell,index)=><text key={index} selectable={!row.action} wrapMode={narrow?'word':'none'}
               {...(narrow?{}:{flexBasis:0,flexGrow:view.table!.columns[index].width??1})} truncate={!narrow}
-              fg={row.action===action?color.accent:toneColor[row.tone??'text']}>
+              fg={row.action===action?color.actionText:toneColor[row.tone??'text']}>
               {literal((narrow?view.table!.columns[index].label+': ':'')+cell)}
             </text>)}
           </box>
@@ -162,6 +162,6 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
     </scrollbox>
     {state.error&&<text wrapMode="word" fg={color.error}>{literal(state.error)}</text>}
     {state.busy&&<text fg={color.running}>Working…</text>}
-    {focused&&<text truncate fg={color.muted}>{view?.hint??(view?.input?'Tab search/actions · ↑↓ select · Enter activate':'↑↓ select · Enter activate · PgUp/PgDn scroll')}</text>}
+    {focused&&(view?.hint||presentation.hints)&&<text truncate fg={color.muted}>{view?.hint??(view?.input?'Tab search/actions · ↑↓ select · Enter activate':'↑↓ select · Enter activate · PgUp/PgDn scroll')}</text>}
   </box>;
 }

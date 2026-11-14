@@ -2,8 +2,9 @@
 import {MouseButton,TextAttributes,type InputRenderable,type ScrollBoxRenderable,type KeyBinding} from '@opentui/core';
 import {flushSync} from '@opentui/react';
 import {useLayoutEffect,useRef,useSyncExternalStore} from 'react';
-import {color} from './colors.js';
+import {useAppearance} from './appearance.js';
 import type {WindowNavigationSource} from './navigation.js';
+import {finderRectangle} from './window-chrome.js';
 
 const literal=(value:string)=>value.replace(/[\p{Cc}\p{Bidi_Control}\p{Zl}\p{Zp}]/gu,
   point=>'\\u'+point.charCodeAt(0).toString(16).padStart(4,'0'));
@@ -15,10 +16,11 @@ const editingKeys:KeyBinding[]=[
 
 /** A private launcher above resident panes; no editor or decision is unmounted. */
 export function WindowFinder({source,width,height}:{source:WindowNavigationSource;width:number;height:number}){
+  const {color,chrome,presentation}=useAppearance();
   const state=useSyncExternalStore(source.subscribe,source.snapshot);
   const input=useRef<InputRenderable>(null),list=useRef<ScrollBoxRenderable>(null);
   const syncing=useRef(false);
-  const boxWidth=Math.max(1,Math.min(width,92)),boxHeight=Math.max(1,Math.min(height,22));
+  const rectangle=finderRectangle(width,height),boxWidth=rectangle.width,boxHeight=rectangle.height;
   const entryOrder=JSON.stringify(state.entries.map(entry=>entry.id));
   useLayoutEffect(()=>{
     if(input.current&&input.current.value!==state.query){
@@ -29,9 +31,9 @@ export function WindowFinder({source,width,height}:{source:WindowNavigationSourc
   useLayoutEffect(()=>{
     if(state.selected)list.current?.scrollChildIntoView('window-finder-entry-'+state.selected);
   },[state.selected,entryOrder,state.query,state.selectionRevision,width,height]);
-  return <box position="absolute" left={Math.max(0,Math.floor((width-boxWidth)/2))}
-    top={Math.max(0,Math.floor((height-boxHeight)/3))} width={boxWidth} height={boxHeight}
-    flexDirection="column" border borderColor={color.accent} backgroundColor={color.panel}
+  return <box position="absolute" left={rectangle.x}
+    top={rectangle.y} width={boxWidth} height={boxHeight}
+    flexDirection="column" border borderStyle={chrome.borderStyle} borderColor={color.accent} backgroundColor={color.panel}
     title=" Windows " titleColor={color.accent} paddingX={1}
     onMouseDown={event=>event.stopPropagation()} onMouseUp={event=>event.stopPropagation()}
     onMouseMove={event=>event.stopPropagation()} onMouseDrag={event=>event.stopPropagation()}>
@@ -51,19 +53,19 @@ export function WindowFinder({source,width,height}:{source:WindowNavigationSourc
         const selected=entry.id===state.selected,unavailable=entry.state==='unavailable';
         const status=entry.workspace===undefined?entry.state==='available'?'Available':unavailable?'Unavailable':'Closed':'WS '+entry.workspace;
         return <box key={entry.id} id={'window-finder-entry-'+entry.id} flexDirection="row" height={1} flexShrink={0}
-          backgroundColor={selected?color.accent:undefined} onMouseDown={event=>{
+          backgroundColor={selected?color.selectionBackground:undefined} onMouseDown={event=>{
             event.stopPropagation();
             if(event.button===MouseButton.LEFT&&!unavailable&&source.snapshot().mode==='finder')
               flushSync(()=>source.choose(entry.id,state.revision));
           }}>
-          <text fg={selected?color.background:unavailable?color.muted:color.text} flexGrow={1} truncate
+          <text fg={selected?color.selectionText:unavailable?color.muted:color.text} flexGrow={1} truncate
             attributes={selected?TextAttributes.BOLD:TextAttributes.NONE}>{literal(entry.title)}</text>
-          <text fg={selected?color.background:color.muted}>{'  '+status}</text>
+          <text fg={selected?color.selectionText:color.muted}>{'  '+status}</text>
         </box>;
       })}
     </scrollbox>
     {state.opening&&<text fg={color.running} flexShrink={0}>Opening window…</text>}
     {state.error&&<text fg={color.error} wrapMode="word" flexShrink={0}>{literal(state.error)}</text>}
-    <text fg={color.muted} truncate flexShrink={0}>Esc cancel · Ctrl+U clear · Alt+0 Main</text>
+    {presentation.hints&&<text fg={color.muted} truncate flexShrink={0}>Esc cancel · Ctrl+U clear · Alt+0 Main</text>}
   </box>;
 }

@@ -35,7 +35,7 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
     await runOpenTuiRenderer([current.session],{
       stdin,stdout,environment:Object.fromEntries(Object.entries(env).filter((entry):entry is [string,string]=>entry[1]!==undefined)),
       signal:stop.signal,windowLayout:windows,surfaces:current.surfaces,composerMedia:current.composerMedia,navigation:current.navigation,
-      conversationWindows:current.conversationWindows,
+      conversationWindows:current.conversationWindows,appearance:current.appearance,
       animations:env.AGENT_GRAPHICS!=='off'&&!env.NO_COLOR&&env.AGENT_REDUCED_MOTION!=='1',
       onCtrlC:()=>{
         if(current.navigation.handle({kind:'key',key:'c',modifiers:['ctrl']}))return 'handled';

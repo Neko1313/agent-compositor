@@ -14,6 +14,35 @@ function memory(initial?: unknown) {
 }
 const ids = (tree: any): string[] => !tree ? [] : tree.surface ? [tree.surface] : tree.children.flatMap(ids);
 
+it('changes passive Tools visibility across workspaces without moving focus, zoom, copies or existing placements', async () => {
+  const tree = split('horizontal', .7, leaf('session'), leaf('tools-copy')),
+    remote = split('vertical', .4, leaf('tools'), leaf('remote'));
+  const storage = memory({windows: {...state(tree), fullscreen: true, spaces: [{id: 1, tree, focus: 'session'}, {id: 2, tree: remote, focus: 'tools'}]}});
+  const layout = await connectWindowLayout(storage, {panes: [...panes, {id: 'tools-copy', label: 'Tools copy'}, {id: 'remote', label: 'Remote'}]});
+  layout.resize(140, 40);const intent = layout.windowIntentRevision;
+  layout.setVisible('tools', true, {site: 'sidebar', size: .3});expect(storage.saved).toEqual([]);
+  layout.setVisible('tools', false);
+  expect(layout.snapshot()).toMatchObject({workspace: 1, focused: 'session', fullscreen: true, locations: {session: 1, 'tools-copy': 1, remote: 2}});
+  expect(layout.snapshot().locations.tools).toBeUndefined();
+  layout.setVisible('tools', true, {site: 'sidebar', size: .3});
+  expect(layout.snapshot()).toMatchObject({workspace: 1, focused: 'session', fullscreen: true, locations: {tools: 1}});
+  expect(layout.windowIntentRevision).toBe(intent);
+  await layout.disconnect();
+  expect(storage.saved.at(-1).windows.spaces).toEqual([{id: 1, tree: split('horizontal', .7, tree, leaf('tools')), focus: 'session'}, {id: 2, tree: leaf('remote'), focus: 'remote'}]);
+  expect(storage.saved.at(-1).registered).toContain('tools');
+});
+
+it('rolls back passive visibility outside the bounded tree budget and ignores unknown or already-hidden identities', async () => {
+  let tree: unknown = leaf('session');for (let index = 0; index < 24; index++) tree = split('horizontal', .5, tree, leaf('late-' + index));
+  const storage = memory({windows: state(tree)}), layout = await connectWindowLayout(storage, {panes});layout.resize(120, 40);
+  const before = layout.snapshot();
+  expect(() => layout.setVisible('tools', true, {site: 'sidebar'})).toThrow(/bounded window tree/);
+  expect(() => layout.setVisible('tools', true, {size: NaN})).toThrow(/visibility/);
+  layout.setVisible('unregistered', true);layout.setVisible('tools', false);
+  expect(layout.snapshot().frames).toEqual(before.frames);expect(layout.snapshot().locations).toEqual(before.locations);
+  await layout.disconnect();expect(storage.saved).toEqual([]);
+});
+
 it('admits every saved host kind without reopening closed views and allocates beyond all retained identities', async () => {
   const tree = split('horizontal', .65, leaf('session'), split('vertical', .3, leaf('window-1'), leaf('window-40')));
   const views = [{id: 'window-1', title: 'Conversation', kind: 'session'},

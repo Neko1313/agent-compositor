@@ -3,16 +3,16 @@ import {MouseButton,TextAttributes,parseColor,defaultTextareaKeyBindings,type Bo
 import {flushSync,useKeyboard,usePaste} from '@opentui/react';
 import {useLayoutEffect,useRef} from 'react';
 import {controllerKey,type ConversationController,type ConversationEditor,type WindowController,type ControllerInput,type ControllerView} from './controller.js';
-import {color} from './colors.js';
+import {nativeColor} from './colors.js';
+import {useAppearance} from './appearance.js';
 import {handleActionMouseDown} from './mouse-action.js';
 import {SurfaceRaster} from './surface-raster.js';
 
-const tones={text:color.text,muted:color.muted,accent:color.accent,success:color.accent,warning:color.running,danger:color.error};
 const literal=(text:string)=>text.replace(/[\p{Cc}\p{Bidi_Control}\p{Zl}\p{Zp}]/gu,point=>'\\u'+point.charCodeAt(0).toString(16).padStart(4,'0'));
 const fieldKeys:KeyBinding[]=[{name:'z',ctrl:true,action:'undo'},{name:'y',ctrl:true,action:'redo'},{name:'z',ctrl:true,shift:true,action:'redo'}];
 const nativeFieldKeys=[...defaultTextareaKeyBindings,...fieldKeys].filter(binding=>!['newline','submit'].includes(binding.action));
 function cellColor(value:string|undefined,fallback:string){
-  try{return parseColor(value??fallback);}catch{return parseColor(fallback);}
+  try{return parseColor(nativeColor(value??fallback));}catch{return parseColor(fallback);}
 }
 
 interface ControllerFrameSource {
@@ -28,6 +28,7 @@ export function ControllerFrame({controller,session,width,height,maxRows=height,
   controller:ConversationController|ConversationEditor|WindowController;session:ControllerFrameSource;width:number;height:number;maxRows?:number;
   focused:boolean;isActive():boolean;isVisible():boolean;main?:boolean;
 }) {
+  const {color,tones}=useAppearance();
   const bounds=useRef<BoxRenderable>(null);
   const field=useRef<InputRenderable>(null);
   const syncing=useRef(false);
@@ -100,11 +101,11 @@ export function ControllerFrame({controller,session,width,height,maxRows=height,
       ()=>send({kind:'action',action:target},controller.revision));
   }
   function line(row:ControllerView['lines'][number],id:string){
-    return <box key={id} height={1} flexShrink={0} backgroundColor={row.selected?color.accent:undefined} onMouseDown={event=>action(event,row.action)}>
-      <text selectable={false} wrapMode="none" truncate fg={row.selected?color.background:tones[row.tone??'text']}
+    return <box key={id} height={1} flexShrink={0} backgroundColor={row.selected?color.selectionBackground:undefined} onMouseDown={event=>action(event,row.action)}>
+      <text selectable={false} wrapMode="none" truncate fg={row.selected?color.selectionText:tones[row.tone??'text']}
         attributes={row.bold||row.selected?TextAttributes.BOLD:TextAttributes.NONE}>
         {row.cells?row.cells.slice(0,width).map((cell,index)=><span key={index}
-          fg={cellColor(row.selected?color.background:cell.fg,tones[row.tone??'text'])} bg={cellColor(row.selected?color.accent:cell.bg,color.background)}
+          fg={cellColor(row.selected?color.selectionText:cell.fg,tones[row.tone??'text'])} bg={cellColor(row.selected?color.selectionBackground:cell.bg,color.background)}
           attributes={(cell.bold||row.selected?TextAttributes.BOLD:0)|(cell.dim?TextAttributes.DIM:0)
             |(cell.italic?TextAttributes.ITALIC:0)|(cell.underline?TextAttributes.UNDERLINE:0)}>{literal(cell.ch)}</span>):literal(row.text)}
       </text>
@@ -114,9 +115,9 @@ export function ControllerFrame({controller,session,width,height,maxRows=height,
     <box ref={bounds} width={width} height={contentHeight} flexShrink={0} overflow="hidden" flexDirection="column"
     onMouseDown={event=>mouse(event,'press')} onMouseMove={event=>mouse(event,'move')} onMouseUp={event=>mouse(event,'release')}>
     {view.tabs&&<box height={1} flexShrink={0} flexDirection="row" gap={1}>
-      {view.tabs.map(tab=><box key={tab.id} paddingX={1} backgroundColor={tab.selected?color.accent:color.panel}
+      {view.tabs.map(tab=><box key={tab.id} paddingX={1} backgroundColor={tab.selected?color.selectionBackground:color.panel}
         onMouseDown={event=>{if(!tab.disabled)action(event,tab.action);}}>
-        <text truncate fg={tab.disabled?color.muted:tab.selected?color.background:color.text}>{literal(tab.label)}</text>
+        <text truncate fg={tab.disabled?color.muted:tab.selected?color.selectionText:color.text}>{literal(tab.label)}</text>
       </box>)}
     </box>}
     {view.input&&<box height={1} flexShrink={0} flexDirection="row" onMouseDown={event=>{

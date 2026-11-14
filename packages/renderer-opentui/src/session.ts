@@ -1,7 +1,8 @@
 import type {Questionnaire, UiForm} from '@agent-compositor/events';
 import type {ConversationController, ConversationEditor, ControllerInput} from './controller.js';
 
-export type Message = {role: 'user' | 'assistant'; text: string};
+export type Message = {role: 'user' | 'assistant'; text: string}
+  | {role:'tool';text:string;tool:{callId:string;name:string;args?:string;state:'running'|'done'|'error'|'complete'}};
 export type ConversationInteraction =
   | {id: string; kind: 'question'; request: Questionnaire; error?: string}
   | {id: string; kind: 'form'; plugin: string; request: UiForm; error?: string};

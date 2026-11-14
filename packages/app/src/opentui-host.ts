@@ -2,7 +2,7 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {randomUUID} from 'node:crypto';
 import type {AgentCore, AgentCoreOptions, LoopEvent} from '@agent-compositor/core';
 import {uiTextViewSchema, surfacePlacementSchema, type SurfacePlacement, type UiTextView} from '@agent-compositor/events';
-import type {ComposerMedia, ConversationSession, ConversationWindow, ConversationWindowRegistry, UiSurfaceRegistry, UiSurfaceSnapshot, UiSurfaceSource, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
+import type {AppearanceSnapshot, AppearanceSource, ComposerMedia, ConversationSession, ConversationWindow, ConversationWindowRegistry, UiSurfaceRegistry, UiSurfaceSnapshot, UiSurfaceSource, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {BuiltApp} from './build.js';
 import {connectConversation} from './opentui-conversation.js';
 import {createInteractionInbox} from './opentui-interactions.js';
@@ -17,10 +17,11 @@ import {sessionCommandNames,type SessionHistoryBinding} from './sessions.js';
 import {createOpenTuiHistoryController} from './opentui-history-controller.js';
 import {createOpenTuiPlacementController} from './opentui-placement-controller.js';
 import type {PluginWindow} from './plugin-panel.js';
+import {AppearanceContributions} from './appearance-contributions.js';
 
 export {connectConversation, connectPluginTable} from './opentui-conversation.js';
 
-export type OpenTuiWindowLayout = WindowLayoutSource & Pick<DynamicWindowLayout, 'windowIntentRevision' | 'markWindowIntent' | 'actAutomatic' | 'hostViews' | 'createHostView' | 'registerClosed'> & {
+export type OpenTuiWindowLayout = WindowLayoutSource & Pick<DynamicWindowLayout, 'windowIntentRevision' | 'markWindowIntent' | 'actAutomatic' | 'hostViews' | 'createHostView' | 'registerClosed' | 'setVisible'> & {
   register(pane: {id: string; label: string; transient?: boolean}, placement?: SurfacePlacement): void;
   relocate(id: string, placement: SurfacePlacement): void;
   detach(id: string): void;
@@ -134,6 +135,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const visibility = new Map<string, string>();
   const registryListeners = new Set<() => void>();
   const windowListeners = new Set<() => void>();
+  const appearanceContributions = new AppearanceContributions(), appearanceListeners = new Set<() => void>();
+  let appearanceState: AppearanceSnapshot = Object.freeze({revision: 0, appearance: appearanceContributions.snapshot()});
   const auxiliary = new Map<string, {kind: 'tools' | 'help'; source: UiSurfaceSource; state: UiSurfaceSnapshot; listeners: Set<() => void>}>();
   const hostWindowIdentities = new Map<string, object>();
   let toolsText = 'No tools called yet.';
@@ -184,6 +187,14 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     snapshot: () => mainWindows,
     subscribe(fn) {if (!active) return () => {};windowListeners.add(fn);return () => {windowListeners.delete(fn);};},
   };
+  const appearance: AppearanceSource = {
+    snapshot: () => appearanceState,
+    subscribe(fn) {if (!active) return () => {};appearanceListeners.add(fn);return () => {appearanceListeners.delete(fn);};},
+  };
+  function publishAppearance() {
+    appearanceState = Object.freeze({revision: appearanceState.revision + 1, appearance: appearanceContributions.snapshot()});
+    for (const listener of appearanceListeners) listener();
+  }
   const descriptors = (): readonly HostWindowView[] => [{id: 'session', title: 'Main', kind: 'session'}, ...layout.hostViews()];
   const isMainPane = (id: string) => descriptors().some(view => view.id === id && view.kind === 'session');
   function mainTarget(preferFocused = false): string {
@@ -782,6 +793,18 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   }
   function receive(event: LoopEvent) {
     if (!active || event.kind !== 'catalog') return;
+    if (event.event === 'ui.appearance') {
+      const scope = core.host.currentServiceScope;
+      if (scope?.lifetime.aborted || scope?.signal.aborted) return;
+      const publication = appearanceContributions.publish(String(event.input.plugin ?? 'custom'), event.input.appearance);
+      if (!publication.accepted) return;
+      if (publication.changed) publishAppearance();
+      if (publication.showTools !== undefined) {
+        try {layout.setVisible('tools', publication.showTools, {site: 'sidebar', size: .3, focus: false});}
+        catch {notice('Could not update Tools visibility');}
+      }
+      return;
+    }
     if (event.event === 'tool.call' || event.event === 'tool.result') {
       let text: string;
       try {text = event.event === 'tool.call' ? `\n${event.input.tool} ${JSON.stringify(event.input.input)}\n`
@@ -797,6 +820,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     }
     if (event.event === 'ui.pluginRemoved') {
       const owner = String(event.input.plugin);
+      if (appearanceContributions.remove(owner)) publishAppearance();
       for (const [id, contribution] of composerViews) if (contribution.owner === owner) {
         reportVisible(id, owner, false, false, 0, 0); composerViews.delete(id);
       }
@@ -878,6 +902,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     nextChannels.core = next;
     const nextInbox = nextChannels.inbox;
     core = next; inbox = nextInbox;
+    appearanceContributions.clear();publishAppearance();
     inbox.bind(next);
     offOrigin = next.host.setInvocationOriginProvider(() => context.getStore());
     offForm = next.host.setFormHandler(async (plugin, request, signal) => {
@@ -892,7 +917,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     rebuildMainWindows();
     navigation?.refresh();
     offConversation = conversation.subscribe(changed);
-    offCore = next.subscribe(receive);
+    offCore = next.subscribe(event => {
+      if (active && core === next && channels === nextChannels && !nextChannels.generation.signal.aborted) receive(event);
+    });
     bindEditor(next);
     offHistory=next.host.hasPlugin('session-manager','trusted')?app.bindHistoryPresenter(next,{
       show:binding=>openHistoryWindow(next,binding),
@@ -1186,7 +1213,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   return {
     get session() {return mainPorts.get('session')!;}, conversationWindows,
     mainSession: (id: string) => mainPorts.get(id), isMainPane, createWindow,
-    surfaces, composerMedia, navigation, get core() {return core;}, submit,
+    surfaces, composerMedia, navigation, appearance, get core() {return core;}, submit,
     cancelOperation(surfaceId: string): boolean {
       if (!active) return false;
       let cancelled = false;
@@ -1212,7 +1239,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       for (const surface of [...surfaceMap.values()]) remove(surface);
       for (const surface of auxiliary.values()) surface.listeners.clear();auxiliary.clear();
       composerViews.clear(); mediaChanged(); mediaListeners.clear();
-      registryListeners.clear(); sessionListeners.clear();windowListeners.clear();
+      registryListeners.clear(); sessionListeners.clear();windowListeners.clear();appearanceListeners.clear();
     },
   };
 }

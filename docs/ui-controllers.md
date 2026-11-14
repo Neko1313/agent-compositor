@@ -43,7 +43,9 @@ controllers in Main and independent request windows. Selected history and
 placement implementations have their own independent windows. Only their validated views/cells reach the renderer;
 the original private request is not attached as hidden native fallback data.
 Unavailable selections fail closed when opened, without a native replacement.
-Full appearance/wire adaptation remains a migration gate. The host can
+Portable appearance now updates native semantic colors/chrome without replacing
+selected owners; explicit controller-cell colors remain literal. Public render
+overrides and full wire adaptation remain migration gates. The host can
 inspect selection through `core.host.controllers.selectedOwner(kind)`, which
 returns metadata without creating a controller or receiving private input.
 

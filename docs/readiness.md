@@ -488,7 +488,23 @@ required candidate check.
 This implementation closes the missing legacy-window behavior; it does not
 establish native terminal/protocol coverage or stable 1.0 readiness.
 
-Remaining frontend gates include full appearance/render overrides, complete
+Portable appearance now shares validated replacement/order/removal semantics
+with Ink while retaining OpenTUI's own defaults. A data-only, revisioned source
+updates native colors, frame chrome, role labels, welcome, optional hints and
+safe current-Main tool details without replacing input/controller owners. All ten
+color fields and named bright colors are mapped explicitly; selected rich cells
+retain their own declared colors. Title controls share six painted/hit-tested
+cells, with focus/hover/Arrange policy and narrow-window bounds. Explicit Tools
+visibility is publication intent rather than a continuously enforced layout.
+Historical tool groups with ambiguous UI provenance are omitted, and exact live
+call occurrences prevent provider-ID reuse from exposing private arguments.
+The real source and relocated Linux native theme/multi-publisher/private-request/
+reload/restart scenarios each pass eight cases, with native and selected controls,
+both PTYs exiting 0 and sixteen retained captures. The same archive passes all
+64 earlier native checks. Exact-head four-platform checks remain candidate
+requirements; pure resolution tests are narrower.
+
+Remaining frontend gates include public render overrides, complete
 wire-protocol parity and exact delegated-child request attribution. Ordinary UI
 operations and retained plugin services now receive independent
 approval/question/questionnaire/form windows. Verification

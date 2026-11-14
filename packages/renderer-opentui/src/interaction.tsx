@@ -3,7 +3,7 @@ import {MouseButton, TextAttributes, type InputRenderable, type KeyEvent, type S
 import {flushSync, useKeyboard} from '@opentui/react';
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import type {QuestionSpec, UiForm} from '@agent-compositor/events';
-import {color} from './colors.js';
+import {useAppearance} from './appearance.js';
 import {editSecret, emptyQuestionDraft, initialFormValues, questionAnswers, questionDraft, toggleQuestionOption, type QuestionDraft} from './input-state.js';
 import type {ConversationInteraction, ConversationSession} from './session.js';
 import {handleActionMouseDown} from './mouse-action.js';
@@ -14,11 +14,12 @@ function display(value: string) {
 }
 
 function Button({label, onPress, isActive, selected, disabled}: {label: string; onPress(): void; isActive(): boolean; selected?: boolean; disabled?: boolean}) {
-  return <box height={1} flexShrink={0} paddingX={1} backgroundColor={selected ? color.accent : color.panel}
+  const {color}=useAppearance();
+  return <box height={1} flexShrink={0} paddingX={1} backgroundColor={selected ? color.selectionBackground : color.panel}
     onMouseDown={event => {
       handleActionMouseDown(event, !disabled && isActive(), onPress);
     }}>
-    <text selectable={false} fg={disabled ? color.muted : selected ? color.background : color.text}>{label}</text>
+    <text selectable={false} fg={disabled ? color.muted : selected ? color.selectionText : color.text}>{label}</text>
   </box>;
 }
 
@@ -34,6 +35,7 @@ interface TextFieldProps {
 }
 
 function TextField({id, value, focused, active, onChange, onFocus, placeholder, secret}: TextFieldProps) {
+  const {color}=useAppearance();
   const input = useRef<InputRenderable>(null);
   const valueRef = useRef(value);
   const [secretLength, setSecretLength] = useState(0);
@@ -72,7 +74,7 @@ function TextField({id, value, focused, active, onChange, onFocus, placeholder, 
     }
   }
 
-  return <box id={id} flexDirection="row" height={1} backgroundColor={focused ? color.rule : color.panel}
+  return <box id={id} flexDirection="row" height={1} backgroundColor={focused ? color.actionBackground : color.panel}
     onMouseDown={event => {if (event.button === MouseButton.LEFT && live.current && active()) onFocus();}}>
     <input ref={input} value={secret ? '*'.repeat(secretLength) : value}
       focused={focused} flexGrow={1} minWidth={1} scrollMargin={0} maxLength={4096} placeholder={placeholder}
@@ -107,6 +109,7 @@ export function Interaction({interaction, session, editing, focused, width, heig
   setEditing(editing: boolean): void;
   draftToggle?:boolean;
 }) {
+  const {color,chrome,presentation}=useAppearance();
   const [page, setPage] = useState(0);
   const [target, setTarget] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, QuestionDraft>>({});
@@ -230,7 +233,7 @@ export function Interaction({interaction, session, editing, focused, width, heig
 
   const title = interaction.kind === 'form' ? interaction.request.title : interaction.request.title ?? 'Question';
   return <box flexDirection="column" flexGrow={editing ? 1 : 0} flexBasis={editing ? 0 : undefined}
-    flexShrink={editing ? 1 : 0} minHeight={0} border borderColor={editing ? color.accent : color.running}
+    flexShrink={editing ? 1 : 0} minHeight={0} border borderStyle={chrome.borderStyle} borderColor={editing ? color.accent : color.running}
     title={' ' + (interaction.kind === 'form' ? 'Form' : 'Question') + ' · ' + display(title) + ' '} titleColor={color.running}>
     {!editing && <box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1}>
       <text fg={color.muted} flexGrow={1} truncate>{interaction.kind === 'question' ? display(question?.question ?? title) : display(interaction.plugin)}</text>
@@ -245,9 +248,9 @@ export function Interaction({interaction, session, editing, focused, width, heig
           {options.map((option, index) => {
             const label = typeof option === 'string' ? option : option.label;
             return <box key={label} id={'interaction-field-' + index} flexDirection="column" flexShrink={0}
-              backgroundColor={target === index ? color.panel : undefined}
+              backgroundColor={target === index ? color.optionBackground : undefined}
               onMouseDown={event => {if (event.button === MouseButton.LEFT) choose(index);}}>
-              <text selectable={false} fg={target === index ? color.accent : color.text} wrapMode="word">
+              <text selectable={false} fg={target === index ? color.actionText : color.text} wrapMode="word">
                 {(draft.selected.includes(label) ? '[x] ' : '[ ] ') + display(label) + (typeof option !== 'string' && option.recommended ? ' (recommended)' : '')}
               </text>
               {typeof option !== 'string' && option.description && <text fg={color.muted} wrapMode="word">{display(option.description)}</text>}
@@ -266,7 +269,7 @@ export function Interaction({interaction, session, editing, focused, width, heig
         {interaction.kind === 'form' && <>
           {interaction.request.description && <text fg={color.muted} wrapMode="word">{display(interaction.request.description)}</text>}
           {interaction.request.fields.map((item, index) => <box key={item.id} flexDirection="column" flexShrink={0}>
-            <text fg={target === index ? color.accent : color.text} attributes={TextAttributes.BOLD} wrapMode="word">
+            <text fg={target === index ? color.actionText : color.text} attributes={TextAttributes.BOLD} wrapMode="word">
               {display(item.label) + (item.required ? ' *' : '')}
             </text>
             {['text', 'url', 'password'].includes(item.type)
@@ -274,7 +277,7 @@ export function Interaction({interaction, session, editing, focused, width, heig
                   focused={focused && editing && target === index} active={active} secret={item.type === 'password'}
                   placeholder={item.type === 'password' ? 'Password…' : item.type === 'url' ? 'https://…' : 'Text…'}
                   onFocus={() => {setEditing(true); flushSync(() => setTarget(index));}} onChange={value => formValue(item.id, value)} />
-              : <box id={'interaction-field-' + index} height={1} backgroundColor={target === index ? color.rule : color.panel}
+              : <box id={'interaction-field-' + index} height={1} backgroundColor={target === index ? color.actionBackground : color.panel}
                   onMouseDown={event => {
                     if (event.button !== MouseButton.LEFT || !current()) return;
                     setEditing(true); setTarget(index);
@@ -307,8 +310,8 @@ export function Interaction({interaction, session, editing, focused, width, heig
           <Button label="Cancel" isActive={current} disabled={!session.cancelInteraction} onPress={cancel} />}
         {draftToggle&&<Button label="Draft" isActive={current} onPress={() => {if (current()) setEditing(false);}} />}
       </box>
-      <text height={1} truncate paddingX={1} fg={color.muted}>{width < 55 ? 'Tab fields · Alt+Enter ' + display(submitLabel) :
-        'Tab fields · Space choose · Alt+Enter ' + display(submitLabel) + ' · Esc cancel'}</text>
+      {presentation.hints&&<text height={1} truncate paddingX={1} fg={color.muted}>{width < 55 ? 'Tab fields · Alt+Enter ' + display(submitLabel) :
+        'Tab fields · Space choose · Alt+Enter ' + display(submitLabel) + ' · Esc cancel'}</text>}
     </box>
   </box>;
 }

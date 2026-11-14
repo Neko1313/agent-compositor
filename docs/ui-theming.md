@@ -17,8 +17,18 @@ the selection in `.agent-compositor/theme.json` and restores it at startup and
 plugin reload. Slate uses the built-in defaults. Removing the plugin removes
 its appearance contribution when plugins are reloaded.
 
-Tools no longer occupy an empty window at startup. `Alt+t` opens detailed
-tool activity. The conversation displays compact running/success/error rows.
+Portable appearance applies to Ink and the opt-in OpenTUI application frontend.
+Each frontend keeps its own defaults for omitted fields. OpenTUI updates native
+widgets in place, including the parked editor, private standard controls and
+Finder; changing a theme does not replace their input owners. The bundled amber
+and mono themes specify explicit selection foreground/background pairs so the
+selection remains readable with either frontend's defaults. The separate
+`ui.render` status override supplied by this plugin still applies to Ink;
+OpenTUI public render overrides remain a migration gate.
+
+Tools no longer occupy an empty window at startup. In Ink, `Alt+t` opens detailed
+tool activity. In OpenTUI, F2 Windows can open canonical Tools, while Arrange
+`t` creates another Tools view. The conversation displays compact tool activity.
 Ctrl+J inserts a newline; Shift+Enter also works in terminals that distinguish
 it from Enter. Enter sends the complete draft. Up/Down browse this run's prompt
 history when outside a multiline edit or while already browsing history.
@@ -31,7 +41,8 @@ Publish a contribution from a lifecycle or command hook:
 export default {
   "session.start": async (_event, $) => {
     await $.ui.configure({
-      colors: { accent: "#e5bd85", titleBackground: "#30291f" },
+      colors: { accent: "#e5bd85", titleBackground: "#30291f",
+        selectionBackground: "#4a3b28", selectionText: "#f3f7fa" },
       chrome: { borderStyle: "round", controls: "focus" },
       presentation: {
         agentLabel: "Compositor", toolDetails: false, hints: true,
@@ -50,6 +61,9 @@ earlier contributions or defaults. The most recent publisher wins per field.
 `$.ui.configure(null)` removes only the caller's contribution; plugin unload
 does the same. Contributions are runtime state: persist choices explicitly
 if needed, as the `ui-theme` plugin does.
+An invalid publication leaves the last valid contribution and its precedence
+unchanged. Reload and Core replacement remove expired contributions; lifecycle
+hooks may publish the new plugin instances' choices again.
 
 Colors: `text`, `muted`, `accent`, `success`, `warning`, `danger`, `border`,
 `titleBackground`, `selectionBackground`, `selectionText`. Use an explicit RGB
@@ -59,6 +73,10 @@ may become bright black in the terminal palette.
 Chrome: `borderStyle` (`single`, `round`, `double`), `controls` (`focus`,
 `always`). Focus mode also shows buttons on title hover. Styles retain the
 same title and border hit areas.
+OpenTUI places `[F][x]` in the top title/border row of panes at least fourteen
+cells wide. Their painted three-cell regions zoom or close that exact pane;
+the remaining title cells retain drag behavior. Closing hides a request or
+conversation rather than answering, approving or cancelling it.
 
 In the shipping terminal's **WINDOW MODE**, title controls are temporarily shown
 on every visible window so arrangement actions remain discoverable. Leaving the
@@ -70,7 +88,37 @@ Presentation: `userLabel`, `agentLabel`, `welcome`, `toolDetails`, `hints`,
 `showTools`. The last option requests opening/closing the initial Tools window
 at publication time; it is not a replacement for placement rules.
 
+In OpenTUI, labels decorate transcript roles without renaming panes or changing conversation
+identities. Welcome text appears only in an empty conversation. Labels and
+welcome are literal text; control and bidirectional formatting characters are
+made visible, while welcome may contain line breaks. `hints: false` hides optional
+host guidance; actionable decisions, mode/state indicators and explicitly
+provided plugin/controller content remain available.
+
+In OpenTUI, `toolDetails` adds bounded argument text to observed Main tool calls.
+Only positively identified calls from the current Core binding enter this
+projection. UI operations and ambiguous historical calls are omitted, human-input
+tool arguments are redacted, and raw result bodies never enter these rows.
+Reopening or resuming retains committed user/assistant history without inferring
+the origin of old tool groups. Current live tool result receipts supply success
+or error state; unknown completion is not presented as verified success.
+For the structured shell tools, a nonzero exit is an error, a background launch
+is a neutral started observation, and a completed poll can report that the
+process is still running. Generic tool invocation success does not establish
+that a command or project check passed; output prose is never parsed for success.
+
+An explicit `showTools` publication can reopen canonical Tools after a user
+closes it. Existing placement, workspace and zoom are preserved when it is
+already open, and other Tools copies are unaffected. Unrelated patches,
+`null` and unload do not replay this intent. Closing the currently focused Tools
+requires the normal focus fallback; other publications do not take focus.
+
 ## Replace a view
+
+This section describes Ink's existing render override path. Public `ui.render`
+and `ui.invalidate` adaptation for OpenTUI remain separate migration work;
+appearance support does not expose private controllers or editor checkpoints
+to these hooks.
 
 The app invokes the existing `ui.render` hook. Keep the catalog's
 `{ tree: ... }` response envelope, with a portable text view inside:
@@ -134,6 +182,9 @@ Plugins click coordinates. Preserve the first status row when overriding it.
 This text contract does not load arbitrary React components into the renderer.
 
 ## Wire contract and verification
+
+This wire path describes Ink. OpenTUI currently consumes guarded in-process
+ports and data-only snapshots; complete wire adaptation remains a migration gate.
 
 Protocol 0.5 adds optional resolved `chrome` and `hovered` frame properties.
 Renderers receive concrete colors and cells; they do not execute plugins.

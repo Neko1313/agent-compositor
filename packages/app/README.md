@@ -188,6 +188,11 @@ frontend. Settings forms run in separate windows while Main remains active or
 waits for a human answer. This is distinct from `npm run opentui:preview`, which
 uses isolated deterministic demonstration sessions.
 
+Portable appearance updates colors, title borders/controls, role labels, welcome,
+optional hints and current Main tool details in place. Enable `ui-theme` for
+`/theme slate|amber|mono`; its choice survives reload/restart. Private editor and
+request owners remain mounted. See [appearance semantics](../../docs/ui-theming.md).
+
 See the [application frontend guide](../../docs/02-ui.md#experimental-opentui-application-frontend)
 for controls, private-form behavior and current migration limits. Its stable
 Alt+W Arrange, F2 Windows and Alt+0 Main controls retain resident native editors

@@ -204,6 +204,33 @@ renderer hashes when `VISUAL_EXECUTABLE` selects a complete relocated archive.
 Raw `input.jsonl` necessarily contains the synthetic typed values and is excluded
 from output privacy claims.
 
+`npm run visual:opentui-appearance` runs eight configured-CLI checks in isolated
+native-control and selected-control compositions (five plus three). It executes
+the bundled `/theme amber|mono|slate` commands and inspects actual xterm RGB cells,
+selection contrast and single/round/double borders. Two ordinary fixture plugins
+publish every portable color, chrome and presentation field through
+`$.ui.configure`. The check verifies contribution replacement/order/null removal,
+invalid-call isolation and unchanged user window geometry. Native title controls
+use their actual focus/hover/always policy and mouse zoom/close hit targets.
+
+The scenario checks welcome/role labels, default hints, compact versus opt-in
+ordinary tool arguments and canonical Tools publication intent after a user move.
+An unrelated Tools copy survives that intent. A pending Main question, shared
+Unicode draft/cursor/undo, narrow zoom and hidden private password form remain
+owned across theme changes. Selected controller/editor leases stay singular;
+explicit rich-cell colors remain literal. Real extension disable/re-enable and
+the manager's Apply action exercise unload/reload, a gated expired appearance
+API and the persisted theme. Process restart compares exact window/view metadata
+and committed model context; it does not promise an unsent draft across exit.
+
+Artifacts default to `dist/visual-opentui-appearance/`, with separate composition
+reports, native executable/renderer hashes, same-buffer captures and privacy
+receipts. The fixture validates manifests, catalog hook names and appearance
+schemas before launch. Its Finder oracle checks the current selection colors
+and each supported border style. Models use only the normal saved loopback
+profile; these checks do not establish live-model or physical-terminal quality.
+The public `ui.render` override and complete wire protocol remain separate gates.
+
 
 Known-label Finder opens in the controller, request-window, manager and
 cancellation checks share [opentui-finder.mjs](opentui-finder.mjs). The helper

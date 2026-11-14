@@ -1,16 +1,53 @@
 import type {createApprovalInbox} from './opentui-approvals.js';
 import type {createInteractionInbox} from './opentui-interactions.js';
-import type {AgentCore, ChatMessage} from '@agent-compositor/core';
+import type {AgentCore, ChatMessage, ChatToolCall} from '@agent-compositor/core';
 import type {ConversationApproval, ConversationSession, ConversationSnapshot, Message, PluginTableSource} from '@agent-compositor/renderer-opentui';
 import {uiTextViewSchema} from '@agent-compositor/events';
+import {clean} from './presentation.js';
 
-function conversation(messages: readonly ChatMessage[]): Message[] {
+type ToolState = NonNullable<Extract<Message, {role: 'tool'}>['tool']>['state'];
+type ToolPresentation = {state: ToolState; text?: string};
+function resultPresentation(name: string, ok: unknown, output: unknown): ToolPresentation {
+  if (ok !== true) return {state: 'error'};
+  if (name !== 'exec' && name !== 'exec_output') return {state: 'done'};
+  // Shell invocation success is not command success. Read only the known
+  // structured contract, never stdout, model text or a custom tool's body.
+  if (output === null || typeof output !== 'object' || Array.isArray(output)) return {state: 'complete'};
+  const result = output as Record<string, unknown>, code = result.exitCode;
+  if ((name === 'exec' || result.done === true) && typeof code === 'number' && Number.isSafeInteger(code))
+    return {state: code === 0 ? 'done' : 'error', text: `exit ${code}`};
+  if (name === 'exec' && result.started === true && typeof result.shellId === 'string' && result.shellId.trim())
+    return {state: 'complete', text: 'started'};
+  if (name === 'exec_output' && result.done === false && code === null)
+    return {state: 'complete', text: 'process running'};
+  return {state: 'complete'};
+}
+function argumentsText(name: string, value: unknown): string | undefined {
+  // Human-input arguments belong to the selected private request presenter.
+  if (name === 'ask_user' || name === 'ask_questions') return;
+  try {
+    const text = clean(JSON.stringify(value) ?? '');
+    if (!text) return;
+    if (text.length <= 8000) return text;
+    let end = 7950;if (/[\uD800-\uDBFF]/.test(text[end - 1])) end--;
+    return text.slice(0, end) + '… arguments truncated';
+  } catch {return;}
+}
+
+function conversation(messages: readonly ChatMessage[], liveStates: ReadonlyMap<ChatToolCall, ToolPresentation>): Message[] {
   const visible: Message[] = [];
   for (const message of messages) {
     if (message.role === 'user' && message.origin !== 'harness')
       visible.push({role: 'user', text: message.userRequest ?? message.content});
     if (message.role === 'assistant' && message.content)
       visible.push({role: 'assistant', text: message.content});
+    if (message.role === 'assistant') for (const call of message.toolCalls ?? []) {
+      const presentation = liveStates.get(call);
+      if (presentation === undefined) continue;
+      const args = argumentsText(call.name, call.args);
+      visible.push({role: 'tool', text: presentation.text ?? '', tool: {callId: call.id, name: clean(call.name),
+        ...(args === undefined ? {} : {args}), state: presentation.state}});
+    }
   }
   return visible;
 }
@@ -23,7 +60,27 @@ type ConversationInbox = Pick<ReturnType<typeof createApprovalInbox>, 'subscribe
 export function connectConversation(core: AgentCore, label: string, inbox?: ConversationInbox,
   submit: (text: string) => Promise<void> = text => core.submit(text)): ConversationSession & {disconnect(): void} {
   const listeners = new Set<() => void>();
-  let state: ConversationSnapshot = {messages: conversation(core.getMessages()), running: core.getState() === 'running',
+  // Old journals cannot distinguish idle UI calls from Main. Admit only exact
+  // call occurrences observed executing in this binding's noninteractive turn.
+  // Provider IDs can repeat, so neither provenance nor outcomes are keyed by ID.
+  const toolStates = new Map<ChatToolCall, ToolPresentation>();
+  let context = core.getMessages(), mainTurn: string | undefined;
+  let turnBaseline = new Set<ChatToolCall>();
+  const calls = (messages: readonly ChatMessage[]) => messages.flatMap(message => message.toolCalls ?? []);
+  const resetProvenance = () => {
+    context = core.getMessages();toolStates.clear();turnBaseline = new Set(calls(context));
+  };
+  const currentCalls = () => {
+    const messages = core.getMessages();
+    if (messages !== context) resetProvenance();
+    const current = new Set(calls(messages));
+    for (const call of toolStates.keys()) if (!current.has(call)) toolStates.delete(call);
+    return current;
+  };
+  const project = () => {
+    currentCalls();return conversation(core.getMessages(), toolStates);
+  };
+  let state: ConversationSnapshot = {messages: project(), running: core.getState() === 'running',
     approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.(), controller: inbox?.controllerSnapshot?.()};
   let committed = state.messages;
   let streaming = '';
@@ -46,24 +103,44 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Conv
       update({messages: [...committed, {role: 'assistant', text: streaming}], running: true});
       return;
     }
+    if (event.event === 'tool.call' || event.event === 'tool.result') {
+      if (!mainTurn || event.input.operationId || core.isUserInvocation || core.host.currentServiceScope?.origin !== undefined) return;
+      const candidates = [...currentCalls()].filter(call => call.id === event.input.callId && call.name === event.input.tool &&
+        !turnBaseline.has(call) && (event.event === 'tool.call' ? !toolStates.has(call) : toolStates.get(call)?.state === 'running'));
+      // Ambiguous duplicates and result-only events cannot establish provenance.
+      if (candidates.length !== 1) return;
+      toolStates.set(candidates[0], event.event === 'tool.call' ? {state: 'running'} : resultPresentation(candidates[0].name, event.input.ok, event.input.output));
+      committed = project();streaming = '';
+      update({messages: committed, running: core.getState() === 'running'});
+      return;
+    }
     if (event.input.operationId) return;
     switch (event.event) {
+      case 'context.restored':
+      case 'context.compacted':
+        resetProvenance();committed = project();streaming = '';
+        update({messages: committed, running: core.getState() === 'running'});
+        break;
       case 'turn.start':
+        mainTurn = !event.input.interactiveTool && !core.isUserInvocation && core.host.currentServiceScope?.origin === undefined &&
+          typeof event.input.turnId === 'string' ? event.input.turnId : undefined;
+        currentCalls();turnBaseline = new Set(calls(core.getMessages()));
         notice = undefined;
         // Refresh the submitted user message and reset any previous stream.
-        committed = conversation(core.getMessages());
+        committed = project();
         streaming = '';
         update({messages: committed, running: true});
         break;
       case 'turn.step':
-        committed = conversation(core.getMessages());
+        committed = project();
         streaming = '';
         update({messages: committed, running: true});
         break;
       case 'turn.complete':
       case 'turn.failed':
       case 'turn.interrupted':
-        committed = conversation(core.getMessages());
+        if (event.input.turnId === mainTurn) mainTurn = undefined;
+        committed = project();
         streaming = '';
         update({messages: committed, running: false, ...(event.event === 'turn.failed' ? {error: String(event.input.error)} : {})});
         break;
@@ -81,7 +158,8 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Conv
       if (disconnected || !text.trim()) return;
       void submit(text).catch(error => update({...state, running: core.getState() === 'running', error: String(error)}));
     },
-    disconnect() { disconnected = true; offInbox?.(); unsubscribe(); listeners.clear(); inbox?.close(); },
+    disconnect() { disconnected = true; toolStates.clear();turnBaseline.clear();mainTurn = undefined;
+      offInbox?.(); unsubscribe(); listeners.clear(); inbox?.close(); },
   };
 }
 

@@ -3,6 +3,7 @@ import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useKeyboard} from '@opentui/react';
 import {MouseButton, TextAttributes, type ScrollBoxRenderable} from '@opentui/core';
 import type {UiTextView} from '@agent-compositor/events';
+import {useAppearance} from './appearance.js';
 
 export interface PluginTableSource {
   snapshot(): {title: string; table?: UiTextView['table']; error?: string};
@@ -13,6 +14,7 @@ export interface PluginTableSource {
 export function PluginTable({source, width, focused, isActive, isVisible}: {
   source: PluginTableSource; width: number; focused: boolean; isActive(): boolean; isVisible(): boolean;
 }) {
+  const {color,presentation,tones}=useAppearance();
   const state = useSyncExternalStore(source.subscribe, source.snapshot);
   const [selectedId, select] = useState<string>();
   const narrow = width < 60;
@@ -35,13 +37,13 @@ export function PluginTable({source, width, focused, isActive, isVisible}: {
   });
   const columns = state.table?.columns ?? [];
   return <box flexGrow={1} flexDirection="column" paddingX={1} minHeight={0}>
-    <text fg="#e6e9ed" attributes={TextAttributes.BOLD}>{state.title}</text>
+    <text fg={color.text} attributes={TextAttributes.BOLD}>{state.title}</text>
     <scrollbox ref={scroller} flexGrow={1} minHeight={1} scrollY>
       {!narrow && <box flexDirection="row">{columns.map((column, i) =>
-        <text key={i} flexBasis={0} flexGrow={column.width ?? 1} fg="#a8b2bd" truncate>{column.label}</text>
+        <text key={i} flexBasis={0} flexGrow={column.width ?? 1} fg={color.muted} truncate>{column.label}</text>
       )}</box>}
-      {!rows.length && <text fg="#a8b2bd">{state.table?.empty ?? 'No workflow rows.'}</text>}
-      {rows.map((row, i) => <box id={'table-row-' + row.id} key={row.id} flexDirection="column" backgroundColor={i === index ? '#22272f' : undefined}>
+      {!rows.length && <text fg={color.muted}>{state.table?.empty ?? 'No workflow rows.'}</text>}
+      {rows.map((row, i) => <box id={'table-row-' + row.id} key={row.id} flexDirection="column" backgroundColor={i === index ? color.optionBackground : undefined}>
         <box flexDirection={narrow ? 'column' : 'row'} onMouseDown={event => {
           if (event.button !== MouseButton.LEFT || !isVisible()) return;
           select(row.id);
@@ -49,16 +51,16 @@ export function PluginTable({source, width, focused, isActive, isVisible}: {
         }}>
           {row.cells.map((cell, j) => <text key={j} selectable={false} truncate
             {...(narrow ? {} : {flexBasis: 0, flexGrow: columns[j]?.width ?? 1})}
-            fg={i === index ? '#a6dfd4' : '#e6e9ed'}>
+            fg={i === index ? color.actionText : tones[row.tone??'text']}>
             {(j === 0 && row.action ? row.expanded ? '▾ ' : '▸ ' : '') + (narrow ? columns[j].label + ': ' : '') + cell}
           </text>)}
         </box>
         {row.expanded && row.details?.filter(line => !line.action).map((line, j) =>
-          <text key={j} fg="#a8b2bd" wrapMode="word">{line.text}</text>
+          <text key={j} fg={line.tone?tones[line.tone]:color.muted} wrapMode="word">{line.text}</text>
         )}
       </box>)}
     </scrollbox>
-    {state.error && <text fg="#ffa7a0">{state.error}</text>}
-    {focused && <text fg="#a8b2bd">↑↓ select · Enter or click to expand</text>}
+    {state.error && <text fg={color.error}>{state.error}</text>}
+    {focused && presentation.hints && <text fg={color.muted}>↑↓ select · Enter or click to expand</text>}
   </box>;
 }

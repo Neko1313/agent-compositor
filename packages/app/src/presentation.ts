@@ -1,6 +1,7 @@
 import {markdownRows} from "./markdown.js";
 import type { UiAppearance, UiTextView } from "@agent-compositor/events";
 import type { RenderMessage } from "@agent-compositor/protocol";
+import {mergeAppearance} from './appearance-contributions.js';
 
 export const DEFAULT_APPEARANCE = {
   colors: {
@@ -48,12 +49,10 @@ export interface TranscriptBlock {
 export function appearanceFrom(
   contributions: Iterable<UiAppearance>
 ): Appearance {
-  const result: Appearance = structuredClone(DEFAULT_APPEARANCE);
-  for (const patch of contributions) {
-    Object.assign(result.colors, patch.colors);
-    Object.assign(result.chrome, patch.chrome);
-    Object.assign(result.presentation, patch.presentation);
-  }
+  const result: Appearance = structuredClone(DEFAULT_APPEARANCE), patch = mergeAppearance(contributions);
+  Object.assign(result.colors, patch.colors);
+  Object.assign(result.chrome, patch.chrome);
+  Object.assign(result.presentation, patch.presentation);
   return result;
 }
 

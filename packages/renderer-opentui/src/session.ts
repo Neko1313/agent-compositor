@@ -26,12 +26,18 @@ export interface ConversationSnapshot {
 /** The renderer subscribes to the session it displays. The host owns its lifetime. */
 export interface ConversationSession {
   id: string;
+  /** Stable shared input identity across window copies and Core replacement. */
+  conversationId?: string;
+  /** Core binding epoch; resuming the same journal can retain its session ID. */
+  generation?:string|number;
   /** Stable compositor identity, independent of this core's runtime session ID. */
   paneId?: string;
   label: string;
+  /** A retained window port cannot act on a replacement Core. */
+  isCurrent?():boolean;
   snapshot(): ConversationSnapshot;
   subscribe(callback: () => void): () => void;
-  submit(text: string): void;
+  submit(text: string): void|boolean;
   isImmediateCommand?(text: string): boolean;
   interrupt?(): void;
   answerApproval?(id: string, allow: boolean): void;

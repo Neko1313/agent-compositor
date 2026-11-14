@@ -86,7 +86,7 @@ it('rejects invalid workspaces, self-neighbors and removed targets without chang
   await expect(readFile(f.rules, 'utf8')).rejects.toMatchObject({code: 'ENOENT'});
 });
 
-it.each(['target', 'neighbor'] as const)('rechecks the %s after a deferred real Save before mutating live geometry', async kind => {
+it.each(['target', 'neighbor', 'neighbor-replaced'] as const)('rechecks the %s after a deferred real Save before mutating live geometry', async kind => {
   let accepted: boolean | undefined;
   const f = await fixture(controller(['save'], async (_action, data) => {
     try {await data.apply(alpha, {workspace: 3, relativeTo: beta, focus: true}, true);accepted = true;} catch {accepted = false;}
@@ -94,10 +94,49 @@ it.each(['target', 'neighbor'] as const)('rechecks the %s after a deferred real 
   const pending = gate(), save = f.app.savePlacement;
   f.app.savePlacement = async rule => {await pending.wait();return save(rule);};
   const source = await f.open();f.input(source, {kind: 'action', action: 'save'});await expect.poll(pending.entered).toBe(true);
-  await f.remove(kind === 'target' ? 'alpha' : 'beta');if (kind === 'target')await f.publish('alpha');
+  await f.remove(kind === 'target' ? 'alpha' : 'beta');
+  if (kind === 'target')await f.publish('alpha');
+  if (kind === 'neighbor-replaced')await f.publish('beta');
   pending.release();await expect.poll(() => accepted).toBe(false);
   expect(f.layout.snapshot().locations[alpha]).toBe(1);expect(f.layout.snapshot().focused).toBe('host-placement');
   expect(parseJsonc(await readFile(f.rules, 'utf8')).ui.rules).toEqual([expect.objectContaining({workspace: 3, relativeTo: beta})]);
+});
+
+it('admits created Main, Tools and Help neighbors without turning host views or retained unknown IDs into plugin targets', async () => {
+  let relativeTo = '', accepted: boolean | undefined, anchors: string[] = [], targets: string[] = [];
+  const f = await fixture(controller(['apply'], async (_action, data) => {
+    anchors = data.anchors();targets = data.windows().map(window => window.id);
+    try {await data.apply(alpha, {workspace: 1, site: 'inspector', size: .35, relativeTo, focus: false});accepted = true;}
+    catch {accepted = false;}
+  }));
+  f.layout.resize(2000, 400);
+  for (const kind of ['session', 'tools', 'help'] as const) expect(f.host.createWindow(kind)).toBe(true);
+  f.layout.register({id: 'window-999', label: 'Retained only'});f.layout.detach('window-999');
+  const original = f.find(alpha), source = await f.open();
+  for (const id of ['window-1', 'window-2', 'window-3']) {
+    relativeTo = id;accepted = undefined;await f.action(source, 'apply');expect(accepted).toBe(true);
+    const frames = f.layout.snapshot().frames, target = frames.find(frame => frame.surface === alpha)!, neighbor = frames.find(frame => frame.surface === id)!;
+    expect(target).toMatchObject({x: neighbor.x, width: neighbor.width});expect(target.y).toBe(neighbor.y + neighbor.height);
+    expect(f.find(alpha)).toBe(original);expect(f.layout.snapshot().focused).toBe('host-placement');
+  }
+  expect(anchors).toEqual(expect.arrayContaining(['session', 'tools', 'window-1', 'window-2', 'window-3', alpha, beta]));
+  expect(anchors).not.toContain('window-999');expect(targets).toEqual([alpha, beta]);
+  for (const invalid of [alpha, 'window-999']) {relativeTo = invalid;await f.action(source, 'apply');expect(accepted).toBe(false);}
+  expect(f.provider.requests).toHaveLength(0);
+});
+
+it('rejects a known Main-copy neighbor withdrawn during Save without applying geometry after the write', async () => {
+  let accepted: boolean | undefined;
+  const f = await fixture(controller(['save'], async (_action, data) => {
+    try {await data.apply(alpha, {workspace: 3, relativeTo: 'window-1', focus: true}, true);accepted = true;}
+    catch {accepted = false;}
+  }));
+  f.host.createWindow('session');
+  const pending = gate(), save = f.app.savePlacement;f.app.savePlacement = async rule => {await pending.wait();return save(rule);};
+  const source = await f.open();f.input(source, {kind: 'action', action: 'save'});await expect.poll(pending.entered).toBe(true);
+  f.layout.forget('window-1');pending.release();await expect.poll(() => accepted).toBe(false);
+  expect(f.layout.snapshot().locations[alpha]).toBe(1);expect(f.layout.snapshot().focused).toBe('host-placement');
+  expect(parseJsonc(await readFile(f.rules, 'utf8')).ui.rules).toEqual([expect.objectContaining({workspace: 3, relativeTo: 'window-1'})]);
 });
 
 it('keeps a saved move passive after newer Main or workspace intent while preserving fresh Apply focus', async () => {

@@ -3,11 +3,16 @@ import type {BuiltApp} from './build.js';
 import type {WindowLayoutAction, WindowLayoutSnapshot, WindowLayoutSource, WindowSplitTarget} from '@agent-compositor/renderer-opentui';
 
 export interface WindowPane {id: string; label: string; transient?: boolean}
+export type HostWindowKind = 'session' | 'tools' | 'help';
+export interface HostWindowView {id: string; title: string; kind: HostWindowKind}
 export type WindowPlacement = Parameters<WindowManager['place']>[1];
 export interface DynamicWindowLayout extends WindowLayoutSource {
   readonly windowIntentRevision: number;
   markWindowIntent(): void;
   actAutomatic(action: WindowLayoutAction): void;
+  hostViews(): readonly HostWindowView[];
+  createHostView(kind: HostWindowKind): HostWindowView;
+  registerClosed(pane: WindowPane): void;
   register(pane: WindowPane, placement?: WindowPlacement): void;
   relocate(id: string, placement?: WindowPlacement): void;
   detach(id: string): void;
@@ -32,7 +37,24 @@ const validPlacement = (placement: WindowPlacement) => !placement || (
   && (placement.focus === undefined || typeof placement.focus === 'boolean'));
 type LayoutState = {version: 1; workspace: number; focused: string; axis: 'horizontal' | 'vertical'; fullscreen: boolean;
   spaces: {id: number; tree?: Tree; focus?: string}[]};
-type LegacyView = {id: string; title: string; kind: string};
+const hostKinds = ['session', 'tools', 'help'] as const;
+const hostSerial = (id: string): number | undefined => {
+  if (!/^window-[1-9]\d*$/.test(id)) return;
+  const value = Number(id.slice(7));
+  return Number.isSafeInteger(value) ? value : undefined;
+};
+function readHostViews(value: unknown): HostWindowView[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 100) throw Error('Invalid host window inventory');
+  const ids = new Set<string>();
+  return value.map(view => {
+    if (!view || typeof view !== 'object' || !validId(view.id) || hostSerial(view.id) === undefined
+      || ids.has(view.id) || typeof view.title !== 'string' || !view.title.length || view.title.length > 512
+      || !hostKinds.includes(view.kind)) throw Error('Invalid host window descriptor');
+    ids.add(view.id);
+    return {id: view.id, title: view.title, kind: view.kind};
+  });
+}
 
 /** Admit late owners without trusting arbitrary saved IDs or an unbounded tree. */
 function retainedIds(value: unknown): Set<string> {
@@ -78,7 +100,7 @@ export async function connectWindowLayout(storage: Storage, options: {
     axis: 'horizontal', fullscreen: false, spaces: [{id: 1, tree, focus: initial[0]}]};
   wm.restore(defaults, known);
   let seen = new Set(options.panes.filter(pane => !pane.transient).map(pane => pane.id));
-  let views: LegacyView[] = [];
+  let views: HostWindowView[] = [];
   let error: string | undefined;
   let loaded = false;
   try {
@@ -92,9 +114,7 @@ export async function connectWindowLayout(storage: Storage, options: {
           throw Error('Invalid registered window inventory');
         for (const id of envelope.registered) retained.add(id);
       }
-      if (Array.isArray(envelope?.views)) views = envelope.views.slice(0, 100).filter((view): view is LegacyView =>
-        view && /^window-\d+$/.test(view.id) && typeof view.title === 'string' && view.title.length <= 512
-        && ['session', 'tools', 'help'].includes(view.kind)).map(view => ({id: view.id, title: view.title, kind: view.kind}));
+      views = readHostViews(envelope?.views);
       for (const view of views) retained.add(view.id);
       for (const id of known) retained.add(id);
       if (retained.size > 256) throw Error('Too many retained windows');
@@ -292,6 +312,42 @@ export async function connectWindowLayout(storage: Storage, options: {
   return {
     get windowIntentRevision() {return windowIntentRevision;},
     markWindowIntent,
+    hostViews: () => Object.freeze(views.map(view => Object.freeze({...view}))),
+    createHostView(kind) {
+      if (!active) throw Error('Window layout is closed');
+      if (!hostKinds.includes(kind)) throw Error('Invalid host window kind');
+      if (views.length >= 100) throw Error('Too many host windows');
+      const occupied = new Set([...seen, ...registry.keys(), ...detached.keys(), ...retainedIds(wm.snapshot()), ...views.map(view => view.id)]);
+      let serial = 0;
+      for (const id of occupied) {
+        const value = hostSerial(id);
+        if (/^window-[1-9]\d*$/.test(id) && value === undefined) throw Error('Host window serial is exhausted');
+        if (value !== undefined) serial = Math.max(serial, value);
+      }
+      if (!Number.isSafeInteger(serial + 1)) throw Error('Host window serial is exhausted');
+      const id = 'window-' + (serial + 1);
+      if (occupied.size >= 256 || occupied.has(id)) throw Error('Too many registered windows');
+      cancel();
+      const before = wm.snapshot();
+      try {wm.open(id); retainedIds(wm.snapshot());}
+      catch (cause) {wm.restore(before, retainedIds(before)); publish(); throw cause;}
+      const view: HostWindowView = {id, title: {session: 'Main', tools: 'Tools', help: 'Window controls'}[kind] + ' ' + (serial + 1), kind};
+      views = [...views, view];
+      registry.set(id, {id, label: view.title});seen.add(id);
+      persist();publish();
+      return Object.freeze({...view});
+    },
+    registerClosed(pane) {
+      if (!active) return;
+      if (!validPane(pane) || pane.transient) throw Error('Host windows require persistent, bounded semantic IDs');
+      const previous = registry.get(pane.id) ?? detached.get(pane.id);
+      if (previous?.transient) throw Error('A window identity cannot change persistence lifetime');
+      if (new Set([...seen, ...registry.keys(), ...detached.keys(), pane.id]).size > 256) throw Error('Too many registered windows');
+      if (registry.has(pane.id)) return;
+      cancel();registry.set(pane.id, {...pane});detached.delete(pane.id);seen.add(pane.id);
+      // Admission restores visibility, never placement or an automatic disk rewrite.
+      publish();
+    },
     actAutomatic(this: DynamicWindowLayout, action) {
       automatic++;
       try {this.act(action);} finally {automatic--;}

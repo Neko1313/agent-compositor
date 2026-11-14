@@ -1,5 +1,124 @@
 # Project memory
 
+## Main window-copy migration implementation — 2026-11-14
+
+The previous goal turn was progress. Current implementation started from clean
+282ebbb, whose exact-head build-only run 43567928253, Node 22/26 CI 43567897866,
+docs 43567897847 and plugin preparation 43567897844 passed. Downloaded evidence
+proves 196 OpenTUI checks plus 32 smoke reports across four platforms; publication
+was skipped. The installed 38e1ae68/49ead881 candidate and immutable d82eb14c
+archive match dist/opentui-keyboard-retile-verification.json. Full 1.0 remains
+open; frontend findings are in dist/opentui-next-migration-findings-282ebbb.json.
+
+Legacy Ink window-N session views share one Main Core/transcript/draft/cursor,
+request FIFO and editor lease, with separate pane IDs and scroll. All saved
+session/Tools/Help descriptors and canonical tools must migrate, including closed
+IDs and the serial ceiling. Arrange n/t/? and Finder New-window actions create
+explicit views without reusing Alt+Enter. /chat stays idempotent and rejects args.
+
+The renderer separates logical conversation identity, pane identity and actual
+Core binding generation (which can change while resuming the same journal ID).
+One full native Conversation subtree remains at a stable viewport sibling/key;
+moving between Main copies only changes its rectangle and guarded port. Inactive
+copies display transcript/pending status without editors or request controllers.
+Per-pane public scroll state is captured before role changes and restored after
+layout with cancellation and epoch fencing. Default draft/undo remain resident;
+request mode/components reset on a new binding. A rejected native submit does
+not clear the textarea. Ports are exact-pane/Core-bound and expose no Core object.
+
+The real migration bench is being implemented as actual Ink -> OpenTUI ->
+OpenTUI restart with the same isolated storage/profile and actual journal receipt.
+It must prove shared input/undo, independent scroll, exact stored topology,
+all kinds, closed recovery, one factory/callback, private form isolation,
+reload/resume and stale-generation rejection. No layout/journal metadata may be
+manufactured for that migration. Current focused renderer/routing checks pass;
+host and actual CLI verification remain required.
+
+The genuine old installed-runtime migration RED is retained in
+dist/opentui-conversation-copies-old-native-red-valid: actual Ink input saves
+all three view kinds, closed IDs and nested ratios, but the old OpenTUI runtime
+does not admit those copies. The earlier old-native-red attempt was a fixture
+manifest preflight error, not a product regression. Initial source inspection
+exposed selector mistakes; preserve fixture failures separately from product evidence.
+The corrected source-composer-fixed run passes migration, admission, creation
+and idempotent /chat, then exposes a genuine renderer defect: a newly created
+opaque Tile covers the retained resident Conversation at their shared default
+paint layer. Adjacent 31-cell panes have identical dimensions; the editor caret
+and public native tree move correctly while all resident descendants disappear.
+A native ConversationView probe reproduces it and verifies that residence layer
+1, below Finder 100, paints every phase while retaining the same native widget.
+The probe is in dist/opentui-conversation-copies-residence-probe. The next
+source-layered run visibly fixes the blank pane, then finds a bench measurement
+error: exact Unicode draft text wraps across two rows in the 31-cell tile while
+the assertion expects one row. Preserve that failure; reconstructing the native
+textarea must stay inside its actual bounds and exclude Send/adjacent panes.
+The complete actual migration scenario must still pass after these corrections.
+The next scoped source run passes four native cases through normal approval
+denial. Its reload comparison used a baseline before the user opened Plugins,
+so the legitimately added manager leaf invalidated that baseline; it is now
+captured after opening the manager and immediately before Apply, with the full
+tree comparison retained. Per-copy history checks also now read only the focused
+history: preserved ANSI proves the scrolled copy lacks the bottom marker while
+other visible copies correctly retain it. These are bench corrections, not
+additional product repairs. All failed attempts remain under their distinct
+dist/opentui-conversation-copies-source-* directories.
+
+Standalone full coverage passes 2119 tests with three optional skips and 229
+files. Typecheck, generation, docs generation and full docs:check pass; logs use
+/tmp/compositor-conversation-copies-*. The final native migration gates remain
+required, and no candidate bundle has been installed yet.
+
+The complete source scenario now passes all eight cases (native five, selected
+three), both final PTYs 0, runner 0 and errors:[], in
+dist/opentui-conversation-copies-source-narrow-custom. All 18 captures include
+the new 31-cell native/custom Main input, nested copies, independent scroll,
+private requests and restart. The custom fixture's D: prefix keeps the unchanged
+full Unicode/caret value visible within its declared narrow text row; its earlier
+Draft: prefix clipped one display cell and was a fixture failure, not a product
+repair. Exact tree/identity/privacy and gated old-Core assertions remain strict.
+The native build and release smoke pass; relocated candidate verification is
+the next required step. No paid/live-model calls were used.
+
+The immutable candidate records executable 231412b4, renderer acef6119 and
+archive eba9da85 in dist/opentui-conversation-copies-artifact.json. The first
+native matrix stops in the older navigation scenario: its original Arrange yn
+now correctly creates a Main copy and the pending question wraps in that new
+narrow pane. Preserve dist/opentui-conversation-copies-current-native-navigation
+and the failed aggregate. The bench retains both original yn/approval sequences,
+explicitly checks one new Main/no model or request settlement/same journal,
+closes just that copy, restores the exact prior windows tree and retains its
+closed metadata. Canonical Main reopening selects its exact Closed Finder row.
+The fresh full native matrix is in dist/opentui-conversation-copies-final-native-*;
+no shipping inputs changed for this bench correction.
+
+The corrected native navigation, workspace controllers, editor, app, managers
+and cancellation scenarios all pass (37 cases, runner 0 for every suite).
+The ignored aggregate validator incorrectly treats expected cancelled/denied
+tool receipts with ok:false as failing scenario reports. Preserve that aggregate
+as a verification-script error; the cancellation report itself is ok:true,
+errors:[], final PTY 0 with the expected aborted workers and denied shell call.
+Requests/controllers contain similar intentional failed tool receipts, so the
+audit must validate their explicit contracts separately from scenario success.
+The four remaining suites run sequentially against the same frozen candidate;
+their outcomes are in dist/opentui-conversation-copies-native-remaining.json.
+
+Final local candidate verification passes all 64 checks across ten actual native
+runners, every runner 0 and all recorded final PTYs 0: navigation 9, workspace 8,
+editor 6, app 6, managers 5, cancellation 3, requests 6, controllers 6, Ink windows
+7 and Main-copy migration 8 (native five, selected three). The repaired audit in
+dist/opentui-conversation-copies-final-native-repaired-suites.json revalidates
+the immutable reports and explicit negative tool receipts without rerunning them;
+the original aggregation failure is preserved. Independent final review rehashes
+the executable/renderer/archive, inspects eight critical native PNGs, confirms
+exact restart trees/eight descriptors/closed window-3, privacy scans and revoked
+delayed input, and approves this bounded feature. Full docs:check passes on the
+final canonical text. Exact new-head CI and four-platform native proof remain
+required; no stable 1.0/default-renderer switch is claimed.
+
+Canonical UI, architecture, readiness, release, app and visual-bench guides are
+updated. The deferred agent-feature comparison, contributor workflow and
+documentation maintenance policy are unaffected by this frontend migration.
+
 ## Keyboard edge retiling implementation — 2026-11-14
 
 Continue toward the complete 1.0 objective. The previous goal turn was progress:

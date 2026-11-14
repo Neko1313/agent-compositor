@@ -14,6 +14,68 @@ function memory(initial?: unknown) {
 }
 const ids = (tree: any): string[] => !tree ? [] : tree.surface ? [tree.surface] : tree.children.flatMap(ids);
 
+it('admits every saved host kind without reopening closed views and allocates beyond all retained identities', async () => {
+  const tree = split('horizontal', .65, leaf('session'), split('vertical', .3, leaf('window-1'), leaf('window-40')));
+  const views = [{id: 'window-1', title: 'Conversation', kind: 'session'},
+    {id: 'window-2', title: 'Earlier tools', kind: 'tools'}, {id: 'window-20', title: 'Help', kind: 'help'}];
+  const storage = memory({windows: state(tree), views, registered: ['session', 'window-50']});
+  const layout = await connectWindowLayout(storage, {panes: [panes[0]]});layout.resize(160, 40);
+  expect(layout.hostViews()).toEqual(views);expect(Object.isFrozen(layout.hostViews()[0])).toBe(true);
+  layout.registerClosed({id: 'tools', label: 'Tools'});
+  for (const view of layout.hostViews()) layout.registerClosed({id: view.id, label: view.title});
+  expect(layout.snapshot().locations).toEqual({session: 1, 'window-1': 1});
+  expect(storage.saved).toEqual([]);
+  expect(() => {layout.hostViews()[0].title = 'Changed';}).toThrow();
+  const created = layout.createHostView('help');
+  expect(created).toEqual({id: 'window-51', title: 'Window controls 51', kind: 'help'});
+  expect(layout.snapshot().focused).toBe(created.id);
+  expect(layout.snapshot().locations['window-20']).toBeUndefined();
+  await layout.disconnect();
+  expect(storage.saved.at(-1).views).toEqual([...views, created]);
+  expect(ids(storage.saved.at(-1).windows.spaces[0].tree)).toContain('window-40');
+  expect(storage.saved.at(-1).registered).toContain('window-50');
+  const restored = await connectWindowLayout(storage, {panes: [panes[0]]});
+  expect(restored.hostViews()).toEqual([...views, created]);
+  expect(restored.createHostView('tools').id).toBe('window-52');await restored.disconnect();
+});
+
+it.each([
+  'not an array', [{id: 'window-0', title: 'Bad', kind: 'session'}],
+  [{id: 'window-01', title: 'Bad', kind: 'session'}], [{id: 'window-9007199254740992', title: 'Bad', kind: 'session'}],
+  [{id: 'window-1', title: '', kind: 'session'}], [{id: 'window-1', title: 'x'.repeat(513), kind: 'tools'}],
+  [{id: 'plugin-impostor-pane', title: 'Bad', kind: 'session'}], [{id: 'window-1', title: 'Bad', kind: 'plugin'}],
+  [{id: 'window-1', title: 'A', kind: 'session'}, {id: 'window-1', title: 'B', kind: 'tools'}],
+  Array.from({length: 101}, (_, index) => ({id: 'window-' + (index + 1), title: 'Main', kind: 'session'})),
+])('rejects malformed host window metadata atomically without rewriting it', async views => {
+  const storage = memory({windows: state(leaf('session')), views});
+  const layout = await connectWindowLayout(storage, {panes: [panes[0]]});
+  expect(layout.hostViews()).toEqual([]);expect(layout.snapshot().error).toContain('Could not restore window layout');
+  layout.registerClosed({id: 'tools', label: 'Tools'});await layout.disconnect();
+  expect(storage.saved).toEqual([]);
+});
+
+it('rolls back host creation at depth, descriptor, serial and retained-identity limits', async () => {
+  let tree: unknown = leaf('session');
+  for (let index = 0; index < 24; index++) tree = split('horizontal', .5, leaf('late-' + index), tree);
+  const fullViews = Array.from({length: 100}, (_, index) => ({id: 'window-' + (index + 1), title: 'Main', kind: 'session'}));
+  const cases = [
+    {value: {windows: state(tree)}, error: /bounded window tree/},
+    {value: {windows: state(leaf('session')), views: fullViews}, error: /Too many host windows/},
+    {value: {windows: state(leaf('session')), views: [{id: 'window-9007199254740991', title: 'Last', kind: 'help'}]}, error: /serial is exhausted/},
+    {value: {windows: state(leaf('session')), registered: ['session', ...Array.from({length: 255}, (_, index) => 'retained-' + index)]}, error: /Too many registered windows/},
+  ];
+  for (const item of cases) {
+    const storage = memory(item.value), layout = await connectWindowLayout(storage, {panes: [panes[0]]});
+    layout.resize(120, 40);const before = layout.snapshot(), views = layout.hostViews();
+    expect(layout.snapshot().error).toBeUndefined();
+    expect(() => layout.createHostView('session')).toThrow(item.error);
+    expect(() => layout.createHostView('plugin' as 'session')).toThrow(/Invalid host window kind/);
+    expect(layout.hostViews()).toEqual(views);expect(layout.snapshot().locations).toEqual(before.locations);
+    expect(layout.snapshot().focused).toBe(before.focused);expect(layout.snapshot().frames).toEqual(before.frames);
+    await layout.disconnect();expect(storage.saved).toEqual([]);
+  }
+});
+
 it('counts transient manual window intent separately from registration, viewport changes, automatic focus and saves', async () => {
   const storage = memory({windows: state(split('horizontal', .7, leaf('session'), leaf('tools')))});
   const layout = await connectWindowLayout(storage, {panes});expect(layout.windowIntentRevision).toBe(0);

@@ -586,7 +586,7 @@ it('admits a passive first view without taking a held form, Main question or ano
   expect(f.layout.snapshot()).toMatchObject({workspace: 2, focused: form.id, locations: {'plugin-passive-new': 2}});
   expect(f.layout.windowIntentRevision).toBe(intent);expect(form.snapshot().form?.id).toBe(request.id);
   expect(f.host.session.snapshot().interaction?.id).toBe(question.id);expect(f.requests).toHaveLength(1);
-  form.cancelForm!(request.id);f.host.session.cancelInteraction!(question.id);await main;
+  form.cancelForm!(request.id);f.layout.act({type: 'open', id: 'session'});f.host.session.cancelInteraction!(question.id);await main;
 });
 
 it('honors explicit first-publication focus preferences while ordinary updates keep a closed or moved view', async () => {
@@ -947,6 +947,7 @@ it.each(['ordinary', 'background'] as const)('attributes an interceptor form to 
   form.answerForm!(requestId, {action: 'save', values: {value: 'stale'}});
   expect(f.host.core.host.hasPlugin('scope-a')).toBe(true);
   expect(f.host.session.snapshot().interaction?.id).toBe(mainId); expect(f.requests).toHaveLength(1);
+  f.layout.act({type: 'open', id: 'session'});
   f.host.session.interrupt!(); await main;
 });
 
@@ -1085,6 +1086,7 @@ it('cancels one command window and its real builtin exec while preserving its ne
   expect(f.host.core.getState()).toBe('running');
   expect(f.requests).toHaveLength(1);
   expect(f.host.core.getOperations()).toHaveLength(2);
+  f.layout.act({type: 'open', id: 'session'});
   f.host.session.interrupt!(); await main;
   expect(processAlive(b)).toBe(true);
   expect(second.snapshot().busy).toBe(true);
@@ -1143,6 +1145,7 @@ it('returns to the existing Models pane after adding, zooming, discovering and s
   expect(await readFile(join(f.app.storage.paths.state, 'providers.json'), 'utf8')).toBe(saved);
   expect(f.host.session.snapshot().interaction?.id).toBe(question);expect(f.requests).toHaveLength(1);
   expect(JSON.stringify(f.events)).not.toContain(values.key);
+  f.layout.act({type: 'open', id: 'session'});
   f.host.session.interrupt!();await main;
 });
 
@@ -1237,6 +1240,7 @@ it('configures the actual provider in a separate private form while the main mod
   expect(JSON.stringify(f.host.session.snapshot())).not.toContain('FAKE_LOOPBACK_PRIVATE_KEY');
   const stored = await f.app.store.load(f.host.core.sessionId, f.cwd);
   expect(JSON.stringify(stored)).not.toContain('FAKE_LOOPBACK_PRIVATE_KEY');
+  f.layout.act({type: 'open', id: 'session'});
   f.host.session.answerInteraction!(question.id, {answers: [{id: 'answer', selected: ['Local']}]});
   await main;
   expect(f.requests).toHaveLength(2);
@@ -1403,7 +1407,7 @@ it('bounds simultaneous UI operations and shuts down each private form through i
   expect(f.requests).toHaveLength(0);
 });
 
-it('resumes actual saved history through the same stable session wrapper and removes the prior sources', async () => {
+it('resumes actual saved history through a fresh guarded session port and removes the prior sources', async () => {
   const f = await fixture();
   await f.app.store.create(f.cwd, {id: 'saved-chat', name: 'Saved chat'});
   await f.app.store.append('saved-chat', [
@@ -1420,8 +1424,9 @@ it('resumes actual saved history through the same stable session wrapper and rem
   history.press('resume', history.snapshot().revision);
   await expect.poll(() => f.host.core.sessionId).toBe('saved-chat');
   expect(f.host.core).not.toBe(previous);
-  expect(f.host.session).toBe(session);
-  expect(session.snapshot().messages).toContainEqual({role: 'assistant', text: 'Saved answer'});
+  expect(f.host.session).not.toBe(session);expect(session.isCurrent!()).toBe(false);
+  expect(session.snapshot().messages).not.toContainEqual({role: 'assistant', text: 'Saved answer'});
+  expect(f.host.session.snapshot().messages).toContainEqual({role: 'assistant', text: 'Saved answer'});
   expect(f.find('plugin-session-manager-sessions')).toBeUndefined();
   await f.host.submit('Continue restored chat');
   expect(f.requests).toHaveLength(1);
@@ -1582,6 +1587,7 @@ it('routes an actual loaded UI-only command during a pending question and promot
   await f.host.core.host.emit('service.ui.surface', {plugin: 'ui-only-real-owner', id: 'panel', title: 'Many lines', text: 'line\n'.repeat(3000)});
   expect(source.snapshot().view?.lines).toHaveLength(2000);
   expect(source.snapshot().view?.lines.at(-1)?.text).toContain('truncated');
+  f.layout.act({type: 'open', id: 'session'});
   f.host.session.cancelInteraction!(question.id); await main;
 });
 
@@ -1708,6 +1714,7 @@ it('uses actual manager navigation, local inactive installation, cross-manager f
   expect(f.app.plugins.some(plugin => plugin.manifest.name === 'local-flow-probe')).toBe(false);
   expect(f.requests).toHaveLength(1);
   expect(f.host.core.getMessages().filter(message => message.role === 'user').map(message => message.content)).toEqual(['Ask before continuing']);
+  f.layout.act({type: 'open', id: 'session'});
   f.host.session.answerInteraction!(question.id, {answers: [{id: 'answer', selected: ['Local']}]}); await main;
   await expect.poll(() => f.app.plugins.some(plugin => plugin.manifest.name === 'local-flow-probe')).toBe(true);
   await expect.poll(() => f.find('plugin-local-flow-probe-main')?.snapshot().view?.lines[0].text).toBe('Loaded only after explicit enable and reload');
@@ -1819,7 +1826,8 @@ it('admits the full placement selector boundary and explains overflow without si
   await add(198); await f.host.submit('/placement');
   await expect.poll(() => f.host.session.snapshot().notice).toContain('up to 198 plugin windows');
   expect(f.form()).toBeUndefined();
-  expect(f.host.surfaces.snapshot()).toHaveLength(199);
+  expect(f.host.surfaces.snapshot().filter(source => source.id.startsWith('plugin-'))).toHaveLength(199);
+  expect(f.host.surfaces.snapshot().find(source => source.id === 'tools')).toBeDefined();
   expect(f.requests).toHaveLength(0);
 });
 

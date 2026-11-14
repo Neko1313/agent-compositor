@@ -23,7 +23,7 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
   let startup:Promise<void>|undefined;
   let startupFailure:unknown;
   try{
-    const windows=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'}],initial:['session']});
+    const windows=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'},{id:'tools',label:'Tools'}],initial:['session']});
     layout=windows;
     host=createOpenTuiHost(app,windows,{onExit:()=>stop.abort()});
     const current=host;
@@ -35,6 +35,7 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
     await runOpenTuiRenderer([current.session],{
       stdin,stdout,environment:Object.fromEntries(Object.entries(env).filter((entry):entry is [string,string]=>entry[1]!==undefined)),
       signal:stop.signal,windowLayout:windows,surfaces:current.surfaces,composerMedia:current.composerMedia,navigation:current.navigation,
+      conversationWindows:current.conversationWindows,
       animations:env.AGENT_GRAPHICS!=='off'&&!env.NO_COLOR&&env.AGENT_REDUCED_MOTION!=='1',
       onCtrlC:()=>{
         if(current.navigation.handle({kind:'key',key:'c',modifiers:['ctrl']}))return 'handled';
@@ -46,8 +47,8 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
         if(request?.interaction){surface?.cancelInteraction?.(request.interaction.id);return 'handled';}
         const form=request?.form;
         if(form){surface?.cancelForm?.(form.id);return 'handled';}
-        const mainController=focused==='session'?current.session.snapshot().controller:undefined;
-        if(mainController){current.session.cancelController?.(mainController.id);return 'handled';}
+        const main=current.mainSession(focused),mainController=main?.snapshot().controller;
+        if(mainController){main?.cancelController?.(mainController.id);return 'handled';}
         if(current.cancelOperation(focused))return 'handled';
         if(current.core.getState()==='running'){current.core.interrupt();return 'handled';}
         return 'exit';

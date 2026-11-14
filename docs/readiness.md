@@ -468,10 +468,30 @@ and split-ratio retention, and current failure feedback after reload. New-head
 four-platform CI remains a required candidate gate; these local checks do not
 establish native terminal/protocol coverage or stable 1.0 readiness.
 
-Remaining frontend gates include full appearance/render overrides, legacy
-conversation copies, complete wire-protocol parity and exact delegated-child
-request attribution. Ordinary UI operations and retained plugin services now
-receive independent approval/question/questionnaire/form windows. Verification
+Saved Ink session, Tools and Help windows now migrate with their original IDs,
+closed state, serial ceiling, workspaces and split ratios. Main copies share
+one Core, native draft/cursor/undo, request FIFO and selected editor lease, with
+independent transcript scroll. Arrange n/t/? and Finder creation actions allocate
+explicit windows; /chat remains idempotent. The resident input stays mounted
+above opaque tile backgrounds and below Finder, including newly created panes.
+Every pane port is bound to its Core generation; expired ports cannot submit to
+a replacement, including a resumed journal with the same ID. Host windows are
+also valid placement neighbors while placement-rule targets remain plugins.
+
+The eight-case actual Ink -> OpenTUI -> OpenTUI restart scenario passes from
+source and a relocated Linux native archive with native and selected controls,
+exact stored trees/identities, shared
+Unicode input, independent scroll, private form isolation, once-only callbacks,
+reload/fork/resume and a delayed old-generation submission. The same candidate
+passes all 56 earlier native checks. Exact-head four-platform CI remains a
+required candidate check.
+This implementation closes the missing legacy-window behavior; it does not
+establish native terminal/protocol coverage or stable 1.0 readiness.
+
+Remaining frontend gates include full appearance/render overrides, complete
+wire-protocol parity and exact delegated-child request attribution. Ordinary UI
+operations and retained plugin services now receive independent
+approval/question/questionnaire/form windows. Verification
 keeps Main pending while real guarded tools, separate same-owner questions,
 native field editing and before/after-launcher background input complete.
 Immediate-command window cancellation now propagates to its exact foreground

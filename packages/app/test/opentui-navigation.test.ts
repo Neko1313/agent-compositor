@@ -6,7 +6,7 @@ import type {WindowNavigationInput} from '@agent-compositor/renderer-opentui';
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {for (const close of cleanups.splice(0).reverse()) await close();});
 const key = (key: string, modifiers: readonly string[] = [], repeated = false): WindowNavigationInput => ({kind: 'key', key, modifiers, repeated});
-async function setup() {
+async function setup(options:Partial<Parameters<typeof createWindowNavigation>[1]>={}) {
   let saved: unknown;
   const layout = await connectWindowLayout({loadLayout: async () => saved, saveLayout: async value => {saved = value;}}, {
     panes: [{id: 'session', label: 'Main'}, {id: 'tools', label: 'Tools'}, {id: 'inspect', label: 'Inspector'}], initial: ['session', 'tools', 'inspect'],
@@ -17,7 +17,7 @@ async function setup() {
   const nav = createWindowNavigation(layout, {windows: () => catalog.map(entry => {
     const workspace = layout.snapshot().locations[entry.id];
     return ['open', 'closed'].includes(entry.state) ? {...entry, workspace, state: workspace === undefined ? 'closed' : 'open'} : entry;
-  }), open: (id, signal) => open(id, signal), onWindowIntent: layout.markWindowIntent});
+  }), open: (id, signal) => open(id, signal), onWindowIntent: layout.markWindowIntent,...options});
   cleanups.push(() => nav.close());
   return {layout, nav, catalog: () => catalog, setCatalog(value: NavigationWindow[]) {catalog = value; nav.refresh();},
     setOpen(value: typeof open) {open = value;}, saved: () => saved};
@@ -121,6 +121,32 @@ it('keeps native finder editing and paste at the caret while bounding private qu
   expect(f.nav.snapshot().query).toHaveLength(511);
   expect(f.nav.snapshot().entries).toHaveLength(0);
   expect(JSON.stringify(f.saved())).not.toContain('x'.repeat(100));
+});
+
+it('creates host windows only through explicit nonrepeated Arrange keys and reports a bounded failure',async()=>{
+  const created:string[]=[];
+  const f=await setup({createWindow:kind=>{created.push(kind);return kind!=='help';}});
+  expect(f.nav.handle(key('n'))).toBe(false);expect(created).toEqual([]);
+  f.nav.openFinder();expect(f.nav.handle(key('t'))).toBe(false);expect(created).toEqual([]);
+  f.nav.handle(key('escape'));f.nav.toggleArrange();
+  for(const input of [key('n',[],true),key('n',['ctrl']),key('n',['shift']),key('t',['alt']),{kind:'paste',text:'nt?'} as const])
+    f.nav.handle(input);
+  expect(created).toEqual([]);
+  f.nav.handle(key('n'));f.nav.handle(key('t'));f.nav.handle(key('/', ['shift']));
+  expect(created).toEqual(['session','tools','help']);
+  expect(f.nav.snapshot()).toMatchObject({mode:'arrange',error:'The window could not be created'});
+  f.nav.handle(key('n'));expect(f.nav.snapshot().error).toBeUndefined();
+});
+
+it('returns to an existing Main copy resolved by the host without reopening the canonical Main',async()=>{
+  const f=await setup({mainTarget:()=> 'window-2'});
+  f.layout.register({id:'window-2',label:'Conversation'});
+  f.layout.act({type:'open',id:'session'});f.layout.act({type:'close'});
+  expect(f.layout.snapshot().locations.session).toBeUndefined();
+  f.nav.handle(key('0',['alt']));expect(f.layout.snapshot().focused).toBe('window-2');
+  f.nav.toggleArrange();f.nav.handle(key('i'));
+  expect(f.nav.snapshot().mode).toBe('normal');expect(f.layout.snapshot().focused).toBe('window-2');
+  expect(f.layout.snapshot().locations.session).toBeUndefined();
 });
 
 it('restores prior focus/workspace/zoom on finder cancellation while retaining concurrent tree publications', async () => {

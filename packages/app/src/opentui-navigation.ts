@@ -12,6 +12,8 @@ interface Options {
   windows(): readonly NavigationWindow[];
   open(id: string, signal: AbortSignal): void | Promise<void>;
   mainId?: string;
+  mainTarget?():string;
+  createWindow?(kind:'session'|'tools'|'help'):void|boolean;
   onWindowIntent?(): void;
 }
 const label = (text: string) => clean(text).replace(/\p{Bidi_Control}/gu, '');
@@ -85,7 +87,7 @@ export function createWindowNavigation(layout: WindowLayoutSource, options: Opti
   function focusMain() {
     opening?.controller.abort(); opening = undefined;
     previous = undefined; mode = 'normal'; text = ''; selected = undefined; error = undefined;
-    cancelGesture(); layout.act({type: 'open', id: mainId}); refresh();
+    cancelGesture(); layout.act({type: 'open', id: options.mainTarget?.()??mainId}); refresh();
   }
   function openFinder() {
     if (!active) return;
@@ -190,6 +192,17 @@ export function createWindowNavigation(layout: WindowLayoutSource, options: Opti
     if (mode === 'normal' && !meta) return false;
     if (mode === 'arrange' && key === 'c' && modifiers.includes('ctrl') && !modifiers.includes('meta')) {
       if (!input.repeated) {mode = 'normal'; refresh();} return true;
+    }
+    const createKind=plain&&key==='n'?'session':plain&&key==='t'?'tools'
+      :modifiers.every(value=>value==='shift')&&(key==='?'||key==='/'&&modifiers.includes('shift'))?'help':undefined;
+    if(mode==='arrange'&&createKind&&options.createWindow){
+      if(!input.repeated){
+        cancelGesture();
+        try{error=options.createWindow(createKind)===false?'The window could not be created':undefined;}
+        catch{error='The window could not be created';}
+        refresh();
+      }
+      return true;
     }
     if (mode === 'arrange' && modifiers.length === 1 && modifiers[0] === 'ctrl'
       && (key === 'left' || key === 'right' || key === 'up' || key === 'down')) {

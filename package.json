@@ -37,6 +37,7 @@
     "visual:opentui-controllers": "node tools/visual/opentui-controllers-check.mjs",
     "visual:opentui-editor": "node tools/visual/opentui-editor-check.mjs",
     "visual:opentui-workspace-controllers": "node tools/visual/opentui-workspace-controllers-check.mjs",
+    "visual:opentui-conversation-copies": "node tools/visual/opentui-conversation-copies-check.mjs",
     "visual:opentui-windows": "node tools/visual/opentui-windows-check.mjs",
     "visual:opentui-inputs": "node tools/visual/opentui-inputs-check.mjs",
     "visual:check": "node tools/visual/check.mjs",

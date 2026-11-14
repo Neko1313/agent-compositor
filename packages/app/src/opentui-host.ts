@@ -2,14 +2,14 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {randomUUID} from 'node:crypto';
 import type {AgentCore, AgentCoreOptions, LoopEvent} from '@agent-compositor/core';
 import {uiTextViewSchema, surfacePlacementSchema, type SurfacePlacement, type UiTextView} from '@agent-compositor/events';
-import type {ComposerMedia, ConversationSession, UiSurfaceRegistry, UiSurfaceSnapshot, UiSurfaceSource, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
+import type {ComposerMedia, ConversationSession, ConversationWindow, ConversationWindowRegistry, UiSurfaceRegistry, UiSurfaceSnapshot, UiSurfaceSource, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {BuiltApp} from './build.js';
 import {connectConversation} from './opentui-conversation.js';
 import {createInteractionInbox} from './opentui-interactions.js';
 import {resolvePlacement, type PlacementConfig} from './placement.js';
 import {clean} from './presentation.js';
 import {createWindowNavigation, type NavigationWindow} from './opentui-navigation.js';
-import type {DynamicWindowLayout} from './opentui-windows.js';
+import type {DynamicWindowLayout, HostWindowKind, HostWindowView} from './opentui-windows.js';
 import {createOpenTuiEditor} from './opentui-editor.js';
 import {referenceFiles} from './project-context.js';
 import type {UiEditorIntent, UiEditorState} from '@agent-compositor/hooks';
@@ -20,7 +20,7 @@ import type {PluginWindow} from './plugin-panel.js';
 
 export {connectConversation, connectPluginTable} from './opentui-conversation.js';
 
-export type OpenTuiWindowLayout = WindowLayoutSource & Pick<DynamicWindowLayout, 'windowIntentRevision' | 'markWindowIntent' | 'actAutomatic'> & {
+export type OpenTuiWindowLayout = WindowLayoutSource & Pick<DynamicWindowLayout, 'windowIntentRevision' | 'markWindowIntent' | 'actAutomatic' | 'hostViews' | 'createHostView' | 'registerClosed'> & {
   register(pane: {id: string; label: string; transient?: boolean}, placement?: SurfacePlacement): void;
   relocate(id: string, placement: SurfacePlacement): void;
   detach(id: string): void;
@@ -101,6 +101,24 @@ function legacyView(value: unknown): UiTextView | undefined {
   }
   return {lines};
 }
+const OPEN_TUI_WINDOW_HELP = `WINDOW CONTROLS
+Alt+W: Arrange; Escape returns to typing
+F2 or /windows: find, focus or reopen windows
+Alt+0 or /chat: return to a Main window
+Arrange: n new Main, t new Tools, ? new Help
+Arrange: arrows or h/j/k/l focus; Shift+direction swaps
+Arrange: Ctrl+arrows retile at a neighbor's edge
+Arrange: b/v columns/rows; +/- resize; f zoom; q close
+Arrange: 1..9 workspace; Shift+1..9 moves; w Windows; i types
+Alt+Tab / Alt+Shift+Tab: cycle current-workspace windows
+Alt+arrows: directional focus; Alt+Shift+direction swaps
+Alt+1..9: workspace; Alt+Shift+1..9: move window
+Main: Enter sends; Ctrl+J newline; Alt+I answer or draft
+Main: Ctrl+X interrupts a running turn
+Main: PgUp/PgDn scroll history
+Selected editor: its own keys apply while Draft owns input
+Alt+W then w always opens Windows
+Closing a window keeps its conversation, draft and pending request`;
 
 /** Assemble the actual application behind renderer-neutral conversations and plugin surfaces. */
 export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, options: {onExit?(): void} = {}) {
@@ -115,6 +133,15 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const mediaListeners = new Set<Parameters<ComposerMedia['subscribe']>[1]>();
   const visibility = new Map<string, string>();
   const registryListeners = new Set<() => void>();
+  const windowListeners = new Set<() => void>();
+  const auxiliary = new Map<string, {kind: 'tools' | 'help'; source: UiSurfaceSource; state: UiSurfaceSnapshot; listeners: Set<() => void>}>();
+  const hostWindowIdentities = new Map<string, object>();
+  let toolsText = 'No tools called yet.';
+  let mainWindows: readonly ConversationWindow[] = Object.freeze([]);
+  let mainPorts = new Map<string, ConversationSession>();
+  let mainAnchor = 'session', bindGeneration = 0, mainFocusNotifications = 0;
+  let mainBinding: {owner: AgentCore; channels: Channels; generation: number;
+    conversation: ReturnType<typeof connectConversation>; state: ReturnType<ConversationSession['snapshot']>} | undefined;
   let surfaceList: readonly UiSurfaceSource[] = [];
   const sessionListeners = new Set<() => void>();
   const context = new AsyncLocalStorage<Operation>();
@@ -140,10 +167,12 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const pending = new Set<Promise<unknown>>();
   const changed = () => {
     sessionState = {...conversation.snapshot(), ...(editor ? {editor: editor.snapshot()} : {}), ...(localNotice ? {notice: localNotice} : {})};
+    if (mainBinding?.owner === core) mainBinding.state = sessionState;
     for (const fn of sessionListeners) fn();
   };
   const registryChanged = () => {
-    surfaceList = Object.freeze([...surfaceMap.values()].filter(surface => surface.active).map(surface => surface.source));
+    surfaceList = Object.freeze([...surfaceMap.values()].filter(surface => surface.active).map(surface => surface.source)
+      .concat([...auxiliary.values()].map(surface => surface.source)));
     for (const fn of registryListeners) fn();
     navigation?.refresh();
   };
@@ -151,6 +180,100 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     snapshot: () => surfaceList,
     subscribe(fn) {registryListeners.add(fn); return () => {registryListeners.delete(fn);};},
   };
+  const conversationWindows: ConversationWindowRegistry = {
+    snapshot: () => mainWindows,
+    subscribe(fn) {if (!active) return () => {};windowListeners.add(fn);return () => {windowListeners.delete(fn);};},
+  };
+  const descriptors = (): readonly HostWindowView[] => [{id: 'session', title: 'Main', kind: 'session'}, ...layout.hostViews()];
+  const isMainPane = (id: string) => descriptors().some(view => view.id === id && view.kind === 'session');
+  function mainTarget(preferFocused = false): string {
+    const current = layout.snapshot(), candidates = descriptors().filter(view => view.kind === 'session');
+    if (preferFocused && isMainPane(current.focused) && current.locations[current.focused] !== undefined) return current.focused;
+    return candidates.find(view => current.locations[view.id] !== undefined)?.id ?? candidates[0].id;
+  }
+  function selectMain(id: string, automatic = false) {
+    if (!isMainPane(id)) return;
+    const notifications = mainFocusNotifications;
+    if (automatic) layout.actAutomatic({type: 'open', id});else layout.act({type: 'open', id});
+    if (layout.snapshot().focused !== id) return;
+    mainAnchor = id;
+    // Returning to an already selected copy still resets an independent-agent target.
+    if (notifications === mainFocusNotifications) notifyFocus('session');
+  }
+  function notifyFocus(site: string) {
+    if (site === 'session') mainFocusNotifications++;
+    track(core.host.emit('ui.focus', {site}).catch(() => {}));
+  }
+  function rebuildMainWindows() {
+    const binding = mainBinding;
+    if (!binding) return;
+    const current = () => active && core === binding.owner && mainBinding === binding && !binding.channels.generation.signal.aborted;
+    const ports = new Map<string, ConversationSession>();
+    mainWindows = Object.freeze(descriptors().filter(view => view.kind === 'session').map(view => {
+      const inputActive = () => {
+        const state = layout.snapshot();
+        return current() && navigation?.snapshot().mode === 'normal' && !state.gesture && state.focused === view.id
+          && state.frames.some(frame => frame.surface === view.id);
+      };
+      const viewportActive = () => current() && mainAnchor === view.id && layout.snapshot().frames.some(frame => frame.surface === view.id);
+      const source = Object.freeze<ConversationSession>({
+        id: binding.owner.sessionId, conversationId: 'main', generation: binding.generation, paneId: view.id, label: 'Main',
+        isCurrent: current, snapshot: () => binding.state,
+        subscribe(fn: () => void) {if (!current()) return () => {};const notify = () => {if (current()) fn();};sessionListeners.add(notify);return () => {sessionListeners.delete(notify);};},
+        submit(text: string) {
+          if (!inputActive() || switching || !text.trim()) return false;
+          if (reloadFailed && text.trim().split(/\s+/)[0] !== '/reload') {notice(retryMessage());return false;}
+          binding.conversation.submit(text);return true;
+        },
+        isImmediateCommand: (text: string) => current() && immediate(text),
+        interrupt() {if (inputActive()) binding.owner.interrupt();},
+        answerApproval(id: string, allow: boolean) {if (inputActive() && inbox.snapshot()?.id === id) inbox.answer(id, allow);},
+        answerInteraction(id: string, value: unknown) {if (inputActive() && inbox.interactionSnapshot()?.id === id) inbox.answerInteraction(id, value);},
+        cancelInteraction(id: string) {if (inputActive() && inbox.interactionSnapshot()?.id === id) inbox.cancelInteraction(id);},
+        controllerInput(id, input, revision) {if (inputActive() && inbox.controllerSnapshot()?.id === id) return inbox.controllerInput(id, input, revision);},
+        controllerViewport(id, columns, rows) {if (viewportActive() && inbox.controllerSnapshot()?.id === id) inbox.controllerViewport(id, columns, rows);},
+        cancelController(id) {if (inputActive() && inbox.controllerSnapshot()?.id === id) inbox.cancelController(id);},
+        editorInput(id, input, revision) {const currentEditor = editor;if (inputActive() && currentEditor?.snapshot().id === id) return currentEditor.input(input, revision);},
+        editorViewport(id, columns, rows, maxRows) {const currentEditor = editor;if (viewportActive() && currentEditor?.snapshot().id === id) currentEditor.viewport(columns, rows, maxRows);},
+      });
+      ports.set(view.id, source);
+      return Object.freeze({id: view.id, label: view.title, session: source});
+    }));
+    mainPorts = ports;
+    if (isMainPane(layout.snapshot().focused)) mainAnchor = layout.snapshot().focused;
+    for (const fn of windowListeners) fn();
+    navigation?.refresh();
+  }
+  function auxiliaryView(kind: 'tools' | 'help'): UiTextView {
+    return legacyView(kind === 'tools' ? toolsText : OPEN_TUI_WINDOW_HELP)!;
+  }
+  function admitAuxiliary(view: HostWindowView) {
+    if (view.kind === 'session' || auxiliary.has(view.id)) return;
+    const listeners = new Set<() => void>();
+    const item = {kind: view.kind, state: immutable({revision: 0, title: view.title, view: auxiliaryView(view.kind)}), listeners,
+      source: undefined as unknown as UiSurfaceSource};
+    item.source = Object.freeze({id: view.id, snapshot: () => item.state,
+      subscribe(fn: () => void) {if (!active) return () => {};listeners.add(fn);return () => {listeners.delete(fn);};}, press() {}, change() {}});
+    auxiliary.set(view.id, item);
+  }
+  function updateTools() {
+    for (const item of auxiliary.values()) if (item.kind === 'tools') {
+      item.state = immutable({revision: item.state.revision + 1, title: item.state.title, view: auxiliaryView('tools')});
+      for (const fn of item.listeners) fn();
+    }
+  }
+  function createWindow(kind: HostWindowKind): boolean {
+    if (!active) return false;
+    try {
+      layout.markWindowIntent();
+      const notifications = mainFocusNotifications;
+      const view = layout.createHostView(kind);
+      hostWindowIdentities.set(view.id, {});
+      admitAuxiliary(view);rebuildMainWindows();registryChanged();
+      if (kind === 'session' && notifications === mainFocusNotifications) notifyFocus('session');
+      return true;
+    } catch {notice('The window could not be created');return false;}
+  }
   function mediaFrame() {
     const raster = [...composerViews.values()].at(-1)?.view.raster;
     return raster ? {width: raster.width, height: raster.height, rgba: new Uint8Array(Buffer.from(raster.rgba, 'base64'))} : undefined;
@@ -429,6 +552,18 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         placement:{...resolvePlacement(placementConfig,surface.owner,surface.semantic!,surface.placement),
           workspace:layout.snapshot().locations[surface.source.id]??surface.placement?.workspace??layout.snapshot().workspace}}));
   }
+  function placementAnchor(id: string): {id: string; title: string; identity: object} | undefined {
+    const view = id === 'tools' ? {id, title: 'Tools'} : descriptors().find(view => view.id === id);
+    const identity = hostWindowIdentities.get(id);
+    if (view && identity) return {id, title: view.title, identity};
+    const surface = surfaceMap.get(id);
+    if (surface && core.host.hasPlugin(surface.owner) && placementWindows().some(window => window.id === id))
+      return {id, title: surface.state.title + ' · ' + surface.owner, identity: surface};
+  }
+  function placementAnchors() {
+    return [...new Set(['session', 'tools', ...layout.hostViews().map(view => view.id), ...placementWindows().map(window => window.id)])]
+      .flatMap(id => {const anchor = placementAnchor(id);return anchor ? [anchor] : [];});
+  }
   function openPlacementWindow(op:Operation){
     const id='host-placement',existing=surfaceMap.get(id);
     if(existing?.active){if(mayFocus(op))layout.actAutomatic({type:'open',id});op.published=existing;destination(op,id);return;}
@@ -439,16 +574,17 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     controller=createOpenTuiPlacementController<{op:Operation;signal:AbortSignal;current():boolean}>({registry:owner.host.controllers,id:randomUUID(),signal:channels!.generation.signal,current,changed:update,
       captureIntent:()=>{layout.markWindowIntent();return layout.windowIntentRevision;},
       inputScope:(intent,signal,run)=>controllerOperation('@host',surface,intent,signal,run),
-      windows:placementWindows,anchors:()=>['session',...placementWindows().map(window=>window.id)],
+      windows:placementWindows,anchors:()=>placementAnchors().map(anchor=>anchor.id),
       apply:async(scope,targetId,value,save=false)=>{
         if(!scope.current()||!current())throw Error('Placement input has expired');
         const target=surfaceMap.get(targetId),placement=surfacePlacementSchema.parse(value),neighbor=placement.relativeTo;
         if(!target?.active||!target.semantic||!owner.host.hasPlugin(target.owner)||!placementWindows().some(window=>window.id===targetId))throw Error('Unknown plugin window');
-        if(neighbor&&(neighbor===targetId||neighbor!=='session'&&!placementWindows().some(window=>window.id===neighbor)))throw Error('Unknown neighboring window');
+        const anchor=neighbor?placementAnchor(neighbor):undefined;
+        if(neighbor&&(neighbor===targetId||!anchor))throw Error('Unknown neighboring window');
         const semantic=target.semantic,rule={...placement,match:{plugin:target.owner,surface:semantic}};
         if(save)await app.savePlacement(rule);
         if(!scope.current()||!current()||surfaceMap.get(targetId)!==target||!target.active||target.semantic!==semantic||!owner.host.hasPlugin(target.owner))throw Error('Placement target has expired');
-        if(neighbor&&neighbor!=='session'&&!placementWindows().some(window=>window.id===neighbor))throw Error('Placement neighbor has expired');
+        if(neighbor&&placementAnchor(neighbor)?.identity!==anchor?.identity)throw Error('Placement neighbor has expired');
         placementConfig.rules=[...(placementConfig.rules??[]).filter(existing=>existing.match.plugin!==target.owner||existing.match.surface!==semantic),rule];
         target.placement=placement;
         layout.relocate(targetId,{...placement,focus:placement.focus===true&&scope.op.windowIntent===layout.windowIntentRevision});
@@ -602,6 +738,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         ?? windows.find(surface => surface.source.id === layout.snapshot().focused) ?? windows[0];
       const value = draft ?? {...current.placement, workspace: layout.snapshot().locations[current.source.id] ?? current.placement?.workspace ?? layout.snapshot().workspace};
       const label = (surface: Surface) => (surface.state.title + ' · ' + surface.owner).slice(0, 200);
+      const anchors = placementAnchors().filter(anchor => anchor.id !== current.source.id);
+      if (anchors.length >= 200) {notice('Placement supports up to 200 neighbor choices. Unload a plugin before opening this editor.');return;}
       op.placementAnswerIntent = undefined;
       const result = await ownRequests(op).form('@host', {
         title: 'Arrange plugin windows', description: message ?? 'Apply for this run, or save a project rule. Closing this window keeps the operation pending; Cancel ends it.',
@@ -611,7 +749,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
           {id: 'workspace', label: 'Workspace', type: 'select', value: String(value.workspace ?? layout.snapshot().workspace), options: Array.from({length: 9}, (_, index) => ({value: String(index + 1), label: 'Workspace ' + (index + 1)}))},
           {id: 'size', label: 'Size fraction', type: 'text', value: String(value.size ?? .3), hint: 'A number from 0.1 to 0.8', required: true},
           {id: 'relativeTo', label: 'Neighbor', type: 'select', value: value.relativeTo ?? '', options: [
-            {value: '', label: 'Workspace default'}, {value: 'session', label: 'Main'}, ...windows.map(surface => ({value: surface.source.id, label: label(surface)})),
+            {value: '', label: 'Workspace default'}, ...anchors.map(anchor => ({value: anchor.id, label: anchor.title.slice(0, 200)})),
           ]},
           {id: 'focus', label: 'Focus the placed window', type: 'toggle', value: value.focus ?? false},
         ], actions: [{id: 'apply', label: 'Apply'}, {id: 'save', label: 'Save rule'}, {id: 'cancel', label: 'Cancel'}],
@@ -622,13 +760,16 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (!target?.active || !target.semantic || !core.host.hasPlugin(target.owner)) {draft = undefined; message = 'The selected window is no longer available'; continue;}
       try {
         const relativeTo = String(result.values.relativeTo);
-        if (relativeTo === selected || relativeTo && relativeTo !== 'session' && !surfaceMap.get(relativeTo)?.semantic)
+        const anchor = relativeTo ? placementAnchor(relativeTo) : undefined, semantic = target.semantic;
+        if (relativeTo === selected || relativeTo && !anchor)
           throw Error('Choose an available neighboring window other than itself');
         const placement = surfacePlacementSchema.parse({site: result.values.site, workspace: Number(result.values.workspace),
           size: Number(result.values.size), ...(relativeTo ? {relativeTo} : {}), focus: result.values.focus});
         const rule = {...placement, match: {plugin: target.owner, surface: target.semantic}};
         if (result.action === 'save') await app.savePlacement(rule);
         if (!live(op)) return;
+        if (surfaceMap.get(selected) !== target || !target.active || target.semantic !== semantic || !core.host.hasPlugin(target.owner)) throw Error('Placement target has expired');
+        if (relativeTo && placementAnchor(relativeTo)?.identity !== anchor?.identity) throw Error('Placement neighbor has expired');
         placementConfig.rules = [...(placementConfig.rules ?? []).filter(existing =>
           existing.match.plugin !== target.owner || existing.match.surface !== target.semantic), rule];
         target.placement = placement;
@@ -641,6 +782,19 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   }
   function receive(event: LoopEvent) {
     if (!active || event.kind !== 'catalog') return;
+    if (event.event === 'tool.call' || event.event === 'tool.result') {
+      let text: string;
+      try {text = event.event === 'tool.call' ? `\n${event.input.tool} ${JSON.stringify(event.input.input)}\n`
+        : `\n${event.input.tool}: ${event.input.ok ? 'done' : event.input.error}\n`;}
+      catch {text = '\nTool input is unavailable\n';}
+      toolsText += text;
+      if (toolsText.length > 100000) {
+        let start = toolsText.length - 99950;
+        if (/[\uDC00-\uDFFF]/.test(toolsText[start])) start++;
+        toolsText = '… earlier tool activity truncated\n' + toolsText.slice(start);
+      }
+      updateTools();
+    }
     if (event.event === 'ui.pluginRemoved') {
       const owner = String(event.input.plugin);
       for (const [id, contribution] of composerViews) if (contribution.owner === owner) {
@@ -733,6 +887,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     });
     conversation = connectConversation(next, 'Main', inbox, submit);
     sessionState = conversation.snapshot();
+    if (bindGeneration) {toolsText = '';updateTools();}
+    mainBinding = {owner: next, channels: nextChannels, generation: ++bindGeneration, conversation, state: sessionState};
+    rebuildMainWindows();
     navigation?.refresh();
     offConversation = conversation.subscribe(changed);
     offCore = next.subscribe(receive);
@@ -769,7 +926,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         bind(replacement, replacementChannels);
         await next.close();
         await context.exit(() => replacement!.start());
-        if (windowIntent === layout.windowIntentRevision) layout.actAutomatic({type: 'open', id: 'session'});
+        if (windowIntent === layout.windowIntentRevision) selectMain(mainTarget(true), true);
         changed();
         return {value: true};
       } catch {
@@ -860,8 +1017,12 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   }
   function inventory(): NavigationWindow[] {
     const locations = layout.snapshot().locations, routes = uiRoutes();
-    const entries = new Map<string, NavigationWindow>([['session', {id: 'session', title: 'Main',
-      workspace: locations.session, state: locations.session === undefined ? 'closed' : 'open', version: core.sessionId}]]);
+    const entries = new Map<string, NavigationWindow>(descriptors().map(view => [view.id, {id: view.id, title: view.title,
+      workspace: locations[view.id], state: locations[view.id] === undefined ? 'closed' : 'open', version: bindGeneration}]));
+    entries.set('tools', {id: 'tools', title: 'Tools', workspace: locations.tools,
+      state: locations.tools === undefined ? 'closed' : 'open', version: bindGeneration});
+    for (const [kind, title] of [['main', 'Main'], ['tools', 'Tools'], ['help', 'Help']] as const)
+      entries.set('host:new-' + kind, {id: 'host:new-' + kind, title: 'New ' + title + ' window', state: 'available', version: bindGeneration});
     for (const [id, surface] of surfaceMap) if (surface.active) entries.set(id, {
       id, title: surface.state.title, workspace: locations[id], state: locations[id] === undefined ? 'closed' : 'open',
       command: routes.get(id)?.command, version: surface.generation + ':'
@@ -904,7 +1065,13 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   }
   function openNavigationWindow(id: string, signal: AbortSignal): void | Promise<void> {
     if (!active || signal.aborted) throw Error('Window is unavailable');
-    if (id === 'session') {layout.actAutomatic({type: 'open', id}); return;}
+    const kind = {'host:new-main': 'session', 'host:new-tools': 'tools', 'host:new-help': 'help'} as const;
+    if (Object.hasOwn(kind, id)) {
+      if (!createWindow(kind[id as keyof typeof kind])) throw Error('Window could not be created');
+      return;
+    }
+    if (isMainPane(id)) {selectMain(id, true);return;}
+    if (auxiliary.has(id)) {layout.actAutomatic({type: 'open', id});return;}
     const source = surfaceMap.get(id);
     if (source?.active) {layout.actAutomatic({type: 'open', id}); return;}
     const candidate = uiRoutes().get(id);
@@ -924,7 +1091,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     const text = intent.text, name = text.trim().split(/\s+/)[0];
     if (reloadFailed && name !== '/reload') return false as const;
     if (name === '/chat') {
-      if (windowIntent === layout.windowIntentRevision) layout.actAutomatic({type: 'open', id: 'session'});
+      if (text.trim() !== '/chat') {notice('Usage: /chat');return false as const;}
+      if (windowIntent === layout.windowIntentRevision) selectMain(mainTarget(), true);
       return 'command' as const;
     }
     if (name === '/windows') {
@@ -974,7 +1142,10 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (!completed) throw Error('Plugin reload did not finish. Retry /reload before sending this request.');
     }
     if (reloadFailed && name !== '/reload') throw Error(retryMessage());
-    if (name === '/chat') {layout.act({type: 'open', id: 'session'}); return;}
+    if (name === '/chat') {
+      if (text.trim() !== '/chat') notice('Usage: /chat');else selectMain(mainTarget());
+      return;
+    }
     if (name === '/windows') {navigation?.openFinder(); return;}
     if (name === '/placement') {const command=route(text);if(command)dispatch(command);else {layout.markWindowIntent();runOperation('@host', 'host:placement', arrange);}return;}
     if (name === '/reload') {pendingReload = true; reloadFailed = false; notice('Plugin reload queued until current operations finish'); await reloadIfReady(); return;}
@@ -987,48 +1158,35 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     try {await core.submit(text);}
     finally {await reloadIfReady();}
   }
+  layout.registerClosed({id: 'session', label: 'Main'});
+  layout.registerClosed({id: 'tools', label: 'Tools'});
+  hostWindowIdentities.set('session', {});hostWindowIdentities.set('tools', {});
+  admitAuxiliary({id: 'tools', title: 'Tools', kind: 'tools'});
+  for (const view of layout.hostViews()) {
+    hostWindowIdentities.set(view.id, {});
+    layout.registerClosed({id: view.id, label: view.title});admitAuxiliary(view);
+  }
+  registryChanged();
   const initialChannels = createChannels();
   const initialCore = app.createCore(initialChannels.approve, initialChannels.ask);
   try {bind(initialCore, initialChannels);}
   catch (error) {initialChannels.generation.abort(); initialChannels.inbox.close(); void initialCore.close(); throw error;}
-  layout.register({id: 'session', label: 'Main'});
-  navigation = createWindowNavigation(layout, {windows: inventory, open: openNavigationWindow, onWindowIntent: layout.markWindowIntent});
+  navigation = createWindowNavigation(layout, {windows: inventory, open: openNavigationWindow, onWindowIntent: layout.markWindowIntent,
+    mainTarget: () => mainTarget(true), createWindow});
   let lastFocus: string | undefined;
   offLayout = layout.subscribe(() => {
     reportVisibility();
     const focused = layout.snapshot().focused;
+    if (isMainPane(focused)) mainAnchor = focused;
     if (!active || focused === lastFocus) return;
     lastFocus = focused;
-    const site = focused === 'session' ? 'session' : surfaceMap.has(focused) ? focused : undefined;
-    if (site) track(core.host.emit('ui.focus', {site}).catch(() => {}));
+    const site = isMainPane(focused) ? 'session' : surfaceMap.has(focused) ? focused : undefined;
+    if (site) notifyFocus(site);
   });
-  const session: ConversationSession = {
-    get id() {return core.sessionId;}, paneId: 'session', label: 'Main',
-    snapshot: () => sessionState,
-    subscribe(fn) {sessionListeners.add(fn); return () => {sessionListeners.delete(fn);};},
-    submit(text) {if (active) conversation.submit(text);}, isImmediateCommand: immediate,
-    interrupt() {if (active) core.interrupt();},
-    answerApproval(id, allow) {if (active) inbox.answer(id, allow);},
-    answerInteraction(id, value) {if (active) inbox.answerInteraction(id, value);},
-    cancelInteraction(id) {if (active) inbox.cancelInteraction(id);},
-    controllerInput(id, input, revision) {
-      if (active && navigation?.snapshot().mode === 'normal' && layout.snapshot().focused === 'session'
-        && layout.snapshot().frames.some(frame => frame.surface === 'session'))return inbox.controllerInput(id, input, revision);
-    },
-    controllerViewport(id, columns, rows) {if (active)inbox.controllerViewport(id, columns, rows);},
-    cancelController(id) {
-      if (active && navigation?.snapshot().mode === 'normal' && layout.snapshot().focused === 'session')inbox.cancelController(id);
-    },
-    editorInput(id, input, revision) {
-      const current = editor;
-      if (active && current?.snapshot().id === id && navigation?.snapshot().mode === 'normal'
-        && layout.snapshot().focused === 'session' && layout.snapshot().frames.some(frame => frame.surface === 'session'))
-        return current?.input(input, revision);
-    },
-    editorViewport(id, columns, rows, maxRows) {const current = editor;if (active && current?.snapshot().id === id) current?.viewport(columns, rows, maxRows);},
-  };
   return {
-    session, surfaces, composerMedia, navigation, get core() {return core;}, submit,
+    get session() {return mainPorts.get('session')!;}, conversationWindows,
+    mainSession: (id: string) => mainPorts.get(id), isMainPane, createWindow,
+    surfaces, composerMedia, navigation, get core() {return core;}, submit,
     cancelOperation(surfaceId: string): boolean {
       if (!active) return false;
       let cancelled = false;
@@ -1052,8 +1210,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       await core.close();
       await Promise.allSettled([...pending]);
       for (const surface of [...surfaceMap.values()]) remove(surface);
+      for (const surface of auxiliary.values()) surface.listeners.clear();auxiliary.clear();
       composerViews.clear(); mediaChanged(); mediaListeners.clear();
-      registryListeners.clear(); sessionListeners.clear();
+      registryListeners.clear(); sessionListeners.clear();windowListeners.clear();
     },
   };
 }

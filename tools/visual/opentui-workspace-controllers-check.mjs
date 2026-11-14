@@ -91,8 +91,10 @@ try{
   await history();await historyQuery(query);await key('Home');await key('ArrowRight');await key('Alt+w');await wait('WINDOW MODE');await key('q');await key('Escape');await normal();await pendingMain();
   await history();assert.equal((await trace()).filter(row=>row.event==='created'&&row.kind==='history').length,1);await paste('X');await wait('Search: PXRIVATE_窗_47');await key('Backspace');await wait('Search: '+query);
   await resize(38,30);await wait('CUSTOM HISTORY');assert.equal(await page.evaluate(()=>visual.terminal.buffer.active.getLine(visual.terminal.buffer.active.viewportY)?.getCell(29)?.getChars()),'9');
+  // Main + Tools + three creation routes + four fixture panes + Todos + history
+  // + placement + the proxy, models and extensions routes; no form exists yet.
   await key('F2');await page.waitForFunction(()=>{const t=visual.terminal,text=visual.text();return t.modes?.synchronizedOutputMode!==true&&text.includes('─ Windows ')
-    &&text.includes('Search window or command…')&&text.includes('11 windows ·')&&text.includes('WINDOWS · Esc cancel');});
+    &&text.includes('Search window or command…')&&text.includes('15 windows ·')&&text.includes('WINDOWS · Esc cancel');});
   await key('Escape');await normal();await wait('Search: '+query);await paste('Y');await wait('Search: PYRIVATE_窗_47');await key('Backspace');await wait('Search: '+query);await capture('01-narrow-private-history');await resize(180);await capture('01-private-history-query');await pendingMain();
   report.checks.push('Selected history lists while Main waits, owns its private Unicode query/cursor across hide/reopen and38-column F2 navigation, and leaves Production plus the independent Main draft unchanged');
 

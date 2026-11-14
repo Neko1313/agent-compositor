@@ -119,6 +119,44 @@ try{
   }
   async function noRequests(count){assert.equal((await completions()).length,count,'Window operations must not issue/settle model work');}
   async function noResult(tool){assert.equal((await events()).filter(event=>event.type==='tool.result'&&event.tool===tool).length,0);}
+  // Arrange n is a real Main-copy command. It must remain isolated from
+  // the pending request; close only that new view before older layout checks.
+  async function protectedArrangeCopy(tool,count,approval=false){
+    const before=await layout(),beforeViews=before.views??[],known=new Set(beforeViews.map(view=>view.id)),journals=await sessionFiles();
+    assert.equal(before.windows.focused,'session');await arrange();await page.keyboard.type('yn');
+    const published=await observe(layout,value=>(value.views??[]).some(view=>!known.has(view.id)),'Arrange n must create one actual Main copy');
+    const additions=published.views.filter(view=>!known.has(view.id));assert.equal(additions.length,1);const copy=additions[0];assert.equal(copy.kind,'session');
+    assert.equal(published.windows.focused,copy.id);assert.equal(published.windows.spaces.flatMap(space=>leaves(space.tree)).filter(id=>id===copy.id).length,1);
+    assert.deepEqual(published.views.filter(view=>view.id!==copy.id),beforeViews);await noRequests(count);await noResult(tool);assert.deepEqual(await sessionFiles(),journals);
+    if(approval){await key('Alt+y');await key('Alt+n');await paste('q');}
+    await key('Enter');await normalScene();await noRequests(count);await noResult(tool);
+    await arrange();await key('q');await leave();await main();await normalScene();await setZoom(before.windows.fullscreen);
+    const closed=await observe(layout,value=>value.windows.focused==='session'&&!value.windows.spaces.some(space=>leaves(space.tree).includes(copy.id)),'Arrange q must hide only the just-created Main copy');
+    assert.deepEqual(closed.windows,before.windows);assert.deepEqual(closed.views.filter(view=>view.id!==copy.id),beforeViews);assert.deepEqual(closed.views.find(view=>view.id===copy.id),copy);
+    assert.ok(closed.registered.includes(copy.id),'Closed Main copy metadata must remain discoverable');await noRequests(count);await noResult(tool);assert.deepEqual(await sessionFiles(),journals);
+    (report.arrangeCopies??=[]).push({request:tool,id:copy.id,journal:journals[0],closed:true});
+  }
+  async function canonicalClosedMainSelection(){
+    const count=2+(await layout()).views.filter(view=>view.kind==='session'&&view.title.toLocaleLowerCase().includes('main')).length;
+    const read=({count,selected})=>{
+      const terminal=visual.terminal,buffer=terminal.buffer.active;if(terminal.modes?.synchronizedOutputMode===true)return;
+      const row=y=>Array.from({length:terminal.cols},(_,x)=>buffer.getLine(buffer.viewportY+y)?.getCell(x)?.getChars()??'');
+      for(let y=0;y<terminal.rows-2;y++){
+        const header=row(y);if(!header.join('').includes('─ Windows '))continue;const left=header.lastIndexOf('┌'),right=header.indexOf('┐',left),text=n=>row(n).slice(left+1,right).join('').trim();
+        if(left<0||right<=left||text(y+1)!=='Main'||text(y+2)!==count+' windows · ↑↓ select · Enter open')continue;
+        let canonical,hasSelection=false;
+        for(let n=y+3;n<terminal.rows;n++){
+          const cells=row(n);if(cells[left]==='└')break;const value=text(n),col=cells.findIndex((ch,x)=>x>left&&x<right&&ch!==''&&ch!==' '),cell=buffer.getLine(buffer.viewportY+n)?.getCell(col);
+          const active=cell?.getBgColor()===0xa6dfd4&&cell?.getFgColor()===0x171a20&&Boolean(cell?.isBold());hasSelection||=active;
+          if(value.endsWith('Closed')&&value.replace(/\s{2,}Closed$/,'')==='Main')canonical={selected:active};
+        }
+        if(canonical&&(!selected||canonical.selected))return{canonicalSelected:canonical.selected,hasSelection};
+      }
+    };
+    const choice=await(await page.waitForFunction(read,{count,selected:false})).jsonValue();
+    if(!choice.canonicalSelected)await key(choice.hasSelection?'PageUp':'ArrowDown');
+    await page.waitForFunction(read,{count,selected:true});
+  }
   async function noDivider(){await page.waitForFunction(()=>!/[┃━]/u.test(visual.text()));}
   async function targetCue(id,width,hidden=''){
     const value=await observe(layout,value=>value.windows.focused===id,'Saved focus must match the selected split');
@@ -230,17 +268,17 @@ try{
 
   await type('APP_QUESTION');await key('Enter');await wait('MAIN_QUESTION: choose deployment');await click('Edit answer');await click('[ ] Production');await wait('[x] Production');
   await click('Draft');await type('NAV_PENDING_DRAFT_47');
-  await arrange();await page.keyboard.type('yn');await key('Enter');await absent('WINDOW MODE');await noRequests(1);await noResult('ask_user');
+  await protectedArrangeCopy('ask_user',1);
   await arrange();const beforePaste=JSON.stringify((await layout()).windows);await paste('q');await key('Control+c');await absent('WINDOW MODE');
   assert.equal(JSON.stringify((await layout()).windows),beforePaste);await wait('Main · Question');await wait('MAIN_QUESTION: choose deployment');await noRequests(1);await noResult('ask_user');
   const originalJournal=await sessionFiles();assert.equal(originalJournal.length,1);
   await arrange();await key('q');await leave();await observe(layout,value=>!value.windows.spaces.some(space=>leaves(space.tree).includes('session')),'Arrange q must close Main');
   assert.ok(!/\bMain\b/.test(await paneStrip()),'The closed Main pane must leave the current workspace strip');
-  await finder('Main');await wait('Closed');await capture('02-closed-main-pending');await key('Enter');await absent(finderMarker);
+  await finder('Main');await canonicalClosedMainSelection();await capture('02-closed-main-pending');await key('Enter');await absent(finderMarker);
   const reopened=await observe(layout,value=>value.windows.focused==='session'&&value.windows.spaces.flatMap(space=>leaves(space.tree)).filter(id=>id==='session').length===1,'Saved layout must acknowledge the same reopened Main pane');
   assert.deepEqual(await sessionFiles(),originalJournal);assert.equal(reopened.windows.spaces.flatMap(space=>leaves(space.tree)).filter(id=>id==='session').length,1);
   await wait('NAV_PENDING_DRAFT_47');await click('Edit answer');await wait('[x] Production');await click('Draft');await noResult('ask_user');
-  report.checks.push('Arrange typing, Enter, pasted q and Ctrl+C cannot settle Main; closing and finding Main reopens the same pending conversation and journal without duplicate panes or lost selected answer');
+  report.checks.push('Arrange y/n creates exactly one Main copy without settling its shared request; closing that copy preserves metadata, pasted q/Ctrl+C remain isolated, and closing and finding Main reopens the same pending conversation and journal without duplicate panes or lost selected answer');
 
   await pick('/nav-form');await wait('Navigation private form');await wait('FORMvalue');await key('Home');await key('ArrowRight');await type('_');await wait('F_ORMvalue');
   assert.equal(await observe(()=>json(launch.navigation.formCalls),value=>value===1,'The caller must make one actual private form request'),1);
@@ -432,7 +470,7 @@ try{
   report.checks.push('An independent private form survives Arrange and Main navigation with its exact field cursor/value; only its explicit submit returns values, and only explicit Main submit answers the model');
 
   await waitMain('Main · Ready');await command('APP_APPROVAL');await wait('Approval required');await wait('Tool: write');await noResult('write');assert.equal(await exists(launch.navigation.approvalFile),false);
-  await arrange();await page.keyboard.type('yn');await key('Alt+y');await key('Alt+n');await paste('q');await key('Enter');await absent('WINDOW MODE');
+  await protectedArrangeCopy('write',3,true);
   await wait('Approval required');await noRequests(3);await noResult('write');await arrange();await key('Control+c');await absent('WINDOW MODE');await wait('Approval required');
   await finder('Main');await key('Control+c');await absent(finderMarker);await wait('Approval required');await noResult('write');
   await capture('04-protected-approval');await key('Alt+n');await wait('APP_APPROVAL_SETTLED: denied');await noRequests(4);

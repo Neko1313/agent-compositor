@@ -79,6 +79,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-workspace-controllers
+      - name: Check actual Ink to OpenTUI Main-copy migration
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-conversation-copies
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -123,6 +127,7 @@ jobs:
             dist/visual-opentui-controllers/
             dist/visual-opentui-editor/
             dist/visual-opentui-workspace-controllers/
+            dist/visual-opentui-conversation-copies/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

@@ -59,7 +59,7 @@ it('opens private selected history while Main waits and gives its form a fresh i
   expect(JSON.stringify(observed)).not.toMatch(/PRIVATE_HISTORY_/);
   expect(JSON.stringify(await f.app.store.load(f.host.core.sessionId,f.cwd))).not.toMatch(/PRIVATE_HISTORY_/);
   expect(JSON.stringify(f.provider.requests)).not.toMatch(/PRIVATE_HISTORY_/);
-  f.host.session.answerInteraction!(pending.id,{answers:[{id:'answer',selected:['Remote']}]});await main;
+  f.layout.act({type:'open',id:'session'});f.host.session.answerInteraction!(pending.id,{answers:[{id:'answer',selected:['Remote']}]});await main;
   expect(f.provider.requests).toHaveLength(2);expect(f.host.session.snapshot().messages.at(-1)?.text).toBe('Main answered');
 });
 
@@ -94,7 +94,7 @@ it('retains a selected history view and reports a rejected resume while Main is 
   await f.settled(source,f.input(source,{kind:'key',key:'enter'}));
   expect(f.history()).toBe(source);expect(source.snapshot().controller?.id).toBe(frame.id);expect(f.host.core).toBe(old);
   expect(f.host.session.snapshot().notice).toBe('Could not resume this session');expect(f.host.session.snapshot().interaction?.id).toBe(pending.id);
-  f.host.session.answerInteraction!(pending.id,{answers:[{id:'answer',selected:['Remote']}]});await main;
+  f.layout.act({type:'open',id:'session'});f.host.session.answerInteraction!(pending.id,{answers:[{id:'answer',selected:['Remote']}]});await main;
 });
 
 it('retains a selected history view when the requested saved session cannot be prepared',async()=>{

@@ -203,6 +203,14 @@ edge of its directional neighbor, creating a nested split as needed. The moved
 window keeps focus and a successful move exits zoom; no neighbor means no change.
 Shift+direction swaps windows. Ctrl+arrows keep native editing behavior outside
 Arrange, and held keys do not repeat a retile.
+Arrange n/t/? creates Main/Tools/Help windows; F2 lists the corresponding New
+window actions. Main copies share one conversation and resident draft, cursor,
+undo and request/editor owner, with independent transcript scroll. The input
+follows the focused Main copy. Closing every copy keeps the agent/input alive;
+F2, Alt+0 and idempotent `/chat` recover an existing view. `/chat` accepts no
+arguments. Saved Ink session/Tools/Help views retain IDs and closed state during
+OpenTUI migration. Their metadata and layout persist; unsent drafts do not persist
+across process exit. `/btw` remains the independent-agent entry point.
 Manual approvals, questions and forms from UI tools have private request windows.
 Retained background requests stay independent of their launcher and Main; F2
 reopens a hidden request with its native field state. Ctrl+C in a request window

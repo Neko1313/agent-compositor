@@ -97,6 +97,24 @@ geometry and reuse canonical edge-drop retiling. Shift+direction keeps center
 swap semantics. Unmeasured or missing neighbors leave the tree unchanged;
 successful retiling retains source focus and clears zoom like a pointer drop.
 
+Configured Main windows separate compositor pane identity, logical conversation
+identity and Core binding generation. Restored session views use guarded
+per-pane ports to the same Core/inbox/editor. The renderer keeps one native
+conversation input/request/editor subtree keyed by logical identity, outside
+the keyed window tiles, and changes its rectangle when another copy takes
+focus. Inactive copies render transcript-only views. Public native scroll state
+is handed off per pane after layout, with cancellation and Core-epoch fencing;
+no SDK private scroll state is used. Core replacement revokes old ports even
+when it resumes the same journal ID. It resets transcript scroll while keeping
+the resident draft/undo and validated editor checkpoint.
+
+The layout admits validated persisted session/Tools/Help descriptors and keeps
+closed identities available without placing them. Host-owned Tools/Help sources
+are separate from plugin surfaces and their operation/placement ownership, so
+plugin reload and Core replacement cannot forget their saved tree positions.
+Creating a view atomically allocates its bounded ID, descriptor and tree; failures
+leave the saved layout unchanged. Only window metadata is persisted.
+
 Window-navigation intent is transient and separate from layout revisions or
 Finder filtering revisions. Explicit navigation invalidates an older operation's
 permission to autofocus; publication, viewport measurement and persistence do

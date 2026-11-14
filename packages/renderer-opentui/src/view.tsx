@@ -20,6 +20,8 @@ import {handleActionMouseDown} from './mouse-action.js';
 import {ControllerFrame} from './controller-view.js';
 import {controllerBlocksInput} from './controller.js';
 import type {EditorInputOwnership} from './editor-ownership.js';
+import {conversationInputWindow,groupConversationWindows,type ConversationWindowRegistry,type ConversationWindow} from './conversation-windows.js';
+import {createConversationScrollMemory} from './conversation-scroll.js';
 
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
@@ -68,17 +70,59 @@ function useSessionSubscription(session: ConversationSession) {
   return useCallback((listener: () => void) => session.subscribe(listener), [session]);
 }
 
-function SessionTab({ session, ...tab }: Omit<TabProps, 'label'> & { session: ConversationSession }) {
+function SessionTab({ session, label, ...tab }: Omit<TabProps, 'label'> & { session: ConversationSession;label?:string }) {
   const status = useSyncExternalStore(useSessionSubscription(session), () => {
     const { approval, interaction, controller, running } = session.snapshot();
     return controller ? ' · '+{approval:'Approval',question:'Question',form:'Form'}[controller.kind]
       : approval ? ' · Approval' : interaction ? interaction.kind === 'form' ? ' · Form' + (running ? ' · Running' : '') : ' · Question' : running ? ' · Running' : '';
   });
-  return <Tab {...tab} label={session.label + status} />;
+  return <Tab {...tab} label={(label??session.label) + status} />;
 }
 
-function Conversation({ selected, animations, composerMedia, focused, width, height, isActive, isVisible,editorOwnership }: {
+type ScrollMemory=ReturnType<typeof createConversationScrollMemory>;
+
+function useConversationScroll(history:React.RefObject<ScrollBoxRenderable|null>,paneId:string,visible:boolean,epoch:string|number,memory:ScrollMemory){
+  useLayoutEffect(()=>{
+    const box=history.current;
+    memory.reset(epoch);
+    if(!box||!visible)return;
+    const cancel=memory.restore(paneId,box);
+    return()=>{cancel();if(!box.isDestroyed)memory.capture(paneId,box);};
+  },[paneId,visible,epoch,memory]);
+}
+
+function TranscriptMessages({session}: {session:ConversationSession}){
+  const state=useSyncExternalStore(useSessionSubscription(session),()=>session.snapshot());
+  return <>
+    {state.messages.length===0&&!state.error&&<text fg={color.muted}>No messages yet</text>}
+    {state.messages.map((message,index)=><box key={index} flexShrink={0} flexDirection="column">
+      <text attributes={TextAttributes.BOLD} fg={message.role==='user'?color.muted:color.accent}>{message.role==='user'?'You':session.label}</text>
+      <text wrapMode="word" fg={color.text}>{message.text}</text>
+    </box>)}
+    {state.error&&<text wrapMode="word" fg={color.error}>{`Error: ${state.error}`}</text>}
+  </>;
+}
+
+/** Inactive copies have their own history, without another editor or request controller. */
+function ConversationCopy({window,visible,memory}: {window:ConversationWindow;visible:boolean;memory:ScrollMemory}){
+  const history=useRef<ScrollBoxRenderable>(null),session=window.session;
+  const state=useSyncExternalStore(useSessionSubscription(session),()=>session.snapshot());
+  useConversationScroll(history,window.id,visible,session.generation??session.id,memory);
+  const pending=state.controller?.kind??(state.approval?'approval':state.interaction?.kind);
+  return <box flexDirection="column" flexGrow={1} minHeight={0}>
+    <scrollbox ref={history} flexGrow={1} flexBasis={0} minHeight={0} focusable={false} scrollX={false} scrollY
+      stickyScroll stickyStart="bottom" contentOptions={{paddingX:1,paddingY:1,gap:1}}>
+      <TranscriptMessages session={session}/>
+    </scrollbox>
+    {pending&&<text fg={color.running} truncate>{pending[0].toUpperCase()+pending.slice(1)+' pending · focus this window to answer'}</text>}
+  </box>;
+}
+
+function Conversation({ selected, paneId, visible, scrollMemory, animations, composerMedia, focused, width, height, isActive, isVisible,editorOwnership }: {
   selected: ConversationSession;
+  paneId:string;
+  visible:boolean;
+  scrollMemory:ScrollMemory;
   animations: boolean;
   composerMedia?: ComposerMedia;
   focused: boolean;
@@ -91,25 +135,27 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
   const editor = useRef<TextareaRenderable>(null);
   const history = useRef<ScrollBoxRenderable>(null);
-  const [inputMode, setInputMode] = useState<{id: string; editing: boolean}>();
+  const [inputMode, setInputMode] = useState<{id: string; epoch:string|number; editing: boolean}>();
   const [immediate, setImmediate] = useState(false);
   const [editorWidth,setEditorWidth]=useState(Math.max(1,width-2));
   const owner=useRef({});
   const currentInput=useRef({inputMode,isActive});
   currentInput.current={inputMode,isActive};
   const requestId=state.controller?.id??state.interaction?.id;
-  const editing = Boolean(requestId && inputMode?.id === requestId && inputMode.editing);
+  const requestEpoch=selected.generation??selected.id;
+  const editing = Boolean(requestId && inputMode?.id === requestId && inputMode.epoch===requestEpoch && inputMode.editing);
+  useConversationScroll(history,paneId,visible&&!editing,selected.generation??selected.id,scrollMemory);
   const ownsEditor=()=>{
     const current=selected.snapshot(),request=current.controller?.id??current.interaction?.id;
     const mode=currentInput.current.inputMode;
-    return Boolean(current.editor?.available)&&currentInput.current.isActive()
-      &&!(request&&mode?.id===request&&mode.editing);
+    return selected.isCurrent?.()!==false&&Boolean(current.editor?.available)&&currentInput.current.isActive()
+      &&!(request&&mode?.id===request&&mode.epoch===(selected.generation??selected.id)&&mode.editing);
   };
   useLayoutEffect(()=>editorOwnership?.register(owner.current,ownsEditor),[selected,editorOwnership]);
   useLayoutEffect(()=>editorOwnership?.refresh());
   const setEditing = (value: boolean) => {
     const current = selected.snapshot(),id=current.controller?.id??current.interaction?.id;
-    if (id && isActive()) flushSync(() => setInputMode({id, editing: value}));
+    if (id && isActive()) flushSync(() => setInputMode({id,epoch:requestEpoch,editing:value}));
   };
   const wide = width >= 60;
   const editorHeight = height >= 20 ? 4 : 2;
@@ -164,7 +210,7 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
     const pending = messageInput();
     if (!pending) return;
     const {input, text} = pending;
-    selected.submit(text);
+    if(selected.submit(text)===false)return;
     input.setText('');
     setImmediate(false);
     if (isActive()) input.focus();
@@ -175,28 +221,19 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
       <scrollbox ref={history} visible={!editing} flexGrow={1} flexBasis={0} minHeight={0}
         focusable={false} scrollX={false} stickyScroll stickyStart="bottom"
         contentOptions={{ paddingX: 1, paddingY: state.approval ? 0 : 1, gap: 1 }}>
-        {state.messages.length === 0 && !state.error && <text fg={color.muted}>No messages yet</text>}
-        {state.messages.map((message, index) => (
-          <box key={index} flexShrink={0} flexDirection="column">
-            <text attributes={TextAttributes.BOLD} fg={message.role === 'user' ? color.muted : color.accent}>
-              {message.role === 'user' ? 'You' : selected.label}
-            </text>
-            <text wrapMode="word" fg={color.text}>{message.text}</text>
-          </box>
-        ))}
-        {state.error && <text wrapMode="word" fg={color.error}>{`Error: ${state.error}`}</text>}
+        <TranscriptMessages session={selected}/>
       </scrollbox>
 
       {!editing && state.notice && <text fg={color.muted} wrapMode="word">{state.notice}</text>}
-      {state.controller&&<ControllerFrame key={state.controller.id} controller={state.controller} session={selected} main
+      {state.controller&&<ControllerFrame key={requestEpoch+':'+state.controller.id} controller={state.controller} session={selected} main
         width={width} height={editing?Math.max(1,height-1):Math.max(1,Math.min(state.controller.preferredRows+Number(Boolean(state.controller.view.hint)),Math.floor(height/2)))}
         maxRows={editing?Math.max(1,height-1):Math.max(1,Math.floor(height/2))} focused={focused&&editing}
         isActive={()=>isActive()&&editing} isVisible={isVisible}/>}
-      {state.interaction && <Interaction key={state.interaction.id} interaction={state.interaction}
+      {state.interaction && <Interaction key={requestEpoch+':'+state.interaction.id} interaction={state.interaction}
         session={selected} editing={editing} focused={focused} width={width} height={height} isActive={isActive} setEditing={setEditing} />}
       {!focused && state.approval && <text fg={color.running}>Approval pending</text>}
       {state.approval&&<box visible={focused} flexShrink={0}>
-        <ApprovalCard key={`${selected.id}:${state.approval.id}`} request={state.approval} session={selected} height={height} isActive={isActive}/>
+        <ApprovalCard key={requestEpoch+':'+state.approval.id} request={state.approval} session={selected} height={height} isActive={isActive}/>
       </box>}
       <box visible={!editing&&!state.editor} border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
         title={` ${selected.label} · ${state.approval||controllerBlocksInput(state.controller) ? 'Draft' : state.running ? 'Running' : 'Ready'} `}
@@ -276,6 +313,8 @@ const noSurfaces:readonly UiSurfaceSource[]=[];
 const emptyRegistry:UiSurfaceRegistry={snapshot:()=>noSurfaces,subscribe:()=>()=>{}};
 const normalNavigation:WindowNavigationSnapshot={revision:0,mode:'normal',query:'',entries:[]};
 const emptyNavigation:Pick<WindowNavigationSource,'snapshot'|'subscribe'>={snapshot:()=>normalNavigation,subscribe:()=>()=>{}};
+const noConversationWindows:readonly ConversationWindow[]=[];
+const emptyConversationWindows:ConversationWindowRegistry={snapshot:()=>noConversationWindows,subscribe:()=>()=>{}};
 
 function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSource}){
   const state=useSyncExternalStore(source.subscribe,source.snapshot);
@@ -283,7 +322,7 @@ function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSour
   return <Tab {...tab} label={state.title+(status?' · '+status:'')} />;
 }
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership }: {
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
@@ -293,16 +332,36 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   surfaces?:UiSurfaceRegistry;
   navigation?:WindowNavigationSource;
   editorOwnership?:EditorInputOwnership;
+  conversationWindows?:ConversationWindowRegistry;
 }) {
   const editorOwns=useSyncExternalStore(editorOwnership?.subscribe??(()=>()=>{}),editorOwnership?.snapshot??(()=>false));
   const navigationState=useSyncExternalStore((navigation??emptyNavigation).subscribe,(navigation??emptyNavigation).snapshot);
   const published=useSyncExternalStore(surfaces.subscribe,surfaces.snapshot);
-  const panes: Pane[] = sessions.map(session => ({ id: session.paneId ?? 'session:' + session.id, label: session.label, session }));
+  const declaredWindows=useSyncExternalStore((conversationWindows??emptyConversationWindows).subscribe,(conversationWindows??emptyConversationWindows).snapshot);
+  const windows:readonly ConversationWindow[]=conversationWindows?declaredWindows:sessions.map(session=>({id:session.paneId??'session:'+session.id,label:session.label,session}));
+  const groups=groupConversationWindows(windows);
+  const panes:Pane[]=windows.map(window=>({id:window.id,label:window.label,session:window.session}));
   if (workflowTable) panes.push({ id: 'workflows', label: 'Workflows' });
   if (pluginManager) panes.push({ id: 'plugins', label: 'Plugins' });
   for(const surface of published)if(!panes.some(pane=>pane.id===surface.id))
     panes.push({id:surface.id,label:surface.snapshot().title,surface});
   const layout = useSyncExternalStore(windowLayout.subscribe, windowLayout.snapshot);
+  const inputWindows=useRef(new Map<string,string>());
+  const histories=useRef(new Map<string,ScrollMemory>());
+  const residences=groups.map(group=>{
+    const window=conversationInputWindow(group,layout.focused,inputWindows.current.get(group.id));
+    inputWindows.current.set(group.id,window.id);
+    let memory=histories.current.get(group.id);
+    if(!memory){memory=createConversationScrollMemory();histories.current.set(group.id,memory);}
+    return{id:group.id,window,memory,frame:layout.frames.find(frame=>frame.surface===window.id)};
+  });
+  const residentByPane=new Map(residences.map(residence=>[residence.window.id,residence]));
+  useLayoutEffect(()=>{
+    const current=new Set(groups.map(group=>group.id));
+    for(const[id,memory]of histories.current)if(!current.has(id)){
+      memory.reset(Symbol('removed conversation'));histories.current.delete(id);inputWindows.current.delete(id);
+    }
+  });
   const renderer = useRenderer();
   const viewport = useRef<BoxRenderable>(null);
   const tabStrip=useRef<ScrollBoxRenderable>(null);
@@ -412,7 +471,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   }
   const stripPanes=navigation?panes.filter(pane=>layout.locations[pane.id]===layout.workspace):panes;
   const occupied=new Set(Object.values(layout.locations));
-  const workspaceStatus=layout.error??(layout.gesture?'Drag · Esc cancel':layout.saving?'Saving layout…':navigation
+  const workspaceStatus=layout.error??navigationState.error??(layout.gesture?'Drag · Esc cancel':layout.saving?'Saving layout…':navigation
     ?width>=48?`WS ${layout.workspace}${layout.fullscreen?' · Zoomed':''} · ${navigationState.focusedLabel??'Empty workspace'}`:layout.fullscreen?'Zoomed':'* open':'');
   const workspaceBar=<box flexDirection="row" columnGap={navigation?0:1} height={1} flexShrink={0} paddingX={1}>
     <text fg={color.muted} width={navigation?3:undefined} flexShrink={0} wrapMode="none">{navigation?'WS ':'WS'}</text>
@@ -431,13 +490,13 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         </text>
       </box>;
     })}
-    <text flexGrow={1} flexBasis={0} minWidth={0} height={1} wrapMode="none" truncate fg={layout.error?color.error:color.muted}>{workspaceStatus}</text>
+    <text flexGrow={1} flexBasis={0} minWidth={0} height={1} wrapMode="none" truncate fg={layout.error||navigationState.error?color.error:color.muted}>{workspaceStatus}</text>
   </box>;
   const tabs=stripPanes.map((pane,index)=>{
     const props={index,id:'window-tab-'+pane.id,showShortcut:!navigation,
       selected:layout.focused===pane.id&&layout.locations[pane.id]===layout.workspace,
       onSelect:()=>act({type:'open',id:pane.id})};
-    return pane.session?<SessionTab key={pane.id} session={pane.session} {...props}/>
+    return pane.session?<SessionTab key={pane.id} session={pane.session} label={pane.label} {...props}/>
       :pane.surface?<SurfaceTab key={pane.id} source={pane.surface} {...props}/>
       :<Tab key={pane.id} label={pane.label} {...props}/>;
   });
@@ -457,7 +516,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       onMouseDown={event => pointer('down', event)} onMouseMove={event => pointer('move', event)}
       onMouseDrag={event => pointer('move', event)} onMouseUp={event => pointer('up', event)}
       onMouseOut={event => pointer('move', event)}>
-      {/* Keep one resident native editor per stable pane, independent of tree topology and workspace. */}
+      {/* Window histories stay separate; one resident native input owner serves every copy of a conversation. */}
       {panes.map(pane => {
         const frame = layout.frames.find(frame => frame.surface === pane.id);
         const focused = Boolean(frame) && layout.focused === pane.id && !layout.gesture&&navigationState.mode==='normal';
@@ -471,8 +530,8 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
           focused={Boolean(frame)&&layout.focused===pane.id&&!layout.gesture&&navigationState.mode!=='finder'}
           drop={layout.drop?.surface === pane.id ? layout.drop.edge : undefined}>
           {(width, height) => pane.session
-            ? <Conversation selected={pane.session} animations={animations} composerMedia={composerMedia}
-                focused={focused} width={width} height={height} isActive={isActive} isVisible={isVisible} editorOwnership={editorOwnership}/>
+            ? residentByPane.has(pane.id)||!frame?null:<ConversationCopy window={{id:pane.id,label:pane.label,session:pane.session}}
+                visible memory={histories.current.get(pane.session.conversationId??pane.session.id)!}/>
             :pane.surface?<SurfaceView source={pane.surface} focused={focused} width={width} height={height}
               isActive={isActive} isVisible={isVisible}/>
             : pane.id === 'workflows' && workflowTable
@@ -480,6 +539,23 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
               : pluginManager && <Plugins source={pluginManager} visible={Boolean(frame)} focused={focused}
                   width={width} height={height} isActive={isActive} isVisible={isVisible} />}
         </Tile>;
+      })}
+      {residences.map(({id,window,memory,frame})=>{
+        const isVisible=()=>{
+          const current=windowLayout.snapshot();
+          return (!navigation||navigation.snapshot().mode==='normal')&&!current.gesture
+            &&window.session.isCurrent?.()!==false&&inputWindows.current.get(id)===window.id&&current.frames.some(frame=>frame.surface===window.id);
+        };
+        const isActive=()=>windowLayout.snapshot().focused===window.id&&isVisible();
+        // A newly created opaque Tile can be registered after this retained
+        // subtree. Keep the input above tile backgrounds and below the Finder.
+        return <box key={'conversation-input:'+id} visible={Boolean(frame)} position="absolute" zIndex={1}
+          left={(frame?.x??0)+1} top={(frame?.y??0)+1} width={Math.max(1,(frame?.width??3)-2)} height={Math.max(1,(frame?.height??3)-2)}
+          backgroundColor={color.background} flexDirection="column" minHeight={0} minWidth={0}>
+          <Conversation selected={window.session} paneId={window.id} visible={Boolean(frame)} scrollMemory={memory}
+            animations={animations} composerMedia={composerMedia} focused={Boolean(frame)&&layout.focused===window.id&&!layout.gesture&&navigationState.mode==='normal'}
+            width={Math.max(1,(frame?.width??3)-2)} height={Math.max(1,(frame?.height??3)-2)} isActive={isActive} isVisible={isVisible} editorOwnership={editorOwnership}/>
+        </box>;
       })}
       {!layout.frames.length&&<text fg={color.muted}>{navigation?'Empty workspace · F2 Windows opens or restores a window':'Empty workspace · open a pane above'}</text>}
       {navigation&&navigationState.mode==='finder'&&<box position="absolute" left={0} top={0} width={layout.width} height={layout.height} zIndex={100}
@@ -494,7 +570,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         <text height={1} wrapMode="none" fg={color.running} truncate>{layout.gesture
           ? (layout.gesture === 'resize' ? 'Mouse resize · Esc cancel' : 'Move window · Esc cancel')
           : splitTargetLabel(layout, width)}</text>
-        <text height={1} wrapMode="none" fg={color.text} truncate>{width>=140?'h/j/k/l focus · Shift swap · Ctrl+arrows edge · b/v split · +/− resize · f zoom · q close · 1–9 workspace · w windows · i type · Esc exit':width>=88?'Esc exit · i type · hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/−':width>=48?'Esc exit · i type · Ctrl+arrows edge':'Esc exit · i type · w windows'}</text>
+        <text height={1} wrapMode="none" fg={color.text} truncate>{width>=176?'hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/− size · f zoom · q close · n Main · t Tools · ? Help · 1–9 workspace · w windows · i type · Esc exit':width>=140?'Esc exit · i type · n Main · t Tools · ? Help · hjkl focus · Shift swap · Ctrl+arrows edge · b/v split · +/− size':width>=88?'Esc exit · i type · hjkl focus · Shift swap · Ctrl+arrows edge · n Main':width>=48?'Esc exit · i type · n new · Ctrl+arrows edge':'Esc exit · i type · n new Main'}</text>
       </>:<text height={1} wrapMode="none" fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':layout.fullscreen&&width<60?'Zoomed · Alt+W f tiles':(layout.fullscreen?'Zoomed · Alt+W f tiles · ':'')+`Alt+W Arrange · ${editorOwns?'Alt+W w Windows':'F2 Windows'} · Alt+0 Main`+(width>=88?' · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'')}</text>}
     </box>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {controls.map((type, index) => layoutButton('F' + (controlStart + index) + ' ' +

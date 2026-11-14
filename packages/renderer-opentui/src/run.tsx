@@ -11,6 +11,7 @@ import type {UiSurfaceRegistry} from './surface.js';
 import type {WindowNavigationInput,WindowNavigationSource} from './navigation.js';
 import {useKeyboard} from '@opentui/react';
 import {createEditorInputOwnership} from './editor-ownership.js';
+import type {ConversationWindowRegistry} from './conversation-windows.js';
 
 // Closed windows keep native widgets resident. The host admits at most 256
 // panes, each with up to two keyboard hooks; SDK and desktop handlers use the
@@ -24,6 +25,7 @@ export interface OpenTuiOptions {
   surfaces?: UiSurfaceRegistry;
   navigation?:WindowNavigationSource;
   composerMedia?: ComposerMedia;
+  conversationWindows?: ConversationWindowRegistry;
   windowLayout: WindowLayoutSource;
   stdin?: NodeJS.ReadStream;
   stdout?: NodeJS.WriteStream;
@@ -35,6 +37,8 @@ export interface OpenTuiOptions {
 export async function runConversationPrototype(sessions: ConversationSession[], options: OpenTuiOptions) {
   if (!sessions.length) throw new Error('At least one conversation is required.');
   if (new Set(sessions.map(session => session.id)).size !== sessions.length) throw new Error('Conversation IDs must be unique.');
+  if (new Set(sessions.map(session => session.conversationId ?? session.id)).size !== sessions.length)
+    throw new Error('Logical conversation identities must be unique.');
   const paneIds = sessions.map(session => session.paneId ?? 'session:' + session.id);
   if (options.workflowTable) paneIds.push('workflows');
   if (options.pluginManager) paneIds.push('plugins');
@@ -80,7 +84,8 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     });
     return <ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
-      animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership} />;
+      animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership}
+      conversationWindows={options.conversationWindows} />;
   }
   try {
     renderer.keyInput.setMaxListeners(keyboardListenerLimit);
@@ -101,5 +106,6 @@ export type {PluginTableSource} from './table.js';
 export type {PluginManagerSource, PluginManagerSnapshot, PluginManagerRow, PluginManagerAction} from './plugins.js';
 export type {ComposerMedia} from './ghost.js';
 export type {ConversationSession, ConversationSnapshot, ConversationApproval, ConversationInteraction, Message} from './session.js';
+export type {ConversationWindow, ConversationWindowRegistry} from './conversation-windows.js';
 export type {ConversationController, ConversationEditor, WindowController, ControllerInput, ControllerView, ControllerCell} from './controller.js';
 export type {WindowLayoutSource, WindowLayoutSnapshot, WindowLayoutAction, WindowFrame, WindowDirection, WindowDropEdge, WindowSplitTarget} from './layout.js';

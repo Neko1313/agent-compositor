@@ -180,6 +180,31 @@ visible label: `/plugins` selects `Plugins` without also matching
 required; existing callers keep their label-as-query default.
 
 
+`npm run visual:opentui-conversation-copies` runs eight checks in two isolated
+compositions through the actual CLI: Ink creates the saved `window-N` views,
+then the same project/profile/journal restarts in configured OpenTUI. Real Ink
+keys create session, Tools and Help copies, move them across workspaces, resize
+and close a copy. No layout or journal metadata is manufactured by the fixture.
+The check compares exact migrated IDs, kinds, topology and ratios, reopens closed
+views in Finder, exercises Arrange `n` and the New Tools/Help actions, and checks
+that `/chat` remains idempotent. Copies share one Main draft/cursor and one model
+input destination while retaining independent transcript scroll positions.
+
+The second composition selects the documented F2/Enter editor and selected
+question, approval and private form controllers. Factory/input receipts prove
+that copies do not create duplicate leases, submit twice, or answer a different
+request. Private form fields survive hiding/reopening, and synthetic tokens stay
+out of terminal output, provider bodies, journals and public UI hooks. Canonical
+reload snapshots before destructive dispose; actual fork/resume revokes a gated
+old-generation submit. A final restart checks committed context and exact saved
+window state. Unsent draft recovery across process restart is not promised.
+Artifacts default to `dist/visual-opentui-conversation-copies/`; each composition
+records the `ink` → `opentui` → `opentui` launch sequence and native executable/
+renderer hashes when `VISUAL_EXECUTABLE` selects a complete relocated archive.
+Raw `input.jsonl` necessarily contains the synthetic typed values and is excluded
+from output privacy claims.
+
+
 Known-label Finder opens in the controller, request-window, manager and
 cancellation checks share [opentui-finder.mjs](opentui-finder.mjs). The helper
 waits for one native panel's exact query, expected rows and highlighted choice;

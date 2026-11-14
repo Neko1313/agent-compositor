@@ -92,6 +92,13 @@ to the same actual-app gate: browse and private forms during a Main question,
 canonical session mutations/resume, real Apply/Save rules, late-focus/target
 guards, hide/cancel/unload, and restart restoration. Source and every native
 job use the same bounded loopback fixture and retain input/output plus identities.
+`npm run visual:opentui-conversation-copies` creates persisted windows through
+the real Ink CLI, then launches OpenTUI against that same isolated storage. Its
+native and selected-controller compositions verify every saved window kind,
+closed identities, shared Main input/request/editor ownership, independent
+scroll, private forms and actual reload/resume/restart. No migration layout or
+journal is manufactured by the fixture. The source job and all four relocated
+native jobs require this gate and preserve its artifacts on failure.
 Reports, terminal input/output, screenshots and executable/renderer identities
 are retained with the other installed-runtime evidence, including on failure.
 

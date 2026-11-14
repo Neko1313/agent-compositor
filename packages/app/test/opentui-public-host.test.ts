@@ -80,7 +80,14 @@ it('bounds physically pending painter calls while superseding SDK authority and 
     expect(source.snapshot().override).toBeUndefined();
     held[1].release();await vi.advanceTimersByTimeAsync(0);
     expect(source.snapshot().override).toBeUndefined();
-    held[2].release();await vi.advanceTimersByTimeAsync(0);
+    const painterCalls = f.calls.filter(call => call.input.props.pane === 'session');
+    expect(painterCalls.map(call => call.input.viewport.rows)).toEqual([39, 40, 40]);
+    const current = painterCalls[2];
+    expect(painterCalls[1].signal?.aborted).toBe(true);expect(current.signal?.aborted).toBe(false);
+    // Both obsolete and current emissions measured 40 rows. Await the actual
+    // third dispatch, rather than assuming a timer tick completes its chain.
+    held[2].release();const currentResult = await current.completion;
+    expect(currentResult).toMatchObject({value: {tree: {lines: [{text: 'PAINTER_3', action: 'paint-3'}]}}, faults: []});
     expect(source.snapshot().override?.lines[0].text).toBe('PAINTER_3');
     expect(f.provider.requests).toEqual([]);
   } finally {

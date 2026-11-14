@@ -42,8 +42,22 @@ the canonical full local suite: 2402 tests plus three optional skips in 266
 maintained test files, with no unhandled errors. Retained `dist/` snapshots are
 excluded from discovery. The correction also closes never-ending incoming bodies on cancellation,
 checks client loss before upstream admission and joins concurrent close calls.
-All 735 packaged inputs remain unchanged. No failed CI is retried or retroactively
+At that tooling checkpoint all 735 conservative bundle rows remain unchanged.
+No failed CI is retried or retroactively
 passed; corrected source needs a new exact-head source qualification.
+
+The source-only correction is pushed as `e862952` and `15675d6`. Both Node jobs
+now pass all 24 transport cases, while source CI 43641127303 fails two different
+UI test observations: Node 26 does not observe the initial Main question within
+a short poll, and Node 22 checks the final painter before awaiting its actual
+outer dispatch. Documentation and plugin preparation pass. Test-only corrections
+now wait for actual question publication and the exact current render completion;
+all original state, privacy, capacity and ownership assertions remain. The exact
+slow stage of the failed history run is not established by its retained artifacts.
+These test corrections pass the full standalone local suite: 2402 tests plus
+three optional skips in 266 files, with no unhandled errors. Packaged runtime
+code is unchanged and older failed workflows retain their original results;
+fresh exact-head source CI is still required.
 
 OpenTUI runs the configured application through `--renderer opentui`; Ink remains
 the default. Revision `3281bda` adds private delegated and managed agent request
@@ -99,11 +113,14 @@ The two native captures show a stable original frame in each state; this does
 not measure every GPU-visible animation frame or screen frame rate.
 The terminal's modifyOtherKeys advisory and mode 2027 warnings remain preserved
 compatibility issues. A separate installed `2ca0b69` run in a private rootful
-Xwayland/Kitty environment verifies real unmodified CJK, emoji and combining
-keys, exact UTF-16/cell positions and native edit/backspace/undo behavior. Two of
-four declared oracles pass; the window-navigation helper stops before opening
-Tools because its Finder selection observer does not recognize the actual
-highlight. The full navigation/submission/normal-exit scenario remains open.
+Xwayland/Kitty environment passes all four declared oracles: real unmodified CJK,
+emoji and combining keys, exact UTF-16/cell positions and edit/backspace/undo,
+canonical Tools opening and Main draft/cursor restoration, and exact prompt
+submission with natural PTY exit and TTY restoration. All six native captures
+and raw input/forwarding bytes are retained. Earlier helper failures remain
+preserved, including the incomplete ANSI observer that did not handle Kitty's
+OSC 66 width metadata. The successful flow retains 15 unsupported mode 2027
+messages and one modifyOtherKeys advisory without filtering.
 This text/key path does not establish graphics or mode 2027 compatibility.
 Full state transitions, physical compositing, resize,
 fallbacks, tmux and video remain open, as do the default frontend switch,

@@ -31,7 +31,20 @@ async function fixture(factory:UiControllerFactory,provider=new ScriptedProvider
   async function open(){await host.submit('/history');await expect.poll(()=>Boolean(history())).toBe(true);const source=history()!;await expect.poll(()=>Boolean(source.snapshot().busy)).toBe(false);return source;}
   function input(source:UiSurfaceSource,value:ControllerInput){const frame=source.snapshot().controller!;return source.controllerInput!(frame.id,value,frame.revision);}
   async function settled(source:UiSurfaceSource,ticket:number|undefined){expect(ticket).toBeTypeOf('number');await expect.poll(()=>source.snapshot().controller?.inputRevision).toBe(ticket);}
-  return{cwd,app,host,layout,provider,history,open,input,settled};
+  async function askMain(){
+    let unsubscribe:(()=>void)|undefined;
+    const stop=()=>{unsubscribe?.();unsubscribe=undefined;};cleanup.push(async()=>stop());
+    const questionPublished=new Promise<void>(resolve=>{
+      const observe=()=>{if(host.session.snapshot().interaction?.kind==='question')resolve();};
+      unsubscribe=host.session.subscribe(observe);observe();
+    });
+    const main=host.submit('Ask Main');
+    try{await Promise.race([questionPublished,main.then(()=>{throw Error('Main completed before publishing its question');})]);}
+    finally{stop();}
+    const pending=host.session.snapshot().interaction!;expect(pending.kind).toBe('question');
+    return{main,pending};
+  }
+  return{cwd,app,host,layout,provider,history,open,input,settled,askMain};
 }
 
 it('opens private selected history while Main waits and gives its form a fresh independent request origin',async()=>{
@@ -43,8 +56,7 @@ it('opens private selected history while Main waits and gives its form a fresh i
   };});
   const observed:unknown[]=[];f.host.core.host.registerPlugin({name:'observer',version:'1.0.0',trust:'trusted'},
     {'service.ui.view':event=>{observed.push(event);},'ui.change':event=>{observed.push(event);},'ui.press':event=>{if(!event.key.startsWith('command:'))observed.push(event);}});
-  const main=f.host.submit('Ask Main');await expect.poll(()=>f.host.session.snapshot().interaction?.kind).toBe('question');
-  const pending=f.host.session.snapshot().interaction!,before=(await f.app.store.load(f.host.core.sessionId,f.cwd)).events;
+  const {main,pending}=await f.askMain(),before=(await f.app.store.load(f.host.core.sessionId,f.cwd)).events;
   const source=await f.open();expect(f.provider.requests).toHaveLength(1);expect(f.host.session.snapshot().interaction?.id).toBe(pending.id);
   const after=(await f.app.store.load(f.host.core.sessionId,f.cwd)).events;
   expect(after.filter(event=>event.type==='prompt.submit'||event.type==='prompt.dropped')).toEqual(before.filter(event=>event.type==='prompt.submit'||event.type==='prompt.dropped'));
@@ -89,8 +101,8 @@ it('resumes a real saved Core after closing its own history view without stealin
 it('retains a selected history view and reports a rejected resume while Main is waiting',async()=>{
   const f=await fixture(()=>({render:()=>({lines:[{text:'Resume saved',action:'resume'}]}),
     handle:input=>input.kind==='action'&&input.action==='enter'?{type:'resume',id:'saved-history-target'}:undefined}));
-  const main=f.host.submit('Ask Main');await expect.poll(()=>f.host.session.snapshot().interaction?.kind).toBe('question');
-  const old=f.host.core,pending=f.host.session.snapshot().interaction!,source=await f.open(),frame=source.snapshot().controller!;
+  const {main,pending}=await f.askMain();
+  const old=f.host.core,source=await f.open(),frame=source.snapshot().controller!;
   await f.settled(source,f.input(source,{kind:'key',key:'enter'}));
   expect(f.history()).toBe(source);expect(source.snapshot().controller?.id).toBe(frame.id);expect(f.host.core).toBe(old);
   expect(f.host.session.snapshot().notice).toBe('Could not resume this session');expect(f.host.session.snapshot().interaction?.id).toBe(pending.id);

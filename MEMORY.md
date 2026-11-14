@@ -1,5 +1,56 @@
 # Project memory
 
+## Source UI acknowledgement corrections in progress — 2026-11-15
+
+The preceding work is concrete progress toward the complete 1.0 goal, not a
+completion claim. Source-only fixes `e862952` and `15675d66c50f164967eda795d1888bee3a69215a`
+are pushed. Exact source CI 43641127303 is terminal FAILURE, docs43641127345 and
+plugin preparation43641127241 succeed. The old transport24 passes on both Node
+versions. Node26 instead fails the first Main-question poll in
+opentui-history.test.ts46:107 (case1186ms); Node22 fails the final PAINTER_3
+cache assertion in opentui-public-host.test.ts84:55. Original logs and both
+digest-verified quality ZIPs/JUnit are retained under
+dist/development-admission-source-15675d6, summarySHA8c7d38b8a5cd8634ee116f4abf11d5b4d8c6140c29497735ab110027c5e814db.
+No failed workflow is retried or reclassified; all later source UI stages were
+skipped after unit failure. No fresh native release was dispatched for these
+unshipped tooling changes; original 2ca archive/native proof stays bound to 2ca.
+
+Two test-only corrections are now frozen. Public-host test76d168c5 selects the
+third actual outer emission by ordinal, asserts rows39/40/40, obsolete/current
+signal state, awaits its exact completion and validates PAINTER_3 tree/faults
+before retaining the original cache-publication assertion. Host12/cache15 and
+app types pass. History test84ce8cd1 observes actual session-question publication
+before starting Main, races it against actual turn completion/error, unsubscribes,
+and retains both original Main-waiting setup sites and every ownership/privacy/
+form/effect assertion. History8/app types pass. No sleeps, configured timeout
+changes or production code changes. The failed history run's exact slow stage
+remains unknown; the original short poll was not a publication acknowledgement.
+Independent combined review is clear. Fresh standalone full76870 passes2402
+tests plus three optional skips in266 files, zero unhandled errors,31.812s;
+all1016 tracked/nonignored files stayed unchanged during execution. Receipt:
+dist/headless-opentui-test-acks-full-ci-receipt.json; log:
+/home/neko/.cache/ac-tmp/compositor-opentui-test-acks-full-test-ci-20261115.log.
+Root owns final types/docs, commits/push and new source CI monitoring. Conservative old bundle rows
+will differ for these two test files only; do not silently rebind frozen native
+manifests or claim a new shipping build.
+
+The finite native-key flow is separately COMPLETE4/4 on installed 2ca bytes:
+dist/opentui-native-kitty-private-plain-unicode-2ca0b69-20261115/independent-review.json,
+SHA996a78a3e771dea6cf753591b966985ac0482e3706502e16da9b910717b0fe5d.
+Six real native PNGs, 17 exact text/cursor receipts,727 raw input bytes identical
+to both ledger and server forwarding, three unmodified Unicode XTest ACKs and
+private mapping restoration, exact Tools focus and restored Main, one real
+prompt receipt/drop, zero models. Natural PTY0 and restored termios; Kitty,
+server and private Xwayland exit0; no forced kill; private auth/socket/workspace
+removed and owned process scan empty. Root viewed current real-keys/restored-
+Main PNGs independently. The successful helper uses actual plain native list
+ACK/capture then Enter: Kitty OSC66 metadata made an added ANSI-only observer
+miss a visibly correct Finder header. All earlier failures and offline replay
+remain immutable. The successful flow still emits15 unsupported2027 messages
+and one modifyOtherKeys advisory unfiltered; full terminal/media compatibility,
+default renderer change and broad1.0 gates remain open. No paid calls or budget
+changes; the pending budget clarification is unanswered.
+
 ## Installed render repair; eval admission correction in progress — 2026-11-15
 
 This goal turn made concrete progress. Commit `2ca0b697fef04fa5cc871c3003c1ef0dd17b5974`

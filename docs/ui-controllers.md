@@ -38,10 +38,10 @@ entry points belong to `session-manager`; a composition may omit that contributi
 and supply its own commands instead.
 
 The configured [OpenTUI frontend](02-ui.md#experimental-opentui-application-frontend)
-supports selected approval, question and private-form controllers in Main and
-independent request windows. Only their validated views/cells reach the renderer;
+supports selected editors in Main and selected approval, question and private-form
+controllers in Main and independent request windows. Only their validated views/cells reach the renderer;
 the original private request is not attached as hidden native fallback data.
-Selected editor, history and placement controllers still fail before startup;
+Selected history and placement controllers still fail before startup;
 they are not silently replaced. Full controller adaptation remains a migration gate. The host can
 inspect selection through `core.host.controllers.selectedOwner(kind)`, which
 returns metadata without creating a controller or receiving private input.
@@ -127,17 +127,39 @@ Ink's text-input adapter.
 
 In OpenTUI Main, selected private requests start in Draft mode. **Alt+I** or the
 **Answer/Draft** button switches
-between their input and the resident native message draft, preserving the draft
+between their input and the resident message draft, preserving the draft
 and its cursor. A separate request window gives input to its selected controller
 when that window is focused. Closing a window only hides the live lease; Windows
-reopens it with controller-owned state. The host reserves **F2 Windows**,
+reopens it with controller-owned state. The host reserves
 **Alt+W Arrange**, **Alt+0 Main**, spatial/workspace shortcuts and **Ctrl+C**
-cancellation before controller input. Other function keys reach the selected
-controller only while it owns input. This differs from the reference Ink host's
-custom-controller F2 precedence; selected OpenTUI editor support remains open.
+cancellation before controller input. **F2** reaches a selected editor only while
+its available Draft owns focused Main in normal mode. In Answer mode, another
+window, Finder, Arrange or an unavailable editor, **F2 Windows** remains a host
+control. **Alt+W**, then **W**, and the Windows button always remain available.
+Other unreserved function keys reach the selected controller only while it owns
+input. Selected request controllers retain host F2 precedence.
 A selected local form in Main does not block a new ordinary message from Draft
 mode while the agent is idle. The form remains pending during that model turn.
 Selected questions and approvals still require their own answer or decision.
+
+OpenTUI keeps the selected editor's factory, command/file discovery capabilities
+and `{text,cursor}` checkpoint inside the host. The cursor is a UTF-16 offset;
+it is not a native textarea's display-cell offset. Only its rendered view and
+bounded input/admission receipts reach the frontend. The native composer stays
+parked, and an unavailable selected editor shows a constant error instead of
+accepting native input. Window navigation remains usable.
+
+Editor input is serialized through handling, admission and recovery. Busy submit
+and steer intents retain Core's queue semantics without answering a pending
+question. The host shows Accepted or Queued once ownership is taken. A genuine
+pre-admission rejection restores the visible pre-input draft and cursor before
+later admitted editor inputs run. An accepted prompt hook, command or model
+failure does not restore the cleared draft or resubmit it. See
+[Core input admission](core-customization.md) for the separate admission
+and completion receipts. Reload and interactive session resume retain a validated
+checkpoint before disposal. Old-generation handles and asynchronous capabilities
+cannot submit into the replacement Core. Unsent drafts do not survive process
+exit. Editor scroll intents scroll the transcript without changing window focus.
 
 Controller lines occupy individual clipped terminal rows; optional validated
 cells preserve their colors and text attributes, including wide characters.

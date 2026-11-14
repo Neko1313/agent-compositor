@@ -1,5 +1,5 @@
 import type {Questionnaire, UiForm} from '@agent-compositor/events';
-import type {ConversationController, ControllerInput} from './controller.js';
+import type {ConversationController, ConversationEditor, ControllerInput} from './controller.js';
 
 export type Message = {role: 'user' | 'assistant'; text: string};
 export type ConversationInteraction =
@@ -20,6 +20,7 @@ export interface ConversationSnapshot {
   approval?: ConversationApproval;
   interaction?: ConversationInteraction;
   controller?: ConversationController;
+  editor?: ConversationEditor;
 }
 
 /** The renderer subscribes to the session it displays. The host owns its lifetime. */
@@ -39,4 +40,6 @@ export interface ConversationSession {
   controllerInput?(id: string, input: ControllerInput, revision: number): number|undefined;
   controllerViewport?(id: string, columns: number, rows: number): void;
   cancelController?(id: string): void;
+  editorInput?(id: string, input: ControllerInput, revision: number): number|undefined;
+  editorViewport?(id: string, columns: number, rows: number, maxRows?:number): void;
 }

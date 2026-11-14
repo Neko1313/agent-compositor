@@ -26,7 +26,7 @@ is under `.impeccable/critique/`; it records provenance and all ten scores.
 | Todos/agents/workflows/mascot | Apply readable projection, whole-word wrapping, action navigation and overflow cues through shared contracts. Preserve task order, independent agent behavior, workflow lifecycle and supplied mascot assets. |
 
 The [configured OpenTUI frontend](02-ui.md#experimental-opentui-application-frontend)
-keeps Alt+W Arrange, F2 Windows and Alt+0 Main stable as its window strip scrolls
+keeps Alt+W Arrange, Windows and Alt+0 Main stable as its window strip scrolls
 horizontally. Its workspace bar precedes navigation and the window strip; occupied
 workspaces carry a literal `*` marker as well as the palette distinction. Nine
 fixed-width workspace targets remain available at 38 columns. The strip contains
@@ -49,6 +49,16 @@ and closed-window state. Narrow viewports keep every split that fits the shared
 24-column/6-row minimum child rectangle. Only insufficient split areas collapse
 to their focused branch; a narrow terminal can still show multiple row tiles.
 The deterministic preview retains its separate key map.
+
+An available selected editor owns its F2 binding only in focused Main Draft.
+The Windows button and Alt+W then W keep window navigation accessible; Answer
+mode, other windows and unavailable editors retain F2 Windows. Editor frames
+fit their measured composer rectangle beside the original character. Visible
+Accepted, Queued and restored-draft feedback refer to actual input admission,
+independent of the model's later result.
+Zoomed windows keep a visible workspace status and an Alt+W then F return-to-tiles
+hint outside Arrange, so a fullscreen window remains recognizably part of the
+same tiling workspace.
 
 Passive first publication does not take focus unless an explicit placement
 preference requests it. User-opened results respect newer window-navigation

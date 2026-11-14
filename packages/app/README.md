@@ -204,8 +204,12 @@ reopens a hidden request with its native field state. Ctrl+C in a request window
 denies/cancels that request. The ordinary permission pipeline still applies.
 Selected approval, question and form controllers also use these windows.
 In Main, Alt+I switches their input with the parked native draft; separate
-focused request windows give input directly to the controller. F2 Windows and
-the host window shortcuts keep their OpenTUI precedence. Selected editor,
+focused request windows give input directly to the controller. Selected editors
+also retain their own view, draft and bindings, including F2 while an available
+focused Draft owns Main. Alt+W, then W, or the Windows button opens navigation;
+F2 Windows applies in Answer mode and other windows. Input shows Accepted or
+Queued only after host/Core ownership, and rejection restores the visible draft.
+Reload and session resume preserve its private UTF-16 checkpoint. Selected
 history and placement replacements remain unsupported in this frontend.
 Ctrl+C in an immediate-command window cancels that command and its foreground
 tools or auxiliary model call, preserving Main and neighboring command windows.

@@ -81,6 +81,25 @@ Core embedders have equivalent `AgentCoreOptions.tools`, `controlTools`,
 the disk `SessionStore` are optional. `SessionJournal` is a structural interface;
 the selected streaming service may provide the model instead.
 
+Interactive hosts can call `core.dispatchInput(text, intent)` with `intent` set
+to `"submit"` (the default) or `"steer"`. It returns two promises: `admitted`
+resolves to the exported `CoreInputAdmission` value `"submitted"`, `"queued"`,
+`"steered"`, `"command"` or `false`; `completion` retains the corresponding
+`submit`/`steer` completion behavior and errors. Existing methods remain available.
+Admission resolves when Core owns the turn, queue entry, steer or immediate
+command, before waiting for prompt hooks, local human input or model work. A
+hook that handles and drops a submitted prompt still counts as admitted. Idle
+steering reports `"submitted"`; immediate commands report `"command"`.
+
+`false` means no ownership was accepted, such as a closed Core, a command rejected
+before allocation, cancellation while waiting for lifecycle cleanup, or a journal
+failure already known before a new turn starts. Hosts can recover an editor's
+cleared draft in those cases. A later preparation, journal, hook or model failure
+does not revoke admission and must not trigger automatic resubmission. Completion
+rejections are internally observed so a host can read only `admitted`; awaiting
+`completion` still exposes its original rejection. Normal turn failures continue
+to use the existing failure events and `core.failure` behavior.
+
 `service.permission.review` runs only after ordinary policy requires approval.
 A valid `{deny:reason}` or `{value:{decision:"deny",reason}}` refuses the exact
 call without a human dialog. Legacy `{value:{decision:"allow",risk:"low",reason}}`

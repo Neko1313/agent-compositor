@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import { mkdir, writeFile, unlink } from "node:fs/promises";
 import { resolve } from "node:path";
+if(process.env.VISUAL_EXECUTABLE)throw Error('The standard smoke requires its source ScriptedProvider. Use visual:windows for the controlled native Ink window gate, or an actual-app OpenTUI scenario.');
 const root = resolve(import.meta.dirname, "../..");
 const output = resolve(
   process.env.VISUAL_OUTPUT ?? resolve(root, "dist/visual-proof")

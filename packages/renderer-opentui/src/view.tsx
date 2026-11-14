@@ -19,6 +19,7 @@ import {splitTargetLabel} from './split-target.js';
 import {handleActionMouseDown} from './mouse-action.js';
 import {ControllerFrame} from './controller-view.js';
 import {controllerBlocksInput} from './controller.js';
+import type {EditorInputOwnership} from './editor-ownership.js';
 
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
@@ -76,7 +77,7 @@ function SessionTab({ session, ...tab }: Omit<TabProps, 'label'> & { session: Co
   return <Tab {...tab} label={session.label + status} />;
 }
 
-function Conversation({ selected, animations, composerMedia, focused, width, height, isActive, isVisible }: {
+function Conversation({ selected, animations, composerMedia, focused, width, height, isActive, isVisible,editorOwnership }: {
   selected: ConversationSession;
   animations: boolean;
   composerMedia?: ComposerMedia;
@@ -85,14 +86,27 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
   height: number;
   isActive(): boolean;
   isVisible(): boolean;
+  editorOwnership?:EditorInputOwnership;
 }) {
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
   const editor = useRef<TextareaRenderable>(null);
   const history = useRef<ScrollBoxRenderable>(null);
   const [inputMode, setInputMode] = useState<{id: string; editing: boolean}>();
   const [immediate, setImmediate] = useState(false);
+  const [editorWidth,setEditorWidth]=useState(Math.max(1,width-2));
+  const owner=useRef({});
+  const currentInput=useRef({inputMode,isActive});
+  currentInput.current={inputMode,isActive};
   const requestId=state.controller?.id??state.interaction?.id;
   const editing = Boolean(requestId && inputMode?.id === requestId && inputMode.editing);
+  const ownsEditor=()=>{
+    const current=selected.snapshot(),request=current.controller?.id??current.interaction?.id;
+    const mode=currentInput.current.inputMode;
+    return Boolean(current.editor?.available)&&currentInput.current.isActive()
+      &&!(request&&mode?.id===request&&mode.editing);
+  };
+  useLayoutEffect(()=>editorOwnership?.register(owner.current,ownsEditor),[selected,editorOwnership]);
+  useLayoutEffect(()=>editorOwnership?.refresh());
   const setEditing = (value: boolean) => {
     const current = selected.snapshot(),id=current.controller?.id??current.interaction?.id;
     if (id && isActive()) flushSync(() => setInputMode({id, editing: value}));
@@ -105,10 +119,19 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
     busy ? 'Draft while running · Ctrl+J newline' : 'Enter send · Ctrl+J newline';
   const fullHint = state.controller ? `${inputHint} · Ctrl+C cancel request`
     : state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
+  const admission=state.editor?.admission?.status;
+  const selectedHint=[state.interaction||state.controller?'Alt+I answer':'',
+    admission==='rejected'?'Not sent · draft restored':admission==='queued'?'Queued':admission==='accepted'?'Accepted':'',
+    'Alt+W w windows'].filter(Boolean).join(' · ');
+  const customEditorMaxRows=Math.max(1,Math.floor(height/2)-1);
+  const customEditorRows=Math.max(1,Math.min((state.editor?.preferredRows??1)+Number(Boolean(state.editor?.view.hint)),customEditorMaxRows));
 
   useLayoutEffect(() => {
     if (focused && state.approval) history.current?.scrollTo(Infinity);
   }, [focused, selected.id, state.approval?.id]);
+  useLayoutEffect(()=>{
+    if(state.editor?.scroll)history.current?.scrollBy(-state.editor.scroll.rows);
+  },[selected.id,state.editor?.id,state.editor?.scroll?.revision]);
 
   useKeyboard(key => {
     if (key.defaultPrevented || !isActive()) return;
@@ -122,7 +145,7 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
       if (!key.repeated) flushSync(() => selected.interrupt?.());
       return;
     }
-    if (!editing && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
+    if (!editing && !selected.snapshot().editor && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
       key.preventDefault();
       history.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
     }
@@ -131,7 +154,7 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
   function messageInput() {
     const input = editor.current;
     const current = selected.snapshot();
-    if (!isActive() || editing || !input) return;
+    if (!isActive() || editing || current.editor || !input) return;
     const text = input.plainText;
     if (!text.trim()) return;
     if ((current.running || controllerBlocksInput(current.controller) || current.approval || current.interaction?.kind === 'question') && !selected.isImmediateCommand?.(text)) return;
@@ -175,15 +198,15 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
       {state.approval&&<box visible={focused} flexShrink={0}>
         <ApprovalCard key={`${selected.id}:${state.approval.id}`} request={state.approval} session={selected} height={height} isActive={isActive}/>
       </box>}
-      <box visible={!editing} border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
+      <box visible={!editing&&!state.editor} border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
         title={` ${selected.label} · ${state.approval||controllerBlocksInput(state.controller) ? 'Draft' : state.running ? 'Running' : 'Ready'} `}
         backgroundColor={composerBackground} flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
-        <textarea ref={editor} focused={focused && !editing}
+        <textarea ref={editor} focused={focused && !editing && !state.editor}
             height={editorHeight} flexGrow={1} flexBasis={0} minWidth={1} wrapMode="word"
             textColor={composerForeground} focusedTextColor={composerForeground} cursorColor={composerForeground}
             placeholder={`Message ${selected.label}…`} placeholderColor={color.muted}
-            onKeyDown={key => { if (!isActive() || editing) key.preventDefault(); }}
-            onPaste={event => { if (!isActive() || editing) event.preventDefault(); }}
+            onKeyDown={key => { if (!isActive() || editing || selected.snapshot().editor) key.preventDefault(); }}
+            onPaste={event => { if (!isActive() || editing || selected.snapshot().editor) event.preventDefault(); }}
             onContentChange={() => setImmediate(Boolean(selected.isImmediateCommand?.(editor.current?.plainText ?? '')))}
             keyBindings={editorKeys} onSubmit={send} />
         <Ghost media={composerMedia} enabled={!editing && focused && animations && wide && height >= 20} active={state.running} />
@@ -195,8 +218,21 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
             attributes={TextAttributes.BOLD}>Send</text>
         </box>}
       </box>
+      {state.editor&&<box visible={!editing} border={['top']} borderColor={color.rule}
+        titleColor={state.running?color.running:color.accent}
+        title={` ${selected.label} · ${state.running?'Running':'Ready'} `}
+        flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
+        <box flexGrow={1} flexBasis={0} minWidth={1} height={customEditorRows}
+          onSizeChange={function(this:BoxRenderable){if(this.width>0)setEditorWidth(this.width);}}>
+          <ControllerFrame key={state.editor.id} controller={state.editor} session={selected} main
+            width={editorWidth} height={customEditorRows} maxRows={customEditorMaxRows}
+            focused={focused&&!editing&&state.editor.available} isActive={ownsEditor}
+            isVisible={()=>!editing&&isVisible()}/>
+        </box>
+        <Ghost media={composerMedia} enabled={!editing&&focused&&animations&&wide&&height>=20} active={state.running}/>
+      </box>}
       {focused && <box flexDirection="row" columnGap={1} height={1}>
-        <text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.controller?' · Ctrl+C cancel request':'') + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : width >= fullHint.length + 2 ? fullHint : inputHint}</text>
+        <text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.controller?' · Ctrl+C cancel request':'') + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : state.editor?selectedHint:width >= fullHint.length + 2 ? fullHint : inputHint}</text>
         {state.controller&&<box height={1} paddingX={1} backgroundColor={color.panel} onMouseDown={event=>{
           handleActionMouseDown(event,isActive()&&selected.snapshot().controller?.id===state.controller?.id,()=>setEditing(!editing));
         }}><text selectable={false} fg={color.accent}>{editing?'Draft':'Answer'}</text></box>}
@@ -247,7 +283,7 @@ function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSour
   return <Tab {...tab} label={state.title+(status?' · '+status:'')} />;
 }
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation }: {
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
@@ -256,7 +292,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   windowLayout: WindowLayoutSource;
   surfaces?:UiSurfaceRegistry;
   navigation?:WindowNavigationSource;
+  editorOwnership?:EditorInputOwnership;
 }) {
+  const editorOwns=useSyncExternalStore(editorOwnership?.subscribe??(()=>()=>{}),editorOwnership?.snapshot??(()=>false));
   const navigationState=useSyncExternalStore((navigation??emptyNavigation).subscribe,(navigation??emptyNavigation).snapshot);
   const published=useSyncExternalStore(surfaces.subscribe,surfaces.snapshot);
   const panes: Pane[] = sessions.map(session => ({ id: session.paneId ?? 'session:' + session.id, label: session.label, session }));
@@ -375,7 +413,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   const stripPanes=navigation?panes.filter(pane=>layout.locations[pane.id]===layout.workspace):panes;
   const occupied=new Set(Object.values(layout.locations));
   const workspaceStatus=layout.error??(layout.gesture?'Drag · Esc cancel':layout.saving?'Saving layout…':navigation
-    ?width>=48?`WS ${layout.workspace} · ${navigationState.focusedLabel??'Empty workspace'}`:'* open':'');
+    ?width>=48?`WS ${layout.workspace}${layout.fullscreen?' · Zoomed':''} · ${navigationState.focusedLabel??'Empty workspace'}`:layout.fullscreen?'Zoomed · Alt+W f tiles':'* open':'');
   const workspaceBar=<box flexDirection="row" columnGap={navigation?0:1} height={1} flexShrink={0} paddingX={1}>
     <text fg={color.muted}>{navigation?'WS ':'WS'}</text>
     {layout.workspaces.map(id=>{
@@ -407,7 +445,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     {navigation&&workspaceBar}
     {navigation&&<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {navigationButton(width>=42?(navigationState.mode==='arrange'?'Alt+W Type':'Alt+W Arrange'):(navigationState.mode==='arrange'?'Type':'Arrange'),navigationState.mode==='arrange',()=>navigation.toggleArrange())}
-      {navigationButton(width>=42?'F2 Windows':'Windows',navigationState.mode==='finder',()=>navigation.openFinder())}
+      {navigationButton(width>=42?(editorOwns?'Alt+W w Windows':'F2 Windows'):'Windows',navigationState.mode==='finder',()=>navigation.openFinder())}
       {navigationButton(width>=42?'Alt+0 Main':'Main',false,()=>{navigation.handle({kind:'key',key:'0',modifiers:['alt']});})}
     </box>}
     {navigation?<scrollbox ref={tabStrip} height={1} flexShrink={0} scrollX scrollY={false} focusable={false}
@@ -434,7 +472,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
           drop={layout.drop?.surface === pane.id ? layout.drop.edge : undefined}>
           {(width, height) => pane.session
             ? <Conversation selected={pane.session} animations={animations} composerMedia={composerMedia}
-                focused={focused} width={width} height={height} isActive={isActive} isVisible={isVisible} />
+                focused={focused} width={width} height={height} isActive={isActive} isVisible={isVisible} editorOwnership={editorOwnership}/>
             :pane.surface?<SurfaceView source={pane.surface} focused={focused} width={width} height={height}
               isActive={isActive} isVisible={isVisible}/>
             : pane.id === 'workflows' && workflowTable
@@ -457,7 +495,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
           ? (layout.gesture === 'resize' ? 'Mouse resize · Esc cancel' : 'Move window · Esc cancel')
           : splitTargetLabel(layout, width)}</text>
         <text fg={color.text} truncate>{width>=88?'h/j/k/l focus · Shift move · b columns · v rows · +/− resize · f zoom · q close · 1–9 workspace · w windows · i type · Esc exit':width>=48?'h/j/k/l focus · Shift move · b/v split · +/− size · w windows · i type · Esc exit':'Esc exit · i type · w windows'}</text>
-      </>:<text fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':width>=88?'Alt+W Arrange · F2 Windows · Alt+0 Main · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'Alt+W Arrange · F2 Windows · Alt+0 Main'}</text>}
+      </>:<text fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':(layout.fullscreen?'Zoomed · Alt+W f tiles · ':'')+`Alt+W Arrange · ${editorOwns?'Alt+W w Windows':'F2 Windows'} · Alt+0 Main`+(width>=88?' · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'')}</text>}
     </box>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {controls.map((type, index) => layoutButton('F' + (controlStart + index) + ' ' +
         (type === 'zoom' && layout.fullscreen ? 'Unzoom' : controlLabels[index]), { type }))}

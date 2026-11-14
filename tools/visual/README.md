@@ -19,6 +19,18 @@ installation may require `npx playwright install --with-deps chromium` on
 minimal Linux hosts. An existing compatible Chromium can be selected with
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/absolute/path/to/chrome`.
 
+The emulator explicitly uses the stable Unicode 11 scalar-width provider before
+receiving PTY output. This matches the width-two emoji/CJK and combining-mark
+profile exercised by the native checks; xterm's default Unicode 6 profile treats
+modern emoji as one cell and can leave stale glyphs after valid cursor updates.
+The raw-ANSI regression checks both profiles against the same writes. This does
+not establish support for every extended emoji or grapheme-cluster sequence.
+
+The standard `visual:check` smoke uses its source ScriptedProvider and rejects
+`VISUAL_EXECUTABLE`. For native Ink window verification use `visual:windows`,
+which configures its isolated loopback approval/question fixtures. Actual-app
+OpenTUI scenarios below also accept a complete relocated native archive.
+
 The standard scenario also checks the semantic agent overview: expand by mouse
 and keyboard, click state tabs, switch with Left/Right, resize to stacked narrow fields and enter the
 selected agent's conversation. Screenshots include the expanded and narrow views.
@@ -109,6 +121,26 @@ exclude the diagnostic raw synthetic keystroke log. Artifacts default to
 native archive. This scenario does not establish selected editor, placement or
 full render/wire parity. The older `visual:controllers` keeps its complete Ink
 composition and its documented custom-editor F2 key unchanged.
+
+`npm run visual:opentui-editor` checks a selected editor in two fresh actual-CLI
+compositions: native private requests, then selected private request controllers.
+Its six bounded flows retain the original F2-submit/Enter-newline contract and
+exercise UTF-16 cursor checkpoints, terminal paste, command/file capabilities,
+visible busy queue receipts, accepted hook/provider failures, native and selected
+private request ownership, and a real four-operation admission limit. A rejected
+fifth immediate command must restore the visible editor lease before applying
+following input. Canonical extension reload and chat-history resume carry the
+unsent checkpoint before destructive disposal; a gated old-generation handler
+must lose its capabilities and cannot submit afterward. Disabling the selected
+owner fails closed. This is in-process transfer, not a promise to persist unsent
+drafts across process restart. Finder opens through Alt+W then w while the custom
+Draft owns F2; known-label selection retains the shared exact query/count/native
+highlight acknowledgement. External gate files control fixture completion only.
+Private form receipts retain a token hash, and privacy scans exclude the raw
+synthetic keystroke log. Artifacts default to `dist/visual-opentui-editor/` with
+separate `native/` and `selected/` reports; `VISUAL_EXECUTABLE` runs the same checks
+against a complete relocated native archive.
+
 
 Known-label Finder opens in the controller, request-window, manager and
 cancellation checks share [opentui-finder.mjs](opentui-finder.mjs). The helper

@@ -1,4 +1,4 @@
-export { AgentCore, type AgentCoreOptions, type CorePlugin, type CoreState, type LoopEvent } from "./loop.js";
+export { AgentCore, type AgentCoreOptions, type CorePlugin, type CoreState, type CoreInputAdmission, type LoopEvent } from "./loop.js";
 export { replayTranscript } from "./resume.js";
 export {isCompactionEvidence} from './compaction-evidence.js';
 export {

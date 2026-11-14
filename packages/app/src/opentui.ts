@@ -25,7 +25,7 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
   try{
     const windows=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'}],initial:['session']});
     layout=windows;
-    host=createOpenTuiHost(app,windows);
+    host=createOpenTuiHost(app,windows,{onExit:()=>stop.abort()});
     const current=host;
     const {runOpenTuiRenderer}=await rendererModule();
     startup=current.start().then(async()=>{

@@ -125,8 +125,21 @@ the lease's serialized asynchronous handler runs. Settlement checks the same
 live lease, without granting fresh focus after an await. Failure denies an
 approval, rejects a question or cancels a form with a constant diagnostic;
 controller exception text cannot leak private input into notices or journals.
-The resident Main editor parks while a selected request owns input. Editor,
-history and placement replacement are separate remaining frontend gates.
+The resident Main editor parks while a selected request owns input. Selected
+editor leases use a separate host adapter because command/file discovery carries
+callable capabilities. The renderer receives only the validated editor view,
+availability and input/admission/scroll receipts. Private UTF-16 checkpoints are
+captured before disposal; serialized input waits for Core ownership rather than
+model completion. Rejected ownership restores the visible draft before later
+queued input; an accepted turn failure never restores it. Lifetime-guarded
+capabilities and captured input-time navigation intent survive neither a Core
+replacement nor a revoked lease. History and placement replacement remain
+separate frontend gates.
+
+Each admitted editor input marks fresh user intent before its asynchronous
+handler runs. Two UI commands therefore cannot share an old continuation's focus
+priority; a slow first result remains passive after a newer command or edit.
+Invalid, stale, hidden or unfocused inputs and viewport updates do not renew it.
 
 Portable plugin views may include a catalog 0.27 semantic table: labeled columns,
 stable rows, ordinary actions and expandable details. Producers own expansion and

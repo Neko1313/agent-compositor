@@ -10,6 +10,7 @@ import {isWindowGestureCancelKey,type WindowLayoutSource} from './layout.js';
 import type {UiSurfaceRegistry} from './surface.js';
 import type {WindowNavigationInput,WindowNavigationSource} from './navigation.js';
 import {useKeyboard} from '@opentui/react';
+import {createEditorInputOwnership} from './editor-ownership.js';
 
 // Closed windows keep native widgets resident. The host admits at most 256
 // panes, each with up to two keyboard hooks; SDK and desktop handlers use the
@@ -40,6 +41,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   if (new Set(paneIds).size !== paneIds.length) throw new Error('Window pane IDs must be unique.');
   const renderer = await createCliRenderer({stdin:options.stdin,stdout:options.stdout,environment:options.environment,
     exitOnCtrlC:!options.onCtrlC, kittyImageTransport: 'zlib'});
+  const editorOwnership=createEditorInputOwnership();
   const abort=()=>renderer.destroy();
   options.signal?.addEventListener('abort',abort,{once:true});
   const captureKey=(key:KeyEvent)=>{
@@ -49,6 +51,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
       if(options.windowLayout.snapshot().gesture&&isWindowGestureCancelKey(key)){
         options.windowLayout.act({type:'pointer',phase:'cancel',x:0,y:0});consumed=true;return;
       }
+      if(key.name==='f2'&&!key.ctrl&&!key.meta&&!key.option&&!key.shift&&!key.super&&!key.hyper&&editorOwnership.ownsInput())return;
       const legacy=/^\x1b([!@#$%^&*(])$/.exec(key.sequence);
       const input:WindowNavigationInput={kind:'key',key:legacy?String('!@#$%^&*('.indexOf(legacy[1])+1):key.name,
         text:key.sequence,modifiers:[...(key.ctrl?['ctrl']:[]),...(key.meta||key.option||legacy?['alt']:[]),
@@ -77,7 +80,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     });
     return <ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
-      animations={options.animations??true} composerMedia={options.composerMedia} />;
+      animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership} />;
   }
   try {
     renderer.keyInput.setMaxListeners(keyboardListenerLimit);
@@ -98,5 +101,5 @@ export type {PluginTableSource} from './table.js';
 export type {PluginManagerSource, PluginManagerSnapshot, PluginManagerRow, PluginManagerAction} from './plugins.js';
 export type {ComposerMedia} from './ghost.js';
 export type {ConversationSession, ConversationSnapshot, ConversationApproval, ConversationInteraction, Message} from './session.js';
-export type {ConversationController, ControllerInput, ControllerView, ControllerCell} from './controller.js';
+export type {ConversationController, ConversationEditor, ControllerInput, ControllerView, ControllerCell} from './controller.js';
 export type {WindowLayoutSource, WindowLayoutSnapshot, WindowLayoutAction, WindowFrame, WindowDirection, WindowDropEdge, WindowSplitTarget} from './layout.js';

@@ -10,6 +10,9 @@ import {resolvePlacement, type PlacementConfig} from './placement.js';
 import {clean} from './presentation.js';
 import {createWindowNavigation, type NavigationWindow} from './opentui-navigation.js';
 import type {DynamicWindowLayout} from './opentui-windows.js';
+import {createOpenTuiEditor} from './opentui-editor.js';
+import {referenceFiles} from './project-context.js';
+import type {UiEditorIntent, UiEditorState} from '@agent-compositor/hooks';
 
 export {connectConversation, connectPluginTable} from './opentui-conversation.js';
 
@@ -96,7 +99,7 @@ function legacyView(value: unknown): UiTextView | undefined {
 }
 
 /** Assemble the actual application behind renderer-neutral conversations and plugin surfaces. */
-export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
+export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, options: {onExit?(): void} = {}) {
   const placementConfig: PlacementConfig = structuredClone(app.config.config.ui ?? {});
   const surfaceMap = new Map<string, Surface>();
   const windowTitles = new Map<string, {title: string; owner: string}>();
@@ -125,9 +128,11 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
   let offCore: (() => void) | undefined, offConversation: (() => void) | undefined, offForm: (() => void) | undefined;
   let offOrigin: (() => void) | undefined;
   let offLayout: (() => void) | undefined;
+  let editor: ReturnType<typeof createOpenTuiEditor> | undefined, offEditor: (() => void) | undefined;
+  let editorDraft: UiEditorState = {text: '', cursor: 0};
   const pending = new Set<Promise<unknown>>();
   const changed = () => {
-    sessionState = {...conversation.snapshot(), ...(localNotice ? {notice: localNotice} : {})};
+    sessionState = {...conversation.snapshot(), ...(editor ? {editor: editor.snapshot()} : {}), ...(localNotice ? {notice: localNotice} : {})};
     for (const fn of sessionListeners) fn();
   };
   const registryChanged = () => {
@@ -217,7 +222,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     ? 'Session startup did not finish. Retry /reload before continuing.'
     : 'Plugin reload did not finish. Retry /reload before continuing.';
   const native = (owner: AgentCore) => {
-    for (const kind of ['editor', 'history', 'placement'] as const)
+    for (const kind of ['history', 'placement'] as const)
       if (owner.host.controllers.selectedOwner(kind) !== '@host')
         throw Error('Selected ' + kind + ' controllers are not supported by OpenTUI');
   };
@@ -309,14 +314,14 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
         op => emit(op, 'ui.change', {site: surface.source.id, id: change.field, value: change.value}), surface, 'change');
     }
   }
-  function runOperation(owner: string, site: string, run: (op: Operation) => Promise<unknown>, source?: Surface, kind: Operation['kind'] = 'action', open = false, navigationSignal?: AbortSignal): Operation | undefined {
+  function runOperation(owner: string, site: string, run: (op: Operation) => Promise<unknown>, source?: Surface, kind: Operation['kind'] = 'action', open = false, navigationSignal?: AbortSignal, windowIntent = layout.windowIntentRevision): Operation | undefined {
     if (!active || owner !== '@host' && !core.host.hasPlugin(owner)) return;
     if (reloadFailed) {notice(retryMessage()); return;}
     if (reloading) {notice('Plugin reload is applying. Try the action again when it finishes.'); return;}
     if (operations.size >= 4) {notice('Four interface operations are already active'); return;}
     if (navigationSignal?.aborted) return;
     const op: Operation = {id: randomUUID(), owner, site, core, controller: new AbortController(), active: true, kind, open,
-      windowIntent: layout.windowIntentRevision, opened: new Set(), destinations: new Set(), navigationSignal};
+      windowIntent, opened: new Set(), destinations: new Set(), navigationSignal};
     const abortNavigation = () => op.controller.abort();
     navigationSignal?.addEventListener('abort', abortNavigation, {once: true});
     operations.set(op.id, op);
@@ -617,6 +622,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     navigation?.refresh();
     offConversation = conversation.subscribe(changed);
     offCore = next.subscribe(receive);
+    bindEditor(next);
     next.runtime.setResolver('service.session.control', async (args: {action: string; id?: string}) => {
       if (args.action !== 'resume') return (await next.host.emit('service.session.store', args)).value;
       const current = context.getStore();
@@ -651,6 +657,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     });
   }
   function unbind() {
+    offEditor?.();offEditor = undefined;
+    if (editor) {editorDraft = editor.checkpoint();editor.close();editor = undefined;}
     channels?.generation.abort(Error('Application input channel replaced'));
     offOrigin?.(); offOrigin = undefined;
     offForm?.(); offForm = undefined;
@@ -732,11 +740,11 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     });
     return [...entries.values()];
   }
-  function dispatch(command: NonNullable<ReturnType<typeof route>>, signal?: AbortSignal) {
-    layout.markWindowIntent();
+  function dispatch(command: NonNullable<ReturnType<typeof route>>, signal?: AbortSignal, windowIntent?: number) {
+    if (windowIntent === undefined) layout.markWindowIntent();
     return runOperation(command.owner, command.site, op => command.command
       ? op.core.invokeCommand(command.command, op.controller.signal)
-      : emit(op, 'ui.press', {site: command.site, key: command.key}), undefined, 'action', true, signal);
+      : emit(op, 'ui.press', {site: command.site, key: command.key}), undefined, 'action', true, signal, windowIntent);
   }
   function waitForDestination(op: Operation, signal: AbortSignal) {
     return new Promise<void>((resolve, reject) => {
@@ -773,6 +781,52 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
   function immediate(text: string) {
     const name = text.trim().split(/\s+/)[0];
     return ['/chat', '/reload', '/windows', '/placement'].includes(name) || route(text) !== undefined;
+  }
+  async function sendEditor(owner: AgentCore, intent: Extract<UiEditorIntent, {type: 'submit' | 'steer'}>, windowIntent: number) {
+    if (!active || owner !== core || switching || reloading || reloadPromise) return false as const;
+    const text = intent.text, name = text.trim().split(/\s+/)[0];
+    if (reloadFailed && name !== '/reload') return false as const;
+    if (name === '/chat') {
+      if (windowIntent === layout.windowIntentRevision) layout.actAutomatic({type: 'open', id: 'session'});
+      return 'command' as const;
+    }
+    if (name === '/windows') {
+      if (windowIntent === layout.windowIntentRevision) navigation?.openFinder();
+      return 'command' as const;
+    }
+    if (name === '/placement') return runOperation('@host', 'host:placement', arrange, undefined, 'action', false, undefined, windowIntent) ? 'command' as const : false as const;
+    if (name === '/reload') {
+      pendingReload = true;reloadFailed = false;notice('Plugin reload queued until current operations finish');
+      track(Promise.resolve().then(() => reloadIfReady()));return 'command' as const;
+    }
+    const command = route(text);
+    if (command) return dispatch(command, undefined, windowIntent) ? 'command' as const : false as const;
+    localNotice = undefined;
+    const receipt = owner.dispatchInput(text, intent.type);
+    track(receipt.completion.finally(() => reloadIfReady()));
+    return receipt.admitted;
+  }
+  function bindEditor(owner: AgentCore) {
+    offEditor?.();
+    const replace = () => {
+      if (editor) {editorDraft = editor.checkpoint();editor.close();editor = undefined;}
+      if (!active || owner !== core || owner.host.controllers.selectedOwner('editor') === '@host') {changed();return;}
+      editor = createOpenTuiEditor({registry: owner.host.controllers, state: editorDraft, signal: channels!.generation.signal,
+        current: () => active && owner === core,
+        data: signal => {
+          const current = () => {signal.throwIfAborted();if (!active || core !== owner) throw Error('Editor capabilities have expired');};
+          return {sessionId: owner.sessionId,
+            commands: () => {current();return app.commands().map(({name, description, usage}) => ({name, description, ...(usage ? {usage} : {})}));},
+            files: async prefix => {current();const files = await referenceFiles(owner.workspace, prefix);current();return files;},
+          };
+        },
+        changed, captureIntent: () => {layout.markWindowIntent();return layout.windowIntentRevision;},
+        send: (intent, windowIntent) => sendEditor(owner, intent, windowIntent),
+        interrupt: () => {if (active && core === owner) {if (owner.getState() === 'running') owner.interrupt();else options.onExit?.();}},
+      });
+      changed();
+    };
+    replace();offEditor = owner.host.controllers.subscribe(kinds => {if (kinds.includes('editor')) replace();});
   }
   async function submit(text: string): Promise<void> {
     if (!active || !text.trim()) return;
@@ -828,6 +882,13 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     cancelController(id) {
       if (active && navigation?.snapshot().mode === 'normal' && layout.snapshot().focused === 'session')inbox.cancelController(id);
     },
+    editorInput(id, input, revision) {
+      const current = editor;
+      if (active && current?.snapshot().id === id && navigation?.snapshot().mode === 'normal'
+        && layout.snapshot().focused === 'session' && layout.snapshot().frames.some(frame => frame.surface === 'session'))
+        return current?.input(input, revision);
+    },
+    editorViewport(id, columns, rows, maxRows) {const current = editor;if (active && current?.snapshot().id === id) current?.viewport(columns, rows, maxRows);},
   };
   return {
     session, surfaces, composerMedia, navigation, get core() {return core;}, submit,

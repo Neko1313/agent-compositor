@@ -438,7 +438,18 @@ Main keeps an explicit answer/draft input owner; selected approvals retain
 validated once/session/project results through the ordinary Core policy.
 This closes only the private-request portion of controller migration.
 
-Remaining frontend gates include selected editor/history/placement controllers,
+Selected editors now have a separate capability-bearing host adapter. Validated
+views and bounded receipts reach OpenTUI; command/file discovery and UTF-16
+checkpoints stay private. Available focused Draft owns its plugin's F2 binding;
+the window toolbar and Alt+W then W remain reachable. Answer mode and other
+windows retain F2 Windows. Submit/steer use Core's actual admission receipt before
+editor input continues, preserving busy queues and restoring a visible draft
+only when ownership was rejected. Reload/resume retain state before disposal;
+old leases cannot submit to the replacement Core. This closes the selected
+editor implementation gate; actual source/native verification is recorded with
+the milestone evidence rather than inferred from host tests.
+
+Remaining frontend gates include selected history/placement controllers,
 full appearance/render overrides, legacy
 conversation copies, complete wire-protocol parity and exact delegated-child
 request attribution. Ordinary UI operations and retained plugin services now

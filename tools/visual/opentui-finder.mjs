@@ -1,5 +1,5 @@
 /** Known-label Finder actions use only real terminal cells and keyboard input. */
-export function createOpenTuiFinder({page,key,wait,absent}){
+export function createOpenTuiFinder({page,key,wait,absent,open=()=>key('F2')}){
   const marker='windows · ↑↓ select · Enter open';
   async function state(value,count,selected=false){
     const handle=await page.waitForFunction(({value,count,selected})=>{
@@ -31,7 +31,7 @@ export function createOpenTuiFinder({page,key,wait,absent}){
   async function query(value,count){await page.keyboard.type(value);return state(value,count);}
   async function pick(value,count=1){
     if(!Number.isSafeInteger(count)||count<1)throw Error('A known Finder label needs a positive expected result count');
-    await key('F2');await wait(marker);const choice=await query(value,count);
+    await open();await wait(marker);const choice=await query(value,count);
     // A request can publish after query editing. Its late row intentionally has
     // no selection; select that visible current result before one explicit Enter.
     if(!choice.selected)await key('ArrowDown');

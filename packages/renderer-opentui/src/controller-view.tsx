@@ -3,7 +3,7 @@ import {MouseButton,TextAttributes,parseColor,defaultTextareaKeyBindings,type Bo
 import {flushSync,useKeyboard,usePaste} from '@opentui/react';
 import {useLayoutEffect,useRef} from 'react';
 import type {ConversationSession} from './session.js';
-import {controllerKey,type ConversationController,type ControllerInput,type ControllerView} from './controller.js';
+import {controllerKey,type ConversationController,type ConversationEditor,type ControllerInput,type ControllerView} from './controller.js';
 import {color} from './colors.js';
 import {handleActionMouseDown} from './mouse-action.js';
 import {SurfaceRaster} from './surface-raster.js';
@@ -18,7 +18,7 @@ function cellColor(value:string|undefined,fallback:string){
 
 /** A private validated frame, with input forwarded to its host-owned lease. */
 export function ControllerFrame({controller,session,width,height,maxRows=height,focused,isActive,isVisible,main=false}: {
-  controller:ConversationController;session:ConversationSession;width:number;height:number;maxRows?:number;
+  controller:ConversationController|ConversationEditor;session:ConversationSession;width:number;height:number;maxRows?:number;
   focused:boolean;isActive():boolean;isVisible():boolean;main?:boolean;
 }) {
   const bounds=useRef<BoxRenderable>(null);
@@ -31,19 +31,21 @@ export function ControllerFrame({controller,session,width,height,maxRows=height,
   const hintRows=Number(Boolean(view.hint)&&height>1);
   const contentHeight=Math.max(1,height-hintRows);
   const current=()=>{
-    const frame=session.snapshot().controller;
-    return isActive()&&frame?.id===controller.id?frame:undefined;
+    const state=session.snapshot(),frame=controller.kind==='editor'?state.editor:state.controller;
+    return isActive()&&frame?.id===controller.id&&(frame.kind!=='editor'||frame.available)?frame:undefined;
   };
   const send=(input:ControllerInput,revision?:number)=>{
     const frame=current();
     let ticket:number|undefined;
     if(frame&&(revision===undefined||revision===frame.revision))
-      flushSync(()=>{ticket=session.controllerInput?.(frame.id,input,revision??frame.revision);});
+      flushSync(()=>{ticket=(frame.kind==='editor'?session.editorInput:session.controllerInput)?.(frame.id,input,revision??frame.revision);});
     return ticket;
   };
   useLayoutEffect(()=>{
-    if(isVisible()&&width>0&&maxRows>0)session.controllerViewport?.(controller.id,width,Math.max(1,maxRows-hintRows));
-  },[session,controller.id,width,maxRows,hintRows,isVisible()]);
+    if(!isVisible()||width<=0||maxRows<=0)return;
+    if(controller.kind==='editor')session.editorViewport?.(controller.id,width,contentHeight,Math.max(1,maxRows-hintRows));
+    else session.controllerViewport?.(controller.id,width,Math.max(1,maxRows-hintRows));
+  },[session,controller.id,width,maxRows,hintRows,contentHeight,isVisible()]);
   useLayoutEffect(()=>{
     const input=view.input;
     if(fieldId.current!==input?.id){fieldId.current=input?.id;latestChange.current=0;}

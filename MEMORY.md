@@ -1,5 +1,89 @@
 # Project memory
 
+## Selected OpenTUI editor and visible window ownership — 2026-11-14
+
+The user's UI direction is an observable i3-like window manager: independent
+windows, visible focus/workspace/zoom state, nested tiles and navigation that
+remains usable while an agent or private request is active. Continue judging
+the migration against that interaction flow. Ink remains the default until
+the remaining migration gates close. Normal OpenTUI zoom now has a persistent
+Zoomed cue and Alt+W then F return-to-tiles hint, outside Arrange.
+
+Selected editors now use a separate capability-bearing host adapter. Only
+validated visible frames and bounded receipts reach the renderer; private
+UTF-16 snapshots, factories and commands/files capabilities stay in the host.
+The resident native composer is parked. Available focused Main Draft owns its
+documented F2 binding; Answer, other windows, Finder, Arrange and unavailable
+editors retain F2 Windows. Alt+W then W and the toolbar always open Windows.
+Main question/form Answer mode stays separate from the selected draft/cursor.
+
+Core dispatchInput separates actual admission from completion. Submit/steer
+retain busy queues and accepted prompt-drop semantics. The editor serializes
+handle, admission and recovery; genuine rejected ownership recreates the
+visible pre-input snapshot before later already-admitted input runs. Accepted
+command/model failure never restores a consumed draft. Reload/resume snapshot
+before destructive disposal; old Core/lease capabilities and late handles are
+revoked. Unavailable selected editors fail closed with window navigation intact.
+
+Independent review reproduced and fixed two concrete issues: preferred-size
+capacity was incorrectly passed as actual render rows, hiding last-row controls;
+and two editor commands shared a navigation epoch, allowing a slow first result
+to focus after a newer command. Render rows and measurement capacity are now
+separate. Valid editor input marks/captures fresh intent before async handling;
+completion never renews it. Recovery also clears old one-shot scroll receipts.
+An accepted-drop/unload race hypothesis was disproved by actual host regressions;
+no speculative Core callback API was added.
+
+The first source bench exposed xterm's default Unicode 6 width-one emoji profile
+against OpenTUI's width-two ANSI cursor updates. The same entire captured ANSI
+replays with duplicate emoji under Unicode 6 and exact text under Unicode 11.
+The shared bench explicitly loads stable addon-unicode11 0.9 before PTY output;
+the unchanged Unicode/CJK/combining/cursor oracle and raw-ANSI regression pass.
+This is a scalar-width test profile, not universal grapheme/native-terminal
+coverage. Failure evidence remains in
+dist/opentui-selected-editor-source-first and its diagnosis JSON files.
+Later preserved fixture failures were an incorrect native-question title selector
+and expecting a reply at the bottom after deliberately scrolling away. Exact body
+selection and real older/latest scroll intents fix the scenario without changing
+product history semantics, timeouts, decisions or privacy checks.
+
+Source editor verification passes all six actual-CLI flows in
+dist/opentui-selected-editor-source-scroll: native and selected requests, both
+PTY exit 0/errors:[], eleven inspected stable PNGs. It covers exact Unicode,
+Enter/F2 ownership, local mouse, capabilities, busy queues, accepted failures,
+private question/form state, canonical reload/history resume, stale capability
+revocation, both history directions, four-operation rejection with same-chunk
+later input recovery and disabled-owner failure. Full standalone coverage passes
+2028 tests, three optional skips, 221 files. Full typecheck, gen/docs:gen and
+106-page docs:check/build pass. Native build and release smoke pass. Relocated
+verification passes 47 cases: editor six, app six, navigation eight, managers
+five, cancellation three, requests six, private controllers six and controlled
+Ink windows seven. All reports have errors:[]; editor's two compositions and
+Ink's two fixtures exit 0. Current evidence:
+dist/opentui-selected-editor-current-native-* and
+dist/ink-selected-editor-current-native. The immutable executable hash is
+35c0ba74817f7b6b165478e41b071e676e17c48ec62d4098f04a2278804073ad,
+renderer 6ce232d2e9ef34943f8ee58aabade92eff993df520cb6f982525a614c74c3c65,
+archive 2a7f163f7b3393cb706ca2cb788c97c40b442c352ba938a598b5ffd066506e98.
+An independent review rehashed these artifacts, inspected eight native captures,
+scanned both private compositions and cleared the bounded editor gate. New-head
+four-platform CI remains required; local proof is not remote proof.
+
+Previous b279297 controller/Finder milestone is fully closed: main CI 43549587540,
+docs 43549587477, preparation 43549587468 and build-only 43549632196 all succeed;
+the latter passes verification and all four native platforms with publication
+skipped. Earlier failed runs stay failed. This is not current editor-head proof.
+Selected history/placement, broader appearance/wire parity and the remaining
+onboarding/real-model quality gates still prevent a 1.0 claim. No OpenAI
+evaluation requests were made for this editor milestone. One mistaken native
+run of the source-only visual:check instead reached the default local Ollama
+endpoint/model (gemma4:31b-cloud) and failed at the scripted task-update oracle.
+Its evidence remains in dist/opentui-selected-editor-current-native-ink and is
+not counted as a gate. visual:check now rejects native executable overrides;
+the correct controlled native Ink gate is visual:windows. Do not claim that
+all invocation attempts used scripted providers or infer cloud billing from
+the absence of an OpenAI key.
+
 ## Shared known-label Finder bench actions — 2026-11-14
 
 The 3ee9584 main CI, docs, release preparation and native verification pass.

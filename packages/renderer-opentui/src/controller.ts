@@ -24,6 +24,19 @@ export interface ConversationController {
   preferredRows: number;
 }
 
+/** A selected editor's visible frame, without its private draft or capabilities. */
+export interface ConversationEditor {
+  id: string;
+  kind: 'editor';
+  revision: number;
+  inputRevision: number;
+  available: boolean;
+  view: ControllerView;
+  preferredRows: number;
+  admission?: {sequence: number; type: 'submit'|'steer'; status: 'accepted'|'queued'|'rejected'};
+  scroll?: {revision: number; rows: number};
+}
+
 /** A local form can coexist with an idle conversation's next model turn. */
 export function controllerBlocksInput(controller: Pick<ConversationController,'kind'>|undefined): boolean {
   return controller?.kind==='approval'||controller?.kind==='question';

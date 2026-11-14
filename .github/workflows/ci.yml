@@ -71,6 +71,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-controllers
+      - name: Check selected OpenTUI editor ownership and lifecycle
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-editor
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -113,6 +117,7 @@ jobs:
             dist/visual-opentui-cancellation/
             dist/visual-opentui-requests/
             dist/visual-opentui-controllers/
+            dist/visual-opentui-editor/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

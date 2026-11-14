@@ -160,6 +160,10 @@ type EmitValue = { value: unknown };
 
 export type CoreState = "idle" | "running" | "interrupted";
 
+/** Ownership accepted by Core, independently of the input's eventual outcome. */
+export type CoreInputAdmission = "submitted" | "queued" | "steered" | "command" | false;
+type InputAdmitted = (admission: Exclude<CoreInputAdmission, false>) => void;
+
 /**
  * The greenfield agent core. Every seam is a catalog event fired through the
  * hooks dispatcher:
@@ -1043,6 +1047,9 @@ export class AgentCore {
   hasImmediateCommand(text:string):boolean{return !!this.immediateCommand(text);}
   /** Explicit user control: no prompt queue, transcript mutation or implied pane. */
   async invokeCommand(text:string,callerSignal?:AbortSignal):Promise<boolean>{
+    return this.invokeCommandInput(text,callerSignal);
+  }
+  private async invokeCommandInput(text:string,callerSignal?:AbortSignal,admitted?:InputAdmitted):Promise<boolean>{
     if(this.closed)throw Error('Session is closed');
     const command=this.immediateCommand(text);if(!command)return false;
     callerSignal?.throwIfAborted();
@@ -1064,43 +1071,63 @@ export class AgentCore {
     })).then(async()=>{await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'completed',ok:true});},async error=>{
       await this.emit('command.operation',{operationId:op.id,name:command.name,plugin:command.plugin,phase:'completed',ok:false,error:String(error)});throw error;
     }).finally(()=>{clearTimeout(timer);this.commandOperations.delete(op.id);});
-    op.promise=work;await work;return true;
+    op.promise=work;admitted?.('command');await work;return true;
+  }
+  /** Admit user input without waiting for a prompt hook, command or model turn. */
+  dispatchInput(text:string,intent:'submit'|'steer'='submit'):{admitted:Promise<CoreInputAdmission>;completion:Promise<void>}{
+    let settled=false,resolve!:(admission:CoreInputAdmission)=>void;
+    const admitted=new Promise<CoreInputAdmission>(done=>{resolve=done;});
+    const settle=(admission:CoreInputAdmission)=>{if(!settled){settled=true;resolve(admission);}};
+    const completion=this.closed?Promise.reject<void>(Error('Session is closed'))
+      :intent==='steer'?this.steerInput(text,settle):this.submitInput(text,'user',settle);
+    // Observe failures even when a host needs only the admission receipt. The
+    // original completion promise retains its rejection for callers that await it.
+    void completion.then(()=>settle(false),()=>settle(false));
+    return{admitted,completion};
   }
   /** Renderer entry: immediate user controls dispatch; ordinary busy prompts queue. */
   async submit(text: string,source:"user"|"agent"="user"): Promise<void> {
+    return this.submitInput(text,source);
+  }
+  private async submitInput(text:string,source:"user"|"agent",admitted?:InputAdmitted):Promise<void>{
     const cancellation=this.promptCancellation;
     if(this.resettingBackground)await this.resetBackground;
     if(this.closed)throw Error('Session is closed');
     if(cancellation!==this.promptCancellation)return;
-    if(source==='user'&&this.immediateCommand(text)){await this.invokeCommand(text);return;}
+    if(source==='user'&&this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
     // Terminal hooks and journal writes still belong to the previous turn.
     // Let its cleanup settle before a resume can replace shared turn context.
     if(this.activeTurn&&this.state!=="running"){
       await this.activeTurn;
       if(this.closed)throw Error('Session is closed');
       if(cancellation!==this.promptCancellation)return;
-      return this.submit(text,source);
+      return this.submitInput(text,source,admitted);
     }
     if (this.state === "running") {
       this.promptQueue.push({text,source});
+      admitted?.('queued');
       await this.emit("prompt.queued", {
         text,
         depth: this.promptQueue.length,
       });
       return;
     }
-    await this.runTurn(text,source);
+    await this.runTurn(text,source,undefined,admitted);
     await this.drainQueue();
   }
 
   /** Renderer entry: steer the running turn (codex Tab). Idles fall back to submit. */
   async steer(text: string): Promise<void> {
-    if(this.immediateCommand(text)){await this.invokeCommand(text);return;}
+    return this.steerInput(text);
+  }
+  private async steerInput(text:string,admitted?:InputAdmitted):Promise<void>{
+    if(this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
     if (this.state !== "running") {
-      await this.submit(text);
+      await this.submitInput(text,'user',admitted);
       return;
     }
     this.steerQueue.push(text);
+    admitted?.('steered');
     const turnId=this.currentTurnId??'';
     await this.emit("prompt.steer", { turnId, text },undefined,{turnId});
   }
@@ -1146,10 +1173,10 @@ export class AgentCore {
 
   // ---- the turn engine -----------------------------------------------------
 
-  private runTurn(text: string,source:"user"|"agent"="user",origin?:"harness"): Promise<void> {
+  private runTurn(text: string,source:"user"|"agent"="user",origin?:"harness",admitted?:InputAdmitted): Promise<void> {
     const run=(async()=>{
       this.inputSource=source;
-      try {await this.runTurnUnchecked(text,origin);}
+      try {await this.runTurnUnchecked(text,origin,admitted);}
       catch(error){
         this.lastTurnError=String(error);
         if(this.journalFailure){this.promptQueue=[];this.steerQueue=[];}
@@ -1161,7 +1188,7 @@ export class AgentCore {
     this.activeTurn=run;
     return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
   }
-  private async runTurnUnchecked(text: string,origin?:"harness"): Promise<void> {
+  private async runTurnUnchecked(text: string,origin?:"harness",admitted?:InputAdmitted): Promise<void> {
     if(this.journalFailure)throw this.journalFailure;
     const turnId = randomUUID();
     this.currentTurnId = turnId;
@@ -1172,6 +1199,7 @@ export class AgentCore {
     this.state = "running";
     this.interruptedByUser = false;
     this.abort = new AbortController();
+    admitted?.('submitted');
     const usage = { inputTokens: 0, outputTokens: 0 };
 
     this.inPromptHook = true;

@@ -9,12 +9,12 @@ import {connectWindowLayout} from '../src/opentui-windows.js';
 import type {UiSurfaceSource} from '@agent-compositor/renderer-opentui';
 import type {PlacementConfig} from '../src/placement.js';
 import {handleActionMouseDown} from '../../renderer-opentui/src/mouse-action.js';
-import type {UiControllers} from '@agent-compositor/hooks';
+import type {UiControllers, UiControllerFactory, UiEditorState} from '@agent-compositor/hooks';
 
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {for (const close of cleanup.splice(0).reverse()) await close();});
 
-async function fixture(options: {ui?: PlacementConfig; controllers?: Partial<Record<'approval'|'question'|'form', string>>; exec?: 'allow' | 'deny' | 'ask'; questionnaires?: boolean; models?: string[]; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]; hookTimeouts?: Record<string, number>}[]} = {}) {
+async function fixture(options: {ui?: PlacementConfig; controllers?: Partial<Record<'editor'|'approval'|'question'|'form', string>>; onExit?(): void; exec?: 'allow' | 'deny' | 'ask'; questionnaires?: boolean; models?: string[]; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]; hookTimeouts?: Record<string, number>}[]} = {}) {
   const root = await mkdtemp(join(tmpdir(), 'opentui-real-host-'));
   cleanup.push(() => rm(root, {recursive: true, force: true}));
   const cwd = join(root, 'project'), home = join(root, 'home');
@@ -58,7 +58,7 @@ async function fixture(options: {ui?: PlacementConfig; controllers?: Partial<Rec
   const layout = await connectWindowLayout(app, {panes: [{id: 'session', label: 'Main'}], initial: ['session']});
   layout.resize(140, 40);
   cleanup.push(() => layout.disconnect());
-  const host = createOpenTuiHost(app, layout);
+  const host = createOpenTuiHost(app, layout, {onExit: options.onExit});
   cleanup.push(() => host.close());
   const events: unknown[] = [];
   host.core.subscribe(event => events.push(event));
@@ -114,6 +114,204 @@ async function controllerFixture(factories: UiControllers, options: Parameters<t
   f.host.core.host.registerPlugin({name: 'selected-input', version: '1.0.0', trust: 'trusted'}, {}, 'user', [], factories);
   return f;
 }
+function editorFactory(states: UiEditorState[] = [], data: unknown[] = []): UiControllerFactory {
+  return request => {
+    let {text, cursor} = request.state as UiEditorState;states.push({text, cursor});data.push(request.data);
+    return {snapshot: () => ({text, cursor}), render: () => ({lines: [{text: 'MASKED EDITOR ' + text.length}]}),
+      handle: input => {
+        if (input.kind === 'text') {text = text.slice(0, cursor) + input.text + text.slice(cursor);cursor += input.text.length;}
+        if (input.kind === 'key' && (input.key === 'f2' || input.key === 'f3')) {const value = text;text = '';cursor = 0;return {type: input.key === 'f2' ? 'submit' : 'steer', text: value};}
+      }, dispose() {text = '';cursor = 0;},
+    };
+  };
+}
+async function editorInput(f: Awaited<ReturnType<typeof fixture>>, input: Parameters<NonNullable<typeof f.host.session.editorInput>>[1]) {
+  const frame = f.host.session.snapshot().editor!;
+  const ticket = f.host.session.editorInput!(frame.id, input, frame.revision);
+  expect(ticket).toBeTypeOf('number');
+  await expect.poll(() => f.host.session.snapshot().editor?.inputRevision).toBe(ticket);
+  return ticket;
+}
+
+it('sends a selected editor draft through actual Core admission without leaking the unsubmitted private checkpoint', async () => {
+  const data: unknown[] = [];
+  const f = await controllerFixture({editor: editorFactory([], data)});
+  expect(f.host.session.snapshot().editor).toMatchObject({available: true, kind: 'editor'});
+  expect(data[0]).toMatchObject({sessionId: f.host.core.sessionId, commands: expect.any(Function), files: expect.any(Function)});
+  await editorInput(f, {kind: 'text', text: 'PRIVATE_DRAFT 窗🙂'});
+  expect(JSON.stringify(f.host.session.snapshot())).not.toMatch(/PRIVATE_DRAFT|cursor|commands|sessionId/);
+  expect(f.requests).toHaveLength(0);expect(JSON.stringify(await f.app.store.load(f.host.core.sessionId, f.cwd))).not.toContain('PRIVATE_DRAFT');
+  await editorInput(f, {kind: 'key', key: 'f2'});
+  expect(f.host.session.snapshot().editor?.admission).toMatchObject({type: 'submit', status: 'accepted'});
+  await expect.poll(() => f.host.session.snapshot().running).toBe(false);
+  expect(f.host.core.getMessages().some(message => message.role === 'user' && message.content === 'PRIVATE_DRAFT 窗🙂')).toBe(true);
+  expect(f.requests).toHaveLength(1);expect(f.host.session.snapshot().editor?.view.lines[0].text).toBe('MASKED EDITOR 0');
+});
+
+it('queues selected Draft submit and steer while Main waits for a question and admits neither as an answer', async () => {
+  const f = await controllerFixture({editor: editorFactory()});
+  const pending = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  const request = f.host.session.snapshot().interaction!;
+  await editorInput(f, {kind: 'text', text: 'Queued selected draft'});await editorInput(f, {kind: 'key', key: 'f2'});
+  expect(f.host.session.snapshot().editor?.admission).toMatchObject({type: 'submit', status: 'queued'});
+  await editorInput(f, {kind: 'text', text: 'Steering selected draft'});await editorInput(f, {kind: 'key', key: 'f3'});
+  expect(f.host.session.snapshot().editor?.admission).toMatchObject({type: 'steer', status: 'queued'});
+  expect(f.host.session.snapshot().interaction?.id).toBe(request.id);expect(f.requests).toHaveLength(1);
+  f.host.session.answerInteraction!(request.id, {answers: [{id: 'answer', selected: ['Local']}]});
+  await pending;
+  expect(f.host.session.snapshot().interaction).toBeUndefined();expect(f.host.session.snapshot().editor?.view.lines[0].text).toBe('MASKED EDITOR 0');
+  expect(f.host.core.getMessages().some(message => message.role === 'user' && message.content === 'Queued selected draft')).toBe(true);
+});
+
+it('keeps an accepted selected draft consumed after the actual model stream fails', async () => {
+  const states: UiEditorState[] = [], f = await controllerFixture({editor: editorFactory(states)});
+  f.host.core.runtime.setResolver('service.model.stream', () => {throw Error('Model transport failed after admission');});
+  await editorInput(f, {kind: 'text', text: 'Accepted before transport failure'});await editorInput(f, {kind: 'key', key: 'f2'});
+  await expect.poll(() => f.host.session.snapshot().error).toContain('Model transport failed');
+  expect(f.host.session.snapshot().editor?.admission?.status).toBe('accepted');expect(f.host.session.snapshot().editor?.view.lines[0].text).toBe('MASKED EDITOR 0');
+  expect(states).toHaveLength(1);expect(f.host.core.getMessages().some(message => message.role === 'user' && message.content === 'Accepted before transport failure')).toBe(true);
+});
+
+it('keeps a late editor UI destination passive after newer navigation and gives a fresh command its own focus', async () => {
+  const gate = focusGate(), base = editorFactory();
+  const f = await controllerFixture({editor: (request, context) => {
+    const instance = base(request, context);
+    return {...instance, handle: async input => {const result = instance.handle(input);if (input.kind === 'key' && input.key === 'f2')await gate.wait(context.signal);return result;}};
+  }}, {plugins: [{name: 'editor-route', commands: [{name: '/editor-route', description: 'Open fixture', execution: 'immediate'}],
+    source: "export default {'command.invoke':async(_,$)=>{await $.ui.view('result','Editor route',{lines:[{text:'EDITOR_ROUTE_READY'}]},{workspace:6,focus:true});}};"}]});
+  await editorInput(f, {kind: 'text', text: '/editor-route'});
+  const frame = f.host.session.snapshot().editor!;f.host.session.editorInput!(frame.id, {kind: 'key', key: 'f2'}, frame.revision);
+  await expect.poll(gate.entered).toBe(true);f.layout.act({type: 'workspace', id: 2});gate.release();
+  await expect.poll(() => f.find('plugin-editor-route-result')?.snapshot().view?.lines[0].text).toBe('EDITOR_ROUTE_READY');
+  expect(f.layout.snapshot().workspace).toBe(2);expect(f.layout.snapshot().locations['plugin-editor-route-result']).toBe(6);
+  f.layout.act({type: 'open', id: 'session'});await editorInput(f, {kind: 'text', text: '/editor-route'});await editorInput(f, {kind: 'key', key: 'f2'});
+  await expect.poll(() => f.layout.snapshot().focused).toBe('plugin-editor-route-result');expect(f.layout.snapshot().workspace).toBe(6);
+  expect(f.requests).toHaveLength(0);
+});
+
+it('keeps a newer editor command focused when an older command publishes after it', async () => {
+  const gate = focusGate(), commands = ['/editor-first', '/editor-second'].map(name => ({name, description: name, execution: 'immediate'}));
+  const f = await controllerFixture({editor: editorFactory()}, {plugins: [{name: 'editor-sequence', commands, source: "export default {'command.invoke':()=>{}};" }]});
+  f.host.core.host.unregisterPlugin('editor-sequence');
+  f.host.core.host.registerPlugin({name: 'editor-sequence', version: '1.0.0', trust: 'trusted'}, {
+    'command.invoke': async (event, $) => {
+      const first = event.name === '/editor-first';if (first)await gate.wait($.signal);
+      await $.ui.view(first ? 'first' : 'second', first ? 'First route' : 'Second route', {lines: [{text: 'Ready'}]}, {workspace: first ? 5 : 6, focus: true});
+    },
+  });
+  expect(f.app.commands().filter(command => command.name.startsWith('/editor-'))).toHaveLength(2);
+  expect(f.host.core.hasImmediateCommand('/editor-first')).toBe(true);
+  await editorInput(f, {kind: 'text', text: '/editor-first'});await editorInput(f, {kind: 'key', key: 'f2'});
+  await expect.poll(gate.entered).toBe(true);
+  await editorInput(f, {kind: 'text', text: '/editor-second'});await editorInput(f, {kind: 'key', key: 'f2'});
+  await expect.poll(() => f.layout.snapshot().focused).toBe('plugin-editor-sequence-second');gate.release();
+  await expect.poll(() => f.find('plugin-editor-sequence-first')?.snapshot().view?.lines[0].text).toBe('Ready');
+  expect(f.layout.snapshot().focused).toBe('plugin-editor-sequence-second');expect(f.layout.snapshot().workspace).toBe(6);
+});
+
+it('restores a rejected selected editor UI command when all four real interface slots are held', async () => {
+  const states: UiEditorState[] = [];
+  const f = await controllerFixture({editor: editorFactory(states)}, {plugins: [{name: 'editor-hold', commands: [{name: '/editor-hold', description: 'Hold', execution: 'immediate'}],
+    source: "export default {'command.invoke':async(event,$)=>{await $.ui.form({title:'Hold '+event.args,fields:[{id:'value',label:'Value',type:'text'}],actions:[{id:'cancel',label:'Cancel'}]});}};"}]});
+  for (let index = 0; index < 4; index++) {await f.host.submit('/editor-hold ' + index);await expect.poll(() => f.host.surfaces.snapshot().filter(source => source.snapshot().form).length).toBe(index + 1);}
+  f.layout.act({type: 'open', id: 'session'});await editorInput(f, {kind: 'text', text: '/settings'});await editorInput(f, {kind: 'key', key: 'f2'});
+  expect(f.host.session.snapshot().editor?.admission).toMatchObject({status: 'rejected'});
+  expect(states.at(-1)).toEqual({text: '/settings', cursor: 9});expect(f.host.session.snapshot().editor?.view.lines[0].text).toBe('MASKED EDITOR 9');
+  expect(f.find('plugin-model-selector-models')).toBeUndefined();expect(f.requests).toHaveLength(0);
+  for (const source of f.host.surfaces.snapshot())if (source.snapshot().form)source.cancelForm!(source.snapshot().form!.id);
+});
+
+it('preserves a selected editor checkpoint before unload and resume while revoking old capabilities and stale paints', async () => {
+  const states: UiEditorState[] = [], data: any[] = [], factory = editorFactory(states, data);
+  const f = await controllerFixture({editor: factory});await editorInput(f, {kind: 'text', text: 'Saved 窗🙂 draft'});
+  const old = f.host.session.snapshot().editor!, oldCore = f.host.core, oldData = data.at(-1);
+  expect(await oldData.files('')).toBeInstanceOf(Array);
+  const pendingFiles = oldData.files('').then(() => 'allowed', () => 'expired');
+  f.host.core.host.unregisterPlugin('selected-input');expect(f.host.session.snapshot().editor?.available).toBe(false);
+  expect(await pendingFiles).toBe('expired');
+  expect(() => oldData.commands()).toThrow();await expect(oldData.files('')).rejects.toThrow();
+  f.host.core.host.registerPlugin({name: 'selected-input', version: '1.0.0', trust: 'trusted'}, {}, 'user', [], {editor: factory});
+  expect(states.at(-1)).toEqual({text: 'Saved 窗🙂 draft', cursor: 15});
+  expect(f.host.session.editorInput!(old.id, {kind: 'key', key: 'f2'}, old.revision)).toBeUndefined();
+  await f.host.submit('/reload');expect(f.host.session.snapshot().editor?.available).toBe(false);
+  f.host.core.host.unregisterPlugin('selected-input');f.host.core.host.registerPlugin({name: 'selected-input', version: '1.0.0', trust: 'trusted'}, {}, 'user', [], {editor: factory});
+  expect(states.at(-1)).toEqual({text: 'Saved 窗🙂 draft', cursor: 15});
+  const target = await f.app.store.create(f.cwd, {name: 'Editor resume target'});
+  const resumed = await f.host.core.host.emit('service.session.control', {action: 'resume', id: target.id});expect(resumed.value).toEqual({value: true});
+  expect(f.host.core).not.toBe(oldCore);expect(f.host.session.snapshot().editor?.available).toBe(false);
+  f.host.core.host.unregisterPlugin('selected-input');f.host.core.host.registerPlugin({name: 'selected-input', version: '1.0.0', trust: 'trusted'}, {}, 'user', [], {editor: factory});
+  expect(states.at(-1)).toEqual({text: 'Saved 窗🙂 draft', cursor: 15});expect(f.requests).toHaveLength(0);
+});
+
+it('does not transfer a consumed selected draft when its accepted prompt synchronously unloads the editor provider', async () => {
+  const states: UiEditorState[] = [], factory = editorFactory(states), f = await controllerFixture({editor: factory});
+  f.host.core.host.registerPlugin({name: 'accepted-unload', version: '1.0.0', trust: 'trusted'}, {
+    'prompt.submit': () => {f.host.core.host.unregisterPlugin('selected-input');return {drop: 'Accepted control'};},
+  });
+  await editorInput(f, {kind: 'text', text: 'Already accepted draft'});
+  const frame = f.host.session.snapshot().editor!;f.host.session.editorInput!(frame.id, {kind: 'key', key: 'f2'}, frame.revision);
+  await expect.poll(() => f.host.session.snapshot().editor?.available).toBe(false);
+  await expect.poll(() => f.host.core.getState()).toBe('idle');expect(f.requests).toHaveLength(0);
+  f.host.core.host.registerPlugin({name: 'selected-input', version: '1.0.0', trust: 'trusted'}, {}, 'user', [], {editor: factory});
+  expect(states.at(-1)).toEqual({text: '', cursor: 0});
+});
+
+it('keeps an accepted editor reload command consumed across the real plugin replacement', async () => {
+  const states: UiEditorState[] = [], factory = editorFactory(states), f = await controllerFixture({editor: factory});
+  await editorInput(f, {kind: 'text', text: '/reload'});
+  const frame = f.host.session.snapshot().editor!;f.host.session.editorInput!(frame.id, {kind: 'key', key: 'f2'}, frame.revision);
+  await expect.poll(() => f.host.session.snapshot().editor?.available).toBe(false);
+  await expect.poll(() => f.host.session.snapshot().notice).toMatch(/^Reloaded /);
+  f.host.core.host.unregisterPlugin('selected-input');f.host.core.host.registerPlugin({name: 'selected-input', version: '1.0.0', trust: 'trusted'}, {}, 'user', [], {editor: factory});
+  expect(states.at(-1)).toEqual({text: '', cursor: 0});expect(f.requests).toHaveLength(0);
+});
+
+it('rejects stale selected editor paints and unfocused or Finder input and counts only admitted edits as fresh intent', async () => {
+  const f = await controllerFixture({editor: editorFactory()}), initial = f.host.session.snapshot().editor!, intent = f.layout.windowIntentRevision;
+  f.host.session.editorViewport!(initial.id, 38, 3);expect(f.layout.windowIntentRevision).toBe(intent);
+  expect(f.host.session.editorInput!(initial.id, {kind: 'text', text: 'stale'}, initial.revision)).toBeUndefined();
+  const frame = f.host.session.snapshot().editor!;f.layout.act({type: 'workspace', id: 2});
+  expect(f.host.session.editorInput!(frame.id, {kind: 'text', text: 'hidden'}, frame.revision)).toBeUndefined();
+  f.layout.act({type: 'open', id: 'session'});f.host.navigation.openFinder();
+  expect(f.host.session.editorInput!(frame.id, {kind: 'text', text: 'finder'}, frame.revision)).toBeUndefined();
+  f.host.navigation.handle({kind: 'key', key: 'escape'});const currentIntent = f.layout.windowIntentRevision;
+  await editorInput(f, {kind: 'text', text: 'admitted'});expect(f.layout.windowIntentRevision).toBe(currentIntent + 1);expect(f.requests).toHaveLength(0);
+});
+
+it('revokes an uncooperative old-generation editor submit during resume and transfers its unaccepted draft', async () => {
+  const states: UiEditorState[] = [], gate = focusGate(), factory = editorFactory(states);
+  const f = await controllerFixture({editor: (request, context) => {
+    const instance = factory(request, context);
+    return {...instance, handle: async input => {
+      const result = instance.handle(input);
+      if (input.kind === 'key' && input.key === 'f2')await gate.wait(new AbortController().signal);
+      return result;
+    }};
+  }});
+  await editorInput(f, {kind: 'text', text: 'Unaccepted before resume'});
+  const old = f.host.session.snapshot().editor!;
+  f.host.session.editorInput!(old.id, {kind: 'key', key: 'f2'}, old.revision);await expect.poll(gate.entered).toBe(true);
+  const target = await f.app.store.create(f.cwd, {name: 'Deferred editor target'});
+  await f.host.core.host.emit('service.session.control', {action: 'resume', id: target.id});
+  f.host.core.host.unregisterPlugin('selected-input');f.host.core.host.registerPlugin({name: 'selected-input', version: '1.0.0', trust: 'trusted'}, {}, 'user', [], {editor: factory});
+  expect(states.at(-1)).toEqual({text: 'Unaccepted before resume', cursor: 24});
+  gate.release();await Promise.resolve();await Promise.resolve();
+  expect(f.requests).toHaveLength(0);expect(f.host.core.getMessages().some(message => message.role === 'user')).toBe(false);
+  expect(f.host.session.editorInput!(old.id, {kind: 'key', key: 'f2'}, old.revision)).toBeUndefined();
+});
+
+it('applies selected editor interrupt to the running Core and requests exit only while idle', async () => {
+  let exits = 0;const base = editorFactory();
+  const f = await controllerFixture({editor: (request, context) => {
+    const instance = base(request, context);return {...instance, handle: input => input.kind === 'key' && input.key === 'f4'
+      ? {type: 'interrupt'} : instance.handle(input)};
+  }}, {onExit: () => {exits++;}});
+  const pending = f.host.submit('Ask before continuing');await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  await editorInput(f, {kind: 'key', key: 'f4'});await pending;
+  expect(f.host.core.getState()).toBe('interrupted');expect(f.host.session.snapshot().interaction).toBeUndefined();expect(exits).toBe(0);
+  await editorInput(f, {kind: 'key', key: 'f4'});expect(exits).toBe(1);
+});
 async function controllerLauncher(f: Awaited<ReturnType<typeof fixture>>, handler: (event: any, $: any) => unknown) {
   f.host.core.host.registerPlugin({name: 'controller-requester', version: '1.0.0', trust: 'trusted', hookTimeouts: {'ui.press': 15000}}, {'ui.press': handler});
   await f.host.core.host.emit('service.ui.view', {plugin: 'controller-requester', id: 'launcher', title: 'Controller launcher',
@@ -1271,7 +1469,7 @@ it('reopens an explicitly requested closed pane and preserves permanent placemen
 
 it('fails closed at construction for unsupported selected private controller owners', async () => {
   const f = await fixture();
-  for (const kind of ['editor', 'history', 'placement'] as const) {
+  for (const kind of ['history', 'placement'] as const) {
     const app = await buildApp({cwd: f.cwd, env: f.env, agentHub: false,
       fixedConfig: {...f.app.config.config, ui: {controllers: {
         editor: '@host', approval: '@host', question: '@host', form: '@host', history: '@host', placement: '@host',

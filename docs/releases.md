@@ -76,11 +76,17 @@ author and patent notices are retained under `licenses/`, including dependencies
 installed beside the renderer workspace at different versions.
 
 Each native job extracts the archive outside the checkout and runs the actual
-OpenTUI app, managers, navigation, cancellation, request-window and selected
-private-controller scenarios through the shared PTY/browser bench. The selected
+OpenTUI app, managers, navigation, cancellation, request-window, selected
+private-controller and editor scenarios through the shared PTY/browser bench. The selected
 controller gate uses isolated explicit approval/question/form providers with a
 bounded loopback model; it does not select a custom editor, history or placement
 implementation. The matching source command is `npm run visual:opentui-controllers`.
+The additional `npm run visual:opentui-editor` gate selects a custom editor in
+two isolated compositions, covering F2/window ownership, real admission and
+recovery, Unicode checkpoints, canonical reload/resume and expired capabilities.
+It retains native and selected private requests, and checks the actual relocated
+executable and renderer identities. The emulator uses an explicit Unicode 11
+width profile; this does not prove every native terminal's Unicode behavior.
 Reports, terminal input/output, screenshots and executable/renderer identities
 are retained with the other installed-runtime evidence, including on failure.
 

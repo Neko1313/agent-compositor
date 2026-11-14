@@ -8,6 +8,7 @@ import {seedOpenTuiNavigationFixture} from './opentui-navigation-fixture.mjs';
 import {seedOpenTuiCancellationFixture} from './opentui-cancellation-fixture.mjs';
 import {seedOpenTuiRequestsFixture} from './opentui-requests-fixture.mjs';
 import {seedOpenTuiControllersFixture} from './opentui-controllers-fixture.mjs';
+import {seedOpenTuiEditorFixture,editorModelResponse} from './opentui-editor-fixture.mjs';
 import {questionsSample,questionsReply} from './questions-sample.ts';
 import {markdownSample} from './markdown-sample.ts';
 import {storagePaths} from '../../packages/config/src/storage.ts';
@@ -196,6 +197,10 @@ const server = Bun.serve({
       const prompt=body.messages?.filter(message=>message.role==='user').at(-1)?.content??'';
       const credential=authorization==='Bearer '+appUiKey?'ui':authorization==='Bearer '+appBootKey?'bootstrap':'unexpected';
       appReceipt({kind:'completion',number:++appRequests,model:body.model,credential,authorizationHash:new Bun.CryptoHasher('sha256').update(authorization).digest('hex'),body});
+      if(process.env.VISUAL_OPENTUI_EDITOR&&typeof prompt==='string'&&prompt.startsWith('APP_EDITOR_')){
+        if(appRequests>16||credential==='unexpected')return new Response('Unexpected isolated editor request',{status:400});
+        return await editorModelResponse(prompt,body,request,appLaunch.editor,appReceipt);
+      }
       const allowed=['APP_QUESTION','APP_HOLD','APP_RESTORED',...(process.env.VISUAL_OPENTUI_NAVIGATION?['APP_APPROVAL']:[]),...(process.env.VISUAL_OPENTUI_CONTROLLERS?['APP_MAIN_FORM_PROBE']:[])];
       if(appRequests>12||credential==='unexpected'||!allowed.includes(prompt))return new Response('Unexpected isolated app request',{status:400});
       if(prompt==='APP_HOLD'){
@@ -316,7 +321,7 @@ const server = Bun.serve({
       return new Response('Upgrade required', { status: 400 });
     }
     if (url.pathname === '/favicon.ico') return new Response(null, { status: 204 });
-    const files = { '/': join(import.meta.dir, 'terminal.html'), '/xterm.js': join(root, 'node_modules/@xterm/xterm/lib/xterm.js'), '/graphics.js': join(root, 'tools/visual/graphics.js'), '/performance.js': join(root,'tools/visual/performance.js'), '/xterm.css': join(root, 'node_modules/@xterm/xterm/css/xterm.css') };
+    const files = { '/': join(import.meta.dir, 'terminal.html'), '/xterm.js': join(root, 'node_modules/@xterm/xterm/lib/xterm.js'), '/unicode11.js': join(root,'node_modules/@xterm/addon-unicode11/lib/addon-unicode11.js'), '/graphics.js': join(root, 'tools/visual/graphics.js'), '/performance.js': join(root,'tools/visual/performance.js'), '/xterm.css': join(root, 'node_modules/@xterm/xterm/css/xterm.css') };
     return files[url.pathname] ? new Response(Bun.file(files[url.pathname])) : new Response('Not found', { status: 404 });
   },
   websocket: {
@@ -342,12 +347,14 @@ if(process.env.VISUAL_OPENTUI_APP){
  const cancellation=process.env.VISUAL_OPENTUI_CANCELLATION?await seedOpenTuiCancellationFixture(cwd,paths):undefined;
  const requests=process.env.VISUAL_OPENTUI_REQUESTS?await seedOpenTuiRequestsFixture(cwd,paths):undefined;
  const controllers=process.env.VISUAL_OPENTUI_CONTROLLERS?await seedOpenTuiControllersFixture(cwd,paths):undefined;
+ const editor=process.env.VISUAL_OPENTUI_EDITOR?await seedOpenTuiEditorFixture(cwd,paths,process.env.VISUAL_OPENTUI_EDITOR_COMPOSITION??'native'):undefined;
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['network-proxy','todos','slash-commands','model-selector','provider-auth','session-manager',
   ...(process.env.VISUAL_OPENTUI_MANAGERS?['extension-manager','marketplace-manager','local-flow-probe']:[]),
   ...(process.env.VISUAL_OPENTUI_NAVIGATION?['navigation-probe']:[]),...(cancellation?['cancellation-probe']:[]),...(requests?['request-probe']:[]),
-  ...(controllers?[controllers.provider,controllers.requester,'extension-manager']:[])],
-  ...(controllers?{ui:{controllers:controllers.selected}}:{}),
-  ...((cancellation||requests||controllers)?{permissions:{rules:(cancellation??requests??controllers).rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
+  ...(controllers?[controllers.provider,controllers.requester,'extension-manager']:[]),
+  ...(editor?[editor.provider,editor.requester,'extension-manager',...(editor.selectedProvider?[editor.selectedProvider]:[])]:[])],
+  ...((controllers||editor)?{ui:{controllers:(controllers??editor).selected}}:{}),
+  ...((cancellation||requests||controllers||editor)?{permissions:{rules:(cancellation??requests??controllers??editor).rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
  await writeFile(join(paths.state,'providers.json'),JSON.stringify({profiles:{bootstrap:{type:'openai-compat',baseUrl,model:'app-start',contextWindow:65536,timeoutMs:300000}}}));
  await writeFile(join(paths.state,'model.json'),JSON.stringify('bootstrap'));
  await writeFile(join(paths.home,'credentials.json'),JSON.stringify({bootstrap:{accessToken:appBootKey}}),{mode:0o600});
@@ -360,6 +367,7 @@ if(process.env.VISUAL_OPENTUI_APP){
  if(cancellation)appLaunch.cancellation=cancellation;
  if(requests)appLaunch.requests=requests;
  if(controllers)appLaunch.controllers=controllers;
+ if(editor)appLaunch.editor=editor;
  if(process.env.VISUAL_OPENTUI_MANAGERS){
   const catalogRoot=join(cwd,'local-flow-catalog'),source=join(catalogRoot,'plugins/local-flow-probe');
   await mkdir(join(catalogRoot,'.claude-plugin'),{recursive:true});await mkdir(source,{recursive:true});

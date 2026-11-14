@@ -2,9 +2,10 @@
 <link rel="stylesheet" href="/xterm.css"><style>
 body{margin:0;padding:24px;background:#121619;color:#dce5e9;font:14px system-ui}header{display:flex;align-items:center;gap:24px;margin-bottom:16px}h1{font-size:18px;margin:0}button{background:#263137;color:#edf7fc;border:1px solid #5a727d;padding:7px 12px;cursor:pointer}small{color:#a9b9c0}#terminal{display:inline-block;padding:12px;background:#101417;border:1px solid #425660}#terminal,#terminal *{cursor:var(--pointer-shape,default)!important}
 </style><header><h1>Compositor · real PTY</h1><button id="restart">Restart session</button><small id="fixture-description">Scripted provider · temporary project · actual terminal input</small></header><div id="terminal"></div>
-<script src="/xterm.js"></script><script src="/graphics.js"></script><script src="/performance.js"></script><script>
+<script src="/xterm.js"></script><script src="/unicode11.js"></script><script src="/graphics.js"></script><script src="/performance.js"></script><script>
 if(new URLSearchParams(location.search).get('mode')==='binary')document.getElementById('fixture-description').textContent='Compiled executable · temporary project · actual terminal input';
-const terminal = new Terminal({ cols:100,rows:30,fontSize:14,lineHeight:1.15,fontFamily:'monospace',theme:{background:'#101417',foreground:'#dce5e9'},scrollback:1000,macOptionIsMeta:true });
+const terminal = new Terminal({ cols:100,rows:30,fontSize:14,lineHeight:1.15,fontFamily:'monospace',theme:{background:'#101417',foreground:'#dce5e9'},scrollback:1000,macOptionIsMeta:true,allowProposedApi:true });
+terminal.loadAddon(new Unicode11Addon.Unicode11Addon());terminal.unicode.activeVersion='11';
 terminal.open(document.querySelector('#terminal')); terminal.focus();
 window.visual = { terminal, frames:0, generation:0, pointer:'default', text:() => Array.from({length:terminal.rows},(_,n)=>terminal.buffer.active.getLine(n+terminal.buffer.active.viewportY)?.translateToString(true,0,terminal.cols)??'').join('\n') };
 window.visual.metrics=observeTerminalPerformance(terminal);

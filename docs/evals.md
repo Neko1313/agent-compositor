@@ -413,6 +413,70 @@ Claude Code/Codex. More held-out tasks and repeated runs are needed for reliable
 quality comparisons. Live runs use the existing Ollama cloud models and are
 explicit, not part of credential-free CI.
 
+### Retained installed-CLI plugin authoring
+
+`bun tools/evals/development.ts` prepares or executes the original Project checks
+plugin task using an explicitly pinned installed native Compositor executable.
+The authoring actor is not a source `buildApp` instance. It starts from an empty
+plugin directory, public extension instructions, protected project checks and a
+user draft. The reference implementation and independent grader are outside that
+workspace. This is a known development task, not a held-out quality benchmark or
+an OS sandbox.
+
+Preparation verifies the executable SHA-256, packaged version and renderer,
+retains the project, and checks both the original passing project command and
+the expected absent-plugin failure. It starts no model gateway or actor:
+
+```sh
+bun tools/evals/development.ts --prepare \
+  --binary /absolute/path/to/compositor \
+  --binary-sha256 SHA256_FROM_VERIFIED_INSTALL \
+  --output dist/development-plugin-prepared \
+  --provider ollama --base-url http://127.0.0.1:11434/v1 \
+  --model YOUR_EXPLICIT_MODEL
+```
+
+Execution requires a fresh output directory, the same explicit identity/provider
+flags, `--run` instead of `--prepare`, and a `--provider-access-note` recording the
+reviewed service access and billing arrangement. A loopback Ollama route can use
+a paid cloud model; the note does not create a spending allowance. Only explicit
+credential-free loopback chat-completions providers (`ollama` or
+`openai-compatible-local`) are supported. Saved paid OpenAI profiles are rejected
+until this launcher can reuse their persistent USD guard; it never creates or
+resets that ledger.
+
+The host-owned gateway admits one completion at a time with no redirect or
+fallback. Defaults are 40 requests, 200,000 serialized request bytes per call,
+6,000,000 total request bytes, requested output of at most 4,096 tokens,
+1,200,000 reported tokens as a stop threshold, 4,000,000 response bytes per call
+and a 20-minute deadline. `--limits /absolute/path/to/limits.json` requires every
+positive integer field: `maxRequests`, `maxRequestBytes`, `maxTotalRequestBytes`,
+`maxOutputTokens`, `maxMeasuredTokens`, `maxResponseBytes`, `deadlineMs`. Unknown
+fields or missing limits fail before execution. Byte caps are not token estimates;
+the measured-token threshold is checked after usage arrives, not a pre-request
+token or billing guarantee. Missing/invalid terminal usage and evidence-write
+failures stop further admission. The actor has a separate bounded step count,
+log size and actor-process-group shutdown. Forced actor death is not proof that
+every separately detached SDK worker has exited; live authoring requires the
+headless signal-cleanup gate as well. SIGKILL cannot run application cleanup.
+
+Execution retains its workspace, isolated home and the trajectory, transport
+requests/responses and receipts created before any failure. Completed attempts
+also retain an authored patch,
+file hashes/modes, protected-file comparisons and the candidate archive. Host Git
+metadata and runtime journals are separate from authored-file grading; deleted
+protected files still fail. A separate child with a sanitized evaluation
+environment runs the actual SDK host and checks the delivered plugin with zero
+model requests. Its metadata probes and real process checks are
+reported distinctly. Installed authoring, independent SDK grading, package
+certification and the actual terminal install/configure/update/remove lifecycle
+are separate evidence; a prepared report or source-SDK pass does not close the
+full extension or autonomous-development gate.
+The independent SDK child has a separate 45-second deadline and a bounded
+two-second graceful-shutdown window. Operator cancellation is forwarded into it;
+interruption produces a failed grading result and awaits application cleanup.
+A forced SIGKILL fallback is recorded as such and cannot establish worker cleanup.
+
 ### Saved-profile development evidence (2026-11-11)
 
 A real `gpt-6.1-sol` read-tool episode passed through the saved Responses profile.

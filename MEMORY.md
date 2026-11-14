@@ -1,43 +1,178 @@
 # Project memory
 
-## Restart completion receipt acceptance in progress — 2026-11-15
+## Restart, idle-exit and native media acceptance in progress — 2026-11-15
 
-The previous status turn confirmed focused source/archive navigation9; goal work
-now committed and pushed the complete-frame bench repair as1ff271a. Its shipping
-inputs remain the original727/c732e028 and the same23315fd3 archive is installed.
-Fresh metadata-only bindings under dist/opentui-navigation-committed-* explicitly
-inherit the original95 and supplement it with the separately executed navigation9;
-no full95 rerun or rebuild is claimed. Docs and syntax/diff checks pass.
+Final current source verification is now GREEN: standalone full2376 passed,
+three optional skips,265 files,0 unhandled, wrapper exit0/30.194s at
+/home/neko/.cache/ac-tmp/compositor-lifetime-corrected-full-test-ci-20261115.log.
+Receipt dist/headless-lifetime-corrected-full-ci-receipt.json. The first full
+run failed27 tests in12 files with4unhandled; preserve its log/receipt and retained
+JUNIT under dist/headless-lifetime-full-ci-initial-failure-20261115. Those failures
+were real regressions and are not reclassified. Backend corrections preserve
+all original138 UI/lifecycle and cancellation/PID assertions. Final root types,
+generation/docs generation, docs:check, marketplace and all32 PR certificates
+also pass. The current source is ready for commit and a fresh build, not1.0.
 
-The older3281 build-only run43616152753 is terminal success on all four native
-platforms, with352 actual OpenTUI checks,32 installed smokes and80 PTY receipts
-audited from digest-verified ZIPs. Its global qualification remains failed due
-to the preserved original Node26 source CI failure. Fresh1ff docs/preparation
-pass and build-only release43618662809 remains live. Source CI43618646541 passes
-Node22 but fails Node26 after6/9 navigation checks: the pointer repair passes.
-The checker reads startup-trace once after observing generation3's ready file,
-before the awaited SDK set returns and appends ready:done. Its actual retained
-trace has ready:write at1794675777173 and ready:done/finished at1794675777201,
-no faults and aborted:false. Exact ZIP/trace hashes and diagnosis are retained in
-dist/opentui-child-remote-1ff271a/ci-node26-failure. Do not reclassify that run.
+Cancellation settlement now distinguishes generic ignored work from explicitly
+owned resource/lifecycle receipts. Runtime.setResolver options are
+settleOnCancel and preserveResultOnCancel; only standard owned shell/tool and
+trusted app lifecycle implementations opt in. Cooperative host retirement gets
+100ms for an already-running handled result, with immediate API revocation,
+no new next/fallback or generator yields after retirement. Terminal observation
+is separately bounded to1000ms total per original cancelled authority, preserving
+cooperative hooks, original records/journal/UI and no new SDK authority. Resume
+and managed archive finish their committed owner-controlled transition despite
+closing the old host; both Ink and OpenTUI registrations are marked explicitly.
+After cancelled primitive calls, exact Core child operations and standard process
+promises are joined before returning their existing structured failure shapes.
+Core/app/manager close promises are installed before synchronous abort callbacks,
+so actual human-request reentry joins the same cleanup.
 
-The next narrow bench repair observes that exact completed start3 phase using
-the existing20s bound and original oracle; it does not accept a partial JSONL
-line. Fresh source and exact sealed-archive navigation each pass all nine checks
-with PTYs 0/errors[], all three completed startup phases and no faults. Root
-visually inspected the archived restored-retile and final-restored-Main PNGs:
-the exact keyboard topology and Production answer remain. These supplemental
-runs are retained under dist/opentui-navigation-startup-ack-{source,native}-20261115.
-The same original95 runtime proof remains inherited rather than rerun.
+Corrected SDK8 and raw original NEVER proof pass at
+dist/development-sdk-cleanup-never-corrected-green-20261115/independent-review.json.
+Corrected source signal6 passes with all1395 regular raw evidence hashes, exact
+signal exits/results, eight owned workers gone before cleanup and six unrelated
+neighbors preserved: dist/headless-signals-release-source-corrected-20261115.json
+and its corrected-review file. These proofs precede the final tiny retired-yield
+guard, whose actual RED/focused20GREEN are retained. The final full suite includes
+that guard and SDK8; new canonical archive6 will verify the final shipping bytes.
+No model API calls or budget changes. The original ledger remains unchanged.
 
-Native physical capture feasibility is now proven in isolated Alacritty/Ptyxis:
-real TTY/protocol replies, two PID-owned native PNGs inspected and clean process/
-termios restoration. Neither configuration negotiated Kitty or advertised SIXEL;
-this does not prove physical images. The official Kitty0.50.0 archive is now
-isolated under ~/.cache/agent-compositor-tools, its actual GitHub asset digest
-f04b1177 verified; no global PATH or user configuration changed. Actual Ghost
-idle/thinking verification and retained installed-CLI useful-plugin authoring
-tooling are in progress. No new paid calls or budget changes occurred.
+Current working-tree continuation now includes real headless shutdown and
+dispatcher-cancellation changes. The old 727-row / c732e028 and 23315fd3 proofs
+cover the committed bench-only ed2 checkpoint, not these new runtime edits.
+Do not reuse that archive for a new runtime completion claim. All new source
+must freeze, pass standalone full coverage/types/docs, then receive a fresh
+immutable build, nine canonical smokes, native 95 and exact-head four-platform
+qualification. The new release gate adds headless-signals as the ninth report
+(36 across four platforms); old eight/32-report evidence stays unchanged.
+Fresh ignored orchestration is prepared only in dist/freeze-lifetime-candidate.py
+and dist/run-lifetime-native.mjs. Neither has been executed. Use disk TMPDIR
+/home/neko/.cache/ac-tmp; /tmp still has only about 628 MiB free. Main HEAD remains
+ed2d2ba4e7eba6e96486d2cb5d2f6f66c4818b3f; no new release dispatch is live.
+
+Additional verified boundaries in this continuation are retained, not waived:
+the initial signal patch passed four normal cases but a NEVER command still
+held retained SDK workers; a normal-close signal could publish an already-successful
+result; and a trusted 300000 ms NEVER session.end still blocked explicit shutdown.
+command_cancel's subsequent combined fourteen source-CLI/Runtime cases pass these
+boundaries. Actual SDK PID-at-promise-settlement exposed premature resolver
+cancellation; standard owned process resolvers now opt into settlement joining,
+and terminal host close joins retained SDK process promises. A failed-journal
+end hook also produced an actual file (real RED), so journal revocation is now
+separate from the forever-live append-identity signal and blocks lifecycle effects.
+
+The final broad focused set had one cancellation-audit regression: caller abort
+suppressed a terminal tool.operation journal record. Do not silently remove the
+frozen terminal plugin hook contract. command_cancel is separating bounded
+host-owned terminal observation/persistence from the cancelled SDK effect authority,
+including a cooperative observer, forbidden-effect and NEVER-observer regression.
+The cancelled observation grace is to be documented exactly after his handoff.
+Ordinary Runtime.emit with an already-aborted caller still invokes no handlers
+or fallback resolvers. All final checks and source freeze remain pending.
+
+Actual source CLI signal RED is proven in four cases: SIGINT/SIGTERM while an
+immediate SDK command or real held loopback Main owns workers. CLI exits by OS
+signal in 4–12 ms without a final result; all owned workers remain alive through
+the two-second check, and the unrelated control survives. Cleanup then stops only
+fixture-owned leftovers. Evidence is dist/headless-signals-source-red-20261115.
+command_cancel owns the bin/main/headless fix and source tests. The first patch
+binds process signals only through main's genuinely parsed headless branch and
+adds optional embedding cancellation. Before it freezes, it must also handle a
+signal during normal application cleanup before the final result is committed.
+
+The separate sanitized SDK grader's old execFile timeout also leaves its detached
+workers alive. appearance_pty preserves that real RED in
+dist/development-sdk-timeout-red-20261115 and now has seven focused passes plus
+actual normal deadline/abort receipts in dist/development-sdk-cleanup-green-20261115.
+Those bounded normal cases reap both owned workers, preserve an external neighbor,
+exit 1 without forced fallback and make zero model requests. Root forwards the
+operator controller into gradeDevelopmentPlugin. The original stronger Cancel
+hook that awaits an unabortable Promise remains a real open failure, not a
+discarded fixture: Core.close waits active operations before host.close, and
+HooksHost only stores caller abort in ALS while Runtime waits its budget.
+command_cancel now also owns a minimal additive Runtime external AbortSignal seam
+in dispatcher.ts, forwarding through HooksHost, and stronger actual NEVER-hook
+cleanup. Cancellation must settle/revoke the dispatcher without fail-open resolver
+effects or live timers, including direct host emissions on host close. Preserve
+session.end and interactive semantics. SIGKILL / synchronous arbitrary JS are
+not OS containment guarantees.
+
+requests_finish_review owns only tools/release/headless-signals-smoke.mjs and
+canonical smoke.mjs integration. Its six actual source/native cases are prepared
+but not executed: two signals against immediate SDK work, ordinary foreground
+exec, and held Main with native/SDK background workers. Source preflight waits
+for command_cancel's freeze. Raw report-stem directories contain only regular
+hashed evidence; CI now preserves them. Root owns docs and the final validation,
+commit/push/build/install/remote cycle. The six retained development-tool files
+have a preserved initial 13-test/type/preparation freeze; appearance's two-file
+SDK cleanup and root's one signal-forwarding line supersede that source snapshot
+and require final focused/type/full checks. All live authoring is still unrun.
+
+The full 1.0 goal remains active. The status turn confirmed focused source/archive
+navigation evidence. Continuing work committed and pushed the frame repair as
+1ff271a, then the startup receipt repair as ed2d2ba. Shipping inputs remain the
+same 727 rows / c732e028 fingerprint and the same 23315fd3 archive is installed.
+The dist/opentui-navigation-committed-* metadata binds the original 95 checks
+and separately executed affected navigation nine; it does not claim a rebuild
+or a full 95-check rerun. Fresh startup-ACK source and archive navigation each
+pass nine, PTY 0, no errors/faults and all three completed startup phases. Root
+inspected the actual archived restored-retile and final Main PNGs. Source,
+archive and supplemental review are under dist/opentui-navigation-startup-ack-*.
+
+Old 3281 release 43616152753 is terminal success on all four native platforms:
+352 actual OpenTUI checks, 32 smokes and 80 PTY receipts pass in digest-verified
+ZIPs. Its global audit stays failed because original Node 26 source CI failed.
+Preserve its failed source run and executed evidence. The subsequent 1ff source
+CI passes the repaired pointer case but fails a later one-shot startup-trace
+read after six checks. Its actual ready:write timestamp is 1794675777173 and
+ready:done/finished is 1794675777201, no faults, aborted:false. Observing the
+ready file did not acknowledge the awaited SDK return / later trace append.
+The ed2 repair observes that exact completed phase with the same 20-second
+bound and ignores incomplete final JSONL records. Its fresh source CI is live;
+documentation and plugin preparation pass. No ed2 release has been dispatched.
+
+The 1ff four-platform release 43618662809 is still live. Linux ARM succeeds;
+Linux x64 fails final appearance exit after all eight feature checks, leaving
+75 of 88 reports and all eight smokes. Actual pre-exit selected capture shows
+Working/Stop. The exact restored prompt turn has assistant text and finish
+service events, then turn.interrupted after the single Ctrl+C, no turn.complete.
+This correctly interrupts active finalization; text / HTTP request count alone
+cannot establish idle exit. The appearance owner independently confirms this
+and is verifying a narrow bench precondition: exact same-turn completion plus
+painted Ready before the original single exit key. Preserve the failing run,
+actual artifacts and diagnosis under dist/opentui-child-remote-1ff271a and
+dist/opentui-appearance-exit-diagnosis-1ff271a.json. Source eight pass; the exact
+archive eight rerun is currently live. All prior oracles and timeouts remain.
+
+Physical native capture is feasible in isolated Alacritty/Ptyxis: genuine TTY
+replies, PID-owned PNGs inspected, clean processes and exact termios restoration.
+Neither tested configuration negotiates Kitty or advertises SIXEL. Official
+Kitty 0.50.0 is isolated under ~/.cache/agent-compositor-tools; actual downloaded
+GitHub asset digest f04b1177 is verified, global PATH/user config unchanged.
+Actual installed 2ed9/37fa in Kitty now emits two original six-frame idle and
+thinking loops, accepted-write timings 1075.79/1084.98 and 1083.66/1075.06 ms
+against 1080±180 ms. All 52 uploaded RGBA frames, including alpha, match original
+source hashes; output and genuine replies pass through unchanged. Two actual
+native captures show stable frame 0; root and owner inspected both. This does
+not measure every GPU-visible frame or establish screen FPS / full motion.
+One APP_HOLD loopback request, actual interruption and PTY/Kitty/server exit 0
+are verified. Original ten APNG assets are unchanged. A preliminary missing
+client Origin header caused WS403 before app launch; preserve that failed
+harness run and corrected evidence under dist/opentui-native-ghost-baseline-*.
+The Kitty modifyOtherKeys advisory and 15 unsupported-mode-2027 parse warnings
+remain explicit compatibility work. Full states, GIF, physical compositing,
+resize/cleanup, fallback/editor use, tmux and video remain open.
+
+Retained installed-CLI useful-plugin authoring tooling is being implemented in
+tools/evals/development*. A concrete blank-task preflight is saved under
+dist/development-project-checks-preflight-20261115: exact installed identity,
+original project check passes, absent-plugin check fails as expected, no actor,
+gateway or model request. Initial transport tests pass; SDK behavior grading
+and launcher checks are still being completed. No paid calls or budget changes.
+The async question about further API testing budget remains optional/pending;
+continue independent work without assuming a new allowance. All broader 1.0
+acceptance gates remain active.
 
 ## Complete-frame navigation acceptance in progress — 2026-11-15
 

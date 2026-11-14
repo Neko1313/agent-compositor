@@ -7,6 +7,17 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+The current source shutdown repair passes the full standalone suite: 2376 tests
+plus three optional skips in 265 files, with no unhandled errors. Whole-workspace
+types, generation, documentation, marketplace validation and all 32 mandatory
+plugin contracts pass. Actual source CLI checks cover graceful SIGINT/SIGTERM,
+owned SDK/native process reaping, unrelated process preservation, long ignored
+hooks, concurrent close joining, journal failure and truthful final results.
+The new canonical installed-runtime gate adds six signal cases as a ninth smoke
+report. A newly built archive, native 95 and exact-head four-platform evidence
+are still required for these runtime changes; the older archive below is not
+their verification.
+
 OpenTUI runs the configured application through `--renderer opentui`; Ink remains
 the default. Revision `3281bda` adds private delegated and managed agent request
 windows, genuine producer/controller ownership and source-Core lifetimes.
@@ -32,20 +43,37 @@ CI passes the pointer scenario but fails a later one-shot startup-trace read aft
 six of nine navigation checks: the ready file is visible before the awaited SDK
 call returns and appends its completion receipt. The preserved final trace proves
 that exact phase completed without a fault. Documentation and plugin preparation
-pass; its build-only four-platform release 43618662809 remains live.
+pass. Its build-only four-platform release 43618662809 fails, with a
+separate Linux x64 appearance cleanup failure after all eight feature assertions:
+the final Ctrl+C interrupts a still-finalizing turn. The actual journal records
+that interruption; the pre-exit screenshot still shows Working and Stop.
 
 The current narrow bench repair observes the exact completed startup phase using
 the existing 20-second bound and original oracle. Fresh source and sealed-archive
 navigation each pass all nine checks, with the actual Production answer preserved
 through close/reopen and restart. The runtime inputs, executable and renderer are
 unchanged. A fresh exact-head CI/platform qualification is still required; neither
-failed source CI is retroactively passed.
+failed source CI is retroactively passed. This repair is committed and pushed as
+`ed2d2ba`; its fresh source CI, documentation and plugin preparation pass. The
+appearance bench repair waits
+for the exact restored turn's completion and painted Ready state before its
+single exit key, preserving the original feature and exit oracles. Fresh source
+and exact sealed-archive appearance each pass all eight checks, both native and
+selected compositions exiting cleanly. A new exact-head native matrix is required.
 
 Actual isolated Alacritty/Ptyxis probes establish genuine terminal replies,
 PID-owned native screenshot capture and clean TTY/process restoration. Neither
-configuration negotiates Kitty graphics or advertises SIXEL. Original-character
-playback in an isolated graphics terminal is in progress; physical media, the
-default frontend switch, CPU-assisted onboarding, repeated realistic development,
+configuration negotiates Kitty graphics or advertises SIXEL. A separate actual
+installed-archive run in isolated Kitty 0.50.0 emits two original six-frame loops
+each for idle and thinking, with genuine terminal replies, exact uploaded RGBA
+including alpha, native captures and clean exit. Accepted terminal-write timing
+is 1075.79/1084.98 ms and 1083.66/1075.06 ms against the declared 1080±180 ms bound.
+The two native captures show a stable original frame in each state; this does
+not measure every GPU-visible animation frame or screen frame rate.
+The terminal's modifyOtherKeys advisory and mode 2027 warnings remain preserved
+compatibility issues. Full state transitions, physical compositing, resize,
+fallbacks, tmux and video remain open, as do the default frontend switch,
+CPU-assisted onboarding, repeated realistic development,
 initial useful-plugin delivery, sustained sessions and trust remain open gates.
 
 ## Plugin development and interface usability

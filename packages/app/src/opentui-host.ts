@@ -174,6 +174,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   let editor: ReturnType<typeof createOpenTuiEditor> | undefined, offEditor: (() => void) | undefined;
   let editorDraft: UiEditorState = {text: '', cursor: 0};
   const pending = new Set<Promise<unknown>>();
+  const publicRenderDispatch = new AbortController();
   const publicRendering = createOpenTuiPublicRender({
     describe: describePublic,
     render(input, signal) {
@@ -181,7 +182,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (!active || !owner || reloading || reloadFailed) return Promise.resolve({value: undefined});
       // Rendering is not an interactive operation and cannot inherit a private
       // request's origin or signal. HooksHost retains its normal render guard.
-      return context.exit(() => owner.host.withoutServiceScope(() => owner.host.emit('ui.render', input, signal)));
+      // Supersede revokes the API immediately, but a still-running painter must
+      // occupy its cache slot until dispatch settles or exhausts its budget.
+      return context.exit(() => owner.host.withoutServiceScope(() => owner.host.emit('ui.render', input, signal, publicRenderDispatch.signal)));
     },
     press(id, action) {
       if (!active || navigation?.snapshot().mode !== 'normal' || layout.snapshot().gesture) return false;
@@ -1416,6 +1419,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (!active) return;
       active = false;
       publicRendering.close();
+      publicRenderDispatch.abort(Error('OpenTUI host closed'));
       navigation?.close();
       changes.clear();
       offLayout?.();

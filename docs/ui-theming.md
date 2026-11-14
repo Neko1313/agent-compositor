@@ -207,7 +207,10 @@ producer's field or acquire a private input capability.
 
 Pending OpenTUI render changes coalesce to the latest request. At most two
 actual emissions per pane identity and 512 across the registry remain in flight,
-including aborted hooks that have not settled. Hide, unload, reload, Core
+including superseded hooks until their dispatch settles or reaches its configured
+hook budget. Superseding a request immediately aborts its SDK signal and rejects
+further SDK effects or continuation; it does not free its render slot merely
+because the caller no longer needs the result. Hide, unload, reload, Core
 replacement and shutdown revoke obsolete results and actions. Native layout
 clamping of a short override does not change the saved default-scroll position;
 an actual user scroll does. Invalidation never opens a window or submits model work.

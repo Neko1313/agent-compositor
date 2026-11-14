@@ -29,14 +29,15 @@ async function fixture(options: {provider?: ScriptedProvider; controllers?: Part
       permissions: {rules: [{tool: 'read', decision: 'allow'}]}, compaction: {enabled: false}}});cleanup.push(() => app.close());
   const layout = await connectWindowLayout(app, {panes: [{id: 'session', label: 'Main'}], initial: ['session']});layout.resize(240, 80);cleanup.push(() => layout.disconnect());
   const host = createOpenTuiHost(app, layout);cleanup.push(() => host.close());await host.start();
-  const calls: {core: AgentCore; input: any; signal?: AbortSignal}[] = [];
+  const calls: {core: AgentCore; input: any; signal?: AbortSignal; completion: ReturnType<AgentCore['host']['emit']>}[] = [];
   const observe = (core: AgentCore) => {
     const emit = core.host.emit.bind(core.host);
-    vi.spyOn(core.host, 'emit').mockImplementation((name, input, signal) => {
+    vi.spyOn(core.host, 'emit').mockImplementation((name, input, signal, dispatchSignal) => {
       // HooksHost recursively enters emit without its explicit signal. Record
       // only the outer cache emission, keeping its actual cancellation receipt.
-      if (name === 'ui.render' && signal) calls.push({core, input: structuredClone(input), signal});
-      return emit(name, input, signal);
+      const completion = emit(name, input, signal, dispatchSignal);
+      if (name === 'ui.render' && signal) calls.push({core, input: structuredClone(input), signal, completion});
+      return completion;
     });
   };observe(host.core);
   const focus = (id: string) => {layout.act({type: 'open', id});if (!layout.snapshot().fullscreen) layout.act({type: 'zoom'});};
@@ -44,6 +45,95 @@ async function fixture(options: {provider?: ScriptedProvider; controllers?: Part
   const source = (id: string) => host.surfaces.snapshot().find(item => item.id === id)!;
   return {cwd, app, provider, plugin, host, layout, calls, observe, focus, slot, source};
 }
+
+it('bounds physically pending painter calls while superseding SDK authority and coalescing invalidations', async () => {
+  const f = await fixture();
+  const held: {rows: number; signal: AbortSignal; release(): void; next(): unknown; notify(): Promise<void>}[] = [];
+  let retiring = false;
+  f.host.core.host.registerPlugin({...manifest('held-painter'), hookTimeouts: {'ui.render': 60000}}, {'ui.render': async (event, $) => {
+    if (retiring || event.props.pane !== 'session') return;
+    let release!: () => void;const gate = new Promise<void>(resolve => {release = resolve;});
+    const number = held.length + 1;
+    held.push({rows: event.viewport!.rows, signal: $.signal, release, next: () => $.next(), notify: () => $.ui.notify('EXPIRED_RENDER_EFFECT')});
+    await gate;return {tree: {lines: [{text: 'PAINTER_' + number, action: 'paint-' + number}]}};
+  }});
+  const source = f.slot('session');f.focus('session');
+  vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']});
+  try {
+    // Drive the actual Runtime's 100ms retirement window, below the painter's
+    // declared budget. No hook has physically returned during this churn.
+    let rows = 39;
+    for (let index = 0; index < 8; index++) {
+      if (index === 3 || index === 6) await f.host.core.host.emit('ui.invalidate', {site: 'conversation'});
+      else {measure(source, 176, rows);rows = rows === 39 ? 40 : 39;}
+      await vi.advanceTimersByTimeAsync(101);
+    }
+    expect(held).toHaveLength(2);
+    expect(held.map(call => call.rows)).toEqual([39, 40]);
+    expect(held.every(call => call.signal.aborted)).toBe(true);
+    expect(source.snapshot().override).toBeUndefined();
+    expect(source.snapshot().defaultView?.lines.some(line => line.text.includes('No messages'))).toBe(true);
+    expect(() => held[0].next()).toThrow('Public render superseded');
+    await expect(held[0].notify()).rejects.toThrow('Public render superseded');
+    held[0].release();await vi.advanceTimersByTimeAsync(0);
+    expect(held).toHaveLength(3);expect(held[2].rows).toBe(40);
+    expect(source.snapshot().override).toBeUndefined();
+    held[1].release();await vi.advanceTimersByTimeAsync(0);
+    expect(source.snapshot().override).toBeUndefined();
+    held[2].release();await vi.advanceTimersByTimeAsync(0);
+    expect(source.snapshot().override?.lines[0].text).toBe('PAINTER_3');
+    expect(f.provider.requests).toEqual([]);
+  } finally {
+    retiring = true;for (const call of held) call.release();vi.useRealTimers();
+  }
+});
+
+it.each(['unload', 'close'] as const)('cancels retained public dispatch on owner %s without admitting old-owner work', async stop => {
+  const f = await fixture();let release!: () => void, captured!: {signal: AbortSignal; next(): unknown};let paints = 0;
+  const gate = new Promise<void>(resolve => {release = resolve;});cleanup.push(release);
+  f.host.core.host.registerPlugin({...manifest('retained-painter'), hookTimeouts: {'ui.render': 60000}}, {'ui.render': async (event, $) => {
+    if (event.props.pane !== 'session') return;paints++;captured = {signal: $.signal, next: () => $.next()};
+    await gate;return {tree: {lines: [{text: 'RETIRED_PAINT', action: 'retired-action'}]}};
+  }});
+  f.focus('session');const source = f.slot('session');measure(source);
+  await expect.poll(() => paints).toBe(1);
+  if (stop === 'unload') f.host.core.host.unregisterPlugin('retained-painter');else await f.host.close();
+  expect(captured.signal.aborted).toBe(true);expect(() => captured.next()).toThrow();
+  measure(source, 70, 11);source.press('retired-action', source.snapshot().revision);
+  release();await expect.poll(() => source.snapshot().override).toBeUndefined();
+  expect(paints).toBe(1);expect(f.provider.requests).toEqual([]);
+});
+
+it.each(['undefined', 'invalid', 'thrown'] as const)('does not start a downstream painter after retired %s outcome', async outcome => {
+  const f = await fixture(), held: {rows: number; signal: AbortSignal; release(): void}[] = [], downstream: number[] = [], publications: string[] = [];
+  let effects = 0;
+  f.host.core.host.registerPlugin({...manifest('returning-painter'), hookTimeouts: {'ui.render': 60000}}, {'ui.render': async (event, $) => {
+    if (event.props.pane !== 'session') return;
+    let release!: () => void;const gate = new Promise<void>(resolve => {release = resolve;});
+    const rows = event.viewport!.rows;held.push({rows, signal: $.signal, release});await gate;
+    if (rows === 10) return {tree: {lines: [{text: 'CURRENT_PAINTER'}]}};
+    if (outcome === 'thrown') throw Error('Retired painter failed');
+    if (outcome === 'invalid') return {unexpected: 'Not a render response'};
+  }});
+  f.host.core.host.registerPlugin(manifest('downstream-painter'), {'ui.render': async (event, $) => {
+    if (event.props.pane !== 'session') return;downstream.push(event.viewport!.rows);
+    try {await $.ui.notify('STALE_PAINTER_EFFECT');effects++;} catch {/* Rendering never gains effect authority. */}
+    return {tree: {lines: [{text: 'STALE_DOWNSTREAM_PAINT'}]}};
+  }}, 'append');
+  f.focus('session');const source = f.slot('session');source.subscribe(() => {const text = source.snapshot().override?.lines[0].text;if (text) publications.push(text);});
+  try {
+    measure(source, 61, 9);await expect.poll(() => held.length).toBe(1);
+    const obsolete = f.calls.find(call => call.input.props.pane === 'session' && call.input.viewport.rows === 9)!;
+    measure(source, 61, 10);expect(held[0].signal.aborted).toBe(true);await expect.poll(() => held.length).toBe(2);
+    held[0].release();await obsolete.completion;
+    expect(downstream).toEqual([]);expect(effects).toBe(0);expect(publications).toEqual([]);
+    expect(source.snapshot().override).toBeUndefined();expect(source.snapshot().defaultView?.lines.some(line => line.text.includes('No messages'))).toBe(true);
+    held[1].release();const currentResult = await f.calls.find(call => call.input.props.pane === 'session' && call.input.viewport.rows === 10)!.completion;
+    expect(currentResult).toMatchObject({value: {tree: {lines: [{text: 'CURRENT_PAINTER'}]}}, faults: []});
+    await expect.poll(() => source.snapshot().override?.lines[0].text).toBe('CURRENT_PAINTER');
+    expect(publications).toEqual(['CURRENT_PAINTER']);expect(downstream).toEqual([]);expect(f.provider.requests).toEqual([]);
+  } finally {for (const call of held) call.release();}
+});
 
 it('uses all five real public sites and separate copy identities with exact measured viewport metadata and working defaults', async () => {
   const f = await fixture();let release!: () => void, held = true;

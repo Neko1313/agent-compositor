@@ -251,6 +251,9 @@ export class HooksHost {
         if(name==='command.invoke'&&event.plugin!==manifest.name)return;
         const execute=()=>{
           const api=this.buildApi(manifest.name,ctx);
+          // This opaque terminal response stops stale implicit fallthrough;
+          // the frontend rejects the null tree and retains its default view.
+          if(isUiRender&&api.signal.aborted)return{tree:null};
           if (["service.agent.run","service.agent.batch","service.context.manage","service.context.compact"].includes(name) && typeof event.context?.withSignal === "function")
             event = {...event,context:event.context.withSignal(api.signal)};
           if (!isUiRender) return fn(event, api);
@@ -298,7 +301,8 @@ export class HooksHost {
     event: string,
     input: unknown,
     signal?: AbortSignal,
-    // Host-owned terminal observation may outlive revoked SDK authority.
+    // Host-owned terminal observation and read-only rendering may outlive
+    // revoked SDK authority without admitting new plugin effects.
     dispatchSignal?: AbortSignal
   ): Promise<{ value: unknown; faults: unknown[] }> {
     if(this.lifetime.signal.aborted&&['service.ui.configure','service.ui.view','service.ui.surface','service.ui.remove'].includes(event))
@@ -394,7 +398,15 @@ export class HooksHost {
     return {
       background:()=>{access('service.agent.enqueue');if(this.pluginTrust.get(plugin)!=='trusted')throw Error('Only trusted plugins may retain background capabilities');return host.buildApi(plugin,ctx,true);},
       plugin,
-      next: (event?: unknown) => {if(detached)throw Error('Background callbacks cannot continue a completed hook');return ctx.next(event);},
+      next: (event?: unknown) => {
+        if(detached)throw Error('Background callbacks cannot continue a completed hook');
+        signal.throwIfAborted();
+        const continuation=ctx.next(event);
+        return{...continuation,then:(accept,reject)=>{
+          if(signal.aborted)return Promise.reject(signal.reason).then(accept,reject);
+          return continuation.then(accept,reject);
+        }};
+      },
       signal,
       session: { ...this.config.session },
       state: {

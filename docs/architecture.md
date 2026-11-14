@@ -272,6 +272,10 @@ Main/Tools/Help copies and status. It builds explicit public defaults and calls
 the normal read-only hook chain, then validates the final portable tree. Numeric
 drawable measurements and explicit user scroll receipts enter a bounded cache;
 only current source/viewport/generation results and displayed actions survive.
+The hook's SDK authority is cancelled as soon as its public input becomes
+obsolete, while its cache slot follows the host-owned dispatch lifetime. A
+superseded hook cannot continue the chain or perform SDK effects, and cannot
+admit another painter by returning an early caller-cancellation receipt.
 Producer defaults never come from the previous override. Status defaults are
 host-owned public data; private controller/editor/Finder objects are excluded.
 Tools' local diagnostic aggregate is not a public render input: only positively

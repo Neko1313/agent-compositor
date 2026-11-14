@@ -1,8 +1,57 @@
 # Project memory
 
+## Public-render dispatch repair verified in source — 2026-11-15
+
+The preceding status-only goal turn made no implementation progress; it verified
+the current checkout and kept the complete 1.0 objective active. The current
+committed `1c5c3a8` candidate is not ready to ship. All nine canonical archive
+smokes pass, including six headless signal cases, but the executed native matrix
+stops after 72 checks in eleven runners on the strict public-render limit.
+Eight held painter calls remain physically unresolved before any gate release;
+the configured two-call cache limit must not be weakened. Wire and child runners
+were not run. Preserve `dist/opentui-lifetime-artifact.json`, immutable archive
+`c44c9b889129c663796a67fb4c6f48a7ebf389cbcd0d94b2efed108d484c1250`,
+`dist/opentui-lifetime-native-suites.json` and its raw failure evidence unchanged.
+No push or installation of this candidate occurred.
+
+The focused repair keeps each render job's SDK authority signal separate from
+its host-owned dispatch signal: supersede immediately revokes SDK effects and
+continuation, while actual dispatch settlement or the configured hook budget
+releases the cache slot. Generic command/Runtime cancellation stays unchanged.
+The actual Host/cache regression reproduces nine held painters against two on
+the original adapter. The scoped adapter fix preserves the cache and generic
+Runtime unchanged. Hooks checks SDK authority both when calling `$.next` and
+when consuming its lazy continuation. A render-only pre-user-function guard
+returns an opaque terminal response for an already-aborted API, stopping stale
+implicit fallthrough after undefined, invalid or throwing results. Independent
+review is clear. All 27 host/cache checks and eight real source PTY checks pass,
+with two actual unresolved calls before and after one fixture release, latest
+116x30 viewport and both PTY exits zero. Root inspected actual native default,
+chain/fallback and selected restart PNGs. The three original successor-poll
+failures remain preserved: the final tests await the exact current outer
+dispatch, assert its actual tree/faults and retain the exact publication oracle;
+the earlier polling failure's cause is not established. A comment-only Hooks
+clarification followed source8, whose raw proof must retain its observed bytes.
+
+Final standalone full2386 passed plus three optional skips in 266 files with
+no unhandled errors, exit0/32.814s. All 735 conservative source paths/hashes
+remained unchanged during the run. Receipt:
+dist/headless-render-settlement-full-ci-receipt.json; log:
+/home/neko/.cache/ac-tmp/compositor-render-settlement-full-test-ci-20261115.log.
+Prior full2376 JUNIT/coverage/receipt are retained separately under
+dist/lifetime-full-green-retained-20261115. Final root whole-workspace types,
+generation/docs generation, docs:check, marketplace validation and all32 PR
+certificates pass (compositor-render-settlement-* logs in disk TMPDIR).
+The source8 Hooks snapshot is explicitly reconstructed, not directly measured;
+the owner confirmed only two comment lines changed afterward in
+dist/opentui-public-render-dispatch-source-20261115/hooks-comment-identity-owner-addendum.json.
+Final full2386 covers the final comment bytes. No paid model calls or budget changes.
+New committed source and a distinct frozen archive/native matrix are required;
+do not overwrite or reuse the failed candidate's reports.
+
 ## Restart, idle-exit and native media acceptance in progress — 2026-11-15
 
-Final current source verification is now GREEN: standalone full2376 passed,
+Source verification for `1c5c3a8` is GREEN: standalone full2376 passed,
 three optional skips,265 files,0 unhandled, wrapper exit0/30.194s at
 /home/neko/.cache/ac-tmp/compositor-lifetime-corrected-full-test-ci-20261115.log.
 Receipt dist/headless-lifetime-corrected-full-ci-receipt.json. The first full
@@ -11,7 +60,8 @@ JUNIT under dist/headless-lifetime-full-ci-initial-failure-20261115. Those failu
 were real regressions and are not reclassified. Backend corrections preserve
 all original138 UI/lifecycle and cancellation/PID assertions. Final root types,
 generation/docs generation, docs:check, marketplace and all32 PR certificates
-also pass. The current source is ready for commit and a fresh build, not1.0.
+also pass. Those changes were committed locally in `dc42720` and `1c5c3a8`;
+the later public-render repair above requires fresh verification.
 
 Cancellation settlement now distinguishes generic ignored work from explicitly
 owned resource/lifecycle receipts. Runtime.setResolver options are
@@ -38,18 +88,25 @@ guard, whose actual RED/focused20GREEN are retained. The final full suite includ
 that guard and SDK8; new canonical archive6 will verify the final shipping bytes.
 No model API calls or budget changes. The original ledger remains unchanged.
 
-Current working-tree continuation now includes real headless shutdown and
-dispatcher-cancellation changes. The old 727-row / c732e028 and 23315fd3 proofs
-cover the committed bench-only ed2 checkpoint, not these new runtime edits.
+The `1c5c3a8` candidate includes real headless shutdown and dispatcher-cancellation
+changes. The old 727-row / c732e028 and 23315fd3 proofs cover the committed
+bench-only ed2 checkpoint, not those runtime edits.
 Do not reuse that archive for a new runtime completion claim. All new source
 must freeze, pass standalone full coverage/types/docs, then receive a fresh
 immutable build, nine canonical smokes, native 95 and exact-head four-platform
 qualification. The new release gate adds headless-signals as the ninth report
 (36 across four platforms); old eight/32-report evidence stays unchanged.
-Fresh ignored orchestration is prepared only in dist/freeze-lifetime-candidate.py
-and dist/run-lifetime-native.mjs. Neither has been executed. Use disk TMPDIR
-/home/neko/.cache/ac-tmp; /tmp still has only about 628 MiB free. Main HEAD remains
-ed2d2ba4e7eba6e96486d2cb5d2f6f66c4818b3f; no new release dispatch is live.
+The ignored `dist/freeze-lifetime-candidate.py` and `dist/run-lifetime-native.mjs`
+were executed for `1c5c3a8`: nine smokes pass, native95 fails after 72 checks as
+recorded above. Preserve those outputs. The next helpers use the distinct
+render-settlement namespace and have not run. Use disk TMPDIR
+/home/neko/.cache/ac-tmp; /tmp still has only about 628 MiB free. Origin/main
+remains `ed2d2ba`, three local commits are ahead, and no new release dispatch is
+live. The installed binary is still the earlier sealed 23315fd3 archive.
+
+The following paragraphs retain intermediate shutdown investigation history.
+Their pending assignments and original failures are superseded by the final
+`1c5c3a8` source checks above; they are not current operational instructions.
 
 Additional verified boundaries in this continuation are retained, not waived:
 the initial signal patch passed four normal cases but a NEVER command still

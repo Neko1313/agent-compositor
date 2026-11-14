@@ -7,16 +7,26 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
-The current source shutdown repair passes the full standalone suite: 2376 tests
-plus three optional skips in 265 files, with no unhandled errors. Whole-workspace
-types, generation, documentation, marketplace validation and all 32 mandatory
-plugin contracts pass. Actual source CLI checks cover graceful SIGINT/SIGTERM,
+The current source passes the full standalone suite: 2386 tests plus three
+optional skips in 266 files, with no unhandled errors. Whole-workspace types,
+generation, documentation, marketplace validation and all 32 mandatory plugin
+contracts pass. Actual source CLI
+checks cover graceful SIGINT/SIGTERM,
 owned SDK/native process reaping, unrelated process preservation, long ignored
 hooks, concurrent close joining, journal failure and truthful final results.
 The new canonical installed-runtime gate adds six signal cases as a ninth smoke
-report. A newly built archive, native 95 and exact-head four-platform evidence
-are still required for these runtime changes; the older archive below is not
-their verification.
+report. The fresh committed `1c5c3a8` archive passes all nine canonical smokes,
+including the six installed signal cases. Its native run passes 72 checks in
+eleven runners, then fails the public-render limit: eight actual held painters
+remain unresolved before any fixture gate is released, despite the limit of two.
+The remaining wire and delegated-child runners were not executed. This archive
+is retained as failed evidence and has not replaced the installed binary. A
+narrow dispatch/SDK-authority separation now passes 27 focused host/cache tests
+and all eight actual source PTY checks with the original two-painter oracle.
+Captured continuations and implicit stale fallthrough are guarded; current
+dispatch results and publication remain verified. This source repair requires a
+fresh archive, full native 95 and exact-head four-platform evidence. The older
+archive below does not verify these runtime changes.
 
 OpenTUI runs the configured application through `--renderer opentui`; Ink remains
 the default. Revision `3281bda` adds private delegated and managed agent request

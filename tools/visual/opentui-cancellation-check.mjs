@@ -6,6 +6,7 @@ import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {promisify} from 'node:util';
 import {chromium} from 'playwright';
+import {createOpenTuiFinder} from './opentui-finder.mjs';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-cancellation');
 const timeout=20_000,draft='CANCEL_MAIN_DRAFT_47',hash=value=>createHash('sha256').update(value).digest('hex');
@@ -44,7 +45,7 @@ try{
   async function type(value){await page.keyboard.type(value);await wait(value);}
   async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await key('End');await key('Control+u');await type(value);await key('Enter');}
-  async function pick(query){await key('F2');await wait('windows · ↑↓ select · Enter open');await type(query);await key('Enter');await absent('windows · ↑↓ select · Enter open');}
+  const {pick}=createOpenTuiFinder({page,key,wait,absent});
   const sessionFiles=async()=>(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));
   const events=async()=>(await Promise.all((await sessionFiles()).map(async name=>(await readFile(join(launch.state,'sessions',name),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)))).flat();
   const completions=async()=>(await readFile(join(output,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse).filter(row=>row.kind==='completion');

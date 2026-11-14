@@ -1,5 +1,37 @@
 # Project memory
 
+## Shared known-label Finder bench actions — 2026-11-14
+
+The 3ee9584 main CI, docs, release preparation and native verification pass.
+Build-only run 43547567210 passes both Linux platforms and macOS Intel, including
+the corrected startup/focus checks. macOS ARM64 instead hits the same late-row
+case in the older requests scenario's questionnaire picker after its first two
+checks. The failed run is retained. Evidence:
+dist/remote-selected-darwin-arm64-43547567210/opentui-requests-darwin-arm64.
+Its 285-frame ANSI replay matches all 50 final rows: full Questions query with
+zero results in frame 283, followed by one unselected row and the selection error
+in frame 284. Prior question receipts remain valid; the questionnaire is pending.
+
+Extracted the already-reviewed controller picker into
+ tools/visual/opentui-finder.mjs, shared by controller, request, manager and
+cancellation checks. Known-label pick requires the same native panel's exact
+query, expected matching rows and accent/bold selection, with one real ArrowDown
+only if needed, followed by one Enter. Synchronized output cannot admit a read.
+Query-only does not select/open, so negative queries, protected F5 and Closed-row
+mouse checks remain independent. Live duplicate-question cases explicitly expect
+two rows; all original body, cursor, lease, effects and privacy assertions remain.
+Advanced navigation's deliberate partial queries, stale routes and cancellation
+are untouched. No product, timeout, retry or permission-policy change.
+
+All 20 affected immutable-native cases pass: controller six, requests six,
+managers five and cancellation three in
+dist/opentui-shared-finder-native-{controllers,requests,managers,cancellation}.
+Each report has errors:[] and PTY exit 0, the same bd95568f/d0c79ae7 identities;
+representative PNGs were inspected and all owned jobs/browser/server processes
+closed. The helper/four-client diff was independently cleared. New-head native
+four-platform CI must still be observed. The installed bundle and the unchanged
+1990-test, full docs/typecheck/release-smoke and other native baselines remain.
+
 ## Native frame acknowledgements in visual checks — 2026-11-14
 
 The ee54aa4 Node 22/26 CI, docs and plugin release preparation pass. Build-only

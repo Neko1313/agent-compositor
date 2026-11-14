@@ -6,6 +6,7 @@ import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {parse as parseJsonc} from 'jsonc-parser';
 import {chromium} from 'playwright';
+import {createOpenTuiFinder} from './opentui-finder.mjs';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-managers');
 const timeout=20_000,draft='MANAGER_MAIN_DRAFT_47',plugin='local-flow-probe',todo='plugin-todos-tasks';
@@ -118,7 +119,7 @@ try{
   async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await replace(value);await key('Enter');}
   async function focusTab(label){await click(label,{top:true});}
-  async function findWindow(label){await key('F2');await wait('Search window or command…');await type(label);await key('Enter');await absent('windows · ↑↓ select · Enter open');}
+  const {pick:findWindow}=createOpenTuiFinder({page,key,wait,absent});
   async function setZoom(enabled){
     await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');

@@ -5,6 +5,7 @@ import {copyFile,mkdir,readFile,readdir,realpath,rm,writeFile} from 'node:fs/pro
 import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
+import {createOpenTuiFinder} from './opentui-finder.mjs';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-requests');
 const timeout=20_000,draft='REQUEST_MAIN_DRAFT_47',secret='SYNTHETIC_PRIVATE_REQUEST_TOKEN_47',hash=value=>createHash('sha256').update(value).digest('hex');
@@ -33,22 +34,9 @@ try{
   const wait=value=>page.waitForFunction(value=>window.visual?.text().includes(value),value).catch(error=>{throw Error('Terminal missing '+JSON.stringify(value),{cause:error});});
   const absent=value=>page.waitForFunction(value=>!window.visual?.text().includes(value),value).catch(error=>{throw Error('Terminal retained '+JSON.stringify(value),{cause:error});});
   async function type(value){await page.keyboard.type(value);await wait(value);}
-  async function finderQuery(value,count){
-    await page.keyboard.type(value);
-    await page.waitForFunction(({value,count})=>{
-      const lines=visual.text().split('\n');
-      for(const[row,line]of lines.entries()){
-        const title=line.indexOf('─ Windows ');if(title<0)continue;
-        const left=line.lastIndexOf('┌',title),right=line.indexOf('┐',title);if(left<0||right<0)continue;
-        if(lines[row+1]?.slice(left+1,right).trim()!==value)return false;
-        return count===undefined||lines[row+2]?.slice(left+1,right).trim()===count+' windows · ↑↓ select · Enter open';
-      }
-      return false;
-    },{value,count}).catch(error=>{throw Error('Finder did not show exact query '+JSON.stringify(value)+(count===undefined?'':' with '+count+' results'),{cause:error});});
-  }
+  const {marker:finderMarker,query:finderQuery,pick}=createOpenTuiFinder({page,key,wait,absent});
   async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await key('End');await key('Control+u');await type(value);await key('Enter');}
-  async function pick(query){await key('F2');await wait('windows · ↑↓ select · Enter open');await finderQuery(query);await key('Enter');await absent('windows · ↑↓ select · Enter open');}
   const sessionFiles=async()=>(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));
   const events=async()=>(await Promise.all((await sessionFiles()).map(async name=>(await readFile(join(launch.state,'sessions',name),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse)))).flat();
   const completions=async()=>(await readFile(join(output,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse).filter(row=>row.kind==='completion');
@@ -77,15 +65,14 @@ try{
   }throw Error('Terminal changed during both screenshot attempts: '+name);}
 
   const exists=file=>readFile(file).then(()=>true,error=>{if(error.code!=='ENOENT')throw error;return false;});
-  const finderMarker='windows · ↑↓ select · Enter open';
   async function setZoom(enabled){
     // Transient request windows are intentionally absent from persisted layout.
     await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
     await wait('WINDOW MODE · '+(enabled?'Zoomed':'Tiled'));await key('Escape');await absent('WINDOW MODE');
   }
-  async function request(text,title='Questions · request-probe'){
-    await pick(title);
+  async function request(text,title='Questions · request-probe',count=1){
+    await pick(title,count);
     // Same-owner questions deliberately have public generic titles. Inspect real
     // focused content rather than indexing private question text in Finder.
     for(let index=0;index<10;index++){
@@ -135,8 +122,8 @@ try{
 
   await start('question-a');await request('UI_QUESTION_A');await key('Enter');await wait('[x] Local');await noReceipt('question-a');
   await click('[ ] Remote');await wait('[x] Remote');
-  await start('question-b');await request('UI_QUESTION_B');await noReceipt('question-a');await noReceipt('question-b');await capture('02-pending-concurrent-questions');await retainedMain();
-  await request('UI_QUESTION_A');await wait('[x] Remote');await key('Alt+w');await wait('WINDOW MODE');await key('q');await key('Escape');await absent('WINDOW MODE');
+  await start('question-b');await request('UI_QUESTION_B','Questions · request-probe',2);await noReceipt('question-a');await noReceipt('question-b');await capture('02-pending-concurrent-questions');await retainedMain();
+  await request('UI_QUESTION_A','Questions · request-probe',2);await wait('[x] Remote');await key('Alt+w');await wait('WINDOW MODE');await key('q');await key('Escape');await absent('WINDOW MODE');
   await retainedMain();await closedRequest('UI_QUESTION_A');await wait('[x] Remote');await once('question-a');
   await key('Tab');await type('Alabel');await key('Home');await key('ArrowRight');await key('ArrowRight');
   await key('Alt+w');await wait('WINDOW MODE');await key('q');await key('Escape');await absent('WINDOW MODE');
@@ -179,7 +166,7 @@ try{
   await observe(()=>json(launch.requests.requested['background-after']),value=>value===true,'The after-settlement retained request must start');
   await wait('─ Request controls · focused');await noReceipt('background-after');await noReceipt('form');await capture('04-background-requests-passive-focus');await retainedMain();
   await key('Control+x');await absent('Main · Question');await wait('Main · Ready');await wait(draft);await noModelWork();
-  await request('BACKGROUND_BEFORE');await noReceipt('background-after');await key('Escape');
+  await request('BACKGROUND_BEFORE','Questions · request-probe',2);await noReceipt('background-after');await key('Escape');
   const backgroundBefore=await receipt('background-before',value=>value.ok===false);await once('background-before');
   await request('BACKGROUND_AFTER');await click('[ ] Keep');await wait('[x] Keep');await key('Alt+Enter');
   assert.deepEqual(await receipt('background-after'),{ok:true,value:'Keep'});await once('background-after');await noReceipt('form');

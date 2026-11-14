@@ -5,6 +5,7 @@ import {copyFile,mkdir,readFile,readdir,realpath,rm,writeFile} from 'node:fs/pro
 import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
+import {createOpenTuiFinder} from './opentui-finder.mjs';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-controllers');
 const timeout=20_000,draft='CONTROLLER_MAIN_DRAFT_47',defaultToken='SYNTHETIC_CONTROLLER_DEFAULT_47',suffix='_PRIVATE_KEY_47';
@@ -44,34 +45,7 @@ try{
   },main);}
   async function main(){await key('Alt+0');await normal(true);}
   async function command(value){await main();await key('End');await key('Control+u');await type(value);await key('Enter');}
-  const finderMarker='windows · ↑↓ select · Enter open';
-  async function finderState(value,count,selected=false){const handle=await page.waitForFunction(({value,count,selected})=>{
-    const terminal=visual.terminal,buffer=terminal.buffer.active;
-    const cells=row=>Array.from({length:terminal.cols},(_,col)=>buffer.getLine(buffer.viewportY+row)?.getCell(col)?.getChars()??'');
-    for(let row=0;row<terminal.rows-2;row++){
-      const header=cells(row),title=header.join('').indexOf('─ Windows ');if(title<0)continue;
-      const left=header.lastIndexOf('┌'),right=header.indexOf('┐',left);if(left<0||right<0)continue;
-      const content=y=>cells(y).slice(left+1,right).join('').trim();
-      if(content(row+1)!==value)return;
-      if(count!==undefined&&content(row+2)!==count+' windows · ↑↓ select · Enter open')return;
-      const choices=[];
-      for(let y=row+3;y<terminal.rows;y++){
-        const line=cells(y);if(line[left]==='└')break;
-        const text=content(y),name=text.replace(/\s{2,}(?:WS [1-9]|Closed|Available|Unavailable)$/,'');
-        if(name!==value)continue;
-        const col=line.findIndex((ch,x)=>x>left&&x<right&&ch!==''&&ch!==' '),cell=buffer.getLine(buffer.viewportY+y)?.getCell(col);
-        choices.push({row:y,selected:cell?.getBgColor()===0xa6dfd4&&cell?.getFgColor()===0x171a20&&Boolean(cell?.isBold())});
-      }
-      if(count!==undefined&&choices.length!==count||selected&&!choices.some(choice=>choice.selected))return;
-      return{choices,selected:choices.some(choice=>choice.selected)};
-    }
-  },{value,count,selected});return handle.jsonValue();}
-  async function finderQuery(value,count){await page.keyboard.type(value);return finderState(value,count);}
-  async function pick(value,count=1){await key('F2');await wait(finderMarker);const choice=await finderQuery(value,count);
-    // A request can publish after query editing. Its late row intentionally has
-    // no selection; select that visible current result before one explicit Enter.
-    if(!choice.selected)await key('ArrowDown');await finderState(value,count,true);await key('Enter');await absent(finderMarker);
-  }
+  const {marker:finderMarker,query:finderQuery,pick}=createOpenTuiFinder({page,key,wait,absent});
   async function setZoom(enabled){await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
     await wait('WINDOW MODE · '+(enabled?'Zoomed':'Tiled'));await key('Escape');await normal();

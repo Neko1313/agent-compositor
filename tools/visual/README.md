@@ -110,6 +110,14 @@ native archive. This scenario does not establish selected editor, placement or
 full render/wire parity. The older `visual:controllers` keeps its complete Ink
 composition and its documented custom-editor F2 key unchanged.
 
+Known-label Finder opens in the controller, request-window, manager and
+cancellation checks share [opentui-finder.mjs](opentui-finder.mjs). The helper
+waits for one native panel's exact query, expected rows and highlighted choice;
+it selects a late unselected result before one Enter. Query-only observations
+do not select or open anything, preserving negative and Closed-row mouse checks.
+The advanced navigation scenario keeps its deliberate partial-query, stale-route
+and cancellation interactions separate.
+
 `npm run visual:opentui-cancellation` checks immediate commands through the actual
 configured OpenTUI CLI. Two commands from one plugin start real `/bin/sh` workers
 under exact normal permission rules. Ctrl+C in one window must settle its

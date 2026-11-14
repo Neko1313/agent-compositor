@@ -26,7 +26,10 @@ npm run marketplace:validate
 ```
 
 Use the affected package tests while iterating. `npm run test:ci` runs the full
-TypeScript suite and coverage checks. For terminal behavior, follow
+TypeScript suite and coverage checks. Test discovery preserves Vitest's default
+exclusions and excludes the root `dist/` output tree: retained evaluation
+workspaces and source snapshots are evidence, not maintained test files.
+For terminal behavior, follow
 [the real PTY visual bench](../tools/visual/README.md). Read
 [evaluation guidance](evals.md) for scripted versus live model evidence and
 [plugin certification](plugin-testing.md) for extension release requirements.

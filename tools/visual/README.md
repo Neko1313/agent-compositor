@@ -155,6 +155,9 @@ unload revoke it. Restart restores committed context, rules and the complete
 saved window tree, including a deliberately closed pane. Unsent drafts are only
 checked across interactive resume, not process exit. The fixture records the
 actual selected history resume intent before the bench restarts with that ID.
+Dependent history mutations wait for the refreshed native selection/list, in
+addition to the service receipt. Inserting or removing a chat shifts the action
+rows; pointer targets must remain stable in a completed terminal frame.
 
 The separate observer proves private frames, raw inputs and local form results do
 not use public `ui.render`, `ui.press` or `ui.change`. Deliberate `data.control`

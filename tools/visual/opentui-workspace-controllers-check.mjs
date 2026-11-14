@@ -44,10 +44,10 @@ try{
     return t.cols===columns&&t.rows===rows&&t.modes?.synchronizedOutputMode!==true&&b.getLine(b.viewportY+3)?.getCell(columns-1)?.getChars()==='┐'&&b.getLine(b.viewportY+rows-2)?.getCell(columns-1)?.getChars()==='┘';},{columns,rows});}
   let pointerAttempt=0;
   async function click(label,index=1){const attempt=++pointerAttempt,handle=await page.waitForFunction(({label,index,attempt})=>{
-    const t=visual.terminal,b=t.buffer.active;if(t.modes?.synchronizedOutputMode===true)return;
+    const t=visual.terminal,b=t.buffer.active;if(t.modes?.synchronizedOutputMode===true){delete window.__workspacePointer;return;}
     for(let row=0;row<t.rows;row++){const cells=Array.from({length:t.cols},(_,col)=>b.getLine(b.viewportY+row)?.getCell(col)?.getChars()??''),offset=cells.join('').indexOf(label);if(offset<0)continue;
       let text='',col=0;while(col<cells.length&&text.length<offset){text+=cells[col];col++;}col+=index;const rect=document.querySelector('.xterm-screen').getBoundingClientRect();
-      const signature=JSON.stringify([row,col,t.cols,t.rows,rect.x,rect.y,rect.width,rect.height,cells.join('')]),previous=window.__workspacePointer;
+      const signature=JSON.stringify([row,col,t.cols,t.rows,rect.x,rect.y,rect.width,rect.height,visual.frames,visual.text()]),previous=window.__workspacePointer;
       if(previous?.attempt!==attempt||previous.signature!==signature){window.__workspacePointer={attempt,signature,count:1};return;}if(++previous.count<3)return;
       return{x:rect.x+(col+.5)*rect.width/t.cols,y:rect.y+(row+.5)*rect.height/t.rows};}
   },{label,index,attempt},{polling:'raf'});const point=await handle.jsonValue();await page.mouse.click(point.x,point.y);}
@@ -127,8 +127,16 @@ try{
   await history();await historyQuery('Workspace seed');await click('Selected: Workspace seed');await click('Rename selected');await wait('Workspace rename');await setZoom(true);await key('End');await key('Control+u');await paste('Workspace renamed seed');await key('Tab');await paste(token);await wait('*'.repeat(token.length));await key('Alt+Enter');
   await eventWhere(row=>row.event==='control'&&row.action==='rename'&&row.args.id===fixture.seedId,'Canonical rename must complete');assert.equal((await json(join(launch.state,'sessions',fixture.seedId+'.meta.json'))).name,'Workspace renamed seed');
   await history();await historyQuery('Workspace');await click('Fork selected');const fork=await eventWhere(row=>row.event==='control'&&row.action==='fork','Canonical fork must return its own metadata');const forkId=fork.value.id;assert.equal(fork.value.parentId,fixture.seedId);assert.equal(fork.value.name,'Workspace fork');
+  // The service receipt precedes the controller's refreshed list. Its inserted
+  // row moves the action buttons; wait for the actual selected native result.
+  await wait('Selected: '+forkId);await selectedRow('Selected: Workspace fork');
   await click('Archive selected');await eventWhere(row=>row.event==='control'&&row.action==='archive'&&row.args.id===forkId,'Archive must target only the fork');assert.equal((await json(join(launch.state,'sessions',forkId+'.meta.json'))).archived,true);
-  await click('Show archived: no');await wait('Workspace fork · archived');await click('Unarchive last');await eventWhere(row=>row.event==='control'&&row.action==='unarchive'&&row.args.id===forkId,'Unarchive must restore the same fork');assert.equal((await json(join(launch.state,'sessions',forkId+'.meta.json'))).archived,false);await capture('05-canonical-history-mutations');
+  await page.waitForFunction(id=>{const text=visual.text();return visual.terminal.modes?.synchronizedOutputMode!==true
+    &&text.includes('Selected: '+id)&&text.includes('Listed 1')&&!text.includes('Selected: Workspace fork');},forkId);
+  await click('Show archived: no');await wait('Workspace fork · archived');await click('Unarchive last');await eventWhere(row=>row.event==='control'&&row.action==='unarchive'&&row.args.id===forkId,'Unarchive must restore the same fork');assert.equal((await json(join(launch.state,'sessions',forkId+'.meta.json'))).archived,false);
+  await page.waitForFunction(id=>{const text=visual.text();return visual.terminal.modes?.synchronizedOutputMode!==true
+    &&text.includes('Selected: '+id)&&text.includes('Listed 2')&&!text.includes('Workspace fork · archived');},forkId);
+  await selectedRow('Selected: Workspace fork');await capture('05-canonical-history-mutations');
   assert.equal((await completions()).length,2);await retainedMain();report.fork={id:forkId,parentId:fork.value.parentId};
   report.checks.push('Selected history uses the canonical intercepted repository controls for private-form rename, fork, archive and unarchive after Main becomes ready; exact persisted metadata and the parked draft/cursor agree');
 

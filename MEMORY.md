@@ -1,5 +1,30 @@
 # Project memory
 
+## History bench refreshed-list acknowledgement — 2026-11-14
+
+Bench-only correction 6101bca passed Node 22/26 CI 43563635476,
+documentation 43563635493 and plugin preparation 43563635458. Build-only
+43563654787 passed verification, both Linux jobs and macOS ARM, including the
+corrected requests check. The macOS Intel job passed the seven older OpenTUI
+suites and four new workspace cases, then failed before archiving its fork.
+Keep this second run failed; publication was skipped. All four sets of eight
+smokes passed without paid requests. Downloaded evidence ZIP digests and per-suite
+payload hashes match, with audit-summary.json and darwin-x64-diagnosis.json under
+dist/opentui-workspace-remote-6101bca.
+
+Offline xterm replay matches all 50 final terminal rows and proves the new
+failure's coordinates. The fork service receipt preceded its refreshed list:
+frame 308 had one result, Fork at row 14 and Archive at row 15; frame 309 had two
+results and shifted both actions down. The next mouse packet still targeted row
+15 and correctly invoked Fork again. Trace records two forks and no Archive.
+The bench now waits for the actual selected fork ID/row before Archive, the
+refreshed one-result list after Archive, and the restored unarchived selection
+before its capture. Pointer stability also includes the completed frame and
+painted content. No action retries, timeout increases or product changes.
+The corrected installed-runtime scenario passes all eight cases, PTY 0,
+errors:[], with the same 133b4462/34ac4ba5 payload and inspected mutation PNG in
+dist/opentui-workspace-history-paint-fixed-native. New-head gates remain required.
+
 ## Request bench native resize acknowledgement — 2026-11-14
 
 The selected workspace-controller feature is committed and pushed as 7627203.

@@ -73,7 +73,33 @@ try{
   const selectedTrace=(kind,event='created')=>observe(trace,rows=>rows.some(row=>row.kind===kind&&row.event===event),'Expected '+kind+' '+event).then(rows=>rows.findLast(row=>row.kind===kind&&row.event===event));
   async function history(){await finder.pick('Chat history');await setZoom(true);await wait('CUSTOM HISTORY');}
   async function placement(){await finder.pick('Plugins · placement');await setZoom(true);await wait('CUSTOM PLACEMENT');}
-  async function historyQuery(value){await key('End');await key('Control+u');if(value)await paste(value);await wait('Search: '+value);await observe(trace,rows=>rows.some(row=>row.event==='listed'&&row.query===value),'History list must acknowledge the exact query');}
+  async function historyQuery(value){
+    const before=await trace(),lease=before.findLast(row=>row.event==='created'&&row.kind==='history');assert.ok(lease?.id,'History query needs its current controller lease');
+    const previous=before.findLast(row=>row.event==='listed'&&row.id===lease.id),unchanged=previous?.query===value;
+    await key('End');
+    // Clearing an already empty field need not emit a change. Reuse only the
+    // latest same-lease result, with its exact query and painted list acknowledged.
+    if(!unchanged){await key('Control+u');if(value)await paste(value);}
+    await observe(async()=>{
+      const rows=await trace(),index=rows.findLastIndex(row=>row.event==='listed'&&row.id===lease.id),receipt=rows[index];
+      if(!receipt||receipt.query!==value||!unchanged&&index<before.length)return;
+      const painted=await page.evaluate(({id,value,count})=>{
+        const t=visual.terminal,b=t.buffer.active;if(t.modes?.synchronizedOutputMode===true)return false;
+        const cells=Array.from({length:t.rows},(_,y)=>Array.from({length:t.cols},(_,x)=>b.getLine(b.viewportY+y)?.getCell(x)?.getChars()??''));
+        const corners={'┌':['┐','└','┘'],'╭':['╮','╰','╯'],'╔':['╗','╚','╝']};
+        for(let top=0;top<t.rows;top++)for(let left=0;left<t.cols;left++){
+          const ends=corners[cells[top][left]];if(!ends)continue;
+          const right=cells[top].findIndex((ch,x)=>x>left&&ch===ends[0]);if(right<0)continue;
+          const title=cells[top].slice(left+1,right).join('');if(!title.includes('Chat history · focused'))continue;
+          const bottom=cells.findIndex((row,y)=>y>top&&row[left]===ends[1]&&row[right]===ends[2]);if(bottom<0)continue;
+          const lines=cells.slice(top+1,bottom).map(row=>row.slice(left+1,right).join('').trim());
+          return lines[0]==='Search: '+(value||'Search saved chats')&&lines.includes('Lease: '+id)&&lines.includes('Listed '+count);
+        }
+        return false;
+      },{id:lease.id,value,count:receipt.length});
+      return painted?receipt:undefined;
+    },Boolean,'History must acknowledge the current lease, exact query and matching painted list before pointer input');
+  }
   async function controls(){await finder.pick('Workspace controls');await setZoom(true);}
   async function retainedMain(){await main();await setZoom(true);await wait(draft);await paste('X');await wait('WXORKSPACE_PRIVATE_DRAFT_47');await key('Backspace');await wait(draft);}
   async function pendingMain(){await retainedMain();await key('Alt+i');await wait('[x] Production');await key('Alt+i');assert.equal((await completions()).length,1);}

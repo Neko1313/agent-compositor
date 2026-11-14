@@ -88,11 +88,11 @@ for(const composition of ['native','selected']){
     const trace=()=>records(launch.appearance.trace),publicTrace=()=>records(launch.appearance.publicTrace);
     const completions=async()=>(await records(join(directory,'app-http.jsonl'))).filter(row=>row.kind==='completion');
     const check=text=>result.checks.push(text);
-    async function normal(){await page.waitForFunction(()=>{
+    async function normal(after=-1){await page.waitForFunction(after=>{
       const terminal=visual.terminal,text=visual.text(),toolbar=terminal.buffer.active.getLine(terminal.buffer.active.viewportY+1)?.translateToString(true,0,terminal.cols).trim().replace(/\s+/g,' ');
       const expected=terminal.cols<42?/^Arrange Windows Main$/:/^Alt\+W Arrange (?:F2 Windows|Alt\+W w Windows) Alt\+0 Main$/;
-      return terminal.modes?.synchronizedOutputMode!==true&&expected.test(toolbar??'')&&!text.includes('WINDOW MODE')&&!text.includes('windows · ↑↓ select · Enter open');
-    });}
+      return visual.frames>after&&terminal.modes?.synchronizedOutputMode!==true&&expected.test(toolbar??'')&&!text.includes('WINDOW MODE')&&!text.includes('windows · ↑↓ select · Enter open');
+    },after);}
     async function main(){await key('Alt+0');await normal();await observe(layout,value=>value.windows.focused==='session'||value.views?.some(view=>view.id===value.windows.focused&&view.kind==='session'),'Main focus must acknowledge actual selected window');}
     async function input(text,cursor=text.length){if(composition==='selected'){
       await wait('COPY CUSTOM INPUT');await wait('D: '+text.slice(0,cursor)+'|'+text.slice(cursor));await wait('Cursor UTF16: '+cursor+' / '+text.length);
@@ -111,9 +111,11 @@ for(const composition of ['native','selected']){
         if(!old||old.frames!==frames||old.text!==text){window.__appearanceQuiet={frames,text,at:now};return false;}return now-old.at>=150;},undefined,{polling:'raf',timeout:5000});}
     }throw Error('Terminal changed during both captures: '+name);}
     const probe=(title,label,header=false)=>page.evaluate(paneProbe,{title,label,header});
-    async function paneText(title){return(await probe(title))?.text??'';}
-    async function arrange(){await key('Alt+w');await wait('WINDOW MODE');}
-    async function leave(){await key('Escape');await normal();}
+    // Saved WM state and the unchanged toolbar can precede a complete native
+    // frame. Missing panes during synchronized output cannot prove absence.
+    async function paneText(title){return(await observe(()=>probe(title),Boolean,'Complete native pane: '+title)).text;}
+    async function arrange(){const frames=await page.evaluate(()=>visual.frames);await key('Alt+w');await page.waitForFunction(frames=>visual.frames>frames&&visual.terminal.modes?.synchronizedOutputMode!==true&&visual.text().includes('WINDOW MODE'),frames);}
+    async function leave(){const frames=await page.evaluate(()=>visual.frames);await key('Escape');await normal(frames);}
     async function focus(id){const before=await layout(),workspace=before.windows.spaces.find(space=>leaves(space.tree).includes(id))?.id;assert.ok(workspace,'Focus needs a real open identity: '+id);
       await arrange();if(before.windows.workspace!==workspace){await key(String(workspace));await observe(layout,value=>value.windows.workspace===workspace,'Actual workspace change');}
       let current=await layout();const count=leaves(current.windows.spaces.find(space=>space.id===workspace)?.tree).length;
@@ -125,6 +127,10 @@ for(const composition of ['native','selected']){
       await page.waitForFunction(({cols,rows,frames})=>{const terminal=visual.terminal,buffer=terminal.buffer.active;return terminal.cols===cols&&terminal.rows===rows&&visual.frames>frames&&terminal.modes?.synchronizedOutputMode!==true
         &&Array.from({length:rows},(_,y)=>buffer.getLine(buffer.viewportY+y)?.getCell(cols-1)?.getChars()).some(ch=>['┐','┘','│','╮','╯','╗','╝','║'].includes(ch));},{cols,rows,frames});}
     async function point(x,y){return page.evaluate(({x,y})=>{const rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(x+.5)*rect.width/visual.terminal.cols,y:rect.y+(y+.5)*rect.height/visual.terminal.rows};},{x,y});}
+    async function stablePane(title,predicate,reason){let previous,count=0;return observe(async()=>{
+      const value=await probe(title);if(!value||!predicate(value)){previous=undefined;count=0;return;}const signature=JSON.stringify([value.left,value.right,value.top,value.bottom,value.header,value.text]);
+      if(signature!==previous){previous=signature;count=1;return;}if(++count<3)return;return value;
+    },Boolean,reason);}
     async function click(title,label,header=false){let previous,count=0;const target=await observe(async()=>{
       const value=await probe(title,label,header);if(!value?.marker)return;const signature=JSON.stringify([value.marker,value.header,value.text]);
       if(signature!==previous){previous=signature;count=1;return;}if(++count<3)return;return value.marker;
@@ -145,7 +151,7 @@ for(const composition of ['native','selected']){
     async function paletteField(label,field,expected){await observe(async()=>{const value=await probe('Appearance palette',label);return value?.marker;},value=>value?.[field]===expected,'Palette '+label+' '+field+' must equal '+expected.toString(16));}
     async function allColors(){await focus('session');for(const[name,label]of Object.entries({text:'TEXT',muted:'MUTED',accent:'ACCENT',success:'SUCCESS',warning:'WARNING',danger:'DANGER'}))await color('APPEARANCE_'+label,rgb(launch.appearance.palette[name]));
       await paletteField('APPEARANCE_SELECTED','fg',selection.fg);await paletteField('APPEARANCE_SELECTED','bg',selection.bg);
-      const palette=await probe('Appearance palette');assert.equal(palette.rows[1][0].fg,rgb(launch.appearance.palette.border));
+      const palette=await observe(()=>probe('Appearance palette'),value=>value.rows[1][0].fg===rgb(launch.appearance.palette.border)&&value.rows[0].find(cell=>cell.ch==='A')?.bg===rgb(launch.appearance.palette.titleBackground),'Actual native border and title background must match the full palette');assert.equal(palette.rows[1][0].fg,rgb(launch.appearance.palette.border));
       const title=palette.rows[0].find(cell=>cell.ch==='A');assert.equal(title.bg,rgb(launch.appearance.palette.titleBackground));}
     async function parked(){await focus('session');await key('End');await key('Control+u');await paste(draft);await input(draft);await key('Home');await key('ArrowRight');await input(draft,1);}
     async function verifyDraft(id='session'){await focus(id);await paste('X');await input('TXHEME_PRIVATE_A😀窗_47',2);await key(composition==='selected'?'Backspace':'Control+z');await input(draft,1);}
@@ -173,11 +179,11 @@ for(const composition of ['native','selected']){
     if(launch.executable){assert.equal(hash(await readFile(launch.executable)),launch.sha256);result.executable={path:launch.executable,sha256:launch.sha256};
       const renderer=join(dirname(launch.executable),'node_modules/@agent-compositor/renderer-opentui/index.js');result.renderer={path:renderer,sha256:hash(await readFile(renderer))};}
     await page.evaluate(()=>visual.terminal.resize(180,50));await normal();await wait('APPEARANCE_ACCENT');
-    const baseline=await page.evaluate(paneProbe,{title:'Appearance palette',label:'APPEARANCE_ACCENT'});assert.equal(baseline.marker.fg,0xa6dfd4,'Incumbent native accent oracle');result.baselineAccent=baseline.marker;
+    const baseline=await observe(()=>probe('Appearance palette','APPEARANCE_ACCENT'),value=>value.marker.fg===0xa6dfd4,'Incumbent native accent oracle');assert.equal(baseline.marker.fg,0xa6dfd4,'Incumbent native accent oracle');result.baselineAccent=baseline.marker;
     await capture('01-default');await send('/theme amber');await observe(()=>json(launch.appearance.themeFile),value=>value==='amber','Bundled command must persist its real theme selection');
     await observe(publicTrace,rows=>rows.some(row=>row.event==='service.ui.configure'&&row.input.plugin==='ui-theme'&&row.input.appearance?.colors?.accent==='#e5bd85'&&row.input.appearance.colors.selectionText==='#f3f7fa'),'Bundled command must publish its real appearance contribution and explicit readable selection pair');
     assert.equal((await completions()).length,0,'Theme commands must not invoke the loopback model');
-    result.amberPublication={saved:true,published:true,modelRequests:0};await color('APPEARANCE_ACCENT',0xe5bd85);selection={fg:0xf3f7fa,bg:0x4a3b28};await paletteField('APPEARANCE_SELECTED','fg',selection.fg);await paletteField('APPEARANCE_SELECTED','bg',selection.bg);assert.equal((await probe('Main')).corner,'╭');await capture('02-amber');
+    result.amberPublication={saved:true,published:true,modelRequests:0};await color('APPEARANCE_ACCENT',0xe5bd85);selection={fg:0xf3f7fa,bg:0x4a3b28};await paletteField('APPEARANCE_SELECTED','fg',selection.fg);await paletteField('APPEARANCE_SELECTED','bg',selection.bg);await observe(()=>probe('Main'),value=>value.corner==='╭','Bundled amber must render round Main chrome');await capture('02-amber');
     await send('/theme mono');await observe(()=>json(launch.appearance.themeFile),value=>value==='mono','Bundled mono must save');await color('APPEARANCE_ACCENT',0xffffff);selection={fg:0x101010,bg:0xb8b8b8};await paletteField('APPEARANCE_SELECTED','fg',selection.fg);await paletteField('APPEARANCE_SELECTED','bg',selection.bg);
     await send('/theme slate');await observe(()=>json(launch.appearance.themeFile),value=>value==='slate','Bundled slate must save');await color('APPEARANCE_ACCENT',0xa6dfd4);selection={fg:0x171a20,bg:0xa6dfd4};assert.equal((await completions()).length,0);
     if(composition==='native')check('Bundled /theme amber, mono and slate use actual dropped commands and saved storage without model requests; portable RGB/named colors, selection contrast and border styles update real native cells');
@@ -191,13 +197,13 @@ for(const composition of ['native','selected']){
     await focus(launch.appearance.ids.controls);const invalidCount=(await trace()).filter(row=>row.event==='invalid').length;await click('Appearance controls','Try invalid appearance');const invalid=await observe(trace,rows=>rows.filter(row=>row.event==='invalid').length===invalidCount+1,'Invalid configure must finish safely');assert.equal(invalid.findLast(row=>row.event==='invalid').accepted,false);await allColors();await capture('03-full-appearance');
     if(composition==='native')check('All ten portable appearance colors and empty-conversation presentation apply through owned producers; field precedence, whole-contribution replacement, null and invalid calls preserve inherited defaults and exact WM geometry');
 
-    await focus('session');const beforeHover=await layout();await observe(()=>probe('Appearance palette'),value=>!value.header.includes('[F][x]'),'Unfocused controls follow focus policy');
-    let palette=await probe('Appearance palette'),p=await point(palette.left+5,palette.top);await page.mouse.move(p.x,p.y);await observe(()=>probe('Appearance palette'),value=>value.header.includes('[F][x]'),'Title hover exposes canonical controls');assert.equal((await layout()).windows.focused,beforeHover.windows.focused);
+    await focus('session');const beforeHover=await layout();let palette=await stablePane('Appearance palette',value=>!value.header.includes('[F][x]'),'Unfocused controls follow focus policy with stable native title geometry');
+    let p=await point(palette.left+5,palette.top);await page.mouse.move(p.x,p.y);await observe(()=>probe('Appearance palette'),value=>value.header.includes('[F][x]'),'Title hover exposes canonical controls');assert.equal((await layout()).windows.focused,beforeHover.windows.focused);
     p=await point(10,15);await page.mouse.move(p.x,p.y);await publish('a','double','Apply double always');await focus('session');palette=await observe(()=>probe('Appearance palette'),value=>value.corner==='╔'&&value.header.includes('[F][x]'),'Double/always applies to unfocused title');
     const beforeZoom=await layout();await click('Appearance palette','[F]',true);await observe(layout,value=>value.windows.focused===launch.appearance.ids.palette&&value.windows.fullscreen,'Actual themed F button zooms its own window');
     await click('Appearance palette','[F]',true);await observe(layout,value=>!value.windows.fullscreen,'Actual themed F button restores tiling');await focus(beforeZoom.windows.focused);assert.deepEqual((await layout()).windows,beforeZoom.windows);
     await click('Appearance palette','[x]',true);await observe(layout,value=>!value.windows.spaces.some(space=>leaves(space.tree).includes(launch.appearance.ids.palette)),'Actual themed x button closes only its own view');await open('Appearance palette');
-    await publish('a','single','Apply single focus');await focus('session');assert.equal((await probe('Main')).corner,'┌');await arrange();await observe(()=>probe('Appearance palette'),value=>value.header.includes('[F][x]'),'Arrange exposes controls independently of focus');await leave();
+    await publish('a','single','Apply single focus');await focus('session');await observe(()=>probe('Main'),value=>value.corner==='┌','Single appearance must render single Main chrome');await arrange();await observe(()=>probe('Appearance palette'),value=>value.header.includes('[F][x]'),'Arrange exposes controls independently of focus');await leave();
     await publish('a','no-hints','Apply hidden hints');await focus(launch.appearance.ids.controls);assert.ok(!(await paneText('Appearance controls')).includes('↑↓ select · Enter activate'));await focus('session');
     if(composition==='native')assert.ok(!(await paneText('Main')).includes('Enter send · Ctrl+J newline'));else await wait('F2 sends · Enter inserts a line');
     await publish('a','tools','Show canonical Tools',{geometry:true});let tools=await layout();assert.ok(tools.windows.spaces.some(space=>leaves(space.tree).includes('tools')));assert.equal(tools.windows.focused,launch.appearance.ids.controls);
@@ -222,7 +228,7 @@ for(const composition of ['native','selected']){
     else{await wait('FORMvalue');await key('Home');await key('ArrowRight');await paste('X');await wait('FXORMvalue');await key('Backspace');await key('Tab');}
     await paste(token);await wait('*'.repeat(token.length));const formFactories=(await selectedTrace()).filter(row=>row.event==='created'&&row.kind==='form').length;
     await arrange();await key('q');await leave();await publish('a','double','Apply double always');await verifyDraft(mainCopy);await open(formTitle);await zoom(true);await wait('*'.repeat(token.length));
-    if(composition==='selected'){const rich=await probe(formTitle,'RICH');assert.equal(rich.marker.fg,0xeac280);assert.equal(rich.marker.bg,0x171a20);await wait('Name: F|ORMvalue');await key('F5');}
+    if(composition==='selected'){const rich=await observe(()=>probe(formTitle,'RICH'),value=>value.marker.fg===0xeac280&&value.marker.bg===0x171a20,'Explicit selected rich-cell colors must remain literal');assert.equal(rich.marker.fg,0xeac280);assert.equal(rich.marker.bg,0x171a20);await wait('Name: F|ORMvalue');await key('F5');}
     else{await wait('FORMvalue');await key('Alt+Enter');}
     const formRows=await observe(sharedTrace,rows=>rows.some(row=>row.event==='form-result'),'Private form must return through its actual caller');assert.deepEqual(formRows.find(row=>row.event==='form-result').result,{action:'save',name:'FORMvalue',tokenLength:token.length,tokenHash:hash(token)});assert.equal(formRows.filter(row=>row.event==='called'&&row.mode==='form').length,1);
     await verifyDraft('session');assert.equal((await completions()).length,3);if(composition==='selected'){

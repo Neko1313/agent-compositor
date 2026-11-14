@@ -1,5 +1,72 @@
 # Project memory
 
+## Appearance candidate remote verification failures — 2026-11-14
+
+Portable appearance is committed and pushed through cdb2d4a, with the exact
+locally tested b17ca1a9/232d942c/8ab12ac2 host bundle installed. Node 22/26 CI
+43585439740, docs 43585439694 and plugin preparation 43585439783 pass. The
+build-only release 43585453261 passes verification and both Linux platforms,
+but fails on both macOS platforms; publication is skipped. Do not claim its
+four-platform gate or stable 1.0 is complete.
+
+ARM reaches the new appearance selected composition after its native five
+cases pass, then dereferences paneProbe('Main').corner while the recorded xterm
+synchronizedOutput flag is true. The probe intentionally returns undefined
+during incomplete frames. Intel passes the preceding native suites and the
+first selected history case, then misses the private-note form. Its clear-query
+helper can acknowledge an old initial empty query and stale visible rows.
+Both failed trajectories and primary job logs are retained under
+dist/opentui-appearance-remote-cdb2d4a. Exact downloaded evidence is being
+inspected before any correction; do not weaken criteria or hide failures.
+
+All four failed-run ZIPs now have verified GitHub digests/head provenance.
+Both Linux platforms pass 65/65 cases and all 32 installed-runtime smoke reports
+pass. The matrix records 234 of the 260 expected OpenTUI checks before the failures;
+the audit explicitly records all_four_pass:false and absent failed-job binaries.
+Actual ARM ANSI reproduces the undefined probe before the real sync terminator,
+then shows the correct single Main corner and selected editor afterward. Intel
+reconstruction matches all 50 final rows across 109 complete frames: clearing
+the query moves Private note from row 11 to 13, while stale pointer input hits
+row 11 and correctly selects that session. No private-note call was admitted.
+
+The first local checker correction reveals another fixture acknowledgment gap:
+it uses a completed Arrange frame's palette top 33 for a normal frame at top 35.
+The actual mouse misses the border; the failed corrected-native-appearance
+folder and an exact ANSI/frame diagnosis are preserved. The final checker
+correction awaits fresh complete Arrange/normal frames and three consecutive
+stable title geometries. Exact corner/RGB/hit/focus checks remain. History query
+acknowledgment now uses the current lease's latest result, fresh evidence for a
+changed query and exact native query/placeholder plus Listed N in one complete
+focused pane. Independent review approves both narrowly scoped checker changes;
+affected native reruns remain required. Runtime shipping inputs are unchanged.
+
+Both corrected native scenarios now pass on the same immutable host bytes:
+appearance native five/selected three and all eight workspace-controller flows.
+The strict corrected-final native aggregate passes 72 checks/eleven runners,
+with fifteen recorded PTY proofs 0. Nine unaffected suites are copied with
+per-file/report/log hashes and source receipts; neither failed prefix is reused
+as success. Three relevant final appearance PNGs are checked. Node syntax,
+diff checks and the complete shipping-input fingerprint pass. No runtime change
+or redundant full coverage run is introduced by these two checker repairs.
+The refreshed ui-theme source PR certificate passes twelve cases against the
+new tooling workspace c00cadde; the separately pinned e45dde4a plugin archive
+retains the same plugin source and plan. Its four artifact cases are pending.
+
+The refreshed e45dde4a plugin archive now passes all four artifact cases and
+strict current-identity verification, with eleven evidence hashes checked.
+The actual Ink PTY and two narrow/restart PNGs pass; all owned browsers close.
+Only MEMORY and the two diagnostic checkers change in this repair. Public
+behavior, commands, extension schemas, packaging inputs and guide instructions
+are unchanged; the existing docs/coverage results still describe identical
+shipping inputs. A fresh exact-head remote run is required before closure.
+
+The next bounded public ui.render/invalidation plan is recorded read-only in
+dist/opentui-next-migration-findings-cdb2d4a.json. It preserves actual hook-chain
+semantics, separate producer/painted views and explicit public projections.
+Raw Tools aggregates and private input/controller/Finder state must not become
+new public hook props. Wire, child attribution, physical media and broader 1.0
+quality gates remain open. No paid model calls were used in this appearance work.
+
 ## Portable OpenTUI appearance implementation — 2026-11-14
 
 The previous goal turn was progress, committed and pushed as f2ca0c4. Fresh

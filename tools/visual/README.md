@@ -91,6 +91,11 @@ FIFO while a real model turn completes, preserving the private form and native
 draft/cursor until explicit submission. A normal exact permission rule permits disabling only
 that provider through the public extension tool before real `/reload`; external
 gate files control fixture completion, never application state. Private form
+window selection waits for the exact Finder query, matching row count and native
+highlight. A late result can legitimately have no selection: the bench uses one
+ArrowDown only when needed, verifies the selected row and then sends Enter.
+It never relies on query text alone to establish a current opening target.
+Private form
 receipts retain hashes rather than tokens, and terminal/provider/journal scans
 exclude the diagnostic raw synthetic keystroke log. Artifacts default to
 `dist/visual-opentui-controllers/`; `VISUAL_EXECUTABLE` checks a complete extracted

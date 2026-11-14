@@ -40,18 +40,33 @@ try{
   async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await key('End');await key('Control+u');await type(value);await key('Enter');}
   const finderMarker='windows · ↑↓ select · Enter open';
-  async function finderQuery(value){await page.keyboard.type(value);await page.waitForFunction(value=>{
+  async function finderState(value,count,selected=false){const handle=await page.waitForFunction(({value,count,selected})=>{
     const terminal=visual.terminal,buffer=terminal.buffer.active;
+    const cells=row=>Array.from({length:terminal.cols},(_,col)=>buffer.getLine(buffer.viewportY+row)?.getCell(col)?.getChars()??'');
     for(let row=0;row<terminal.rows-2;row++){
-      const cells=Array.from({length:terminal.cols},(_,col)=>buffer.getLine(buffer.viewportY+row)?.getCell(col)?.getChars()??'');
-      const title=cells.join('').indexOf('─ Windows ');if(title<0)continue;
-      const left=cells.lastIndexOf('┌'),right=cells.indexOf('┐',left);if(left<0||right<0)continue;
-      const query=Array.from({length:right-left-1},(_,col)=>buffer.getLine(buffer.viewportY+row+1)?.getCell(left+1+col)?.getChars()??'').join('').trim();
-      if(query===value)return true;
+      const header=cells(row),title=header.join('').indexOf('─ Windows ');if(title<0)continue;
+      const left=header.lastIndexOf('┌'),right=header.indexOf('┐',left);if(left<0||right<0)continue;
+      const content=y=>cells(y).slice(left+1,right).join('').trim();
+      if(content(row+1)!==value)return;
+      if(count!==undefined&&content(row+2)!==count+' windows · ↑↓ select · Enter open')return;
+      const choices=[];
+      for(let y=row+3;y<terminal.rows;y++){
+        const line=cells(y);if(line[left]==='└')break;
+        const text=content(y),name=text.replace(/\s{2,}(?:WS [1-9]|Closed|Available|Unavailable)$/,'');
+        if(name!==value)continue;
+        const col=line.findIndex((ch,x)=>x>left&&x<right&&ch!==''&&ch!==' '),cell=buffer.getLine(buffer.viewportY+y)?.getCell(col);
+        choices.push({row:y,selected:cell?.getBgColor()===0xa6dfd4&&cell?.getFgColor()===0x171a20&&Boolean(cell?.isBold())});
+      }
+      if(count!==undefined&&choices.length!==count||selected&&!choices.some(choice=>choice.selected))return;
+      return{choices,selected:choices.some(choice=>choice.selected)};
     }
-    return false;
-  },value);}
-  async function pick(value){await key('F2');await wait(finderMarker);await finderQuery(value);await key('Enter');await absent(finderMarker);}
+  },{value,count,selected});return handle.jsonValue();}
+  async function finderQuery(value,count){await page.keyboard.type(value);return finderState(value,count);}
+  async function pick(value,count=1){await key('F2');await wait(finderMarker);const choice=await finderQuery(value,count);
+    // A request can publish after query editing. Its late row intentionally has
+    // no selection; select that visible current result before one explicit Enter.
+    if(!choice.selected)await key('ArrowDown');await finderState(value,count,true);await key('Enter');await absent(finderMarker);
+  }
   async function setZoom(enabled){await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
     await wait('WINDOW MODE · '+(enabled?'Zoomed':'Tiled'));await key('Escape');await absent('WINDOW MODE');
@@ -91,8 +106,8 @@ try{
   async function once(mode){assert.equal(await json(launch.controllers.calls[mode]),1);}
   async function created(title){return observe(trace,rows=>rows.some(row=>row.event==='created'&&row.title===title),'Selected controller must be created for '+title).then(rows=>rows.findLast(row=>row.event==='created'&&row.title===title));}
   async function retainedMain(){await main();await setZoom(true);await wait(draft);await type('_');await wait('C_ONTROLLER_MAIN_DRAFT_47');await key('Control+z');await wait(draft);await noModelWork();}
-  async function request(text,title='Questions · controller-request-probe'){
-    await pick(title);
+  async function request(text,title='Questions · controller-request-probe',count=1){
+    await pick(title,count);
     for(let index=0;index<10;index++){
       await setZoom(true);if((await screen()).includes(text))return;
       await key('Alt+w');await wait('WINDOW MODE');await key('Tab');await key('Escape');await absent('WINDOW MODE');
@@ -144,7 +159,7 @@ try{
   await key('Alt+w');await wait('WINDOW MODE');await key('q');await key('Escape');await absent('WINDOW MODE');await retainedMain();
   await request('CONTROLLER_QUESTION_A');await wait('Value: Q_M|PASTEvalue');assert.equal((await trace()).filter(row=>row.event==='created'&&row.title==='CONTROLLER_QUESTION_A').length,1);
   const inputRows=(await trace()).filter(row=>row.id===questionA.id&&row.event==='input');assert.ok(inputRows.some(row=>row.input==='text'&&row.paste));assert.ok(inputRows.some(row=>row.input==='mouse'&&row.action==='press'&&row.row===3&&row.col===9));
-  await start('question-b');await request('CONTROLLER_QUESTION_B');const questionB=await created('CONTROLLER_QUESTION_B');await noReceipt('question-a');
+  await start('question-b');await request('CONTROLLER_QUESTION_B','Questions · controller-request-probe',2);const questionB=await created('CONTROLLER_QUESTION_B');await noReceipt('question-a');
   await type('A');await wait('Query: A');await observe(trace,rows=>rows.some(row=>row.id===questionB.id&&row.event==='semantic-started'),'The first native semantic change must await its fixture gate');
   await type('B');await wait('Query: AB');await writeFile(launch.controllers.gates.semantic,'release\n');
   await observe(trace,rows=>rows.some(row=>row.id===questionB.id&&row.event==='semantic-applied'&&row.change===1),'The first semantic input acknowledgement must arrive');

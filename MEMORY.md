@@ -1,5 +1,45 @@
 # Project memory
 
+## Controller bench late Finder selection — 2026-11-14
+
+The eb18d77 main CI (Node 22.19/26), docs and plugin release preparation pass.
+Build-only native run 43543419760 passes verification and Linux x64/ARM64 plus
+macOS ARM64. macOS Intel passes all five earlier OpenTUI suites but fails the
+new controller picker before Allow once: the approval publishes after the query
+is complete. Finder correctly keeps the new row unselected; the test's Enter
+receives Select a current window before opening it. The failed run stays failed.
+
+Evidence: dist/remote-selected-darwin-x64-43543419760/opentui-controllers-darwin-x64.
+Offline xterm replay matches all 50 final rows and 127 synchronized frames:
+frame 124 has the full query and zero rows; frame 125 has one unselected row;
+frame 127 records the rejected Enter. The fresh factory's timestamp lies between
+query completion and Enter. diagnosis-ansi.json preserves that proof. The
+runtime's stale-selection protection and passive late publication are intentional.
+
+Only the controller bench picker changes: wait for the same panel's exact query,
+row count and labels; preserve a current highlighted choice, otherwise send one
+actual ArrowDown; verify accent/bold selection before one Enter. Two concurrent
+same-owner questions explicitly expect two rows. No product code, timeout,
+retry, permission, effect, body, lease, cursor or privacy oracle is relaxed.
+The same immutable bd95568f/d0c79ae7 Linux bundle passes all six updated cases in
+dist/opentui-selected-controllers-picker-native with errors:[] and PTY exit 0.
+Linux's choices were already selected, so it does not claim to exercise the late
+conditional branch. Independent diagnosis/diff review is clear. New-head
+four-platform verification is required to close the remote failure. The bundled
+input fingerprint and installed binary remain unchanged; this is a test-only fix.
+
+Next editor work is still planning, not implementation. Use a separate private
+editor adapter because commands/files are callable capabilities. Preserve the
+original fixture's F2 submit while active custom Draft owns input; host Windows
+remains available through its button, /windows and Alt+W then w. Selected custom
+Draft should retain Core submit/steer queue semantics with a real admission
+receipt, rather than reject after a factory clears its text. Genuine pre-admission
+failure needs visible snapshot recovery plus preservation of later queued input.
+Keep Core/session lifetimes and UTF-16 versus native display offsets explicit.
+History/placement remain guarded: history needs private presentation instead of
+strict catalog rows, semantic key mapping, short input operations and per-input
+API provenance; placement needs its real guarded windows/anchors/apply contract.
+
 ## Selected OpenTUI private request controllers — 2026-11-14
 
 The configured frontend now supports selected approval, question and form

@@ -17,6 +17,8 @@ import type {WindowNavigationSource,WindowNavigationSnapshot} from './navigation
 import {WindowFinder} from './navigation-view.js';
 import {splitTargetLabel} from './split-target.js';
 import {handleActionMouseDown} from './mouse-action.js';
+import {ControllerFrame} from './controller-view.js';
+import {controllerBlocksInput} from './controller.js';
 
 // Kitty clears its placement cells to the terminal background on each frame.
 const composerBackground = RGBA.defaultBackground();
@@ -67,13 +69,14 @@ function useSessionSubscription(session: ConversationSession) {
 
 function SessionTab({ session, ...tab }: Omit<TabProps, 'label'> & { session: ConversationSession }) {
   const status = useSyncExternalStore(useSessionSubscription(session), () => {
-    const { approval, interaction, running } = session.snapshot();
-    return approval ? ' · Approval' : interaction ? interaction.kind === 'form' ? ' · Form' + (running ? ' · Running' : '') : ' · Question' : running ? ' · Running' : '';
+    const { approval, interaction, controller, running } = session.snapshot();
+    return controller ? ' · '+{approval:'Approval',question:'Question',form:'Form'}[controller.kind]
+      : approval ? ' · Approval' : interaction ? interaction.kind === 'form' ? ' · Form' + (running ? ' · Running' : '') : ' · Question' : running ? ' · Running' : '';
   });
   return <Tab {...tab} label={session.label + status} />;
 }
 
-function Conversation({ selected, animations, composerMedia, focused, width, height, isActive }: {
+function Conversation({ selected, animations, composerMedia, focused, width, height, isActive, isVisible }: {
   selected: ConversationSession;
   animations: boolean;
   composerMedia?: ComposerMedia;
@@ -81,24 +84,27 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
   width: number;
   height: number;
   isActive(): boolean;
+  isVisible(): boolean;
 }) {
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
   const editor = useRef<TextareaRenderable>(null);
   const history = useRef<ScrollBoxRenderable>(null);
   const [inputMode, setInputMode] = useState<{id: string; editing: boolean}>();
   const [immediate, setImmediate] = useState(false);
-  const editing = Boolean(state.interaction && inputMode?.id === state.interaction.id && inputMode.editing);
+  const requestId=state.controller?.id??state.interaction?.id;
+  const editing = Boolean(requestId && inputMode?.id === requestId && inputMode.editing);
   const setEditing = (value: boolean) => {
-    const interaction = selected.snapshot().interaction;
-    if (interaction && isActive()) flushSync(() => setInputMode({id: interaction.id, editing: value}));
+    const current = selected.snapshot(),id=current.controller?.id??current.interaction?.id;
+    if (id && isActive()) flushSync(() => setInputMode({id, editing: value}));
   };
   const wide = width >= 60;
   const editorHeight = height >= 20 ? 4 : 2;
-  const busy = state.running || Boolean(state.approval) || state.interaction?.kind === 'question';
+  const busy = state.running || controllerBlocksInput(state.controller) || Boolean(state.approval) || state.interaction?.kind === 'question';
   const canSend = !busy || immediate;
-  const inputHint = state.interaction ? 'Alt+I answer or draft · Ctrl+J newline' : state.approval ? 'PgUp/PgDn details · Ctrl+J newline' :
+  const inputHint = state.controller ? 'Alt+I answer · Ctrl+J newline' : state.interaction ? 'Alt+I answer or draft · Ctrl+J newline' : state.approval ? 'PgUp/PgDn details · Ctrl+J newline' :
     busy ? 'Draft while running · Ctrl+J newline' : 'Enter send · Ctrl+J newline';
-  const fullHint = state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
+  const fullHint = state.controller ? `${inputHint} · Ctrl+C cancel request`
+    : state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
 
   useLayoutEffect(() => {
     if (focused && state.approval) history.current?.scrollTo(Infinity);
@@ -108,7 +114,7 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
     if (key.defaultPrevented || !isActive()) return;
     if (key.meta && !key.ctrl && key.name === 'i') {
       key.preventDefault();
-      if (!key.repeated && selected.snapshot().interaction) setEditing(!editing);
+      if (!key.repeated && (selected.snapshot().interaction||selected.snapshot().controller)) setEditing(!editing);
       return;
     }
     if (key.ctrl && !key.meta && key.name === 'x' && selected.interrupt && selected.snapshot().running) {
@@ -128,7 +134,7 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
     if (!isActive() || editing || !input) return;
     const text = input.plainText;
     if (!text.trim()) return;
-    if ((current.running || current.approval || current.interaction?.kind === 'question') && !selected.isImmediateCommand?.(text)) return;
+    if ((current.running || controllerBlocksInput(current.controller) || current.approval || current.interaction?.kind === 'question') && !selected.isImmediateCommand?.(text)) return;
     return {input, text};
   }
   function send() {
@@ -159,6 +165,10 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
       </scrollbox>
 
       {!editing && state.notice && <text fg={color.muted} wrapMode="word">{state.notice}</text>}
+      {state.controller&&<ControllerFrame key={state.controller.id} controller={state.controller} session={selected} main
+        width={width} height={editing?Math.max(1,height-1):Math.max(1,Math.min(state.controller.preferredRows+Number(Boolean(state.controller.view.hint)),Math.floor(height/2)))}
+        maxRows={editing?Math.max(1,height-1):Math.max(1,Math.floor(height/2))} focused={focused&&editing}
+        isActive={()=>isActive()&&editing} isVisible={isVisible}/>}
       {state.interaction && <Interaction key={state.interaction.id} interaction={state.interaction}
         session={selected} editing={editing} focused={focused} width={width} height={height} isActive={isActive} setEditing={setEditing} />}
       {!focused && state.approval && <text fg={color.running}>Approval pending</text>}
@@ -166,7 +176,7 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
         <ApprovalCard key={`${selected.id}:${state.approval.id}`} request={state.approval} session={selected} height={height} isActive={isActive}/>
       </box>}
       <box visible={!editing} border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
-        title={` ${selected.label} · ${state.approval ? 'Draft' : state.running ? 'Running' : 'Ready'} `}
+        title={` ${selected.label} · ${state.approval||controllerBlocksInput(state.controller) ? 'Draft' : state.running ? 'Running' : 'Ready'} `}
         backgroundColor={composerBackground} flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
         <textarea ref={editor} focused={focused && !editing}
             height={editorHeight} flexGrow={1} flexBasis={0} minWidth={1} wrapMode="word"
@@ -186,7 +196,10 @@ function Conversation({ selected, animations, composerMedia, focused, width, hei
         </box>}
       </box>
       {focused && <box flexDirection="row" columnGap={1} height={1}>
-        <text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : width >= fullHint.length + 2 ? fullHint : inputHint}</text>
+        <text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.controller?' · Ctrl+C cancel request':'') + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : width >= fullHint.length + 2 ? fullHint : inputHint}</text>
+        {state.controller&&<box height={1} paddingX={1} backgroundColor={color.panel} onMouseDown={event=>{
+          handleActionMouseDown(event,isActive()&&selected.snapshot().controller?.id===state.controller?.id,()=>setEditing(!editing));
+        }}><text selectable={false} fg={color.accent}>{editing?'Draft':'Answer'}</text></box>}
         {state.running && selected.interrupt && <box height={1} paddingX={1} backgroundColor={color.panel} onMouseDown={event => {
           handleActionMouseDown(event, isActive() && selected.snapshot().running && !!selected.interrupt,
             () => flushSync(() => selected.interrupt?.()));
@@ -421,7 +434,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
           drop={layout.drop?.surface === pane.id ? layout.drop.edge : undefined}>
           {(width, height) => pane.session
             ? <Conversation selected={pane.session} animations={animations} composerMedia={composerMedia}
-                focused={focused} width={width} height={height} isActive={isActive} />
+                focused={focused} width={width} height={height} isActive={isActive} isVisible={isVisible} />
             :pane.surface?<SurfaceView source={pane.surface} focused={focused} width={width} height={height}
               isActive={isActive} isVisible={isVisible}/>
             : pane.id === 'workflows' && workflowTable

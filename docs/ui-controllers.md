@@ -37,12 +37,19 @@ The standard `/history`, `/sessions`, `/resume`, rename, archive and fork comman
 entry points belong to `session-manager`; a composition may omit that contribution
 and supply its own commands instead.
 
-The source-only [OpenTUI preview](02-ui.md#opentui-conversation-prototype) currently
-uses native questions and private forms. It rejects an explicitly selected
-question/form controller without instantiating it or silently substituting a
-native view. Full controller adaptation remains a migration gate. The host can
+The configured [OpenTUI frontend](02-ui.md#experimental-opentui-application-frontend)
+supports selected approval, question and private-form controllers in Main and
+independent request windows. Only their validated views/cells reach the renderer;
+the original private request is not attached as hidden native fallback data.
+Selected editor, history and placement controllers still fail before startup;
+they are not silently replaced. Full controller adaptation remains a migration gate. The host can
 inspect selection through `core.host.controllers.selectedOwner(kind)`, which
 returns metadata without creating a controller or receiving private input.
+
+Controller selection is partial. For example, with an enabled `workspace-ui`
+plugin, `"ui": {"controllers": {"form": "workspace-ui"}}` replaces only local
+forms; every omitted kind keeps its host implementation. Unknown kinds and
+empty provider names remain configuration errors.
 
 `UiControllerFactory`, `UiController`, `UiControllerInput`, `UiEditorState` and
 `UiEditorIntent` are exported by `@agent-compositor/hooks`.
@@ -118,6 +125,33 @@ shortcuts remain routed by the host. Raw terminal function keys F1–F12, includ
 modifiers, pass through the reference renderer instead of being discarded by
 Ink's text-input adapter.
 
+In OpenTUI Main, selected private requests start in Draft mode. **Alt+I** or the
+**Answer/Draft** button switches
+between their input and the resident native message draft, preserving the draft
+and its cursor. A separate request window gives input to its selected controller
+when that window is focused. Closing a window only hides the live lease; Windows
+reopens it with controller-owned state. The host reserves **F2 Windows**,
+**Alt+W Arrange**, **Alt+0 Main**, spatial/workspace shortcuts and **Ctrl+C**
+cancellation before controller input. Other function keys reach the selected
+controller only while it owns input. This differs from the reference Ink host's
+custom-controller F2 precedence; selected OpenTUI editor support remains open.
+A selected local form in Main does not block a new ordinary message from Draft
+mode while the agent is idle. The form remains pending during that model turn.
+Selected questions and approvals still require their own answer or decision.
+
+Controller lines occupy individual clipped terminal rows; optional validated
+cells preserve their colors and text attributes, including wide characters.
+The controller receives local content coordinates and actual viewport dimensions;
+its hint occupies a separate host row. Portable action rows, tabs and table rows
+send declared action IDs; a declared input uses the semantic change channel.
+Raw key, text and bracketed-paste input otherwise goes directly to the lease.
+Optional controller pointer-shape hints are not yet projected by this frontend;
+native window-navigation pointers remain host-owned.
+The host checks request identity and the displayed revision before admitting a
+mouse/action input. Already admitted asynchronous inputs remain serialized when
+the controller invalidates its own view. A later navigation action can suppress
+continuation autofocus without discarding the admitted answer.
+
 History uses semantic `{kind:'action',action}` and
 `{kind:'change',id,value}` inputs from portable view actions and input fields.
 It receives `open` after creation. `control` supports `list` (search and archived
@@ -138,6 +172,9 @@ Custom host form handlers can reuse
 `validateUiFormResult(request, value)` from `@agent-compositor/events`. It returns
 only declared fields after validating the action, field types, required values,
 select membership and HTTP(S) URLs. Validation errors contain no submitted values.
+The OpenTUI private adapter gives the selected factory a detached request copy;
+its result validation retains the originally admitted declaration and question
+choices, even if the factory or requester later mutates its own copy.
 `core.host.setFormHandler(handler)` returns a disposer that clears the handler
 only while that binding is still current. Disposing a superseded binding does
 not clear or later revive another owner's handler.

@@ -52,12 +52,13 @@ type Operation = {
 };
 type Inbox = ReturnType<typeof createInteractionInbox>;
 type ApprovalRequest = Parameters<NonNullable<AgentCoreOptions['onApproval']>>[0];
+type ApprovalResult = Awaited<ReturnType<NonNullable<AgentCoreOptions['onApproval']>>>;
 type QuestionRequest = Parameters<NonNullable<AgentCoreOptions['onAsk']>>[0];
 type Channels = {
   inbox: Inbox;
   generation: AbortController;
   core?: AgentCore;
-  approve(request: ApprovalRequest): Promise<boolean>;
+  approve(request: ApprovalRequest): Promise<ApprovalResult>;
   ask(request: QuestionRequest): ReturnType<Inbox['askQuestion']>;
 };
 class ExpiredRequest extends Error {}
@@ -216,7 +217,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     ? 'Session startup did not finish. Retry /reload before continuing.'
     : 'Plugin reload did not finish. Retry /reload before continuing.';
   const native = (owner: AgentCore) => {
-    for (const kind of ['editor', 'approval', 'question', 'form', 'history', 'placement'] as const)
+    for (const kind of ['editor', 'history', 'placement'] as const)
       if (owner.host.controllers.selectedOwner(kind) !== '@host')
         throw Error('Selected ' + kind + ' controllers are not supported by OpenTUI');
   };
@@ -407,6 +408,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     op.inbox = requests; op.surface = surface;
     let answeredApproval: string | undefined;
     const current = () => live(op) && surface.active && surfaceMap.get(id) === surface;
+    const inputActive = () => current() && navigation?.snapshot().mode === 'normal'
+      && layout.snapshot().focused === id && layout.snapshot().frames.some(frame => frame.surface === id);
     const renewIntent = () => {
       const state = layout.snapshot();
       if (op.kind === 'request' || navigation && navigation.snapshot().mode !== 'normal'
@@ -438,16 +441,26 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     surface.source.cancelForm = requestId => {
       if (surface.state.form?.id === requestId) surface.source.cancelInteraction!(requestId);
     };
+    surface.source.controllerInput = (requestId, input, revision) => {
+      if (inputActive())return requests.controllerInput(requestId, input, revision, renewIntent);
+    };
+    surface.source.controllerViewport = (requestId, columns, rows) => {
+      if (current())requests.controllerViewport(requestId, columns, rows);
+    };
+    surface.source.cancelController = requestId => {
+      if (inputActive() && requests.controllerSnapshot()?.id === requestId) {renewIntent();requests.cancelController(requestId);}
+    };
     let shown: string | undefined;
     op.off = requests.subscribe(() => {
       if (!live(op)) return;
-      const approval = requests.snapshot(), interaction = requests.interactionSnapshot();
+      const approval = requests.snapshot(), interaction = requests.interactionSnapshot(), controller = requests.controllerSnapshot();
       const form = interaction?.kind === 'form' ? interaction : undefined;
       const requester = requests.requesterSnapshot() ?? op.owner;
-      const title = approval ? 'Approval · ' + requester : interaction?.kind === 'question' ? 'Questions · ' + requester
-        : form?.request.title ?? surface.state.title;
-      publish(surface, {title, approval, interaction, form, busy: !approval && !interaction});
-      const requestId = approval?.id ?? interaction?.id;
+      const kind = controller?.kind ?? (approval ? 'approval' : interaction?.kind);
+      const title = kind === 'approval' ? 'Approval · ' + requester : kind === 'question' ? 'Questions · ' + requester
+        : form?.request.title ?? (controller ? 'Form · ' + requester : surface.state.title);
+      publish(surface, {title, approval, interaction, form, controller, busy: !approval && !interaction && !controller});
+      const requestId = approval?.id ?? interaction?.id ?? controller?.id;
       if (requestId && requestId !== shown) {
         shown = requestId;
         const focus = op.kind !== 'request' && mayFocus(op);
@@ -807,6 +820,14 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout) {
     answerApproval(id, allow) {if (active) inbox.answer(id, allow);},
     answerInteraction(id, value) {if (active) inbox.answerInteraction(id, value);},
     cancelInteraction(id) {if (active) inbox.cancelInteraction(id);},
+    controllerInput(id, input, revision) {
+      if (active && navigation?.snapshot().mode === 'normal' && layout.snapshot().focused === 'session'
+        && layout.snapshot().frames.some(frame => frame.surface === 'session'))return inbox.controllerInput(id, input, revision);
+    },
+    controllerViewport(id, columns, rows) {if (active)inbox.controllerViewport(id, columns, rows);},
+    cancelController(id) {
+      if (active && navigation?.snapshot().mode === 'normal' && layout.snapshot().focused === 'session')inbox.cancelController(id);
+    },
   };
   return {
     session, surfaces, composerMedia, navigation, get core() {return core;}, submit,

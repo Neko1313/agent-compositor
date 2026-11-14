@@ -202,6 +202,11 @@ Manual approvals, questions and forms from UI tools have private request windows
 Retained background requests stay independent of their launcher and Main; F2
 reopens a hidden request with its native field state. Ctrl+C in a request window
 denies/cancels that request. The ordinary permission pipeline still applies.
+Selected approval, question and form controllers also use these windows.
+In Main, Alt+I switches their input with the parked native draft; separate
+focused request windows give input directly to the controller. F2 Windows and
+the host window shortcuts keep their OpenTUI precedence. Selected editor,
+history and placement replacements remain unsupported in this frontend.
 Ctrl+C in an immediate-command window cancels that command and its foreground
 tools or auxiliary model call, preserving Main and neighboring command windows.
 Explicit background work keeps its own lifetime; closing a window hides it.

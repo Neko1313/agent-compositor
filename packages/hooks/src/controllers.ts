@@ -53,6 +53,7 @@ export class UiControllerLease {
       this.lifetime.abort();this.stop();throw new Error(`Invalid ${kind} controller from ${owner}`);
     }
     this.signal.addEventListener("abort",()=>this.stop(),{once:true});
+    if(this.signal.aborted)this.stop();
   }
   get isDefault(){return this.owner==="@host";}
   render(columns:number,rows:number):UiControllerView {
@@ -110,6 +111,7 @@ export class UiControllerRegistry {
     const owner=this.selected[kind]??"@host",entry=this.providers.get(owner),factory=owner==="@host"?fallback:entry?.factories[kind];
     if(!factory)throw new Error(`Selected ${kind} controller ${owner} is unavailable`);
     const lease=new UiControllerLease(owner,kind,factory,{kind,data,state},AbortSignal.any([...(entry?[entry.signal]:[]),...(callerSignal?[callerSignal]:[])]),invalidate,this.renderScope);
+    if(lease.signal.aborted)return lease;
     this.leases.add(lease);lease.signal.addEventListener("abort",()=>this.leases.delete(lease),{once:true});return lease;
   }
 }

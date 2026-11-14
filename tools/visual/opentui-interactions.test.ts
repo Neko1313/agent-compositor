@@ -221,19 +221,21 @@ it('cancels a new model question after a completed private form and clears the s
   } finally { session.disconnect(); await core.close(); }
 });
 
-it('fails closed for selected custom controllers and never clears a newer form-handler owner', async () => {
+it('fails closed for unavailable selected factories and never clears a newer form-handler owner', async () => {
   const inbox = createInteractionInbox();
   let created = 0;
   const core = new AgentCore({cwd: process.cwd(), provider: new ScriptedProvider([]), uiControllers: {question: 'custom', form: 'custom'},
     plugins: [{manifest: {name: 'custom', version: '1.0.0', trust: 'trusted'}, hooks: {}, controllers: {
-      form: () => { created++; return {render: () => ({lines: []}), handle: () => undefined}; },
-      question: () => { created++; return {render: () => ({lines: []}), handle: () => undefined}; },
+      form: () => { created++; throw Error('PRIVATE_FORM_FACTORY_EXCEPTION'); },
+      question: () => { created++; throw Error('PRIVATE_QUESTION_FACTORY_EXCEPTION'); },
     }}]});
   inbox.bind(core);
   try {
-    await expect(inbox.askQuestion(question)).rejects.toThrow('Selected question controllers');
-    await expect(inbox.form('settings', form, new AbortController().signal)).rejects.toThrow('Selected form controllers');
-    expect(created).toBe(0);
+    await expect(inbox.askQuestion(question)).rejects.toThrow(/^Selected question controller is unavailable$/);
+    expect(await inbox.form('settings', form, new AbortController().signal)).toBeNull();
+    expect(created).toBe(2);
+    expect(inbox.controllerSnapshot()).toBeUndefined();
+    expect(inbox.interactionSnapshot()).toBeUndefined();
     const replacement = core.host.setFormHandler(async () => answer);
     inbox.close();
     let received: unknown;

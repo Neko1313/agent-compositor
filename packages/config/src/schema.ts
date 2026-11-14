@@ -10,12 +10,13 @@ const placement = z.object({
   workspace: z.number().int().min(1).max(9).optional(), size: z.number().min(.1).max(.8).optional(),
   relativeTo: z.string().min(1).max(64).optional(), focus: z.boolean().optional(),
 });
+const controllers = z.partialRecord(z.enum(["editor","approval","question","form","placement","history"]), z.string().min(1));
 
 /** Composition controls fail closed before executable extensions are imported. */
 export const compositionSchema = z.object({
   workspacePaths:z.array(z.string().min(1)).optional(),
   sessionProvider:z.string().min(1).optional(),
-  ui:z.object({controllers:z.record(z.enum(["editor","approval","question","form","placement","history"]),z.string().min(1)).optional()}).passthrough().optional(),
+  ui:z.object({controllers:controllers.optional()}).passthrough().optional(),
   enabledPlugins: z.array(z.string().min(1)).optional(),
   toolProviders: z.record(z.string().min(1),z.string().min(1)).optional(),
   agent: z.object({
@@ -30,7 +31,7 @@ export const compositionSchema = z.object({
 export const ConfigSchema = z
   .object({
     ui: z.object({
-      controllers:z.record(z.enum(["editor","approval","question","form","placement","history"]),z.string().min(1)).optional(),
+      controllers:controllers.optional(),
       sites: z.object({ split: placement.optional(), sidebar: placement.optional(), inspector: placement.optional(), "status-bar": placement.optional() }).optional(),
       rules: z.array(placement.extend({ match: z.object({ plugin: z.string().optional(), surface: z.string().optional() }) })).optional(),
     }).optional(),

@@ -11,6 +11,7 @@ import {surfaceActions} from './surface-actions.js';
 import type {UiSurfaceSource} from './surface.js';
 import {createSurfaceRequestSession,hasSurfaceRequest,surfaceInteraction} from './surface.js';
 import {SurfaceRaster} from './surface-raster.js';
+import {ControllerFrame} from './controller-view.js';
 
 const toneColor={text:color.text,muted:color.muted,accent:color.accent,success:color.accent,warning:color.running,danger:color.error};
 const literal=(text:string)=>text.replace(/[\p{Cc}\p{Bidi_Control}\p{Zl}\p{Zp}]/gu,point=>'\\u'+point.charCodeAt(0).toString(16).padStart(4,'0'));
@@ -85,6 +86,8 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible}: {
   });
 
   if(hasSurfaceRequest(state))return <box flexGrow={1} flexDirection="column" minHeight={0}>
+    {state.controller&&<ControllerFrame key={state.controller.id} controller={state.controller} session={requestSession}
+      width={width} height={height} focused={focused} isActive={isActive} isVisible={isVisible}/>}
     {state.approval&&<ApprovalCard key={'approval:'+state.approval.id} request={state.approval}
       session={requestSession} height={height} isActive={isActive}/>}
     {interaction&&<box visible={!state.approval} flexGrow={1} flexDirection="column" minHeight={0}>

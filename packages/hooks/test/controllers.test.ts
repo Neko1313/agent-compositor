@@ -43,6 +43,20 @@ describe("private UI controller lifetime",()=>{
     expect(lease.signal.aborted).toBe(true);
   });
 
+  it("disposes a controller whose owner is revoked reentrantly during its factory without retaining the dead lease",()=>{
+    const owner=new AbortController(),dispose=vi.fn(),registry=new UiControllerRegistry({form:"chosen"});
+    registry.register("chosen",{form:()=>{
+      owner.abort(new Error("Owner unloaded during creation"));
+      return{render:()=>({lines:[{text:"Must not render"}]}),handle:()=>({action:"save"}),dispose};
+    }},owner.signal);
+    const lease=registry.create("form",{private:"factory request"},fallback,()=>{});
+    expect(lease.signal.aborted).toBe(true);expect(dispose).toHaveBeenCalledTimes(1);
+    expect(()=>lease.render(30,4)).toThrow("Owner unloaded during creation");
+    expect(()=>lease.handle({kind:"key",key:"enter"})).toThrow("Owner unloaded during creation");
+    const disposeLease=vi.spyOn(lease,"dispose");registry.disposeAll();
+    expect(disposeLease).not.toHaveBeenCalled();expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
   it("forbids effects through callbacks retained by another controller owner during rendering",async()=>{
     const host=new HooksHost(new Runtime(),{session:{id:"test",cwd:"/tmp"},uiControllers:{history:"renderer"}});let lease:any;let mutate!:()=>void;
     host.registerPlugin({name:"requester",version:"1.0.0",trust:"trusted"},{"prompt.submit":(_,$)=>{

@@ -1,6 +1,6 @@
 import {afterEach, expect, it} from 'vitest';
 import {createServer} from 'node:http';
-import {mkdtemp, mkdir, readFile, rm, stat, writeFile} from 'node:fs/promises';
+import {mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {buildApp} from '../src/build.js';
@@ -9,11 +9,12 @@ import {connectWindowLayout} from '../src/opentui-windows.js';
 import type {UiSurfaceSource} from '@agent-compositor/renderer-opentui';
 import type {PlacementConfig} from '../src/placement.js';
 import {handleActionMouseDown} from '../../renderer-opentui/src/mouse-action.js';
+import type {UiControllers} from '@agent-compositor/hooks';
 
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {for (const close of cleanup.splice(0).reverse()) await close();});
 
-async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny' | 'ask'; questionnaires?: boolean; models?: string[]; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]; hookTimeouts?: Record<string, number>}[]} = {}) {
+async function fixture(options: {ui?: PlacementConfig; controllers?: Partial<Record<'approval'|'question'|'form', string>>; exec?: 'allow' | 'deny' | 'ask'; questionnaires?: boolean; models?: string[]; enabledPlugins?: string[]; plugins?: {name: string; source: string; commands: unknown[]; hookTimeouts?: Record<string, number>}[]} = {}) {
   const root = await mkdtemp(join(tmpdir(), 'opentui-real-host-'));
   cleanup.push(() => rm(root, {recursive: true, force: true}));
   const cwd = join(root, 'project'), home = join(root, 'home');
@@ -50,7 +51,7 @@ async function fixture(options: {ui?: PlacementConfig; exec?: 'allow' | 'deny' |
     agent: {tools: ['ask_user', ...(options.questionnaires ? ['ask_questions'] : []), ...(options.exec ? ['exec'] : [])], builtinTools: options.exec ? ['exec'] : [], controlTools: ['ask_user', ...(options.questionnaires ? ['ask_questions'] : [])], skills: false, projectContext: false, fileReferences: false, verifyCompletion: false},
     ...(options.exec ? {permissions: {rules: [{tool: 'exec', decision: options.exec}]}} : {}),
     compaction: {enabled: false},
-    ...(options.ui ? {ui: options.ui} : {}),
+    ...(options.ui || options.controllers ? {ui: {...options.ui, ...(options.controllers ? {controllers: options.controllers} : {})}} : {}),
   }));
   const app = await buildApp({cwd, env, agentHub: false});
   cleanup.push(() => app.close());
@@ -105,6 +106,265 @@ async function focusFixture(handler: (event: any, $: any) => unknown, ui?: Place
   f.host.core.host.registerPlugin({name: 'focus-probe', version: '1.0.0', trust: 'trusted', hookTimeouts: {'ui.press': 15000}}, {'ui.press': handler});
   return f;
 }
+
+async function controllerFixture(factories: UiControllers, options: Parameters<typeof fixture>[0] = {}) {
+  const f = await fixture({...options, controllers: Object.fromEntries(Object.keys(factories).map(kind => [kind, 'selected-input'])),
+    plugins: [...(options.plugins ?? []), {name: 'selected-input', source: 'export default {};', commands: []}]});
+  f.host.core.host.unregisterPlugin('selected-input');
+  f.host.core.host.registerPlugin({name: 'selected-input', version: '1.0.0', trust: 'trusted'}, {}, 'user', [], factories);
+  return f;
+}
+async function controllerLauncher(f: Awaited<ReturnType<typeof fixture>>, handler: (event: any, $: any) => unknown) {
+  f.host.core.host.registerPlugin({name: 'controller-requester', version: '1.0.0', trust: 'trusted', hookTimeouts: {'ui.press': 15000}}, {'ui.press': handler});
+  await f.host.core.host.emit('service.ui.view', {plugin: 'controller-requester', id: 'launcher', title: 'Controller launcher',
+    view: {lines: [{text: 'Start', action: 'start'}]}, placement: {focus: false}});
+  const source = f.find('plugin-controller-requester-launcher')!;source.press('start', source.snapshot().revision);return source;
+}
+
+function scopedWorker() {
+  return {name: 'scoped-worker', commands: [{name: '/controller-exec', description: 'Run a reviewed fixture', execution: 'immediate'}],
+    source: `export default {'command.invoke':async(event,$)=>{
+      const result=await $.agent.tool('exec',{command:'/bin/sh ./controller-effect.sh'});
+      await $.storage.set(event.args.trim(),result,'project');
+    }};`};
+}
+
+it.each(['once', 'session', 'project'] as const)('preserves selected approval %s scope through the real Core policy and process boundary', async scope => {
+  let factories = 0;
+  const f = await controllerFixture({approval: () => {factories++;return {
+    render: () => ({lines: [{text: 'PRIVATE APPROVAL 窗', cells: [{ch: 'A', fg: '#abcdef', bold: true}]}]}),
+    handle: input => input.kind === 'key' ? input.key === 'f5' ? {allow: true, scope} : {allow: false, scope: 'once'} : undefined,
+  };}}, {exec: 'ask', plugins: [scopedWorker()]});
+  await writeFile(join(f.cwd, 'controller-effect.sh'), 'printf "approved\\n" >> controller-effect.txt\n');
+  const result = (name: string) => f.app.storage.read('scoped-worker', name, 'project', f.host.core.sessionId);
+  const approval = () => f.host.surfaces.snapshot().find(source => source.snapshot().controller?.kind === 'approval');
+  await f.host.submit('/controller-exec first');await expect.poll(() => approval()?.snapshot().controller?.kind).toBe('approval');
+  const source = approval()!, frame = source.snapshot().controller!;
+  expect(source.snapshot().approval).toBeUndefined();expect(source.snapshot().interaction).toBeUndefined();
+  expect(JSON.stringify(source.snapshot())).not.toMatch(/descriptor|controller-effect\.sh|Permission tokens|Arguments/);
+  await expect(readFile(join(f.cwd, 'controller-effect.txt'))).rejects.toMatchObject({code: 'ENOENT'});
+  source.controllerInput!(frame.id, {kind: 'key', key: 'f5'}, frame.revision);
+  await expect.poll(() => result('first')).toMatchObject({ok: true});
+  await f.host.submit('/controller-exec second');
+  if (scope === 'once') {
+    await expect.poll(() => approval()?.snapshot().controller?.kind).toBe('approval');
+    const next = approval()!, current = next.snapshot().controller!;
+    next.controllerInput!(current.id, {kind: 'key', key: 'f3'}, current.revision);
+  }
+  await expect.poll(() => result('second')).toMatchObject({ok: scope !== 'once'});
+  expect(factories).toBe(scope === 'once' ? 2 : 1);
+  expect((await readFile(join(f.cwd, 'controller-effect.txt'), 'utf8')).trim().split('\n')).toHaveLength(scope === 'once' ? 1 : 2);
+  const files = await readdir(join(f.app.storage.paths.home, 'approvals')).catch(() => []);
+  expect(files).toHaveLength(scope === 'project' ? 1 : 0);
+  if (scope === 'project')expect(JSON.parse(await readFile(join(f.app.storage.paths.home, 'approvals', files[0]), 'utf8'))).toContainEqual(expect.objectContaining({note: 'project'}));
+  expect(f.requests).toHaveLength(0);
+});
+
+it('denies falsey or malformed selected approval results without a process effect', async () => {
+  let value: unknown;
+  const f = await controllerFixture({approval: () => ({render: () => ({lines: [{text: 'Approval'}]}), handle: () => value})},
+    {exec: 'ask', plugins: [scopedWorker()]});
+  await writeFile(join(f.cwd, 'controller-effect.sh'), 'printf forbidden > controller-effect.txt\n');
+  for (const [index, invalid] of [null, false, 0, {allow: 'PRIVATE_INVALID'}, {allow: true, scope: 'forever'}].entries()) {
+    value = invalid;await f.host.submit('/controller-exec invalid' + index);
+    await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().controller?.kind === 'approval')).toBe(true);
+    const source = f.host.surfaces.snapshot().find(source => source.snapshot().controller?.kind === 'approval')!, current = source.snapshot().controller!;
+    source.controllerInput!(current.id, {kind: 'key', key: 'f5'}, current.revision);
+    await expect.poll(() => f.app.storage.read('scoped-worker', 'invalid' + index, 'project', f.host.core.sessionId)).toMatchObject({ok: false});
+  }
+  await expect(readFile(join(f.cwd, 'controller-effect.txt'))).rejects.toMatchObject({code: 'ENOENT'});
+  expect(JSON.stringify(f.events)).not.toContain('PRIVATE_INVALID');
+});
+
+it('projects a selected Main question privately and accepts only the current focused controller receipt', async () => {
+  let request: unknown, handled = 0;
+  const f = await controllerFixture({question: ({data}) => {request = data;return {
+    render: ({columns}) => ({lines: [{text: `CUSTOM QUESTION ${columns}`}]}),
+    handle: input => {handled++;return input.kind === 'key' && input.key === 'f4' ? {answer: 'Remote'} : undefined;},
+  };}});
+  const main = f.host.submit('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().controller?.kind).toBe('question');
+  const initial = f.host.session.snapshot().controller!;
+  expect(request).toMatchObject({question: 'Choose execution mode', options: ['Local', 'Remote']});
+  expect(f.host.session.snapshot().interaction).toBeUndefined();expect(f.host.session.snapshot().approval).toBeUndefined();
+  expect(JSON.stringify(f.host.session.snapshot())).not.toContain('Choose execution mode');
+  f.host.session.controllerViewport!(initial.id, 38, 6);const current = f.host.session.snapshot().controller!;
+  expect(current.view.lines[0].text).toBe('CUSTOM QUESTION 38');
+  expect(f.host.session.controllerInput!(initial.id, {kind: 'key', key: 'f4'}, initial.revision)).toBeUndefined();
+  f.layout.act({type: 'workspace', id: 2});
+  expect(f.host.session.controllerInput!(current.id, {kind: 'key', key: 'f4'}, current.revision)).toBeUndefined();expect(handled).toBe(0);
+  f.layout.act({type: 'open', id: 'session'});
+  expect(f.host.session.controllerInput!(current.id, {kind: 'key', key: 'f4'}, current.revision)).toBe(1);
+  await main;expect(handled).toBe(1);expect(f.host.session.snapshot().controller).toBeUndefined();expect(f.requests).toHaveLength(2);
+});
+
+it('keeps an unscoped selected form in idle Main while an ordinary prompt receives a real provider response', async () => {
+  let received: unknown = 'pending', request: unknown, value = '';
+  const f = await controllerFixture({form: ({data}) => {request = data;return {
+    render: () => ({lines: [{text: 'PARKED FORM ' + '*'.repeat(value.length)}]}),
+    handle: input => {
+      if (input.kind === 'text')value += input.text;
+      if (input.kind === 'key' && input.key === 'f5')return {action: 'save', values: {value}};
+    },
+  };}});
+  f.host.core.host.registerPlugin({name: 'unscoped-controller', version: '1.0.0', trust: 'trusted'}, {
+    'ui.press': async (_event, $) => {received = await $.ui.form({title: 'PRIVATE_IDLE_FORM',
+      fields: [{id: 'value', label: 'Value', type: 'text', value: 'PRIVATE_DEFAULT'}], actions: [{id: 'save', label: 'Save'}]});},
+  });
+  const pending = f.host.core.host.emit('ui.press', {site: 'unscoped', key: 'open'});
+  await expect.poll(() => f.host.session.snapshot().controller?.kind).toBe('form');
+  const frame = f.host.session.snapshot().controller!;
+  expect(f.host.core.getState()).toBe('idle');expect(f.host.session.snapshot().running).toBe(false);
+  expect(request).toMatchObject({title: 'PRIVATE_IDLE_FORM', fields: [{value: 'PRIVATE_DEFAULT'}]});
+  expect(f.host.session.snapshot().interaction).toBeUndefined();expect(f.host.surfaces.snapshot().some(source => source.snapshot().controller)).toBe(false);
+  f.host.session.controllerInput!(frame.id, {kind: 'text', text: 'PRIVATE_ENTERED_VALUE'}, frame.revision);
+  await f.host.submit('Continue while the local form waits');
+  expect(f.requests).toHaveLength(1);expect(f.host.session.snapshot().messages.at(-1)?.text).toBe('REAL_ROUTER_COMPLETED');
+  expect(f.host.session.snapshot().controller).toMatchObject({id: frame.id, kind: 'form', inputRevision: 1});
+  expect(f.host.session.snapshot().running).toBe(false);expect(received).toBe('pending');
+  expect(JSON.stringify({snapshot: f.host.session.snapshot(), requests: f.requests, messages: f.host.core.getMessages()})).not.toMatch(/PRIVATE_(?:IDLE_FORM|DEFAULT|ENTERED_VALUE)/);
+  expect(JSON.stringify(await f.app.store.load(f.host.core.sessionId, f.cwd))).not.toContain('PRIVATE_');
+  const current = f.host.session.snapshot().controller!;
+  f.host.session.controllerInput!(current.id, {kind: 'key', key: 'f5'}, current.revision);await pending;
+  expect(received).toEqual({action: 'save', values: {value: 'PRIVATE_ENTERED_VALUE'}});
+  expect(f.host.session.snapshot().controller).toBeUndefined();expect(f.requests).toHaveLength(1);
+});
+
+it('keeps selected form factory defaults and entered values out of renderer DTOs while rejecting invalid output in place', async () => {
+  let data: unknown, value = '', received: unknown;
+  const f = await controllerFixture({form: request => {data = request.data;return {
+    render: () => ({lines: [{text: 'MASKED FORM ' + '*'.repeat(value.length)}]}),
+    handle: input => {
+      if (input.kind === 'text')value += input.text;
+      if (input.kind === 'key' && input.key === 'f4')return {action: 'unoffered', values: {token: value}};
+      if (input.kind === 'key' && input.key === 'f5')return {action: 'save', values: {token: value, undeclared: 'drop'}};
+      if (input.kind === 'key' && input.key === 'f3')return null;
+    },
+  };}});
+  const launcher = await controllerLauncher(f, async (_event, $) => {received = await $.ui.form({title: 'PRIVATE_FACTORY_TITLE',
+    fields: [{id: 'token', label: 'Private token', type: 'text', value: 'PRIVATE_DEFAULT'}], actions: [{id: 'save', label: 'Save'}]});});
+  await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().controller?.kind === 'form')).toBe(true);
+  const source = f.host.surfaces.snapshot().find(source => source.snapshot().controller?.kind === 'form')!, first = source.snapshot().controller!;
+  expect(data).toMatchObject({title: 'PRIVATE_FACTORY_TITLE', fields: [{value: 'PRIVATE_DEFAULT'}]});
+  expect(source.snapshot().form).toBeUndefined();expect(source.snapshot().interaction).toBeUndefined();
+  source.controllerInput!(first.id, {kind: 'text', text: 'PRIVATE_SUBMITTED'}, first.revision);
+  for (const key of ['f3', 'f4']) {
+    const frame = source.snapshot().controller!;source.controllerInput!(frame.id, {kind: 'key', key}, frame.revision);
+    expect(source.snapshot().controller?.id).toBe(first.id);
+    expect(source.snapshot().controller?.view.lines.some(line => line.text === 'Complete the form with valid fields and an offered action')).toBe(true);
+    expect(received).toBeUndefined();
+  }
+  expect(JSON.stringify(source.snapshot())).not.toMatch(/PRIVATE_(?:FACTORY_TITLE|DEFAULT|SUBMITTED)|"(?:fields|values|lease)":/);
+  const frame = source.snapshot().controller!;source.controllerInput!(frame.id, {kind: 'key', key: 'f5'}, frame.revision);
+  await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  expect(received).toEqual({action: 'save', values: {token: 'PRIVATE_SUBMITTED'}});
+  expect(JSON.stringify(f.events)).not.toContain('PRIVATE_SUBMITTED');expect(JSON.stringify(await f.app.store.load(f.host.core.sessionId, f.cwd))).not.toContain('PRIVATE_SUBMITTED');
+});
+
+it('keeps the admitted form validator authoritative when the selected factory mutates its private declaration', async () => {
+  let received: unknown = 'pending';
+  const f = await controllerFixture({form: ({data}) => {
+    const declaration = data as {fields: {id: string; required?: boolean; type: string; label: string}[]; actions: {id: string; label: string}[]};
+    declaration.fields[0].required = false;
+    declaration.fields.push({id: 'injected', label: 'Foreign field', type: 'text'});
+    declaration.actions.push({id: 'injected', label: 'Foreign action'});
+    return {render: () => ({lines: [{text: 'Selected form'}]}), handle: input => {
+      if (input.kind !== 'key')return;
+      if (input.key === 'f4')return {action: 'injected', values: {token: '', injected: 'foreign'}};
+      if (input.key === 'f3')return {action: 'save', values: {token: '', injected: 'foreign'}};
+      return {action: 'save', values: {token: 'valid original field', injected: 'must be dropped'}};
+    }};
+  }});
+  const launcher = await controllerLauncher(f, async (_event, $) => {received = await $.ui.form({title: 'Original declaration',
+    fields: [{id: 'token', label: 'Token', type: 'text', required: true}], actions: [{id: 'save', label: 'Save'}]});});
+  await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().controller?.kind === 'form')).toBe(true);
+  const source = f.host.surfaces.snapshot().find(source => source.snapshot().controller?.kind === 'form')!, id = source.snapshot().controller!.id;
+  for (const key of ['f4', 'f3']) {
+    const current = source.snapshot().controller!;source.controllerInput!(id, {kind: 'key', key}, current.revision);
+    expect(source.snapshot().controller?.id).toBe(id);expect(received).toBe('pending');
+    expect(source.snapshot().controller?.view.lines.at(-1)?.text).toBe('Complete the form with valid fields and an offered action');
+  }
+  source.controllerInput!(id, {kind: 'key', key: 'f5'}, source.snapshot().controller!.revision);
+  await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  expect(received).toEqual({action: 'save', values: {token: 'valid original field'}});
+});
+
+it.each(['Main', 'workspace'] as const)('settles an admitted async selected form after newer %s intent without recapturing focus', async navigation => {
+  let gate!: ReturnType<typeof focusGate>, result: unknown;
+  const f = await controllerFixture({form: () => ({render: () => ({lines: [{text: 'Async form'}]}), handle: async () => {
+    await gate.wait(new AbortController().signal);return {action: 'save', values: {value: 'PRIVATE_ASYNC'}};
+  }})});
+  gate = focusGate();const launcher = await controllerLauncher(f, async (_event, $) => {
+    result = await $.ui.form({title: 'Async', fields: [{id: 'value', label: 'Value', type: 'text'}], actions: [{id: 'save', label: 'Save'}]});
+    await $.ui.view('returned', 'Async result', {lines: [{text: 'Completed'}]}, {workspace: 6, focus: true});
+  });
+  await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().controller?.kind === 'form')).toBe(true);
+  const source = f.host.surfaces.snapshot().find(source => source.snapshot().controller?.kind === 'form')!, frame = source.snapshot().controller!;
+  expect(source.controllerInput!(frame.id, {kind: 'key', key: 'f5'}, frame.revision)).toBe(1);await expect.poll(gate.entered).toBe(true);
+  f.host.navigation.handle({kind: 'key', key: '0', modifiers: ['alt']});if (navigation === 'workspace')f.layout.act({type: 'workspace', id: 2});
+  const before = f.layout.snapshot(), epoch = f.layout.windowIntentRevision;
+  gate.release();await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  expect(result).toEqual({action: 'save', values: {value: 'PRIVATE_ASYNC'}});
+  expect(f.find('plugin-controller-requester-returned')?.snapshot().view?.lines[0].text).toBe('Completed');
+  expect(f.layout.snapshot()).toMatchObject({workspace: before.workspace, focused: before.focused});expect(f.layout.windowIntentRevision).toBe(epoch);
+  expect(JSON.stringify(f.events)).not.toContain('PRIVATE_ASYNC');
+});
+
+it('does not let the previous selected request identity settle its successor in the same private operation', async () => {
+  let handled = 0;const results: unknown[] = [];
+  const f = await controllerFixture({form: () => ({render: () => ({lines: [{text: 'Selected form'}]}),
+    handle: () => {handled++;return {action: 'save', values: {value: 'exact'}};}})});
+  const launcher = await controllerLauncher(f, async (_event, $) => {
+    for (const title of ['First private request', 'Second private request'])results.push(await $.ui.form({title,
+      fields: [{id: 'value', label: 'Value', type: 'text'}], actions: [{id: 'save', label: 'Save'}]}));
+  });
+  await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().controller)).toBe(true);
+  const source = f.host.surfaces.snapshot().find(source => source.snapshot().controller)!, first = source.snapshot().controller!;
+  source.controllerInput!(first.id, {kind: 'key', key: 'f5'}, first.revision);
+  await expect.poll(() => source.snapshot().controller?.id !== first.id && !!source.snapshot().controller).toBe(true);
+  const second = source.snapshot().controller!;
+  expect(source.controllerInput!(first.id, {kind: 'key', key: 'f5'}, second.revision)).toBeUndefined();source.cancelController!(first.id);
+  expect(source.snapshot().controller?.id).toBe(second.id);expect(handled).toBe(1);expect(results).toHaveLength(1);
+  source.controllerInput!(second.id, {kind: 'key', key: 'f5'}, second.revision);
+  await expect.poll(() => launcher.snapshot().busy).toBe(false);expect(handled).toBe(2);expect(results).toHaveLength(2);
+});
+
+it('rejects malformed selected question outputs and sanitizes private handler exceptions without native fallback', async () => {
+  let value: unknown;const failures: string[] = [];
+  const f = await controllerFixture({question: () => ({render: () => ({lines: [{text: 'Selected question'}]}), handle: () => {
+    if (value instanceof Error)throw value;return value;
+  }})});
+  const launcher = await controllerLauncher(f, async (_event, $) => {
+    try {await $.ui.ask({question: 'PRIVATE_QUESTION_DECLARATION', options: ['Allowed'], allowOther: false});}
+    catch (error) {failures.push((error as Error).message);}
+  });
+  for (const [index, invalid] of [null, false, 0, {answer: 'Not allowed'}, {answer: {PRIVATE_BAD_RESULT: true}}, Error('PRIVATE_CONTROLLER_EXCEPTION')].entries()) {
+    value = invalid;if (index)launcher.press('start', launcher.snapshot().revision);
+    await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().controller?.kind === 'question')).toBe(true);
+    const source = f.host.surfaces.snapshot().find(source => source.snapshot().controller?.kind === 'question')!, frame = source.snapshot().controller!;
+    expect(source.snapshot().interaction).toBeUndefined();expect(JSON.stringify(source.snapshot())).not.toContain('PRIVATE_QUESTION_DECLARATION');
+    source.controllerInput!(frame.id, {kind: 'key', key: 'f4'}, frame.revision);
+    await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  }
+  expect(failures).toHaveLength(6);expect(failures.every(error => /^(Invalid question controller result|Selected question controller is unavailable)$/.test(error))).toBe(true);
+  expect(JSON.stringify(f.events)).not.toMatch(/PRIVATE_(?:CONTROLLER_EXCEPTION|BAD_RESULT)/);expect(f.requests).toHaveLength(0);
+});
+
+it('revokes an active selected form on controller-owner unload and ignores its uncooperative late answer', async () => {
+  let gate!: ReturnType<typeof focusGate>, result: unknown = 'pending', disposed = 0;
+  const f = await controllerFixture({form: () => ({render: () => ({lines: [{text: 'Revocable'}]}), dispose: () => {disposed++;}, handle: async () => {
+    await gate.wait(new AbortController().signal);return {action: 'save', values: {value: 'PRIVATE_LATE'}};
+  }})});
+  gate = focusGate();const launcher = await controllerLauncher(f, async (_event, $) => {result = await $.ui.form({title: 'Revocable',
+    fields: [{id: 'value', label: 'Value', type: 'text'}], actions: [{id: 'save', label: 'Save'}]});});
+  await expect.poll(() => f.host.surfaces.snapshot().some(source => source.snapshot().controller?.kind === 'form')).toBe(true);
+  const source = f.host.surfaces.snapshot().find(source => source.snapshot().controller?.kind === 'form')!, frame = source.snapshot().controller!;
+  source.controllerInput!(frame.id, {kind: 'key', key: 'f5'}, frame.revision);await expect.poll(gate.entered).toBe(true);
+  f.host.core.host.unregisterPlugin('selected-input');await expect.poll(() => launcher.snapshot().busy).toBe(false);
+  expect(result).toBeNull();expect(disposed).toBe(1);gate.release();await Promise.resolve();
+  expect(source.controllerInput!(frame.id, {kind: 'key', key: 'f5'}, frame.revision)).toBeUndefined();
+  expect(result).toBeNull();expect(JSON.stringify(f.events)).not.toContain('PRIVATE_LATE');
+});
 
 it('admits a passive first view without taking a held form, Main question or another workspace', async () => {
   const f = await fixture();f.host.core.host.registerPlugin({name: 'passive', version: '1.0.0', trust: 'trusted'}, {});
@@ -1011,7 +1271,7 @@ it('reopens an explicitly requested closed pane and preserves permanent placemen
 
 it('fails closed at construction for unsupported selected private controller owners', async () => {
   const f = await fixture();
-  for (const kind of ['approval', 'editor', 'question', 'form', 'history', 'placement'] as const) {
+  for (const kind of ['editor', 'history', 'placement'] as const) {
     const app = await buildApp({cwd: f.cwd, env: f.env, agentHub: false,
       fixedConfig: {...f.app.config.config, ui: {controllers: {
         editor: '@host', approval: '@host', question: '@host', form: '@host', history: '@host', placement: '@host',

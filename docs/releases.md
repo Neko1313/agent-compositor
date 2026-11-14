@@ -75,6 +75,15 @@ is preserved. Native FFmpeg license/source information and bundled dependencies'
 author and patent notices are retained under `licenses/`, including dependencies
 installed beside the renderer workspace at different versions.
 
+Each native job extracts the archive outside the checkout and runs the actual
+OpenTUI app, managers, navigation, cancellation, request-window and selected
+private-controller scenarios through the shared PTY/browser bench. The selected
+controller gate uses isolated explicit approval/question/form providers with a
+bounded loopback model; it does not select a custom editor, history or placement
+implementation. The matching source command is `npm run visual:opentui-controllers`.
+Reports, terminal input/output, screenshots and executable/renderer identities
+are retained with the other installed-runtime evidence, including on failure.
+
 User and project plugin directories take precedence over the distribution's
 supplied packages. Since v0.4.0, plugins remain inactive until explicitly enabled
 in user or project scope; installation alone never activates them. The repository

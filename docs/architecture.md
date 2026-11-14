@@ -116,6 +116,18 @@ cannot fall through to Main. Private inbox binding does not replace the Core's
 global form router. Lifecycle reload emissions explicitly leave expired service
 scope before constructing fresh plugin capabilities.
 
+Selected OpenTUI approval/question/form requests reuse the same registry leases
+and private FIFOs. The host keeps factory data, results, validators and lifetime
+signals; the renderer receives a distinct validated frame without native request
+defaults or capabilities. Its guarded input and viewport ports address one
+request and Core generation. Input admission captures continuation intent before
+the lease's serialized asynchronous handler runs. Settlement checks the same
+live lease, without granting fresh focus after an await. Failure denies an
+approval, rejects a question or cancels a form with a constant diagnostic;
+controller exception text cannot leak private input into notices or journals.
+The resident Main editor parks while a selected request owns input. Editor,
+history and placement replacement are separate remaining frontend gates.
+
 Portable plugin views may include a catalog 0.27 semantic table: labeled columns,
 stable rows, ordinary actions and expandable details. Producers own expansion and
 filter state and republish when data changes. AppUI chooses aligned or stacked

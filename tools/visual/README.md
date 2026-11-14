@@ -79,6 +79,25 @@ retains its development keymap.
 Artifacts default to `dist/visual-opentui-navigation/`; `VISUAL_EXECUTABLE` selects
 a complete extracted native candidate rather than a source override.
 
+`npm run visual:opentui-controllers` selects external approval, question and form
+controllers in the actual configured CLI; the editor, history and placement keep
+their host implementations. Its six flows exercise the existing F3/F4/F5 decision
+contracts, Main answer-versus-draft ownership, independent operation windows,
+retained local input state, terminal paste and local mouse coordinates, validated
+colored/bold/CJK cells, masked supplied defaults, asynchronous responses and
+cancel/unload fail-closed behavior. The requester and controller provider are
+separate test-only plugins. A retained ordinary startup form also exercises Main's
+FIFO while a real model turn completes, preserving the private form and native
+draft/cursor until explicit submission. A normal exact permission rule permits disabling only
+that provider through the public extension tool before real `/reload`; external
+gate files control fixture completion, never application state. Private form
+receipts retain hashes rather than tokens, and terminal/provider/journal scans
+exclude the diagnostic raw synthetic keystroke log. Artifacts default to
+`dist/visual-opentui-controllers/`; `VISUAL_EXECUTABLE` checks a complete extracted
+native archive. This scenario does not establish selected editor, placement or
+full render/wire parity. The older `visual:controllers` keeps its complete Ink
+composition and its documented custom-editor F2 key unchanged.
+
 `npm run visual:opentui-cancellation` checks immediate commands through the actual
 configured OpenTUI CLI. Two commands from one plugin start real `/bin/sh` workers
 under exact normal permission rules. Ctrl+C in one window must settle its

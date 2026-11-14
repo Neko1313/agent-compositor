@@ -34,6 +34,7 @@
     "visual:opentui-navigation": "node tools/visual/opentui-navigation-check.mjs",
     "visual:opentui-cancellation": "node tools/visual/opentui-cancellation-check.mjs",
     "visual:opentui-requests": "node tools/visual/opentui-requests-check.mjs",
+    "visual:opentui-controllers": "node tools/visual/opentui-controllers-check.mjs",
     "visual:opentui-windows": "node tools/visual/opentui-windows-check.mjs",
     "visual:opentui-inputs": "node tools/visual/opentui-inputs-check.mjs",
     "visual:check": "node tools/visual/check.mjs",

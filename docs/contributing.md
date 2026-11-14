@@ -32,7 +32,9 @@ TypeScript suite and coverage checks. For terminal behavior, follow
 [plugin certification](plugin-testing.md) for extension release requirements.
 
 The Node 26 CI job also runs `npm run visual:opentui-app`,
-`npm run visual:opentui-managers` and `npm run visual:opentui-navigation`
+`npm run visual:opentui-managers`, `npm run visual:opentui-navigation`,
+`npm run visual:opentui-cancellation`, `npm run visual:opentui-requests` and
+`npm run visual:opentui-controllers`
 with the bench's Chromium browser. Native release jobs repeat those commands against an archive
 extracted outside the checkout on each declared platform, retaining its report,
 terminal captures and executable/asset identities. Each scenario uses isolated

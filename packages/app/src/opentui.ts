@@ -41,10 +41,13 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
         const focused=windows.snapshot().focused;
         const surface=current.surfaces.snapshot().find(source=>source.id===focused);
         const request=surface?.snapshot();
+        if(request?.controller){surface?.cancelController?.(request.controller.id);return 'handled';}
         if(request?.approval){surface?.answerApproval?.(request.approval.id,false);return 'handled';}
         if(request?.interaction){surface?.cancelInteraction?.(request.interaction.id);return 'handled';}
         const form=request?.form;
         if(form){surface?.cancelForm?.(form.id);return 'handled';}
+        const mainController=focused==='session'?current.session.snapshot().controller:undefined;
+        if(mainController){current.session.cancelController?.(mainController.id);return 'handled';}
         if(current.cancelOperation(focused))return 'handled';
         if(current.core.getState()==='running'){current.core.interrupt();return 'handled';}
         return 'exit';

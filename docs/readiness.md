@@ -431,7 +431,14 @@ preview retains its separate development keymap. Verification must include
 actual batched keyboard/paste, protected questions/approvals, live route
 replacement and narrow terminal geometry, not only host parser tests.
 
-Remaining frontend gates include selected replacement controllers,
+Selected approval, question and private-form controllers now use the shared
+host lease adapter and independent request FIFOs. The renderer receives validated
+private frames/cells rather than factory requests or native form defaults.
+Main keeps an explicit answer/draft input owner; selected approvals retain
+validated once/session/project results through the ordinary Core policy.
+This closes only the private-request portion of controller migration.
+
+Remaining frontend gates include selected editor/history/placement controllers,
 full appearance/render overrides, legacy
 conversation copies, complete wire-protocol parity and exact delegated-child
 request attribution. Ordinary UI operations and retained plugin services now

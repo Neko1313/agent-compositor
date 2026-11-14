@@ -15,23 +15,23 @@ function conversation(messages: readonly ChatMessage[]): Message[] {
   return visible;
 }
 
-type ConversationInbox = Omit<ReturnType<typeof createApprovalInbox>, 'snapshot'> & {
+type ConversationInbox = Pick<ReturnType<typeof createApprovalInbox>, 'subscribe' | 'answer' | 'close'> & {
   snapshot(): ConversationApproval | undefined;
 } & Partial<Pick<ReturnType<typeof createInteractionInbox>,
-  'interactionSnapshot' | 'answerInteraction' | 'cancelInteraction'>>;
+  'interactionSnapshot' | 'answerInteraction' | 'cancelInteraction' | 'controllerSnapshot' | 'controllerInput' | 'controllerViewport' | 'cancelController'>>;
 
 export function connectConversation(core: AgentCore, label: string, inbox?: ConversationInbox,
   submit: (text: string) => Promise<void> = text => core.submit(text)): ConversationSession & {disconnect(): void} {
   const listeners = new Set<() => void>();
   let state: ConversationSnapshot = {messages: conversation(core.getMessages()), running: core.getState() === 'running',
-    approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.()};
+    approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.(), controller: inbox?.controllerSnapshot?.()};
   let committed = state.messages;
   let streaming = '';
   let notice: string | undefined;
   let disconnected = false;
   function update(next: ConversationSnapshot) {
     if (disconnected) return;
-    state = {...next, notice, approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.()};
+    state = {...next, notice, approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.(), controller: inbox?.controllerSnapshot?.()};
     for (const listener of listeners) listener();
   }
   const offInbox = inbox?.subscribe(() => update(state));
@@ -72,6 +72,9 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Conv
   return {
     id: core.sessionId, label, answerApproval: inbox?.answer,
     answerInteraction: inbox?.answerInteraction, cancelInteraction: inbox?.cancelInteraction,
+    controllerInput(id, input, revision) {if (!disconnected)return inbox?.controllerInput?.(id, input, revision);},
+    controllerViewport(id, columns, rows) {if (!disconnected)inbox?.controllerViewport?.(id, columns, rows);},
+    cancelController(id) {if (!disconnected)inbox?.cancelController?.(id);},
     subscribe(callback) { listeners.add(callback); return () => { listeners.delete(callback); }; },
     snapshot: () => state,
     submit(text) {

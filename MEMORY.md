@@ -1,5 +1,93 @@
 # Project memory
 
+## Selected OpenTUI private request controllers — 2026-11-14
+
+The configured frontend now supports selected approval, question and form
+controllers through one host-only lease adapter and the existing private FIFOs.
+Only validated immutable frames/cells, request identity, paint/input receipts and
+bounded preferred rows reach renderer-opentui. Original factory data, form
+initial values, native fallback declarations, leases and capabilities do not.
+Raw key/text/paste/local mouse and advertised action/change inputs use guarded
+ports. Rich cells retain colors, attributes and CJK widths; hints have their own
+row. Optional controller pointer-shape projection remains deferred.
+
+Main starts selected requests in Draft mode. Alt+I or Answer/Draft parks the
+resident native draft/cursor while the controller owns input. Selected local
+forms permit an ordinary model turn from idle Main, remaining pending with the
+same lease. Questions/approvals retain their gate. Ctrl+C cancels exactly the
+selected request before operation/agent fallback; the caption names cancellation.
+F2 Windows, Arrange/Main and spatial/workspace keys retain host precedence.
+Hidden requests keep their controller state; unload/cancellation disposes once.
+
+Input admission checks the current request, source/Core generation, visible
+focused owner, normal navigation and receipt before renewing continuation intent.
+Serialized asynchronous completion can settle its still-live request after
+navigation, without renewing focus. Completed inputRevision receipts protect a
+resident semantic input from intermediate acknowledgements overwriting newer
+text/cursor. Already admitted queued inputs survive the controller's invalidation.
+Approval once/session/project results still use ordinary Core policy/persistence;
+malformed decisions deny. Questions retain captured choices/cardinality/signals
+and normalized validation. Invalid forms stay pending with a constant diagnostic;
+factory/render/handle failures never publish their private exception text.
+
+Private factory data is deep-detached inside the OpenTUI adapter, not the shared
+registry (editor/history/placement can contain callable capabilities). A selected
+factory cannot weaken the host's original required fields or offered actions.
+Mutation tests first reproduced an accepted injected form action and a changed
+caller's question choices, then passed with detached data and canonical labels.
+The recorded RED excerpt is /tmp/compositor-selected-controller-alias-red.txt.
+The registry also disposes factories revoked synchronously during construction
+and avoids retaining their already-aborted leases. Both config schema paths now
+accept a genuinely partial controller map with z.partialRecord; unknown kinds
+and empty owners still fail. This fixes the documented omission/default contract.
+
+Validation: standalone current coverage passes 1990 tests, three optional skips,
+217 files. Full typecheck, gen/docs:gen and 106-page docs:check/build pass; the
+final cancellation-caption-only change also passes renderer typecheck. Final
+relocated native OpenTUI passes app six, navigation eight, managers five,
+cancellation three, requests six and selected controllers six, all errors:[] and
+PTY exit 0. Ink passes seven with both request fixtures exiting 0. Evidence:
+dist/opentui-selected-controllers-current-native-{app,navigation,managers,cancellation,requests,controllers}
+and dist/ink-selected-controllers-current-native. All seven current controller
+PNGs were inspected. No owned browser/server/PTY remains. The new source and
+four-platform release CI gates retain the same controller command and artifacts.
+
+Preserved evidence: source-valid passes six before the strengthened final oracle.
+The original relocated candidate also passes its original 41 cases, but the
+expanded last controller flow reproduces a real bug: idle Main's selected form
+left APP_MAIN_FORM_PROBE unsent with Send disabled and only two HTTP calls.
+dist/opentui-selected-controllers-idle-form-old-native preserves that RED; its
+identity is dist/opentui-selected-controllers-initial-artifact.json. The current
+sixth case now gets the real third HTTP response while the exact form stays live,
+then privately saves it. A separately gated second semantic change proves
+Query AB survives an acknowledged A before C is entered, followed by exact ABC.
+Initial source folders retain the genuine partial-config failure and the invalid
+password-default fixture; the fixture now legitimately uses a private text
+default masked by its selected controller. No password-initial-value policy was
+relaxed. The first full-suite failure was an obsolete unsupported-controller test;
+its replacement preserves explicit factory failure and newer-form-handler ownership.
+
+The complete current archive release smoke passes, including versioned/latest
+installation, checksum rejection, default plugins, plain controls, recovery and
+state preservation. Independent review cleared the bounded code and all seven
+current controller captures. Current identity and evidence are in
+dist/opentui-selected-controllers-{artifact,verification,local-install}.json.
+Executable SHA-256: bd95568f63ad08a45e637dc5649fc5650edf163396b3112d49ba24c7f81232e3.
+Renderer SHA-256: d0c79ae78b88cf692f189d48f7d7a4d80e315f93ed589ef9e22cb89244d800d7.
+PATH selects immutable main-20261114-4bc94a695321-linux-x64; the previous 8ed5d
+bundle and all older installations remain. This reports 0.8.0 as a local main
+build, not a new public tag. New-head remote checks must be observed after push.
+Ink remains the default; use compositor --renderer opentui. No paid/live model
+was used. The full 1.0 goal stays active: selected editor/history/placement,
+pointer/appearance/render and full wire parity, legacy conversation copies,
+exact delegated-child attribution, embedded CPU onboarding and broad real-model
+self-development quality remain open.
+
+The preceding bc5efd1 remote checks are now terminal success: main CI 43535864385,
+docs 43535864263, plugin release preparation 43535864198 and build-only native
+run 43536211858. Verification and all four native jobs succeeded; publish was
+skipped. Earlier failed runs remain failed and are not relabeled.
+
 ## OpenTUI window intent and native action ownership — 2026-11-14
 
 The configured host now defaults an unspecified first-publication focus to

@@ -96,6 +96,17 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     return JSON.stringify([epoch,'session',dto.conversationId??dto.id,dto.id,dto.generation??dto.id,kind,frame.id]);
   }
   function surfaceKey(dto:NativeSurface,frame:Frame){return JSON.stringify([epoch,'surface',dto.port,frame.id]);}
+  function pruneTracks(next:NativeState){
+    const retained=new Set<string>();
+    for(const dto of next.sessions){
+      if(dto.snapshot.controller)retained.add(sessionKey(dto,'controller',dto.snapshot.controller));
+      if(dto.snapshot.editor)retained.add(sessionKey(dto,'editor',dto.snapshot.editor));
+    }
+    for(const dto of next.surfaces)if(dto.snapshot.controller)retained.add(surfaceKey(dto,dto.snapshot.controller));
+    // Presence, including hidden resident sources and Main copies, owns this
+    // bookkeeping. Completed or pending receipts cannot retain a retired frame.
+    for(const key of tracks.keys())if(!retained.has(key))tracks.delete(key);
+  }
   function track(key:string,raw:number){let value=tracks.get(key);if(!value){value={issued:0,completed:0,raw,tickets:[]};tracks.set(key,value);}
     value.raw=Math.max(value.raw,raw);advance(value);return value;}
   function advance(value:Track){
@@ -126,6 +137,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     const current=track(key,frame.inputRevision),ticket:Ticket={local:++current.issued,status:'pending'};current.tickets.push(ticket);
     const receipt=request(target,{kind,id:frame.id,input:value as Extract<NativeOperation,{kind:'controller-input'}>['input'],revision:frame.revision},frame.revision);
     const finish=(result:NativeReceiptMessage|undefined)=>{
+      if(tracks.get(key)!==current)return;
       ticket.status=result?.status==='accepted'&&result.ticket!==undefined?'accepted':'rejected';ticket.host=result?.ticket;
       advance(current);refreshFrames();
     };
@@ -188,6 +200,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
   }
   function apply(next:NativeState){
     commands=next.immediateCommands;
+    pruneTracks(next);
     const changes=new Set<{notify():void}>();
     function prune<T>(map:Map<string,T>,ports:readonly {port:string}[]){const ids=new Set(ports.map(value=>value.port));
       for(const key of map.keys())if(!ids.has(key))map.delete(key);}

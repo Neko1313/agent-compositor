@@ -3,6 +3,7 @@ import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ScriptedProvider} from '@agent-compositor/core';
+import type {UiControllers,UiControllerFactory,UiControllerInput,UiEditorState} from '@agent-compositor/hooks';
 import {decodeLine,encodeMessage,hello,nativeProtocolElements,type NativeInputMessage,type NativeOperation,type NativeStateMessage,type WireMessage} from '@agent-compositor/protocol';
 import {buildApp} from '../src/build.js';
 import {connectWindowLayout} from '../src/opentui-windows.js';
@@ -11,9 +12,10 @@ import {createOpenTuiWireHost} from '../src/opentui-wire.js';
 
 const cleanup:(()=>unknown|Promise<unknown>)[]=[];
 afterEach(async()=>{for(const close of cleanup.splice(0).reverse())await close();});
-async function fixture(provider=new ScriptedProvider([])){
+async function fixture(provider=new ScriptedProvider([]),controllers?:Partial<Record<keyof UiControllers,string>>){
   const cwd=await mkdtemp(join(tmpdir(),'opentui-wire-'));cleanup.push(()=>rm(cwd,{recursive:true,force:true}));
   const app=await buildApp({cwd,env:{HOME:cwd},provider,agentHub:false,fixedConfig:{enabledPlugins:['session-manager'],
+    ...(controllers?{ui:{controllers}}:{}),
     agent:{tools:['read','ask_user'],builtinTools:['read'],controlTools:['ask_user'],skills:false,projectContext:false,fileReferences:false,verifyCompletion:false},
     permissions:{rules:[{tool:'read',decision:'allow'}]},compaction:{enabled:false}}});cleanup.push(()=>app.close());
   const layout=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'}],initial:['session']});layout.resize(160,50);cleanup.push(()=>layout.disconnect());
@@ -30,6 +32,78 @@ async function fixture(provider=new ScriptedProvider([])){
   };
   return {cwd,host,layout,provider,messages,broker,receive,negotiate,state,input};
 }
+
+it.each(['form','editor'] as const)('keeps relative %s input on its live lease while fencing painted targets, fields, focus and retired identities',async kind=>{
+  const f=await fixture(new ScriptedProvider([]),{[kind]:'wire-selected'}),handled:UiControllerInput[]=[];
+  let field:string|undefined='field',value='',invalidate=()=>{};
+  const manifest={name:'wire-selected',version:'1.0.0',trust:'trusted' as const};
+  const factory:UiControllerFactory=(request,context)=>{
+    value=kind==='editor'?(request.state as UiEditorState).text:'FORMvalue';invalidate=context.invalidate;
+    return{snapshot:()=>({text:value,cursor:value.length}),preferredRows:()=>5,
+      render:()=>({...(field?{input:{id:field,value}}:{}),lines:[{text:'Selected '+kind},{text:value},{text:'Allowed',action:'allowed'}]}),
+      async handle(input:UiControllerInput){handled.push(structuredClone(input));if(input.kind==='text')value+=input.text;else if(input.kind==='change')value=input.value;},
+    };
+  };
+  const factories:UiControllers={[kind]:factory};
+  const register=()=>f.host.core.host.registerPlugin(manifest,{},'user',[],factories);register();
+  f.host.core.host.registerPlugin({name:'wire-form-caller',version:'1.0.0',trust:'trusted'},{'ui.press':async(event,$)=>{
+    if(event.site==='plugin-wire-form-caller-controls'&&event.key==='open')await $.ui.form({title:'Wire private form',fields:[{id:'name',label:'Name',type:'text',value:'FORMvalue'}],actions:[{id:'save',label:'Save'}]});
+  }});
+  await f.host.core.host.emit('service.ui.view',{plugin:'wire-form-caller',id:'controls',title:'Form controls',view:{lines:[{text:'Open',action:'open'}]},placement:{focus:false}});
+  f.negotiate();
+  const dto=()=>kind==='editor'?f.state().state.sessions.find(session=>session.paneId==='session')!:
+    f.state().state.surfaces.find(surface=>surface.snapshot.controller?.kind==='form')!;
+  const frame=()=>{const target=dto();return kind==='editor'?'editor'in target.snapshot?target.snapshot.editor!:undefined:target.snapshot.controller!;};
+  const focus=()=>{const target=dto();f.layout.act({type:'open',id:kind==='editor'?'session':target.id});};
+  async function openForm(){
+    const controls=f.state().state.surfaces.find(surface=>surface.id==='plugin-wire-form-caller-controls')!;
+    f.layout.act({type:'open',id:controls.id});
+    expect(f.input(controls.port,{kind:'surface-press',action:'open',revision:controls.snapshot.revision}).receipt).toMatchObject({status:'accepted'});
+    await expect.poll(()=>f.state().state.surfaces.some(surface=>surface.snapshot.controller?.kind==='form')).toBe(true);focus();
+  }
+  if(kind==='form')await openForm();else await expect.poll(()=>{const current=frame();return current?.kind==='editor'&&current.available;}).toBe(true);
+  focus();const initial=frame()!;
+  const send=(input:UiControllerInput,revision=initial.revision,id=frame()!.id,target=dto().port)=>f.input(target,{kind:kind==='editor'?'editor-input':'controller-input',id,input,revision}).receipt;
+  invalidate();expect(frame()!.revision).toBeGreaterThan(initial.revision);
+  for(const input of [{kind:'key',key:'left'},{kind:'text',text:'_P',paste:true},{kind:'change',id:'field',value:'SEMANTIC'}] as const){
+    const receipt=send(input);expect(receipt).toMatchObject({status:'accepted'});
+    await expect.poll(()=>handled.at(-1)).toEqual(input);await expect.poll(()=>frame()!.inputRevision).toBe(handled.length);
+  }
+  const admitted=handled.length;
+  for(const input of [{kind:'key',key:'end'},{kind:'text',text:'FUTURE'},{kind:'change',id:'field',value:'FUTURE'}] as const)
+    expect(send(input,frame()!.revision+1)).toMatchObject({status:'rejected'});
+  for(const input of [{kind:'mouse',row:0,col:0,button:'left',action:'press'},{kind:'action',action:'allowed'}] as const)
+    expect(send(input)).toMatchObject({status:'rejected'});
+  expect(send({kind:'action',action:'forged'},frame()!.revision)).toMatchObject({status:'rejected'});
+  expect(handled).toHaveLength(admitted);
+  expect(send({kind:'action',action:'allowed'},frame()!.revision)).toMatchObject({status:'accepted'});
+  await expect.poll(()=>handled.at(-1)).toEqual({kind:'action',action:'allowed'});await expect.poll(()=>frame()!.inputRevision).toBe(handled.length);
+  field='new-field';invalidate();const beforeFields=handled.length;
+  expect(send({kind:'change',id:'field',value:'OLD_FIELD'})).toMatchObject({status:'rejected'});
+  expect(send({kind:'change',id:'field',value:'OLD_FIELD'},frame()!.revision)).toMatchObject({status:'rejected'});
+  expect(send({kind:'change',id:'new-field',value:'CURRENT_FIELD'})).toMatchObject({status:'accepted'});
+  await expect.poll(()=>handled.at(-1)).toEqual({kind:'change',id:'new-field',value:'CURRENT_FIELD'});await expect.poll(()=>frame()!.inputRevision).toBe(handled.length);
+  expect(handled).toHaveLength(beforeFields+1);field=undefined;invalidate();
+  expect(send({kind:'change',id:'new-field',value:'MISSING_FIELD'})).toMatchObject({status:'rejected'});
+  const beforeHidden=handled.length;f.layout.act({type:'workspace',id:9});
+  expect(send({kind:'text',text:'HIDDEN'})).toMatchObject({status:'rejected'});expect(send({kind:'key',key:'left'})).toMatchObject({status:'rejected'});
+  expect(handled).toHaveLength(beforeHidden);f.layout.act({type:'workspace',id:1});focus();
+  expect(send({kind:'text',text:'FOREIGN_LEASE'},initial.revision,'foreign-request')).toMatchObject({status:'rejected'});
+  const retired={port:dto().port,id:frame()!.id,revision:frame()!.revision};
+  if(kind==='editor'){
+    f.host.createWindow('session');expect(dto().port).not.toBe(retired.port);focus();
+    expect(send({kind:'text',text:'RETIRED_PORT'},retired.revision,frame()!.id,retired.port)).toMatchObject({status:'rejected'});
+    f.host.core.host.unregisterPlugin(manifest.name);register();await expect.poll(()=>frame()?.id).not.toBe(retired.id);
+  }else{
+    const source=f.host.surfaces.snapshot().find(source=>source.id===dto().id)!;source.cancelController!(retired.id);
+    await expect.poll(()=>f.state().state.surfaces.some(surface=>surface.port===retired.port)).toBe(false);
+    await openForm();expect(dto().port).not.toBe(retired.port);
+    expect(send({kind:'text',text:'RETIRED_PORT'},retired.revision,frame()!.id,retired.port)).toMatchObject({status:'rejected'});
+  }
+  expect(frame()!.id).not.toBe(retired.id);const beforeRetired=handled.length;
+  expect(send({kind:'text',text:'RETIRED_LEASE'},retired.revision,retired.id)).toMatchObject({status:'rejected'});
+  expect(handled).toHaveLength(beforeRetired);expect(f.provider.requests).toEqual([]);
+});
 
 it('negotiates native presentation separately and serializes the actual host without capabilities',async()=>{
   const f=await fixture();f.broker.hello();f.negotiate(false);

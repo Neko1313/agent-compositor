@@ -194,8 +194,14 @@ selected pane and committed history; unsent drafts are not persisted. Archived
 agents disappear from conversation tabs and their panes close.
 
 Ctrl+C in the selected pane stops that agent. Stop cancels the current request
-and queued work. Approvals and questions from multiple agents are queued;
-cancellation removes a waiting dialog. Panes and conversations are restored
+and queued work. Ink queues approvals and questions from multiple agents;
+cancellation removes a waiting dialog. OpenTUI gives delegated and managed
+agents separate private request windows using each producer's selected
+controllers. Independent managed input survives Main resume, while Main's old
+descendants are cancelled. Archive closes the selected agent's pending input
+before waiting for its run, then removes its conversation and activity panes.
+See [request ownership](02-ui.md#experimental-opentui-application-frontend).
+Panes and conversations are restored
 after restart; unfinished actions are not replayed automatically. Archive retains
 the worktree and files. Merge requires a finished agent and committed changes;
 Git reports any conflicts.
@@ -221,6 +227,9 @@ The overview's short recent-activity preview remains limited to this process.
 Defaults allow 8 active agents, with up to 12 model steps and 50000 tokens per
 turn for a new agent, and 200000 tokens per session. `agent_control` accepts
 maxSteps and maxTokens; `agent.maxAgents` limits the count to at most 16.
+The host's agent-hub middleware allows up to five minutes for management dispatch
+through `service.agent.control` and `service.agent.open`, retaining the caller's
+cancellation signal. This does not change an independent worker's turn budgets.
 
 ## Usage, pricing, and quotas
 

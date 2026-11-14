@@ -178,6 +178,39 @@ The shared Finder helper may pair an explicit command query with its expected
 visible label: `/plugins` selects `Plugins` without also matching
 `Plugins · placement`. Exact query, result count and selected native cells remain
 required; existing callers keep their label-as-query default.
+When leaving an existing Finder, the helper observes a completed normal-mode
+frame before sending its single F2. This separates a standalone Escape from the
+following legacy function-key sequence even if the parser's timer is delayed;
+it does not resend the query or retry a failed selection. Navigation's fixture
+declares the same explicit lifecycle budget for startup and reload, and records
+each awaited startup publication and final ready write for failure diagnosis.
+
+`npm run visual:opentui-child` runs ten actual configured-CLI checks in isolated
+native and selected-controller compositions (six plus four). Ordinary model
+`task` calls and canonical `service.agent.spawn` create real delegated Cores;
+managed create/send/archive uses public agent services with worktrees disabled.
+The normal saved loopback provider routes bounded requests. No private Core,
+manager or window methods simulate terminal interaction.
+
+The scenario checks exact allow/deny effects, independent questions and
+questionnaires, private masked forms, nested parent titles, five same-name
+siblings while Main waits, settings capacity and unchanged Main Unicode input.
+Hidden or foreign input cannot answer another request. Native and selected
+windows hide/reopen with the same pending state; selected factories and leases
+belong to the actual producer. Main-only provider disable/reload preserves an
+already-running child's original selected lease. Actual source unregister is
+covered separately by real Core/host tests; the CLI uses actual source Core
+replacement or managed archive to verify revocation. Main resume revokes Main descendants, while an
+independent managed request survives and later managed input uses the newly
+committed host channel. Archive/application close cancels retained input.
+
+The reports retain private synthetic factory/answer receipts, public-hook and
+model/journal privacy checks, terminal input/output, current screenshots and
+process exits. Raw input necessarily contains synthetic typed values and is
+excluded from output privacy claims. Artifacts default to
+`dist/visual-opentui-child/`; `VISUAL_EXECUTABLE` selects a complete relocated
+archive and records its executable/renderer identity. Source success does not
+substitute for archive or remote-platform verification.
 
 
 `npm run visual:opentui-conversation-copies` runs eight checks in two isolated

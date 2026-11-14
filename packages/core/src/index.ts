@@ -1,4 +1,5 @@
 export { AgentCore, type AgentCoreOptions, type CorePlugin, type CoreState, type CoreInputAdmission, type LoopEvent } from "./loop.js";
+export type {CoreHumanFormHandler,CoreHumanRequestContext,CoreHumanRequestOrigin,CoreHumanRequestRoot,CoreToolInvocation} from './human-requests.js';
 export { replayTranscript } from "./resume.js";
 export {isCompactionEvidence} from './compaction-evidence.js';
 export {

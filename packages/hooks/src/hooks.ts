@@ -31,6 +31,8 @@ export type UserHookFn = (event: any, $: HooksApi) => unknown;
 /** Trusted capability provenance; never accepted from a service payload. */
 export interface HooksServiceScope {
   readonly origin: unknown;
+  /** Captured producer metadata; independent of an interface's authority. */
+  readonly toolOperationOrigin?:unknown;
   readonly background: boolean;
   readonly plugin: string;
   readonly lifetime: AbortSignal;
@@ -157,10 +159,17 @@ export class HooksHost {
   private readonly serviceSignal = new AsyncLocalStorage<AbortSignal>();
   private readonly backgroundService = new AsyncLocalStorage<boolean>();
   private readonly serviceScope = new AsyncLocalStorage<HooksServiceScope>();
+  private readonly toolOperationScope=new AsyncLocalStorage<unknown>();
   private invocationOriginProvider?: () => unknown;
   private invocationOriginBinding?: object;
+  private toolOperationOriginProvider?:()=>unknown;
+  private toolOperationOriginBinding?:object;
   get currentSignal():AbortSignal|undefined{return this.serviceSignal.getStore();}
   get currentServiceScope():HooksServiceScope|undefined{return this.serviceScope.getStore();}
+  /** A captured scope masks ambient authority even when its origin is absent. */
+  get currentInvocationOrigin():unknown {
+    const scope=this.serviceScope.getStore();return scope?scope.origin:this.invocationOriginProvider?.();
+  }
   // Core uses explicit detachment to leave a launching operation's ledger.
   // Background lineage also includes normal APIs created by its interceptors.
   get isBackgroundService():boolean{return this.backgroundService.getStore()===true;}
@@ -189,6 +198,16 @@ export class HooksHost {
       this.invocationOriginBinding = undefined;
       this.invocationOriginProvider = undefined;
     };
+  }
+  /** Core-owned tool execution replaces producer metadata, never UI authority. */
+  withToolOperationOrigin<T>(origin:unknown,run:()=>T):T {
+    const inherited=this.serviceScope.getStore();
+    return this.toolOperationScope.run(origin,()=>inherited
+      ?this.serviceScope.run(Object.freeze({...inherited,toolOperationOrigin:origin}),run):run());
+  }
+  setToolOperationOriginProvider(provider:()=>unknown):()=>void {
+    const binding={};this.toolOperationOriginBinding=binding;this.toolOperationOriginProvider=provider;
+    return()=>{if(this.toolOperationOriginBinding===binding){this.toolOperationOriginBinding=undefined;this.toolOperationOriginProvider=undefined;}};
   }
   private readonly workspaceRoot: string;
 
@@ -287,13 +306,14 @@ export class HooksHost {
     const host = this;
     const inherited = this.serviceScope.getStore();
     const origin = detached ? Object.freeze({}) : inherited ? inherited.origin : this.invocationOriginProvider?.();
+    const toolOperationOrigin=inherited?inherited.toolOperationOrigin:this.toolOperationScope.getStore()??this.toolOperationOriginProvider?.();
     const background = detached || inherited?.background === true;
     const lifetime = this.pluginLifetimes.get(plugin)!.signal;
     // Explicit user controls and interface actions outlive the foreground model turn.
     const operation=this.serviceSignal.getStore()??(this.userInteraction.getStore()?undefined:this.config.signal?.());
     const signal=detached?lifetime:AbortSignal.any([ctx.signal,lifetime,...(operation?[operation]:[])]);
     const runScoped = <T>(run: () => T, effectiveSignal=signal): T => {
-      const scope: HooksServiceScope = Object.freeze({origin, background, plugin, lifetime, signal: effectiveSignal});
+      const scope: HooksServiceScope = Object.freeze({origin, toolOperationOrigin, background, plugin, lifetime, signal: effectiveSignal});
       return host.serviceScope.run(scope, () => host.backgroundService.run(detached,
         () => host.serviceSignal.run(effectiveSignal, run)));
     };

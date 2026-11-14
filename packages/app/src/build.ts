@@ -24,7 +24,7 @@ import { TokenBudget } from "@agent-compositor/context";
 import { SkillRegistry } from "@agent-compositor/skills";
 import { builtinTools, type ToolSpec } from "@agent-compositor/tools";
 import * as path from "node:path";
-import { AgentCore } from "@agent-compositor/core";
+import { AgentCore,type AgentCoreOptions,type CoreHumanFormHandler } from "@agent-compositor/core";
 import {
   ProviderRouter,
   type ProviderProfile,
@@ -50,6 +50,8 @@ export interface ProviderSettings {
 }
 
 export interface BuildAppOptions {
+  /** Host-owned managed-agent label, independent of model/tool arguments. */
+  agentId?:string;
   inheritedConfig?: LoadedConfig;
   /** Use a host-supplied composition without discovering project or machine config. */
   fixedConfig?: LoadedConfig["config"];
@@ -74,7 +76,14 @@ export interface BuildAppOptions {
   images?: import("@agent-compositor/core").ChatMessage["images"];
 }
 
+export interface BuiltAppHumanRequests {
+  approve:NonNullable<AgentCoreOptions['onApproval']>;
+  ask?:AgentCoreOptions['onAsk'];
+  form?:CoreHumanFormHandler;
+}
 export interface BuiltApp {
+  /** Commit the active UI host; preparing another Core does not replace it. */
+  bindHumanRequests(handlers:BuiltAppHumanRequests):()=>void;
   shouldOfferSetup?:()=>Promise<boolean>;
   storage: ProjectStorage;
   close: () => Promise<void>;
@@ -120,6 +129,7 @@ export interface BuiltApp {
  * with a scripted provider and tmp dirs.
  */
 export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
+  let humanRequests:Readonly<BuiltAppHumanRequests>|undefined,humanUiRegistered=false,closing=false,closePromise:Promise<void>|undefined;
   const env = options.env ?? process.env;
   const config: LoadedConfig = options.fixedConfig !== undefined
     ? { config: structuredClone(options.fixedConfig), sources: [], origins: [], substitutions: [], warnings: [] }
@@ -347,6 +357,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               agentHub: false,
               cwd: record.cwd,
               sessionId: record.sessionId,
+              agentId:record.name,
               workspacePaths:[],
               resumeSessionId: record.sessionId,
               resumeIfPresent: true,
@@ -361,7 +372,17 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
                 .filter(Boolean)
                 .join("\n\n"),
             });
-            const managed=child.createCore(channels.approve,channels.ask);
+            const managed=child.createCore((request,context)=>{
+              if(closing)return Promise.resolve(false);
+              return humanUiRegistered?(humanRequests?.approve(request,context)??Promise.resolve(false)):channels.approve(request,context);
+            },(request,context)=>{
+              const ask=closing?undefined:humanUiRegistered?humanRequests?.ask:channels.ask;
+              return ask?ask(request,context):Promise.reject(Error('No interactive question channel is available'));
+            });
+            managed.setHumanFormHandler((plugin,request,signal,context)=>{
+              const handler=closing?undefined:humanRequests?.form;
+              return handler?handler(plugin,request,signal,context):Promise.resolve(null);
+            });
             for(const entry of channels.workspace?.()??[])await managed.attachWorkspace(entry.path);
             return {core:managed,close:child.close,history:async()=>(await child.store.load(record.sessionId,record.cwd)).events};
           },
@@ -449,6 +470,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     const sessionApprovals = new ApprovalSession();
     sessionApprovals.restore(approvals.session.list());
     const coreOptions: ConstructorParameters<typeof AgentCore>[0] = {
+      agentId:options.agentId,
       userCommands:()=>[...new Map([
         ...(hostAgentCommand()?[['/agents',{name:'/agents',plugin:'agent-hub'}] as const]:[]),
         ...plugins.flatMap(plugin=>(plugin.commands??[]).filter(command=>command.execution==='immediate').map(command=>[command.name,{name:command.name,plugin:plugin.manifest.name}] as const)),
@@ -761,12 +783,18 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     return next;
   };
   return {
-    close: async () => {
+    close: () => closePromise??=(async () => {
+      closing=true;humanRequests=undefined;
       await hub?.close();
       await Promise.allSettled([...cores].map(core=>core.close()));cores.clear();
       await Promise.allSettled(plugins.map((p) => p.dispose?.()));
       await store.dispose();
       await network.close();
+    })(),
+    bindHumanRequests(handlers){
+      if(closing)throw Error('The application is closed');
+      const binding=Object.freeze({...handlers});humanUiRegistered=true;humanRequests=binding;
+      return()=>{if(humanRequests===binding)humanRequests=undefined;};
     },
     storage,
     loadLayout,

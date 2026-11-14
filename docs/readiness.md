@@ -5,6 +5,45 @@ Compositor itself and other projects. A release number, a large tool catalog or
 a passing unit suite does not establish that outcome. This page tracks the
 required evidence; it is not a declaration that 1.0 is ready.
 
+## Current development checkpoint — 2026-11-15
+
+The full 1.0 objective remains active. Native protocol revision `57cb73a` passes
+source CI, documentation and release preparation. Its build-only release
+43602516244 fails the four-platform gate: Linux x64 passes all 78 OpenTUI checks;
+Linux ARM loses selected-form paste, macOS ARM fails a second Finder transition,
+and macOS Intel reaches generation 3 without completing the startup ready write.
+The downloaded artifacts preserve 150 of 312 expected OpenTUI reports and all
+32 installed-runtime smoke reports. These failures remain failures.
+
+Current source repairs the exact selected-controller paste admission race while
+retaining strict painted-revision checks for mouse/actions. The shared Finder
+helper waits for observed normal-mode output before its next F2; navigation
+declares an explicit startup lifecycle budget and retains awaited phase receipts.
+Source controller, request and navigation scenarios pass independently. A fresh
+immutable archive and exact-head four-platform matrix remain required.
+
+The next implementation gives ordinary delegated and persistent managed agents
+distinct private request windows, actual producer registries and Core-owned
+lifetime/provenance. Managed input must survive Main resume and use committed
+replacement channels, while stale Main descendants are revoked. Native and
+selected CLI acceptance passes ten checks with both PTYs and servers exiting 0,
+exact answers/effects, managed archive/shutdown, privacy and 25 original selected
+leases disposed once. Twelve current PNGs were inspected and raw evidence hashes
+verified. The run exposed and fixed stale agent-hub UI capabilities during
+archive; real service middleware budgets and caller-specific publication preserve
+focus and passive repaint. A separate real Core symlink probe corrects expected
+effect paths for platform aliases while retaining full exact-path comparisons.
+Final standalone coverage passes 2328 tests with three optional skips in 257
+files. The sealed Linux archive also passes all 95 native checks in fourteen
+runners and twenty-two PTYs, canonical installed-runtime smoke and independent
+source/payload/receipt/visual review. All 5879 shipping entries match the relocated
+archive. An initial installer extraction exhausted the local memory-backed
+temporary directory; its failed evidence is retained, and the unchanged payload
+passes the canonical smoke using disk temporary storage. A fresh exact-head
+four-platform run remains required; the older failed run is not reclassified.
+This checkpoint does not close physical-terminal media, CPU-assisted
+onboarding, broad real-model development, sustained-session or trust gates.
+
 ## Plugin development and interface usability
 
 The 1.0 objective explicitly includes developing missing plugins needed for

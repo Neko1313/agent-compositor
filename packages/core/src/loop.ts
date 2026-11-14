@@ -1,4 +1,5 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
+import type {CoreHumanFormHandler,CoreHumanRequestContext,CoreHumanRequestOrigin,CoreHumanRequestRoot,CoreToolInvocation} from './human-requests.js';
 import {QueryProgress,queryObservation} from './query-progress.js';
 import {modelToolText} from './tool-text.js';
 import {compactionEvidence,isCompactionEvidence,toolObservationMetadata} from './compaction-evidence.js';
@@ -59,6 +60,7 @@ interface UserToolOperation {
   tools:ToolSpec[];messages:ChatMessage[];records:Array<{name:string;args:unknown;ok:boolean;output?:unknown;denied?:boolean}>;
   tokens:number;usage:{inputTokens:number;outputTokens:number};promise:Promise<unknown>;
 }
+type HumanFormBinding={handler?:CoreHumanFormHandler;previous?:HumanFormBinding;active:boolean};
 
 export interface CorePlugin {
   controllers?:UiControllers;
@@ -69,6 +71,8 @@ export interface CorePlugin {
 }
 
 export interface AgentCoreOptions {
+  /** Host-supplied display identity for a persistent independent agent. */
+  agentId?:string;
   /** Explicit controls from the currently loaded plugin manifests. */
   userCommands?:()=>readonly {name:string;plugin:string}[];
   homeDir?:string;
@@ -107,7 +111,7 @@ export interface AgentCoreOptions {
     input?: unknown;
     reason?: string;
     signal?: AbortSignal;
-  }) => Promise<
+  }, context?:CoreHumanRequestContext) => Promise<
     boolean | { allow: boolean; scope?: "once" | "session" | "project" }
   >;
   persistApprovals?: (
@@ -130,7 +134,9 @@ export interface AgentCoreOptions {
   /** Explicit replacements, including schemas, for existing tool names. */
   toolOverrides?: ToolSpec<unknown, unknown>[];
   /** AskUserQuestion channel; undefined = headless, questions are denied (fail closed) */
-  onAsk?: (req:UserQuestionRequest)=>Promise<UserQuestionAnswer>;
+  onAsk?: (req:UserQuestionRequest,context?:CoreHumanRequestContext)=>Promise<UserQuestionAnswer>;
+  /** Private interactive form channel, inherited by delegated children. */
+  onForm?:CoreHumanFormHandler;
   /** recursion guard for the task tool / service.agent.spawn (default 2 deep) */
   subagentDepth?: number;
   maxSubagentDepth?: number;
@@ -223,6 +229,16 @@ export class AgentCore {
   private inPromptHook = false;
   private invokingTool = false;
   private readonly userOperation=new AsyncLocalStorage<UserToolOperation>();
+  private readonly toolOperation=new AsyncLocalStorage<CoreToolInvocation>();
+  private readonly toolOrigins=new WeakSet<object>();
+  private readonly humanInstance=Object.freeze({});
+  private readonly humanLifetime=new AbortController();
+  private humanRoot!:CoreHumanRequestRoot;
+  private humanAgentId?:string;
+  private humanParent?:CoreHumanRequestOrigin['parent'];
+  private delegatedFrom?:CoreHumanRequestContext;
+  private humanFormBinding?:HumanFormBinding;
+  private offHumanForm?:()=>void;
   private readonly userOperations=new Map<string,UserToolOperation>();
   private readonly commandOperations=new Map<string,UserToolOperation>();
   private activeUserOperation(){
@@ -259,6 +275,7 @@ export class AgentCore {
         throw new Error("Agent budgets must be positive integers");
     this.provider = options.provider ?? {name:"unconfigured",async *complete(){throw new Error("No model provider configured; select a service.model.stream implementation");}};
     this.sessionId = options.sessionId ?? randomUUID();
+    this.humanAgentId=options.agentId;
     this.maxSteps = options.maxStepsPerTurn ?? 32;
     this.toolSpecs = this.composeTools(options.extraTools ?? []);
     this.approvals = options.approvals;
@@ -353,6 +370,9 @@ export class AgentCore {
         clear: () => this.clear(),
       },
     });
+    this.humanRoot=Object.freeze({instance:this.humanInstance,host:this.host,signal:this.humanLifetime.signal});
+    this.host.setToolOperationOriginProvider(()=>this.toolOperation.getStore());
+    if(options.onForm)this.setHumanFormHandler(options.onForm);
 
     this.runtime.setResolver(
       "service.ui.configure",
@@ -595,7 +615,8 @@ export class AgentCore {
       const parsed=questionSchema.safeParse({...(payload as object),id:"answer"});
       if(!parsed.success)return {deny:"ask: invalid question or options"};
       const args=parsed.data;
-      const signal=this.humanRequestSignal((payload as any).signal);
+      const context=this.humanRequestContext(this.humanRequestSignal((payload as any).signal));
+      const signal=context.signal;
       signal?.throwIfAborted();
       const reaction = {
         source: "questions",
@@ -613,7 +634,7 @@ export class AgentCore {
           ...(args.options?.some(o=>typeof o!=="string")?{optionDetails:args.options.map(o=>typeof o==="string"?{label:o}:o)}:{}),
           ...(args.allowOther!==undefined?{allowOther:args.allowOther}:{}),
           multi: args.multi === true,
-        });
+        },context);
       } finally {
         await this.emit("ui.reaction", { ...reaction, active: false });
       }
@@ -625,7 +646,8 @@ export class AgentCore {
       if (!this.options.onAsk) return { deny: "headless: no user channel for questions" };
       const form = questionnaireSchema.parse(payload);
       const reaction = { source: "questions", kind: "question", id: randomUUID() };
-      const signal = this.humanRequestSignal(payload.signal);
+      const context=this.humanRequestContext(this.humanRequestSignal(payload.signal));
+      const signal = context.signal;
       signal?.throwIfAborted();
       await this.emit("ui.reaction", { ...reaction, active: true });
       try {
@@ -634,7 +656,7 @@ export class AgentCore {
           question: form.title ?? "Questionnaire",
           questions: form.questions,
           ...(signal ? { signal } : {}),
-        });
+        },context);
         return { value: validateQuestionnaireResult(form, result) };
       } finally {
         await this.emit("ui.reaction", { ...reaction, active: false });
@@ -650,6 +672,43 @@ export class AgentCore {
   }
 
   getContextWindow(): number { return this.contextWindow; }
+  /** Captured producer identity is separate from a UI operation's authority. */
+  get toolOperationOrigin():CoreToolInvocation|undefined {
+    const scope=this.host.currentServiceScope;
+    const value=scope?scope.toolOperationOrigin:this.toolOperation.getStore();
+    return value&&typeof value==='object'&&this.toolOrigins.has(value)?value as CoreToolInvocation:undefined;
+  }
+  private humanRequestContext(caller?:AbortSignal):CoreHumanRequestContext {
+    const scope=this.host.currentServiceScope,invocation=this.toolOperationOrigin;
+    const signal=AbortSignal.any([this.humanLifetime.signal,...(caller?[caller]:[])]);
+    const origin:CoreHumanRequestOrigin=Object.freeze({sessionId:this.sessionId,depth:this.options.subagentDepth??0,
+      ...(this.humanAgentId!==undefined?{agentId:this.humanAgentId}:{}),...(this.humanParent?{parent:this.humanParent}:{}),
+      ...(invocation?{invocation}:{})});
+    return Object.freeze({instance:this.humanInstance,host:this.host,origin,signal,root:this.humanRoot,invocationOrigin:this.host.currentInvocationOrigin,
+      ...(scope?{serviceScope:scope}:{}),...(this.delegatedFrom?{delegatedFrom:this.delegatedFrom}:{})});
+  }
+  /** Bind a private host channel without changing the Core's construction options. */
+  setHumanFormHandler(handler?:CoreHumanFormHandler):()=>void {
+    const binding:HumanFormBinding={handler,previous:this.humanFormBinding,active:true};
+    this.humanFormBinding=binding;this.installHumanFormHandler();
+    return()=>{
+      if(!binding.active)return;binding.active=false;
+      if(this.humanFormBinding!==binding)return;
+      let previous=binding.previous;while(previous&&!previous.active)previous=previous.previous;
+      this.humanFormBinding=previous;this.installHumanFormHandler();
+    };
+  }
+  private installHumanFormHandler() {
+    this.offHumanForm?.();this.offHumanForm=undefined;
+    const handler=this.humanFormBinding?.handler;
+    if(!handler)return;
+    this.offHumanForm=this.host.setFormHandler(async(plugin,request,caller)=>{
+      const context=this.humanRequestContext(caller);
+      if(context.signal.aborted)return null;
+      try {const result=await handler(plugin,request,context.signal,context);return context.signal.aborted?null:result;}
+      catch(error){if(context.signal.aborted)return null;throw error;}
+    });
+  }
   get promptSource(){return this.inputSource;}
   get isUserInvocation(){
     const operation=this.userOperation.getStore();
@@ -1005,7 +1064,8 @@ export class AgentCore {
     const check=await this.emit("tool.check",{tool:"read",input:{path:descriptor.path},callId:randomUUID(),isReadOnly:true});
     if(decision.decision==="deny"||(check as {decision?:string}|undefined)?.decision==="deny")throw Error("Attachment denied by permission policy");
     if(decision.decision==="ask"||(check as {decision?:string}|undefined)?.decision==="ask"){
-      const answer=await this.onApproval?.({tool:"read",descriptor,reason:"Read user attachment",signal:this.abort.signal});
+      const context=this.humanRequestContext(this.abort.signal);
+      const answer=await this.onApproval?.({tool:"read",descriptor,reason:"Read user attachment",signal:context.signal},context);
       if(answer!==true&&!(answer&&typeof answer==="object"&&answer.allow===true))throw Error("Attachment permission denied");
     }
   }
@@ -1556,7 +1616,7 @@ export class AgentCore {
   /** Terminal host teardown: no owned process or queued follow-up outlives it. */
   async close():Promise<void>{
     if(this.closed)return;
-    this.closed=true;this.interrupt();this.promptQueue=[];this.cancelOperations();clearTimeout(this.queueTimer);this.queueTimer=undefined;
+    this.closed=true;this.humanLifetime.abort();this.offHumanForm?.();this.interrupt();this.promptQueue=[];this.cancelOperations();clearTimeout(this.queueTimer);this.queueTimer=undefined;
     await this.resetBackground;
     await Promise.allSettled([this.activeTurn,this.draining,...this.activeOperations().map(op=>op.promise)]);
     await this.host.emit('session.end',{reason:'other'});
@@ -1586,12 +1646,25 @@ export class AgentCore {
       args.agentId && typeof args.agentId === "string"
         ? args.agentId
         : randomUUID();
+    const delegatedFrom=this.humanRequestContext(this.humanRequestSignal(args.signal));
+    const parentInvocation=this.toolOperationOrigin;
     await this.emit("subagent.start", { agentId, prompt: args.prompt, depth });
 
     const operation=this.userOperation.getStore();
+    const foregroundSignal = args.detached ? args.signal : args.signal
+      ? AbortSignal.any([operation?.signal??this.abort.signal, args.signal])
+      : operation?.signal??this.abort.signal;
+    // Detachment leaves the foreground turn, never the owning Core instance.
+    const parentSignal=AbortSignal.any([this.humanLifetime.signal,...(foregroundSignal?[foregroundSignal]:[])]);
+    parentSignal.throwIfAborted();
+    // Commands have no resolved tool snapshot. Resolve their child capabilities
+    // through the same configured provider; real tool/turn snapshots stay exact.
+    const childTools=operation?.command?await this.effectiveTools(parentSignal):this.executionTools;
+    parentSignal.throwIfAborted();
     const parentTask=this.latestUserTask();
     const child: AgentCore = new AgentCore({
       ...this.options,
+      onForm:this.humanFormBinding?.handler,
       sessionId: randomUUID(),
       permissionReview: async input => await this.emit("service.permission.review", {...input,context:{...(input.context&&typeof input.context==="object"?input.context:{}),parentTask}}),
       remainingTokens:()=>Math.min((this.options.maxTokensPerSession??Infinity)-this.spentTokens,operation?(this.options.maxTokensPerTurn??Infinity)-operation.tokens:this.state==="running"?(this.options.maxTokensPerTurn??Infinity)-this.turnTokens:Infinity,this.options.remainingTokens?.()??Infinity),
@@ -1599,7 +1672,7 @@ export class AgentCore {
       model: args.profile ? undefined : this.options.model,
       maxTokensPerTurn:args.maxTokens?Math.min(args.maxTokens,this.options.maxTokensPerTurn??Infinity):this.options.maxTokensPerTurn,
       maxStepsPerTurn:args.maxSteps?Math.min(args.maxSteps,this.options.maxStepsPerTurn??Infinity):this.options.maxStepsPerTurn,
-      tools: this.executionTools.filter(t=>t.name!=="workflow_run"),
+      tools: childTools.filter(t=>t.name!=="workflow_run"),
       extraTools: undefined,
       initialImages: undefined,
       sessions: undefined, // subagents are ephemeral: no session persistence
@@ -1611,6 +1684,11 @@ export class AgentCore {
           : [this.options.systemPrompt,SUBAGENT_SYSTEM_PROMPT].filter(Boolean).join("\n\n"),
       subagentDepth: depth + 1,
     });
+    child.humanAgentId=agentId;
+    child.humanRoot=this.humanRoot;
+    child.delegatedFrom=args.detached?undefined:delegatedFrom;
+    child.humanParent=Object.freeze({sessionId:this.sessionId,...(this.humanAgentId!==undefined?{agentId:this.humanAgentId}:{}),
+      invocationId:parentInvocation?.id??randomUUID(),...(parentInvocation?{tool:parentInvocation.tool}:{})});
     child.workspace.restore(this.workspace.list());
     const usageWrites: Promise<unknown>[]=[];
     const unsubscribeReaction = child.subscribe((event) => {
@@ -1635,10 +1713,7 @@ export class AgentCore {
           })
           .catch(() => {});
     });
-    const interruptChild = () => child.interrupt();
-    const parentSignal = args.detached ? (args.signal ?? new AbortController().signal) : args.signal
-      ? AbortSignal.any([operation?.signal??this.abort.signal, args.signal])
-      : operation?.signal??this.abort.signal;
+    const interruptChild = () => {child.humanLifetime.abort();child.interrupt();};
     parentSignal.addEventListener("abort", interruptChild, { once: true });
     try {
       if (parentSignal.aborted) throw new Error("Interrupted");
@@ -1750,6 +1825,18 @@ export class AgentCore {
   }
 
   private async executeToolCalls(
+    turnId:string,batch:ChatToolCall[],signal:AbortSignal
+  ):Promise<void> {
+    for(const call of batch){
+      const parent=this.toolOperationOrigin;
+      const invocation:CoreToolInvocation=Object.freeze({id:randomUUID(),turnId,callId:call.id,tool:call.name,
+        ...(parent?{parentId:parent.id}:{})});
+      this.toolOrigins.add(invocation);
+      await this.toolOperation.run(invocation,()=>this.host.withToolOperationOrigin(invocation,
+        ()=>this.executeToolCallsWithOrigin(turnId,[call],signal)));
+    }
+  }
+  private async executeToolCallsWithOrigin(
     turnId: string,
     batch: ChatToolCall[],
     signal:AbortSignal
@@ -1938,13 +2025,14 @@ export class AgentCore {
                 };
                 await this.emit("ui.reaction", { ...reaction, active: true });
                 try {
+                  const context=this.humanRequestContext(signal);
                   return await this.onApproval!({
                     tool: call.name,
                     descriptor: structuredClone(descriptor),
                     input: structuredClone(args),
                     reason: reviewReason ?? decision.rule?.reason,
-                    signal,
-                  });
+                    signal:context.signal,
+                  },context);
                 } finally {
                   await this.emit("ui.reaction", {
                     ...reaction,

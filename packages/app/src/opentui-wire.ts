@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {answerHello,hello,nativeStateSchema,parseSemVer,type HelloAckMessage,type HelloMessage,type WireMessage} from '@agent-compositor/protocol';
-import type {ConversationSession,PublicRenderSlotSource,UiSurfaceSource,WindowLayoutSource} from '@agent-compositor/renderer-opentui';
+import type {ControllerInput,ControllerView,ConversationSession,PublicRenderSlotSource,UiSurfaceSource,WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {createOpenTuiHost} from './opentui-host.js';
 import type {UiTextView} from '@agent-compositor/events';
 
@@ -15,6 +15,13 @@ const surfaceMethods=['press','change','answerApproval','answerInteraction','can
 function hasAction(view:UiTextView|undefined,action:string){
   return Boolean(view&&(view.lines.some(line=>line.action===action)||view.tabs?.some(tab=>!tab.disabled&&tab.action===action)
     ||view.table?.rows.some(row=>row.action===action||row.expanded&&row.details?.some(line=>line.action===action))));
+}
+/** Relative native input belongs to a lease, while clicks belong to a painted view. */
+function inputRevision(input:ControllerInput,frame:{revision:number;view:ControllerView},painted:number){
+  if(painted>frame.revision)return;
+  if(input.kind==='key'||input.kind==='text')return frame.revision;
+  if(input.kind==='change')return frame.view.input?.id===input.id?frame.revision:undefined;
+  return painted===frame.revision?painted:undefined;
 }
 
 /** Trusted, private presentation broker. Functions and leases never leave this side. */
@@ -124,7 +131,11 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
       const session=port.source;
       if(op.kind==='submit')return {status:session.submit(op.text)===false?'rejected':'accepted'};
       if(op.kind==='interrupt'&&normal&&focused&&session.interrupt){session.interrupt();return {};}
-      if(op.kind==='editor-input'&&normal&&focused&&session.snapshot().editor?.id===op.id&&session.editorInput){const ticket=session.editorInput(op.id,op.input,op.revision);return ticket===undefined?{status:'rejected'}:{ticket};}
+      if(op.kind==='editor-input'&&normal&&focused&&session.snapshot().editor?.id===op.id&&session.editorInput){
+        const revision=inputRevision(op.input,session.snapshot().editor!,op.revision);
+        const ticket=revision===undefined?undefined:session.editorInput(op.id,op.input,revision);
+        return ticket===undefined?{status:'rejected'}:{ticket};
+      }
       if(op.kind==='editor-viewport'&&options.host.canNativeViewport(session)&&session.snapshot().editor?.id===op.id&&session.editorViewport){session.editorViewport(op.id,op.columns,op.rows,op.maxRows);return {};}
     }else{
       const surface=port.source;
@@ -147,7 +158,11 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
       if(source.cancelInteraction){source.cancelInteraction(op.id);return {};}
       if(port.kind==='surface'&&port.source.cancelForm){port.source.cancelForm(op.id);return {};}
     }
-    if(op.kind==='controller-input'&&normal&&focused&&state.controller?.id===op.id&&source.controllerInput){const ticket=source.controllerInput(op.id,op.input,op.revision);return ticket===undefined?{status:'rejected'}:{ticket};}
+    if(op.kind==='controller-input'&&normal&&focused&&state.controller?.id===op.id&&source.controllerInput){
+      const revision=inputRevision(op.input,state.controller,op.revision);
+      const ticket=revision===undefined?undefined:source.controllerInput(op.id,op.input,revision);
+      return ticket===undefined?{status:'rejected'}:{ticket};
+    }
     if(op.kind==='controller-viewport'&&visible&&state.controller?.id===op.id&&source.controllerViewport
       &&(port.kind!=='session'||options.host.canNativeViewport(port.source))){source.controllerViewport(op.id,op.columns,op.rows);return {};}
     if(op.kind==='cancel-controller'&&normal&&focused&&state.controller?.id===op.id&&source.cancelController){source.cancelController(op.id);return {};}

@@ -540,6 +540,8 @@ try{
   const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');
   await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0&&visual.text().includes('Main'),generation);
   await observe(()=>json(launch.navigation.ready),value=>value.generation===3,'Restart must load the same plugin state');await main();
+  const startupRows=(await readFile(launch.navigation.startupTrace,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
+  assert.ok(startupRows.some(row=>row.kind==='start'&&row.generation===3&&row.phase==='ready:done'),'The actual restart lifecycle must complete its final ready write');
   const restored=await observe(layout,value=>JSON.stringify(value.windows)===JSON.stringify(beforeRestart.windows),'Restart must restore the exact nested tree, ratio, focus,workspace and closed windows');
   assert.deepEqual(retileTree(restored),retileExpected,'The keyboard-created topology and untouched .70 ratio must survive the real CLI restart');
   assert.equal(location(restored,'plugin-navigation-probe-fast'),undefined);assert.deepEqual(await sessionFiles(),originalJournal);
@@ -558,6 +560,13 @@ try{
 }catch(error){report.errors.push(error instanceof Error?error.stack:String(error));if(page){await writeFile(join(output,'failure.txt'),await page.evaluate(()=>window.visual?.text()??'').catch(()=>''));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});}
   if(launch)await readFile(join(launch.state,'layout.json')).then(data=>writeFile(join(output,'failure-layout.json'),data)).catch(()=>{});
 }finally{
+  if(launch?.navigation?.startupTrace)try{
+    const bytes=await readFile(launch.navigation.startupTrace);await writeFile(join(output,'startup-trace.jsonl'),bytes);
+    const entries=bytes.toString('utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+    report.startup={trace:'startup-trace.jsonl',sha256:hash(bytes),entries:entries.length,
+      completed:entries.filter(row=>row.event==='phase'&&row.phase==='ready:done').map(row=>({kind:row.kind,generation:row.generation})),
+      faults:entries.filter(row=>row.event==='fault'||row.event==='aborted')};
+  }catch(error){report.startup={missing:true};if(report.ok){report.ok=false;report.errors.push('Could not preserve lifecycle evidence: '+error);}}
   if(launch?.navigation?.focus)try{
     const receipts={};for(const name of await readdir(launch.navigation.state))if(/^(focus-|retained-|slow-).*\.json$/.test(name))receipts[name]=await json(join(launch.navigation.state,name));
     await writeFile(join(output,'focus-receipts.json'),JSON.stringify(receipts,null,2));

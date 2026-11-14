@@ -12,7 +12,7 @@ export async function runTui(app: BuiltApp, stdin: NodeJS.ReadStream, stdout: No
   let renderer: Awaited<ReturnType<typeof runInkRenderer>>;
   const ui: AppUI = new AppUI(app.createCore, app.reloadPlugins, [
     ...app.pluginErrors.map(e => `Plugin error: ${e.error}`), ...app.config.warnings,
-  ], app.commands, app.config.config.ui, { save: app.savePlacement, resume: app.resume, saveLayout: app.saveLayout, files: prefix => referenceFiles(ui.core.workspace,prefix), edit: draft => editDraft(draft, callback => renderer.runExternal(callback)) });
+  ], app.commands, app.config.config.ui, { save: app.savePlacement, resume: app.resume, bindHumanRequests: app.bindHumanRequests, saveLayout: app.saveLayout, files: prefix => referenceFiles(ui.core.workspace,prefix), edit: draft => editDraft(draft, callback => renderer.runExternal(callback)) });
   const source = (async function* () {
     while (!ended || queue.length) {
       if (!queue.length) await new Promise<void>(resolve => { wake = resolve; });

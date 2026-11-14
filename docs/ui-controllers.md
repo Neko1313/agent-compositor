@@ -147,6 +147,20 @@ A selected local form in Main does not block a new ordinary message from Draft
 mode while the agent is idle. The form remains pending during that model turn.
 Selected questions and approvals still require their own answer or decision.
 
+Delegated and managed request windows bind factories to the actual producing
+Core's registry, rather than Main's registry. Their safe host title identifies
+the request and agent without adding private prompts, tool arguments or form
+values. Same-name siblings have separate request identities and controller
+leases. Hide/reopen retains a pending lease; settlement, source cancellation or
+unload revokes it. Main resume revokes Main descendants, while independent
+managed agents' pending requests retain their own lifetime. The Ink frontend
+also uses the producing registry, with its existing shared dialog queue.
+Reload changes the reloaded Core's registry. An already-running child's selected
+lease belongs to that child's original registry; disabling and reloading its
+provider only in Main does not unregister that child provider. Actual source
+unload or source Core closure revokes the child lease. New children use the
+parent's current composition.
+
 OpenTUI keeps the selected editor's factory, command/file discovery capabilities
 and `{text,cursor}` checkpoint inside the host. The cursor is a UTF-16 offset;
 it is not a native textarea's display-cell offset. Only its rendered view and
@@ -242,6 +256,10 @@ choices, even if the factory or requester later mutates its own copy.
 `core.host.setFormHandler(handler)` returns a disposer that clears the handler
 only while that binding is still current. Disposing a superseded binding does
 not clear or later revive another owner's handler.
+Core-based hosts should use `core.setHumanFormHandler(handler)` when delegated
+children need the same private form channel and authentic producing-Core context.
+The lower-level host setter configures only that single HooksHost. See
+[host human channels](core-customization.md) for callback and lifetime semantics.
 
 Native form views treat a declared action with ID `cancel` as cancellation:
 it returns `null` without collecting or validating fields. Escape and the host's

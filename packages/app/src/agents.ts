@@ -5,6 +5,8 @@ import { promisify } from "node:util";
 import { readFile, writeFile, mkdir, rename, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+import type { HooksApi } from '@agent-compositor/hooks';
 import type {
   AgentCore,
   AgentCoreOptions,
@@ -60,7 +62,10 @@ export async function agentManager(
     });
   if (!Array.isArray(records)) throw new Error("Invalid agent registry");
   const entries = new Map<string, RuntimeEntry>();
-  let host: any, channels: Channels | undefined;
+  const loading=new Map<string,Promise<RuntimeEntry>>();
+  let host: HooksApi|undefined, channels: Channels | undefined;
+  const publication=new AsyncLocalStorage<HooksApi>();
+  let closePromise:Promise<void>|undefined;
   let writes = Promise.resolve();
   const drafts=new Map<string,string>();
   const draftIds=new Map<string,number>();
@@ -92,6 +97,14 @@ export async function agentManager(
     ]};
   };
   async function refreshConversationTabs(skip?:string){for(const entry of entries.values())if(entry.record.id!==skip)await paint(entry);}
+  async function publishUi(run:(api:HooksApi)=>Promise<unknown>,focus=false){
+    const scoped=publication.getStore();
+    // Completed actions can still produce passive worker updates. Only their
+    // foreground publication retains the original action's focus authority.
+    const current=scoped&&!scoped.signal.aborted?scoped:focus&&scoped?undefined:host;
+    if(!current||current.signal.aborted)return;
+    try{await run(current);}catch(error){if(current.signal.aborted)return;throw error;}
+  }
   async function paint(entry: RuntimeEntry, focus=false) {
     if (!host||entry.record.archived) return;
     const r = entry.record;
@@ -100,7 +113,7 @@ export async function agentManager(
       .getMessages()
       .filter((m) => ["user", "assistant"].includes(m.role))
       .slice(-12);
-    await host.ui.view(
+    await publishUi(api=>api.ui.view(
       `agent-${r.id}`,
       r.name,
       {
@@ -123,7 +136,7 @@ export async function agentManager(
           { text: "[ Stop ]", action: `stop:${r.id}` },
           { text: "[ Saved activity ]", action: `history:${r.id}` },
           ...(entry.core.failure
-            ? [{ text: entry.core.failure, tone: "danger" }]
+            ? [{ text: entry.core.failure, tone: "danger" as const }]
             : []),
           ...messages.flatMap((m) => [
             { text: m.role === "user" ? "You" : "Agent", bold: true },
@@ -133,16 +146,30 @@ export async function agentManager(
         ],
       },
       { site: "split", focus }
-    );
+    ),focus);
   }
   async function load(record: RecordEntry) {
+    if(closePromise)throw Error('The agent manager is closed');
+    const existing=loading.get(record.id);if(existing)return existing;
     if (entries.has(record.id)) return entries.get(record.id)!;
+    const pending=loadFresh(record).finally(()=>{if(loading.get(record.id)===pending)loading.delete(record.id);});
+    loading.set(record.id,pending);return pending;
+  }
+  async function loadFresh(record:RecordEntry) {
     if (!channels) throw new Error("No interactive host channels");
+    const initial=channels;
     if(record.branch)await confinedPath(join(stateDir,"worktrees"),record.cwd);
     else if(record.projectCwd){
       if(await realpath(record.cwd)!==await realpath(record.projectCwd))throw Error("Agent directory does not match its saved project");
     }else await confinedPath(cwd,record.cwd);
-    const managed = await factory(record, channels);
+    if(closePromise)throw Error('The agent manager is closed');
+    const managed = await factory(record,{...initial,
+      approve:(request,context)=>channels?.approve(request,context)??Promise.resolve(false),
+      ask:(request,context)=>{
+        const ask=channels?.ask;return ask?ask(request,context):Promise.reject(Error('No interactive question channel is available'));
+      },
+    });
+    if(closePromise){await managed.close();throw Error('The agent manager is closed');}
     const core = managed.core;
     const entry: RuntimeEntry = {
       record,
@@ -150,7 +177,7 @@ export async function agentManager(
       unsubscribe: () => {},
       delta: "",
       activity:[],
-      history:agentHistory(managed.history,(view,focus)=>host.ui.view('history-'+record.id,'Activity: '+record.name,view,{site:'inspector',focus})),
+      history:agentHistory(managed.history,(view,focus)=>publishUi(api=>api.ui.view('history-'+record.id,'Activity: '+record.name,view,{site:'inspector',focus}),focus)),
       close: managed.close,
     };
     entries.set(record.id, entry);
@@ -190,12 +217,11 @@ export async function agentManager(
           "active",
         ])
           if (input?.[key] !== undefined) data[key] = input[key];
-        void host
-          ?.emit("agent.activity", {
+        void publishUi(api=>api.emit("agent.activity", {
             agentId: record.id,
             event: event.event,
             data,
-          })
+          }))
           .catch(() => {});
       }
       if (event.kind === "text") entry.delta += event.delta;
@@ -215,7 +241,11 @@ export async function agentManager(
         });
       }
     });
-    await core.start();
+    try{await core.start();if(closePromise)throw Error('The agent manager is closed');}
+    catch(error){
+      if(entries.get(record.id)===entry)entries.delete(record.id);
+      entry.unsubscribe();await managed.close();throw error;
+    }
     return entry;
   }
   async function show(reveal=false,focus=false) {
@@ -225,7 +255,7 @@ export async function agentManager(
     const active=records.filter(record=>!record.archived);
     const state=(id:string)=>entries.get(id)?.core.getState()??'saved';
     const visible=active.filter(record=>listFilter==='all'||(listFilter==='running'?state(record.id)==='running':state(record.id)==='interrupted'||!!entries.get(record.id)?.core.failure));
-    await host.ui.view(
+    await publishUi(api=>api.ui.view(
       "agents",
       "Agents",
       {
@@ -268,9 +298,10 @@ export async function agentManager(
         },
       },
       { site: "inspector", focus }
-    );
+    ),focus);
   }
   async function control(args: any, provided: Channels,reveal=true) {
+    if(closePromise)throw Error('The agent manager is closed');
     channels = provided;
     if (args.action === "list")
       return (args.id ? [find(args.id)] : records).map((r) => ({
@@ -339,19 +370,18 @@ export async function agentManager(
     const record = find(args.id);
     if (record.archived) throw new Error("Agent is archived");
     if (args.action === "archive") {
-      const existing = entries.get(record.id);
+      const existing = entries.get(record.id)??await loading.get(record.id);
       if (existing) {
         existing.history.close();
-        existing.core.interrupt();
+        await existing.close();
         await existing.run;
         existing.unsubscribe();
-        await existing.close();
         entries.delete(record.id);
       }
       record.archived = true;
       await save();
-      if (target === record.id && host) await select(undefined, host);
-      if(host){await host.ui.remove('agent-'+record.id);await host.ui.remove('history-'+record.id);}
+      if (target === record.id) {target=undefined;await publishUi(api=>select(undefined,api));}
+      await publishUi(async api=>{await api.ui.remove('agent-'+record.id);await api.ui.remove('history-'+record.id);});
       await refreshConversationTabs();
       await show();
       return { archived: record.id, worktreePreserved: record.cwd };
@@ -424,7 +454,6 @@ export async function agentManager(
     const entry=await load(record);await select(record.id,$);await paint(entry,true);
   }
   async function handleCommand(text:string,$:any){
-    host=$;
         const [command, action, id, ...rest] = text.trim().split(/\s+/);
         if (command === "/agents") {
           if (action === "parent") {
@@ -453,9 +482,12 @@ export async function agentManager(
       name: "agent-hub",
       version: "1.0.0",
       trust: "trusted",
-      hookTimeouts: { "session.start": 30000, 'ui.press':300000 },
+      hookTimeouts: { "session.start": 30000, 'ui.press':300000,
+        'service.agent.control':300000,'service.agent.open':300000 },
     },
     hooks: {
+      'service.agent.control':(_event,$)=>$.next(),
+      'service.agent.open':(_event,$)=>$.next(),
       "command.invoke":async(e,$)=>{if(e.plugin==='agent-hub'&&e.name==='/agents')await handleCommand(e.text,$);},
       "session.start": async (_e, $) => {
         host = $;
@@ -468,7 +500,6 @@ export async function agentManager(
         }
       },
       "prompt.submit": async (e, $) => {
-        host = $;
         if(await handleCommand(e.text,$))return{drop:"agent-hub: handled"};
         if (target && !e.text.startsWith("/")) {
           const result = await $.agent.tool("agent_control", {
@@ -494,7 +525,6 @@ export async function agentManager(
         } else if (e.site === "session"||e.site==='input') await select(undefined, $);
       },
       "ui.press": async (e, $) => {
-        host = $;
         if (!e.site.startsWith("plugin-agent-hub-")) return;
         if(e.site==='plugin-agent-hub-agents'&&e.key==='close'){listVisible=false;return;}
         if(e.site==='plugin-agent-hub-agents'&&['filter:all','filter:running','filter:attention'].includes(e.key)){
@@ -571,6 +601,10 @@ export async function agentManager(
       },
     },
   };
+  // Service interceptors acquire the agent-hub API under the real caller's
+  // scope before the resolver runs; unrelated UI hooks cannot replace it.
+  for(const [name,hook] of Object.entries(plugin.hooks))
+    plugin.hooks[name]=(event,$)=>publication.run($,()=>hook(event,$));
   const tool: ToolSpec = {
     name: "agent_control",
     description:
@@ -619,20 +653,21 @@ export async function agentManager(
       if(record.archived)throw Error('Agent is archived; start a new side conversation');
       channels=provided;
       if(args.prompt)await control({action:'send',id:record.id,prompt:args.prompt},provided);
-      if(host){await select(record.id,host);await paint(await load(record),true);}
+      await publishUi(async api=>{await select(record.id,api);await paint(await load(record),true);},true);
       return{id:record.id,sessionId:record.sessionId};
     },
     bind: (value: Channels) => {
-      channels = value;
+      if(!closePromise)channels = value;
     },
-    close: async () => {
-      for (const entry of entries.values()){entry.history.close();entry.core.interrupt();}
-      await Promise.allSettled([...entries.values()].map((e) => e.run));
-      for (const e of entries.values()) {
-        e.unsubscribe();
-        await e.close();
-      }
+    close: () => closePromise??=(async () => {
+      channels=undefined;
+      const current=[...entries.values()];for(const entry of current)entry.history.close();
+      // Actual Core closure revokes retained background input before a run is
+      // awaited; a foreground interrupt alone deliberately cannot do that.
+      await Promise.allSettled([...current.map(entry=>entry.close()),...loading.values()]);
+      await Promise.allSettled(current.map(entry=>entry.run));
+      for(const entry of current)entry.unsubscribe();
       await writes;
-    },
+    })(),
   };
 }

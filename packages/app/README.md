@@ -233,6 +233,11 @@ Retained background requests stay independent of their launcher and Main; F2
 reopens a hidden request with its native field state. Ctrl+C in a request window
 denies/cancels that request. The ordinary permission pipeline still applies.
 Selected approval, question and form controllers also use these windows.
+Delegated and managed agents have separately identified request windows backed
+by their actual controller registries. Main resume cancels Main descendants;
+independent managed requests remain live and use the committed replacement UI
+for later input. Their pending windows leave the four UI operation slots free.
+See [request ownership and lifetime](../../docs/02-ui.md#experimental-opentui-application-frontend).
 In Main, Alt+I switches their input with the parked native draft; separate
 focused request windows give input directly to the controller. Selected editors
 also retain their own view, draft and bindings, including F2 while an available

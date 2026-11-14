@@ -1,6 +1,6 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {randomUUID} from 'node:crypto';
-import type {AgentCore, AgentCoreOptions, LoopEvent} from '@agent-compositor/core';
+import type {AgentCore, AgentCoreOptions, CoreHumanRequestContext, LoopEvent} from '@agent-compositor/core';
 import {uiTextViewSchema, surfacePlacementSchema, type SurfacePlacement, type UiTextView} from '@agent-compositor/events';
 import type {AppearanceSnapshot, AppearanceSource, ComposerMedia, ConversationSession, ConversationWindow, ConversationWindowRegistry, PublicRenderMeasurement, UiSurfaceRegistry, UiSurfaceSnapshot, UiSurfaceSource, WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {BuiltApp} from './build.js';
@@ -68,8 +68,8 @@ type Channels = {
   inbox: Inbox;
   generation: AbortController;
   core?: AgentCore;
-  approve(request: ApprovalRequest): Promise<ApprovalResult>;
-  ask(request: QuestionRequest): ReturnType<Inbox['askQuestion']>;
+  approve(request: ApprovalRequest, source?:CoreHumanRequestContext): Promise<ApprovalResult>;
+  ask(request: QuestionRequest, source?:CoreHumanRequestContext): ReturnType<Inbox['askQuestion']>;
 };
 class ExpiredRequest extends Error {}
 
@@ -153,6 +153,10 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const operations = new Map<string, Operation>();
   const operationWaiters = new Set<() => void>();
   const privateWindows = new Map<Surface,{close():void}>();
+  const agentRequests = new Map<string,{controller:AbortController;independent:boolean;close():void}>();
+  const producerNumbers = new WeakMap<object,number>();
+  let nextProducerNumber=0;
+  let nextRequestNumber=0;
   const changes = new Map<Surface, {field: string; value: string}>();
   let active = true, started = false, switching = false, pendingReload = false, reloading = false;
   let reloadPromise: Promise<boolean> | undefined;
@@ -164,7 +168,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   let conversation: ReturnType<typeof connectConversation>;
   let sessionState: ReturnType<ConversationSession['snapshot']>;
   let offCore: (() => void) | undefined, offConversation: (() => void) | undefined, offForm: (() => void) | undefined;
-  let offOrigin: (() => void) | undefined;
+  let offOrigin: (() => void) | undefined, offHumanRequests: (() => void) | undefined;
   let offLayout: (() => void) | undefined;
   let offHistory: (() => void) | undefined;
   let editor: ReturnType<typeof createOpenTuiEditor> | undefined, offEditor: (() => void) | undefined;
@@ -692,31 +696,60 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   function createChannels(): Channels {
     const binding: Channels = {
       inbox: createInteractionInbox(), generation: new AbortController(),
-      async approve(request) {
+      async approve(request, source) {
         try {return await routeRequest(binding, request.signal,
-          (target, signal, requester) => target.ask({...request, signal}, requester));}
+          (target, signal, requester) => target.ask({...request, signal}, requester), undefined, source);}
         catch {return false;}
       },
-      ask(request) {
+      ask(request, source) {
         return routeRequest(binding, request.signal,
-          (target, signal, requester) => target.askQuestion({...request, signal}, requester));
+          (target, signal, requester) => target.askQuestion({...request, signal}, requester), undefined, source);
       },
     };
     return binding;
   }
   async function routeRequest<T>(binding: Channels, signal: AbortSignal | undefined,
-    run: (target: Inbox, signal: AbortSignal, requester?: string) => Promise<T>, formPlugin?: string): Promise<T> {
+    run: (target: Inbox, signal: AbortSignal, requester?: string) => Promise<T>, formPlugin?: string, source?:CoreHumanRequestContext): Promise<T> {
     const owner = binding.core;
     if (!active || !owner || owner !== core || channels !== binding || binding.generation.signal.aborted)
       throw new ExpiredRequest('The request belongs to an expired application session');
-    const scope = owner.host.currentServiceScope;
-    if (scope && (scope.lifetime.aborted || scope.signal.aborted || !owner.host.hasPlugin(scope.plugin)
+    const scope = source?.serviceScope ?? (source ? undefined : owner.host.currentServiceScope);
+    if (scope && (scope.lifetime.aborted || scope.signal.aborted || !(source?.host ?? owner.host).hasPlugin(scope.plugin)
       || formPlugin && scope.plugin !== formPlugin))
       throw new ExpiredRequest('The requesting plugin is no longer active');
-    const effective = AbortSignal.any([binding.generation.signal, ...(signal ? [signal] : []),
-      ...(scope ? [scope.signal, scope.lifetime] : [])]);
+    // Managed agents belong to the application, rather than a particular Main
+    // session. Their pending requests retain their own Core lifetime on resume.
+    const independent=source!==undefined&&source.root.host!==owner.host;
+    const signals=[...(independent?[]:[binding.generation.signal]),...(signal?[signal]:[]),...(source?[source.root.signal]:[])];
+    let capturedOrigin:unknown,background=false;
+    if(source){
+      const visited=new Set<object>();
+      for(let current:CoreHumanRequestContext|undefined=source;current;current=current.delegatedFrom){
+        if(visited.has(current))throw new ExpiredRequest('The request source is invalid');visited.add(current);
+        signals.push(current.signal);
+        const captured=current.serviceScope;
+        if(captured){
+          if(captured.signal.aborted||captured.lifetime.aborted||!current.host.hasPlugin(captured.plugin))
+            throw new ExpiredRequest('The requesting plugin is no longer active');
+          signals.push(captured.signal,captured.lifetime);
+          if(captured.background){background=true;break;}
+        }
+        if(current.invocationOrigin!==undefined){capturedOrigin=current.invocationOrigin;break;}
+      }
+    }else{capturedOrigin=scope?scope.origin:context.getStore();background=scope?.background===true;}
+    const effective = AbortSignal.any(signals);
     if (effective.aborted) throw new ExpiredRequest('The request was cancelled');
-    if (scope?.background) {
+    let parentOperation:Operation|undefined;
+    if(!background&&capturedOrigin!==undefined){
+      const candidate=capturedOrigin as Operation;
+      if(!candidate||typeof candidate!=='object'||!live(candidate))
+        throw new ExpiredRequest('The requesting interface operation has finished');
+      parentOperation=candidate;
+    }
+    if(source&&source.host!==owner.host)
+      return agentRequest(binding,source,AbortSignal.any([effective,...(parentOperation?[parentOperation.controller.signal]:[])]),run,parentOperation,scope?.plugin??formPlugin);
+    if (background) {
+      if(!scope)throw new ExpiredRequest('The request background scope is unavailable');
       let result!: T, failure: unknown, failed = false;
       const request = runOperation(scope.plugin, 'request:' + randomUUID(), async op => {
         try {result = await run(ownRequests(op), AbortSignal.any([effective, op.controller.signal]), scope.plugin);}
@@ -729,7 +762,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     }
     // A captured capability takes precedence over ambient async context. In
     // particular, a stale UI origin must never fall through into Main.
-    const origin = scope ? scope.origin : context.getStore();
+    const origin = capturedOrigin;
     if (origin !== undefined) {
       const op = origin as Operation;
       if (!op || typeof op !== 'object' || !live(op))
@@ -738,26 +771,17 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     }
     return run(binding.inbox, effective, scope?.plugin ?? formPlugin);
   }
-  function ownRequests(op: Operation) {
-    if (op.inbox) return op.inbox;
+  function requestWindow(options:{id:string;host:AgentCore['host'];owner:string;label?:string;requestNumber?:number;
+    current():boolean;renewIntent():void;focus():boolean;shown?(id:string):void}) {
     const requests = createInteractionInbox();
-    requests.bind(op.core, {forms: false});
-    const id = 'ui-request-' + op.id;
-    const surface = createSurface(id, op.owner, 'Settings');
-    op.inbox = requests; op.surface = surface;
+    requests.bind({host:options.host}, {forms: false});
+    const id = options.id;
+    const surface = createSurface(id, options.owner, options.label ?? 'Settings');
     let answeredApproval: string | undefined;
-    const current = () => live(op) && surface.active && surfaceMap.get(id) === surface;
+    const current = () => options.current() && surface.active && surfaceMap.get(id) === surface;
     const inputActive = () => current() && navigation?.snapshot().mode === 'normal'
       && layout.snapshot().focused === id && layout.snapshot().frames.some(frame => frame.surface === id);
-    const renewIntent = () => {
-      const state = layout.snapshot();
-      if (op.kind === 'request' || navigation && navigation.snapshot().mode !== 'normal'
-        || state.focused !== id || !state.frames.some(frame => frame.surface === id)) return;
-      // Capture the human action before its continuation can await or open another request.
-      layout.markWindowIntent();
-      if (op.owner === '@host' && op.site === 'host:placement') op.placementAnswerIntent = layout.windowIntentRevision;
-      else op.windowIntent = layout.windowIntentRevision;
-    };
+    const renewIntent = options.renewIntent;
     surface.source.answerApproval = (requestId, allow) => {
       if (!current() || surface.state.approval?.id !== requestId || answeredApproval === requestId) return;
       answeredApproval = requestId;
@@ -790,26 +814,92 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (inputActive() && requests.controllerSnapshot()?.id === requestId) {renewIntent();requests.cancelController(requestId);}
     };
     let shown: string | undefined;
-    op.off = requests.subscribe(() => {
-      if (!live(op)) return;
+    const off = requests.subscribe(() => {
+      if (!current()) return;
       const approval = requests.snapshot(), interaction = requests.interactionSnapshot(), controller = requests.controllerSnapshot();
       const form = interaction?.kind === 'form' ? interaction : undefined;
-      const requester = requests.requesterSnapshot() ?? op.owner;
+      const requester = requests.requesterSnapshot() ?? options.owner;
       const kind = controller?.kind ?? (approval ? 'approval' : interaction?.kind);
-      const title = kind === 'approval' ? 'Approval · ' + requester : kind === 'question' ? 'Questions · ' + requester
+      let title = kind === 'approval' ? 'Approval · ' + requester : kind === 'question' ? 'Questions · ' + requester
         : form?.request.title ?? (controller ? 'Form · ' + requester : surface.state.title);
+      const formTitle=form?.request.title??requests.requestTitleSnapshot();
+      if(options.label&&kind)title=({approval:'Approval',question:'Questions',form:'Form'}[kind]
+        +(options.requestNumber?' #'+options.requestNumber:'')+' · '+options.label
+        +(kind==='form'&&formTitle?' · '+formTitle:'' )).slice(0,512);
       publish(surface, {title, approval, interaction, form, controller, busy: !approval && !interaction && !controller});
       const requestId = approval?.id ?? interaction?.id ?? controller?.id;
       if (requestId && requestId !== shown) {
         shown = requestId;
-        const focus = op.kind !== 'request' && mayFocus(op);
+        const focus = options.focus();
         layout.register({id, label: title, transient: true}, {site: 'split', focus});
         if (focus) layout.actAutomatic({type: 'open', id});
-        destination(op, id);
+        options.shown?.(id);
       }
     });
     registryChanged();
-    return requests;
+    return {inbox:requests,surface,off,close(){requests.close();off();remove(surface);}};
+  }
+  function producerLabel(source:CoreHumanRequestContext){
+    const name=(value:string|undefined)=>Array.from(clean(value??'worker')
+      .replace(/[\p{Cc}\p{Bidi_Control}\p{Cs}\p{Zl}\p{Zp}]/gu,'')).slice(0,48).join('')||'worker';
+    const agent=(instance:object,alias:string|undefined)=>{
+      let number=producerNumbers.get(instance);
+      if(!number){number=++nextProducerNumber;producerNumbers.set(instance,number);}
+      return 'Agent #'+number+' '+name(alias);
+    };
+    const base=(value:CoreHumanRequestContext)=>value.host===core.host?'Main':agent(value.instance,value.origin.agentId);
+    const parent=source.delegatedFrom?base(source.delegatedFrom):source.origin.parent
+      ?source.origin.depth===1?(source.root.host===core.host?'Main':agent(source.root.instance,source.origin.parent.agentId))
+        :'Agent '+name(source.origin.parent.agentId??source.origin.parent.sessionId):undefined;
+    return base(source)+(parent?' · Parent '+parent:'')+(source.origin.invocation?' · via '+name(source.origin.invocation.tool):'');
+  }
+  async function agentRequest<T>(binding:Channels,source:CoreHumanRequestContext,effective:AbortSignal,
+    run:(target:Inbox,signal:AbortSignal,requester?:string)=>Promise<T>,parentOperation?:Operation,requester?:string):Promise<T>{
+    const id='agent-request-'+randomUUID(),label=producerLabel(source),owner=binding.core,requestNumber=++nextRequestNumber;
+    let activeRequest=true,window:ReturnType<typeof requestWindow>|undefined,requestNotice:string|undefined;
+    const record={controller:new AbortController(),independent:source.root.host!==owner?.host,close(){
+      if(!activeRequest)return;activeRequest=false;signal.removeEventListener('abort',abort);
+      record.controller.abort();window?.close();agentRequests.delete(id);
+      if(requestNotice&&localNotice===requestNotice){localNotice=undefined;if(active)changed();}
+    }};
+    const signal=AbortSignal.any([effective,record.controller.signal]);
+    const current=()=>active&&activeRequest&&agentRequests.get(id)===record&&!signal.aborted
+      &&(record.independent||core===owner&&channels===binding&&!binding.generation.signal.aborted);
+    const abort=()=>record.close();agentRequests.set(id,record);signal.addEventListener('abort',abort,{once:true});
+    try{
+      if(signal.aborted)throw new ExpiredRequest('The delegated request was cancelled');
+      window=requestWindow({id,host:source.host,owner:'@host',label,requestNumber,current,
+        renewIntent(){
+          if(!current())return;
+          const state=layout.snapshot();
+          if(navigation?.snapshot().mode!=='normal'||state.focused!==id||!state.frames.some(frame=>frame.surface===id))return;
+          layout.markWindowIntent();
+          if(parentOperation&&live(parentOperation)&&parentOperation.kind!=='request'){
+            if(parentOperation.owner==='@host'&&parentOperation.site==='host:placement')parentOperation.placementAnswerIntent=layout.windowIntentRevision;
+            else parentOperation.windowIntent=layout.windowIntentRevision;
+          }
+        },
+        focus:()=>Boolean(parentOperation&&mayFocus(parentOperation)),
+        shown(){if(current()&&!parentOperation){requestNotice='Request #'+requestNumber+' · '+label+' needs input · F2 Windows';notice(requestNotice);}},
+      });
+      return await run(window.inbox,signal,requester);
+    }finally{record.close();}
+  }
+  function ownRequests(op: Operation) {
+    if (op.inbox) return op.inbox;
+    const id='ui-request-'+op.id;
+    const window=requestWindow({id,host:op.core.host,owner:op.owner,current:()=>live(op),
+      renewIntent(){
+        const state=layout.snapshot();
+        if(op.kind==='request'||navigation&&navigation.snapshot().mode!=='normal'||state.focused!==id||!state.frames.some(frame=>frame.surface===id))return;
+        layout.markWindowIntent();
+        if(op.owner==='@host'&&op.site==='host:placement')op.placementAnswerIntent=layout.windowIntentRevision;
+        else op.windowIntent=layout.windowIntentRevision;
+      },
+      focus:()=>op.kind!=='request'&&mayFocus(op),shown:()=>destination(op,id),
+    });
+    op.inbox=window.inbox;op.surface=window.surface;op.off=window.off;
+    return window.inbox;
   }
   async function arrange(op: Operation) {
     let selected: string | undefined, draft: SurfacePlacement | undefined, message: string | undefined;
@@ -982,13 +1072,15 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     core = next; inbox = nextInbox;
     publicRendering.reset();
     appearanceContributions.clear();publishAppearance();
-    inbox.bind(next);
+    inbox.bind(next,{forms:false});
     offOrigin = next.host.setInvocationOriginProvider(() => context.getStore());
-    offForm = next.host.setFormHandler(async (plugin, request, signal) => {
+    const formHandler:Parameters<AgentCore['setHumanFormHandler']>[0] = async (plugin, request, signal, source) => {
       try {return await routeRequest(nextChannels, signal,
-        (target, effective, requester) => target.form(requester ?? plugin, request, effective), plugin);}
+        (target, effective, requester) => target.form(requester ?? plugin, request, effective), plugin, source);}
       catch (error) {if (error instanceof ExpiredRequest) return null; throw error;}
-    });
+    };
+    offForm = next.setHumanFormHandler(formHandler);
+    offHumanRequests = app.bindHumanRequests({approve:nextChannels.approve,ask:nextChannels.ask,form:formHandler});
     conversation = connectConversation(next, 'Main', inbox, submit);
     sessionState = conversation.snapshot();
     if (bindGeneration) {toolsText = '';updateTools();}
@@ -1026,6 +1118,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         }
         unbind();
         for (const surface of [...surfaceMap.values()]) {
+          if(agentRequests.get(surface.source.id)?.independent)continue;
           // Plugin source generations change with Core; the user's retained
           // tiling identity, closed state and ratios belong to the workspace.
           remove(surface,Boolean(surface.semantic&&replacement.host.hasPlugin(surface.owner)));
@@ -1051,6 +1144,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     });
   }
   function unbind() {
+    for(const request of [...agentRequests.values()])if(!active||!request.independent)request.close();
     publicRendering.reset();
     offHistory?.();offHistory=undefined;
     offEditor?.();offEditor = undefined;
@@ -1058,6 +1152,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     channels?.generation.abort(Error('Application input channel replaced'));
     offOrigin?.(); offOrigin = undefined;
     offForm?.(); offForm = undefined;
+    offHumanRequests?.(); offHumanRequests = undefined;
     offCore?.(); offCore = undefined;
     offConversation?.(); offConversation = undefined;
     conversation?.disconnect();

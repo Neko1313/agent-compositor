@@ -13,9 +13,9 @@ export async function seedOpenTuiNavigationFixture(cwd,paths){
       {name:'/nav-fast',description:'Open the current selected window',ui:{site:'fast'}},
       {name:'/nav-retained',description:'Open a retained gated route',ui:{site:'retained'}},
       {name:'/nav-focus',description:'Start a gated publication',execution:'immediate'},
-    ],hookTimeouts:{'ui.press':300000,'command.invoke':300000,'session.reload':300000},compositor:{standard:1,apiVersion:1}}));
+    ],hookTimeouts:{'ui.press':300000,'command.invoke':300000,'session.start':300000,'session.reload':300000},compositor:{standard:1,apiVersion:1}}));
   await writeFile(join(directory,'hooks.js'),String.raw`
-import {watch} from 'node:fs';
+import {appendFileSync,watch} from 'node:fs';
 import {access} from 'node:fs/promises';
 import {join} from 'node:path';
 async function gate($,name){
@@ -39,40 +39,53 @@ async function focusView($,mode){
   await $.storage.set('focus-published-'+mode,true);
 }
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-async function panes($,focus=false){
+async function panes($,focus=false,checkpoint=()=>{}){
   const generation=await $.storage.get('generation')||1;
   const refreshed=await $.storage.get('refresh-finished');
-  await $.ui.view('control','Navigation controls',{lines:[
+  checkpoint('view:control');await $.ui.view('control','Navigation controls',{lines:[
     {text:'NAV_GENERATION_'+generation},
     {text:'Refresh inventory',action:'refresh'},
     {text:'Open private form',action:'form'},
     {text:'Open retile workspace',action:'retile'},
     ...['true','false','rule-false','rule-true'].map(mode=>({text:'Publish focus '+mode,action:'focus:'+mode})),
   ]},{site:'inspector',workspace:1,focus});
+  checkpoint('view:control:done');
   for(let index=1;index<=12;index++){
     if(index===12&&refreshed)continue;
-    await $.ui.view('pane'+index,'Nav pane '+String(index).padStart(2,'0')+(index===11&&refreshed?' refreshed':''),
+    checkpoint('view:pane'+index);await $.ui.view('pane'+index,'Nav pane '+String(index).padStart(2,'0')+(index===11&&refreshed?' refreshed':''),
       {lines:[{text:'NAV_GENERATION_'+generation},{text:'Controlled native window '+index}]},{workspace:2,focus:false});
+    checkpoint('view:pane'+index+':done');
   }
-  await $.ui.view('unicode','Заметки 窗口',{lines:[{text:'UNICODE_WINDOW'}]},{workspace:3,focus:false});
-  await $.storage.set('panes',true);
+  checkpoint('view:unicode');await $.ui.view('unicode','Заметки 窗口',{lines:[{text:'UNICODE_WINDOW'}]},{workspace:3,focus:false});
+  checkpoint('panes:save');await $.storage.set('panes',true);checkpoint('panes:done');
 }
-async function retile($){
-  await $.storage.set('retile',true);
-  await $.ui.view('retile-a','Retile A',{lines:[{text:'RETILE_A'}]},{workspace:7,focus:false});
-  await $.ui.view('retile-b','Retile B',{lines:[{text:'RETILE_B'}]},
+async function retile($,checkpoint=()=>{}){
+  checkpoint('retile:save');await $.storage.set('retile',true);
+  checkpoint('view:retile-a');await $.ui.view('retile-a','Retile A',{lines:[{text:'RETILE_A'}]},{workspace:7,focus:false});
+  checkpoint('view:retile-b');await $.ui.view('retile-b','Retile B',{lines:[{text:'RETILE_B'}]},
     {workspace:7,site:'sidebar',size:.35,relativeTo:'plugin-navigation-probe-retile-a',focus:false});
-  await $.ui.view('retile-c','Retile C',{lines:[{text:'RETILE_C'}]},
+  checkpoint('view:retile-c');await $.ui.view('retile-c','Retile C',{lines:[{text:'RETILE_C'}]},
     {workspace:7,site:'inspector',size:.3,relativeTo:'plugin-navigation-probe-retile-b',focus:false});
-  await $.storage.set('retile-ready',true);
+  checkpoint('retile:ready');await $.storage.set('retile-ready',true);checkpoint('retile:done');
 }
 async function start($,reload=false){
-  const previous=await $.storage.get('generation')||0;
-  await $.storage.set('generation',previous+1);
-  if(reload){await $.storage.set('reload-started',true);await pause(800);}
-  if(await $.storage.get('panes'))await panes($);
-  if(await $.storage.get('retile'))await retile($);
-  await $.storage.set('ready',{generation:previous+1});
+  const signal=$.signal,kind=reload?'reload':'start',tracePath=join($.session.cwd,'.agent-compositor/navigation-gates/startup-trace.jsonl');let generation,phase='enter';
+  // Diagnostic-only Node I/O survives a revoked SDK scope and records the
+  // stopping await without publishing faults or private values into the app.
+  const record=(event,details={})=>appendFileSync(tracePath,
+    JSON.stringify({at:Date.now(),kind,event,generation,phase,...details})+'\n');
+  const checkpoint=value=>{phase=value;record('phase');};
+  const abort=()=>record('aborted',{reason:String(signal.reason)});
+  signal.addEventListener('abort',abort,{once:true});
+  try{
+    checkpoint('generation:read');const previous=await $.storage.get('generation')||0;generation=previous+1;
+    checkpoint('generation:write');await $.storage.set('generation',generation);
+    if(reload){checkpoint('reload:pause');await $.storage.set('reload-started',true);await pause(800);}
+    checkpoint('panes:read');if(await $.storage.get('panes'))await panes($,false,checkpoint);
+    checkpoint('retile:read');if(await $.storage.get('retile'))await retile($,checkpoint);
+    checkpoint('ready:write');await $.storage.set('ready',{generation});checkpoint('ready:done');
+  }catch(error){record('fault',{reason:signal.aborted?String(signal.reason):undefined,error:error instanceof Error?error.message:String(error)});throw error;}
+  finally{signal.removeEventListener('abort',abort);record('finished',{aborted:signal.aborted});}
 }
 async function form($){
   await $.storage.set('form-calls',(await $.storage.get('form-calls')||0)+1);
@@ -132,7 +145,7 @@ export default {
   return{state,retile:{ready:join(state,'retile-ready.json'),ids:Object.fromEntries(['a','b','c'].map(name=>[name,'plugin-navigation-probe-retile-'+name]))},focus:{gates:Object.fromEntries(['passive','late-main','late-mode','retained','slow'].map(name=>[name,join(gates,name)])),
     started:Object.fromEntries(['passive','late-main','late-mode'].map(name=>[name,join(state,'focus-started-'+name+'.json')])),
     published:Object.fromEntries(['passive','true','false','rule-false','rule-true','late-main','late-mode'].map(name=>[name,join(state,'focus-published-'+name+'.json')])),
-    launcher:join(state,'focus-launcher-completed.json'),retainedStarted:join(state,'retained-started.json'),retainedFinished:join(state,'retained-finished.json')},formReceipt:join(state,'form-result.json'),formCalls:join(state,'form-calls.json'),ready:join(state,'ready.json'),
+    launcher:join(state,'focus-launcher-completed.json'),retainedStarted:join(state,'retained-started.json'),retainedFinished:join(state,'retained-finished.json')},formReceipt:join(state,'form-result.json'),formCalls:join(state,'form-calls.json'),ready:join(state,'ready.json'),startupTrace:join(gates,'startup-trace.jsonl'),
     slowStarted:join(state,'slow-started.json'),slowFinished:join(state,'slow-finished.json'),
     refreshStarted:join(state,'refresh-started.json'),refreshFinished:join(state,'refresh-finished.json'),
     reloadStarted:join(state,'reload-started.json'),approvalFile:join(cwd,'navigation-approval.txt')};

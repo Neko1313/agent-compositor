@@ -1,5 +1,131 @@
 # Project memory
 
+## Delegated and managed human request ownership in progress — 2026-11-15
+
+Keep the complete 1.0 objective active. The preceding user-facing turn reported
+remaining work; this continuation resumes implementation rather than redefining
+the goal. Installed/pushed main remains 57cb73a. Its source CI, docs and plugin
+preparation pass, but build-only release 43602516244 is terminal failure. The
+four digest-verified ZIPs retain 150/312 OpenTUI reports and 32/32 runtime smokes;
+Linux x64 passes all 78. Preserve that failed evidence and its original diagnosis
+under dist/opentui-wire-remote-57cb73a; current fixes do not retroactively pass it.
+
+The selected-form raw mouse/release/paste packet has a deterministic actual
+SDK/host RED: async mouse completion advances the same live lease revision before
+the queued text reaches the host. The broker now admits relative key/text against
+that same current lease, and current-field change against the same field ID.
+Mouse/action coordinates still require the painted revision; future revisions,
+foreign/retired leases, old ports and hidden input remain rejected. Eleven guard
+tests, app types and six source controller CLI checks pass. No flushSync or
+unproven parser fix was added to the product.
+
+The macOS Finder trace is compatible with an overdue standalone Escape timer
+combining the next F2; no historical parsed-key receipt proves that branch.
+The bench now observes actual normal output after one Escape before its one F2.
+Navigation omitted session.start from its explicit lifecycle budgets; a real
+Runtime probe proves partial startup can outlive the default hook budget. Both
+startup/reload now use the existing declared budget and retain phase/fault logs.
+Fresh source navigation nine and requests six pass with inspected current PNGs;
+the old failures and exact oracles remain intact.
+
+Private CoreHumanRequestContext now carries actual instance/host/root lifetime,
+inert agent/parent labels, host tool-invocation identity and captured service/UI
+authority separately. No raw context is published to catalog/render/controller
+data. Main descendants expire on Main replacement, while independent managed
+roots own their requests across resume. Managed channels are committed with
+BuiltApp.bindHumanRequests, not prepared-Core construction. Current Core form
+bindings propagate into real children. Direct immediate-command spawn resolves
+the normal effective tools instead of inheriting an uninitialized empty command
+snapshot; already-resolved deliberately empty toolsets remain empty.
+
+Native host owns per-request private agent windows outside the four effectful UI
+operation slots. Safe titles distinguish same-alias siblings and direct parents;
+actual producer registries own selected leases. Managed shutdown begins actual
+Core/app close before awaiting input-blocked runs. The default Ink compatibility
+path forwards genuine producer context and inherits the Core form channel,
+retaining its existing dialog queue rather than claiming native parallel panes.
+The actual Ink regression first fails all three cases, then focused integration
+passes 21 tests and app types. New ten-case real CLI grading (native six/selected
+four) now passes; immutable archive and platform verification remain in progress.
+Pre-execution review corrected selected CLI case 2 before any grading: Main-only
+extension disable/reload cannot unregister a detached child's actual registry.
+The CLI must prove preservation of that original selected lease, then genuine
+source Core replacement/archive revocation. Direct child-host unregister remains
+real backend evidence, never a simulated CLI action. The ten-case count and all
+other business/privacy oracles remain unchanged; retain this rubric rationale.
+
+Native-client track bookkeeping now prunes retired frames on each full snapshot
+while retaining hidden resident frames and logical Main copies. A late receipt
+must reference the same retained Track object; it cannot ACK a successor reused
+ID. Meaningful REDs are preserved; renderer nineteen tests and types pass.
+No paid model requests, budget changes or default renderer switch in this work.
+
+The first standalone coverage passes 2323 tests with three optional skips in 256
+files (25.97s), retained separately from the final post-repair result below.
+Neither coverage run overlaps tests/build/browser/source mutation. Full workspace
+typecheck and marketplace validation pass; generation/docs generation pass.
+Managed lifecycle regressions also expose and fix a second send bypassing gated
+session.start: in-flight loads take precedence over an inserted-but-not-started
+entry. Real managed UI-gap RED records Plugin unloaded after old Main closes;
+UI publication alone skips a revoked captured API, then new startup republishes
+state and normal stop/send succeeds. Real worker/model errors are not swallowed.
+The immutable old57 CLI RED proves an actual task child's question enters Main
+and Finder has zero child windows, with exact bb8943dc/465003a2 hashes. The first
+fixed-source run passes four native checks, then finds real UI-scoped archive
+failure. A completed hook's cached agent-hub API aborts actual pane removal;
+the earlier existing.run suspicion is retracted. Fresh service control/open
+middleware now retains a caller-specific API in AsyncLocalStorage. Only passive
+updates fall back to a live session API, never foreground focus. Archive removes
+actual panes/tabs. Tests also prove normal focus, newer-navigation precedence and
+post-action repaint. Explicit five-minute service budgets avoid introducing a
+new two-second middleware thread limit; actual Runtime REDs and GREENs are saved.
+
+The corrected source run next exposes a fixture-only selected approval path
+expectation: actual input.path is normalized absolute, not relative. The exact
+full-path oracle is corrected without weakening decisions or file assertions.
+Final source10 passes both compositions, PTYs/servers 0, errors[], exact native45
+and selected53 HTTP requests/answers, 25 original selected leases disposed once,
+and privacy checks. Twelve current captures now show the actual pending private
+panes. All were visually inspected; 61 evidence files were rehashed. Root also
+inspected the nested source, approval and two selected form PNGs. Long inactive
+tab labels clip horizontally; focused source headers and Finder retain exact
+identity. Compact generated-ID captions remain a later usability refinement.
+
+An additional real Core symlink-cwd probe proves a portable-fixture alias issue.
+Expected effect paths now use realpath(cwd); native/selected before/after probes
+retain full exact paths, one allowed file, denied absence and zero provider calls.
+The source10 proof remains its executed revision; final archive95 will rerun the
+final seed. Final standalone coverage passes 2328 tests plus three optional skips
+in 257 files (25.98s), log /tmp/compositor-child-final-test-ci-20261115.log.
+Archive, fresh remote matrix, installation and full 1.0 remain open.
+
+Full final workspace typecheck, docs:check, marketplace validation and all 32
+mandatory PR plugin certificates pass. The candidate build succeeds, but its
+first canonical release:smoke fails during final installer extraction because
+/tmp is a 7.7GiB tmpfs with only 629MiB free. All eight preceding smoke reports
+are retained as partial evidence, not a passing canonical run. Preserve
+dist/opentui-child-freeze-20261114T161029Z-c6850cbd and its failure/log/diagnosis.
+The recovery uses disk-backed /home/neko/.cache/ac-tmp, reruns only canonical
+release:smoke and verifies unchanged source and built payloads. It passes with
+eight fresh reports; no rebuild occurs and all original failed evidence remains.
+
+dist/opentui-child-artifact.json now seals executable 2ed9a7c2, renderer 37fa43f7
+and immutable archive 23315fd3, from 727 exact conservative source inputs with
+fingerprint c732e028. The declared scope now includes the actually consumed
+examples/plugins/portable-example directory. The independent bounded source
+review is clear in dist/opentui-child-independent-source-review.json and makes
+no archive or remote claim. Full native95 now passes in fourteen runners and
+twenty-two PTYs 0 against those exact relocated bytes with disk TMPDIR, through
+dist/run-child-native.mjs. Independent final local review passes in
+dist/opentui-child-independent-final-review.json: all fourteen raw runner finals
+equal reports, expected negative business receipts remain negative, and sealed
+source/payload/smoke hashes agree. All 5879 archive entries (4550 regular files)
+match relocated paths, types, modes and bytes. The separate archived child review
+passes in dist/opentui-child-native-child-review.json with all twelve actual
+current PNGs inspected and all 61 evidence hashes verified. Three additional
+non-child critical PNGs were independently inspected. This is ready for commit,
+push, exact immutable installation and a fresh four-platform run, not full 1.0.
+
 ## OpenTUI protocol migration in progress — 2026-11-14
 
 The full 1.0 goal remains active. The preceding status turn was a verified wait

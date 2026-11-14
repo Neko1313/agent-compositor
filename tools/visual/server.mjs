@@ -13,6 +13,7 @@ import {seedOpenTuiWorkspaceControllersFixture} from './opentui-workspace-contro
 import {seedOpenTuiConversationCopiesFixture,conversationCopiesModelResponse} from './opentui-conversation-copies-fixture.mjs';
 import {seedOpenTuiAppearanceFixture,appearanceModelResponse} from './opentui-appearance-fixture.mjs';
 import {seedOpenTuiRenderFixture,renderModelResponse} from './opentui-render-fixture.mjs';
+import {seedOpenTuiChildFixture,childModelResponse} from './opentui-child-fixture.mjs';
 import {questionsSample,questionsReply} from './questions-sample.ts';
 import {markdownSample} from './markdown-sample.ts';
 import {storagePaths} from '../../packages/config/src/storage.ts';
@@ -213,6 +214,10 @@ const server = Bun.serve({
       const prompt=body.messages?.filter(message=>message.role==='user').at(-1)?.content??'';
       const credential=authorization==='Bearer '+appUiKey?'ui':authorization==='Bearer '+appBootKey?'bootstrap':'unexpected';
       appReceipt({kind:'completion',number:++appRequests,model:body.model,credential,authorizationHash:new Bun.CryptoHasher('sha256').update(authorization).digest('hex'),body});
+      if(process.env.VISUAL_OPENTUI_CHILD){
+        if(appRequests>80||credential==='unexpected')return new Response('Unexpected isolated child request',{status:400});
+        return childModelResponse(prompt,body);
+      }
       if(process.env.VISUAL_OPENTUI_CONVERSATION_COPIES){
         if(appRequests>24||credential==='unexpected')return new Response('Unexpected isolated copy request',{status:400});
         return conversationCopiesModelResponse(prompt,body);
@@ -382,6 +387,7 @@ if(process.env.VISUAL_OPENTUI_APP){
  const conversationCopies=process.env.VISUAL_OPENTUI_CONVERSATION_COPIES?await seedOpenTuiConversationCopiesFixture(cwd,paths,process.env.VISUAL_OPENTUI_COPY_COMPOSITION??'native'):undefined;
  const appearance=process.env.VISUAL_OPENTUI_APPEARANCE?await seedOpenTuiAppearanceFixture(cwd,paths,process.env.VISUAL_OPENTUI_APPEARANCE_COMPOSITION??'native'):undefined;
  const publicRender=process.env.VISUAL_OPENTUI_RENDER?await seedOpenTuiRenderFixture(cwd,paths,process.env.VISUAL_OPENTUI_RENDER_COMPOSITION??'native'):undefined;
+ const child=process.env.VISUAL_OPENTUI_CHILD?await seedOpenTuiChildFixture(cwd,paths):undefined;
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['network-proxy','todos','slash-commands','model-selector','provider-auth','session-manager',
   ...(process.env.VISUAL_OPENTUI_MANAGERS?['extension-manager','marketplace-manager','local-flow-probe']:[]),
   ...(process.env.VISUAL_OPENTUI_NAVIGATION?['navigation-probe']:[]),...(cancellation?['cancellation-probe']:[]),...(requests?['request-probe']:[]),
@@ -389,9 +395,9 @@ if(process.env.VISUAL_OPENTUI_APP){
   ...(editor?[editor.provider,editor.requester,'extension-manager',...(editor.selectedProvider?[editor.selectedProvider]:[])]:[]),
   ...(workspaceControllers?[workspaceControllers.provider,workspaceControllers.requester,workspaceControllers.observer,'extension-manager']:[]),
   ...(conversationCopies?[conversationCopies.provider,conversationCopies.requester,conversationCopies.observer,'extension-manager',...(conversationCopies.selectedProvider?[conversationCopies.selectedProvider]:[])]:[]),
-  ...(appearance?appearance.plugins:[]),...(publicRender?publicRender.plugins:[])],
-  ...((controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender)?{ui:{controllers:(controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender).selected}}:{}),
-  ...((cancellation||requests||controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender)?{permissions:{rules:(cancellation??requests??controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender).rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
+  ...(appearance?appearance.plugins:[]),...(publicRender?publicRender.plugins:[]),...(child?child.plugins:[])],
+  ...((controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender||child)?{ui:{controllers:(controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender??child).selected}}:{}),
+  ...((cancellation||requests||controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender||child)?{permissions:{rules:(cancellation??requests??controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender??child).rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false,...(child?{tools:['task','ask_user','ask_questions','write','agent_control','extension_control'],builtinTools:['write'],controlTools:['task','ask_user','ask_questions']}: {})},compaction:{enabled:false}}));
  await writeFile(join(paths.state,'providers.json'),JSON.stringify({profiles:{bootstrap:{type:'openai-compat',baseUrl,model:'app-start',contextWindow:65536,timeoutMs:300000}}}));
  await writeFile(join(paths.state,'model.json'),JSON.stringify('bootstrap'));
  await writeFile(join(paths.home,'credentials.json'),JSON.stringify({bootstrap:{accessToken:appBootKey}}),{mode:0o600});
@@ -409,6 +415,7 @@ if(process.env.VISUAL_OPENTUI_APP){
  if(conversationCopies)appLaunch.conversationCopies=conversationCopies;
  if(appearance)appLaunch.appearance=appearance;
  if(publicRender)appLaunch.render=publicRender;
+ if(child)appLaunch.child=child;
  if(process.env.VISUAL_OPENTUI_MANAGERS){
   const catalogRoot=join(cwd,'local-flow-catalog'),source=join(catalogRoot,'plugins/local-flow-probe');
   await mkdir(join(catalogRoot,'.claude-plugin'),{recursive:true});await mkdir(source,{recursive:true});

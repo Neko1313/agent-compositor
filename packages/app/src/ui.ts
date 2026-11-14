@@ -24,6 +24,7 @@ import {
 import type {
   AgentCore,
   AgentCoreOptions,
+  CoreHumanRequestContext,
   LoopEvent,
 } from "@agent-compositor/core";
 import {
@@ -179,6 +180,7 @@ export class AppUI {
   private actionFocus = new Map<string, string>();
   private form?: { dialog: ControllerDialog<UiForm>; finish: (result: UiFormResult | null) => void };
   private formUnsubscribe?: () => void;
+  private humanRequestsUnsubscribe?: () => void;
   private ready = false;
   private nativeRaster = false;
   private tasks = new Set<Promise<void>>();
@@ -210,11 +212,12 @@ export class AppUI {
       edit?: (draft: string) => Promise<string>;
       files?: (prefix?:string) => Promise<string[]>;
       saveLayout?: (layout: unknown) => Promise<void>;
+      bindHumanRequests?: import('./build.js').BuiltApp['bindHumanRequests'];
     } = {}
   ) {
     this.core = createCore(
-      (req) => this.requestApproval(req),
-      (req) => this.askUser(req)
+      (req, source) => this.requestApproval(req, source),
+      (req, source) => this.askUser(req, source)
     );
     this.transcript = this.core
       .getMessages()
@@ -573,13 +576,21 @@ export class AppUI {
   }
   private bindForms(): void {
     this.formUnsubscribe?.();
-    this.formUnsubscribe = this.core.host.setFormHandler((_plugin, request: UiForm, signal) => {
+    this.humanRequestsUnsubscribe?.();
+    const form:NonNullable<Parameters<AgentCore['setHumanFormHandler']>[0]> = (_plugin, request, signal, source) => this.requestForm(request,signal,source);
+    this.formUnsubscribe = this.core.setHumanFormHandler(form);
+    this.humanRequestsUnsubscribe = this.panelOptions.bindHumanRequests?.({
+      approve:(request,source)=>this.requestApproval(request,source),
+      ask:(request,source)=>this.askUser(request,source),form,
+    });
+  }
+  private requestForm(request:UiForm, signal:AbortSignal, source?:CoreHumanRequestContext):Promise<UiFormResult|null> {
       if (this.closed || signal.aborted) return Promise.resolve(null);
       if (this.form) return Promise.reject(new Error('Close the current form first'));
       this.windowMode=false;this.windowPicker=undefined;
       return new Promise(resolve => {
         const native = new FormDialog(request);
-        const dialog = new ControllerDialog(this.core.host.controllers.create("form",request,()=>({
+        const dialog = new ControllerDialog((source?.host??this.core.host).controllers.create("form",request,()=>({
           render:({columns,rows})=>({lines:native.visible(columns,rows)}),
           handle:input=>native.handle(input as Extract<WireMessage,{type:'input'}>['data']),
           preferredRows:(_columns,max)=>max,pointer:()=>['password','text','url'].includes(native.request.fields[native.focus]?.type??'')?'text':'pointer',
@@ -600,7 +611,6 @@ export class AppUI {
         dialog.lease.signal.addEventListener('abort',abort,{once:true});
         this.cancelDrag(); this.draw();
       });
-    });
   }
   connect(sink: (message: WireMessage) => void): void {
     this.sink = sink;
@@ -1445,7 +1455,8 @@ export class AppUI {
     void safe.finally(() => {this.tasks.delete(safe);this.applyPendingReload();});
   }
   private requestApproval(
-    req: Parameters<NonNullable<AgentCoreOptions["onApproval"]>>[0]
+    req: Parameters<NonNullable<AgentCoreOptions["onApproval"]>>[0],
+    source?:CoreHumanRequestContext
   ): ReturnType<NonNullable<AgentCoreOptions["onApproval"]>> {
     if (req.signal?.aborted || this.closed) return Promise.resolve(false);
     return new Promise((resolve) => {
@@ -1453,7 +1464,7 @@ export class AppUI {
       const native=new ApprovalDialog(req);
       let dialog:ControllerDialog<typeof req>;
       const controllerRequest = {tool: req.tool, descriptor: req.descriptor, reason: req.reason, signal: undefined};
-      try{dialog=new ControllerDialog(this.core.host.controllers.create('approval',controllerRequest,()=>({
+      try{dialog=new ControllerDialog((source?.host??this.core.host).controllers.create('approval',controllerRequest,()=>({
         render:({columns,rows})=>({lines:native.visible(columns,rows)}),handle:input=>native.handle(input as Extract<WireMessage,{type:'input'}>['data']),
         preferredRows:columns=>native.rows(columns).length,pointer:row=>native.interactiveRow(row)?'pointer':'default',
       }),()=>this.draw()),req);}catch{resolve(false);return;}
@@ -1515,8 +1526,8 @@ export class AppUI {
       try {
         const next = await this.panelOptions.resume!(
           args.id ?? this.core.sessionId,
-          (req) => this.requestApproval(req),
-          (req) => this.askUser(req)
+          (req, source) => this.requestApproval(req, source),
+          (req, source) => this.askUser(req, source)
         );
         this.unsubscribe();this.closePanel();
         const editorState=this.editorSnapshot();this.controllerUnsubscribe?.();
@@ -1569,7 +1580,8 @@ export class AppUI {
     });
   }
   private askUser(
-    request: QuestionRequest & { signal?: AbortSignal }
+    request: QuestionRequest & { signal?: AbortSignal },
+    source?:CoreHumanRequestContext
   ): Promise<UserQuestionAnswer> {
     return new Promise((resolve, reject) => {
       if (this.closed || request.signal?.aborted) {
@@ -1578,7 +1590,7 @@ export class AppUI {
       }
       const native=new QuestionDialog(request);
       let dialog:ControllerDialog<QuestionRequest>;
-      try{dialog=new ControllerDialog(this.core.host.controllers.create('question',{...request,signal:undefined},()=>({
+      try{dialog=new ControllerDialog((source?.host??this.core.host).controllers.create('question',{...request,signal:undefined},()=>({
         render:({columns,rows})=>({lines:native.visible(columns,rows)}),handle:input=>native.handle(input as Extract<WireMessage,{type:'input'}>['data']),
         snapshot:()=>({review:native.review}),preferredRows:columns=>native.rows(columns).length,
         pointer:row=>native.interactiveRow(row)?'pointer':'default',
@@ -2434,6 +2446,7 @@ export class AppUI {
     for(const id of this.composerViews.keys())this.removeComposer(id);
     this.form?.finish(null);
     this.formUnsubscribe?.();this.formUnsubscribe=undefined;
+    this.humanRequestsUnsubscribe?.();this.humanRequestsUnsubscribe=undefined;
     this.cancelDrag();
     for (const window of this.pluginWindows.values())
       void this.core.host

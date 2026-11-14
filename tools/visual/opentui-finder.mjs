@@ -1,6 +1,21 @@
 /** Known-label Finder actions use only real terminal cells and keyboard input. */
 export function createOpenTuiFinder({page,key,wait,absent,open=()=>key('F2')}){
   const marker='windows · ↑↓ select · Enter open';
+  let normalAttempt=0;
+  async function normal(){
+    // A bare Escape is parser-timed. Observe its completed native close before
+    // sending F2, which could otherwise become one Alt+F2 packet under load.
+    const attempt=++normalAttempt;
+    await page.waitForFunction(({attempt,marker})=>{
+      const terminal=visual.terminal,buffer=terminal.buffer.active,text=visual.text();
+      const toolbar=buffer.getLine(buffer.viewportY+1)?.translateToString(true)??'';
+      if(terminal.modes?.synchronizedOutputMode===true||!toolbar.includes('Alt+W Arrange')
+        ||text.includes(marker)||text.includes('WINDOW MODE')){delete window.__finderNormal;return;}
+      const signature=JSON.stringify([visual.frames,terminal.cols,terminal.rows,text]),previous=window.__finderNormal;
+      if(previous?.attempt!==attempt||previous.signature!==signature){window.__finderNormal={attempt,signature,count:1};return;}
+      return ++previous.count>=3;
+    },{attempt,marker},{polling:'raf'});
+  }
   async function state(value,count,selected=false,label=value){
     const handle=await page.waitForFunction(({value,count,selected,label})=>{
       const terminal=visual.terminal,buffer=terminal.buffer.active;
@@ -32,11 +47,11 @@ export function createOpenTuiFinder({page,key,wait,absent,open=()=>key('F2')}){
   async function pick(value,count=1,label=value){
     if(!Number.isSafeInteger(count)||count<1)throw Error('A known Finder label needs a positive expected result count');
     if(typeof label!=='string'||!label.trim())throw Error('A known Finder label must be nonempty');
-    await open();await wait(marker);const choice=await query(value,count,label);
+    await normal();await open();await wait(marker);const choice=await query(value,count,label);
     // A request can publish after query editing. Its late row intentionally has
     // no selection; select that visible current result before one explicit Enter.
     if(!choice.selected)await key('ArrowDown');
     await state(value,count,true,label);await key('Enter');await absent(marker);
   }
-  return{marker,state,query,pick};
+  return{marker,state,query,pick,normal};
 }

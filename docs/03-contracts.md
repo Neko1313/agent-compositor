@@ -203,6 +203,14 @@ when its visible window ID stays the same. Ordinary snapshot updates retain
 renderer-local widgets and subscriptions. A Core generation change also fences
 queued native input. The host remains authoritative for visibility, focus,
 navigation policy, declared actions, request IDs and permissions.
+For a current selected lease, key/text input is relative to its current view;
+an admitted same-lease mouse completion cannot discard the following paste just
+because it advanced the view revision. Field changes additionally require the
+current field ID. Mouse and declared-action inputs still require the exact
+painted revision. Future revisions, retired leases, replaced ports and input
+outside the focused normal-mode pane remain rejected. Main replacement revokes
+its descendant requests; independent managed request sources retain their own
+Core lifetime and port until they settle or their producer closes.
 
 Input IDs are monotonic within a connection. The broker retains the last 512
 receipts: an identical duplicate returns its original receipt, a changed payload

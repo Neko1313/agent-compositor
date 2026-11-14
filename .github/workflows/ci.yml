@@ -71,6 +71,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-controllers
+      - name: Check delegated and managed OpenTUI request windows
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-child
       - name: Check selected OpenTUI editor ownership and lifecycle
         if: matrix.node == '26'
         timeout-minutes: 7
@@ -137,6 +141,7 @@ jobs:
             dist/visual-opentui-cancellation/
             dist/visual-opentui-requests/
             dist/visual-opentui-controllers/
+            dist/visual-opentui-child/
             dist/visual-opentui-editor/
             dist/visual-opentui-workspace-controllers/
             dist/visual-opentui-conversation-copies/

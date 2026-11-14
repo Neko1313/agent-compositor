@@ -147,6 +147,33 @@ its command tokens can lose quoting present in the original shell text.
 Attachment requests can omit `input`. The callback can return a boolean
 for a one-call decision. Its abort signal identifies requests that have expired.
 
+Host `onApproval(request, context?)` and `onAsk(request, context?)` callbacks also
+receive an immutable `CoreHumanRequestContext` from the producing Core. Existing
+one-argument callbacks remain valid. The context identifies the actual host and
+Core instance, its root lifetime, safe agent/parent metadata and a host-generated
+tool invocation. Repeated provider call IDs do not merge requests. The
+invocation's `tool` is the original dispatched name; a rewritten approval's
+`request.tool`, `input` and `descriptor` describe its effective action. Use the
+private context to select the producer's controller registry and route its
+request; never serialize its hosts, signals, instance tokens or captured service
+scope into catalog events, public render data or model messages.
+
+`AgentCoreOptions.onForm` and `core.setHumanFormHandler(handler)` supply the
+private form channel inherited by delegated children. A handler receives
+`(plugin, request, signal, context)` and returns a valid form result or `null`.
+The setter's disposer restores only an earlier still-active binding; an explicit
+undefined handler temporarily disables the channel. Actual Core closure revokes
+its pending human requests, including retained background work. `agentId` is an
+optional host display label, never an authority token.
+
+An assembled app commits managed-agent UI channels with
+`app.bindHumanRequests({approve, ask, form})`. Preparing a replacement Core does
+not activate its channels. A managed callback reads the current committed
+registration at invocation time. Disposing an older registration cannot clear a
+newer one. After a registered UI detaches, managed requests fail closed until
+another UI registers; a never-bound headless app retains its supplied callback
+behavior. Main's own callbacks remain bound to their specific Core generation.
+
 ### Repeated approval refusals
 
 Within a model turn, a completed approval refusal is remembered for an identical

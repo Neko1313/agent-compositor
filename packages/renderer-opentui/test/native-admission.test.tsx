@@ -1,5 +1,5 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {TestRendererSetup} from '@opentui/core/testing';
@@ -14,7 +14,7 @@ vi.mock('@opentui/core',async original=>({...await original<typeof import('@open
 const cleanup:(()=>unknown|Promise<unknown>)[]=[];
 afterEach(async()=>{for(const close of cleanup.splice(0).reverse())await close();terminal.current=undefined;});
 
-async function fixture(heldModel=false){
+async function fixture(heldModel=false,selectedControllers=false){
   const [{createTestRenderer},sdk,{runConversationPrototype},{buildApp},{connectWindowLayout},{createOpenTuiHost},
     {createOpenTuiWireHost},{createNativePresentationClient},{ScriptedProvider},{decodeLine,encodeMessage}]=await Promise.all([
     import('@opentui/core/testing'),import('@opentui/core'),import('../src/run.js'),
@@ -22,13 +22,24 @@ async function fixture(heldModel=false){
     import('../../app/src/opentui-wire.js'),import('../src/native-client.js'),import('@agent-compositor/core'),import('@agent-compositor/protocol'),
   ]);
   const cwd=await mkdtemp(join(tmpdir(),'opentui-native-admission-'));cleanup.push(()=>rm(cwd,{recursive:true,force:true}));
+  const controllerFixture=selectedControllers?await(async()=>{
+    const [{seedOpenTuiControllersFixture},{storagePaths}]=await Promise.all([
+      import('../../../tools/visual/opentui-controllers-fixture.mjs'),import('../../config/src/storage.js'),
+    ]);
+    return seedOpenTuiControllersFixture(cwd,storagePaths(cwd,{HOME:cwd}));
+  })():undefined;
   const provider=new ScriptedProvider([{text:'First answer',hold:heldModel},{text:'Second answer'}]);
-  const app=await buildApp({cwd,env:{HOME:cwd},provider,agentHub:false,fixedConfig:{enabledPlugins:[],
+  const app=await buildApp({cwd,env:{HOME:cwd},provider,agentHub:false,fixedConfig:{enabledPlugins:controllerFixture?[controllerFixture.provider,controllerFixture.requester]:[],
+    ...(controllerFixture?{ui:{controllers:controllerFixture.selected}}:{}),
     agent:{tools:[],builtinTools:[],controlTools:[],skills:false,projectContext:false,fileReferences:false,verifyCompletion:false},compaction:{enabled:false}}});
   cleanup.push(()=>app.close());
   const layout=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'}],initial:['session']});cleanup.push(()=>layout.disconnect());
   const host=createOpenTuiHost(app,layout);cleanup.push(()=>host.close());await host.start();
-  const inputs:NativeInputMessage[]=[],held:NativeReceiptMessage[]=[];
+  const inputs:NativeInputMessage[]=[],held:NativeReceiptMessage[]=[],admissionTrace:unknown[]=[];
+  const rawFrames=()=>host.surfaces.snapshot().flatMap(source=>{const frame=source.snapshot().controller;return frame?[{
+    pane:source.id,id:frame.id,revision:frame.revision,inputRevision:frame.inputRevision,
+    name:frame.view.lines.find(line=>line.text.startsWith('Name: '))?.text,
+  }]:[];});
   let hold:(input:NativeInputMessage)=>boolean=()=>false;
   let client:ReturnType<typeof createNativePresentationClient>;
   const copy=(message:WireMessage)=>decodeLine(encodeMessage(message));
@@ -36,12 +47,14 @@ async function fixture(heldModel=false){
     if(host.core.getState()==='running'){host.core.interrupt();return 'handled';}return 'exit';
   }},message=>{
     const wire=copy(message);
+    if(selectedControllers&&(wire.type==='native-receipt'||wire.type==='native-state'))admissionTrace.push({stage:'host-send',
+      message:wire.type==='native-receipt'?wire:{type:wire.type,revision:wire.revision,surfaces:wire.state.surfaces.map(source=>({id:source.id,port:source.port,controller:source.snapshot.controller}))},raw:rawFrames()});
     if(wire.type==='native-receipt'&&hold(inputs.find(input=>input.id===wire.id)!)){held.push(wire);return;}
-    queueMicrotask(()=>client.receive(wire));
+    queueMicrotask(()=>{if(selectedControllers)admissionTrace.push({stage:'client-receive',type:wire.type,...(wire.type==='native-receipt'?{receipt:wire}:{}),raw:rawFrames()});client.receive(wire);});
   });cleanup.push(()=>broker.close());
   client=createNativePresentationClient(message=>{
     const wire=copy(message);if(wire.type==='native-input')inputs.push(wire);
-    queueMicrotask(()=>broker.receive(wire));
+    queueMicrotask(()=>{if(selectedControllers&&wire.type==='native-input')admissionTrace.push({stage:'host-receive',input:wire,raw:rawFrames()});broker.receive(wire);});
   });cleanup.push(()=>client.close());client.hello();broker.hello();await client.ready;
   const test=terminal.current=await createTestRenderer({width:100,height:36,exitOnCtrlC:false});cleanup.push(()=>test.dispose());
   const stop=new AbortController();let exited=false;
@@ -54,7 +67,12 @@ async function fixture(heldModel=false){
   const editor=()=>descendants(test.renderer.root).find(node=>node instanceof sdk.TextareaRenderable) as InstanceType<typeof sdk.TextareaRenderable>;
   const until=async(check:()=>boolean)=>vi.waitFor(async()=>{await test.flush({maxPasses:30});expect(check()).toBe(true);},{timeout:5000,interval:5});
   await until(()=>Boolean(editor()));
-  return{app,host,provider,layout,client,test,inputs,held,editor,until,running,exited:()=>exited,
+  if(selectedControllers&&process.env.OPENTUI_FORM_PROBE_OUTPUT)cleanup.push(async()=>{
+    const directory=process.env.OPENTUI_FORM_PROBE_OUTPUT!;await mkdir(directory,{recursive:true});
+    await writeFile(join(directory,'setup-final.json'),JSON.stringify({surfaces:host.surfaces.snapshot().map(source=>({id:source.id,state:source.snapshot()})),notice:host.session.snapshot().notice,
+      raw:rawFrames(),admission:admissionTrace,inputs,originalControllerTrace:await readFile(controllerFixture!.trace,'utf8'),frame:test.captureCharFrame()},null,2)+'\n');
+  });
+  return{app,host,provider,layout,client,test,inputs,held,editor,until,running,controllerFixture,admissionTrace,rawFrames,exited:()=>exited,
     holdWhen(predicate:typeof hold){hold=predicate;},
     release(){hold=()=>false;for(const receipt of held.splice(0))client.receive(receipt);},
     // One actual SDK parser packet, rather than separate synthetic key callbacks.
@@ -65,6 +83,42 @@ async function fixture(heldModel=false){
 // Native Node FFI is supported from Node 26; Node 22 still runs the pure runner
 // lifecycle and adapter tests without importing the SDK runtime.
 describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native production wire admission and resident input',()=>{
+  it('preserves selected-form paste after mouse press/release in one real parser packet',async()=>{
+    const f=await fixture(false,true);
+    void f.host.submit('/controller-probe form');
+    await f.until(()=>f.host.surfaces.snapshot().some(source=>source.snapshot().controller?.kind==='form'));
+    const form=f.host.surfaces.snapshot().find(source=>source.snapshot().controller?.kind==='form')!;
+    // Establish the unit seam's requested private window through the canonical
+    // layout source; the regression itself uses only the real parser packet.
+    f.layout.act({type:'focus',id:form.id});if(!f.layout.snapshot().fullscreen)f.layout.act({type:'zoom'});
+    await f.until(()=>f.test.captureCharFrame().includes('CUSTOM PRIVATE FORM')&&f.test.captureCharFrame().includes('Name: FORMvalue|'));
+    const trace=async()=>(await readFile(f.controllerFixture!.trace,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
+    const lease=(await trace()).findLast(row=>row.event==='created'&&row.kind==='form').id;
+    const lines=f.test.captureCharFrame().split('\n'),row=lines.findIndex(line=>line.includes('Name: ')),col=lines[row].indexOf('Name: ')+10;
+    const packet=`\x1b[<35;${col+1};${row+1}M\x1b[<0;${col+1};${row+1}M\x1b[<0;${col+1};${row+1}m\x1b[200~_P\x1b[201~`;
+    try{
+      f.packet(packet);
+      const pasteRejected=()=>{
+        const input=f.inputs.findLast(value=>value.operation.kind==='controller-input'&&value.operation.input.kind==='text'&&value.operation.input.paste===true);
+        return input&&f.admissionTrace.some(value=>{const row=value as{stage:string;message?:NativeReceiptMessage};return row.stage==='host-send'&&row.message?.id===input.id&&row.message.status==='rejected';});
+      };
+      // A concrete rejection is conclusive evidence; do not wait for a frame
+      // that this same paste can no longer produce.
+      await f.until(()=>Boolean(pasteRejected())||f.test.captureCharFrame().includes('Name: FORM_P|value'));
+      expect(f.test.captureCharFrame()).toContain('Name: FORM_P|value');
+      const calls=(await trace()).filter(entry=>entry.id===lease&&entry.event==='input');
+      expect(calls.filter(entry=>entry.input==='text'&&entry.paste&&entry.length===2)).toHaveLength(1);
+      expect(calls).toContainEqual(expect.objectContaining({input:'mouse',action:'press',row:3,col:10}));
+      expect(f.provider.requests).toEqual([]);
+    }finally{
+      if(process.env.OPENTUI_FORM_PROBE_OUTPUT){
+        const directory=process.env.OPENTUI_FORM_PROBE_OUTPUT;await mkdir(directory,{recursive:true});
+        await writeFile(join(directory,'diagnostics.json'),JSON.stringify({packet,lease,trace:await trace(),inputs:f.inputs,admission:f.admissionTrace,raw:f.rawFrames()},null,2)+'\n');
+        await writeFile(join(directory,'frame.txt'),f.test.captureCharFrame());
+      }
+    }
+  });
+
   it('preserves immediate Unicode paste after accepted Enter without awaiting a held Main, and awaits Ctrl+C decisions',async()=>{
     const f=await fixture(true);f.holdWhen(input=>input?.operation.kind==='submit');
     await f.test.mockInput.pasteBracketedText('TASK');await f.until(()=>f.editor().plainText==='TASK');

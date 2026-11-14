@@ -150,6 +150,56 @@ describe('native presentation client',()=>{
     expect(main.controllerInput?.('request-one',{kind:'text',text:'stale'},1)).toBeUndefined();t.client.close();
   });
 
+  it('retires absent controller/editor bookkeeping so a reintroduced frame starts with a fresh local ticket',async()=>{
+    const state=withController();state.sessions[0].snapshot.editor={...controller(),id:'editor-one',kind:'editor',available:true};
+    const t=transport({deferred:true,state}),main=t.client.sessions()[0];
+    expect(main.controllerInput?.('request-one',{kind:'text',text:'old question'},1)).toBe(1);
+    expect(main.editorInput?.('editor-one',{kind:'text',text:'old editor'},1)).toBe(1);
+    t.receipt(t.inputs[0].id,{ticket:11});t.receipt(t.inputs[1].id,{ticket:12});await tick();
+    const completed=structuredClone(state);completed.sessions[0].snapshot.controller!.inputRevision=11;completed.sessions[0].snapshot.editor!.inputRevision=12;t.publish(completed);
+    expect(main.snapshot().controller!.inputRevision).toBe(1);expect(main.snapshot().editor!.inputRevision).toBe(1);
+    const removed=structuredClone(completed);delete removed.sessions[0].snapshot.controller;delete removed.sessions[0].snapshot.editor;t.publish(removed);
+    t.publish(structuredClone(state));
+    expect(main.snapshot().controller!.inputRevision).toBe(0);expect(main.snapshot().editor!.inputRevision).toBe(0);
+    expect(main.controllerInput?.('request-one',{kind:'text',text:'fresh question'},1)).toBe(1);
+    expect(main.editorInput?.('editor-one',{kind:'text',text:'fresh editor'},1)).toBe(1);t.client.close();
+  });
+
+  it('keeps late admitted receipts detached from a retired surface frame and its same-ID successor',async()=>{
+    const state=initial();state.surfaces=[{port:'private-port',id:'private-request',methods:['controllerInput'],snapshot:{revision:1,title:'Private',controller:controller()}}];
+    const t=transport({deferred:true,state}),surface=t.client.surfaces.snapshot()[0];
+    expect(surface.controllerInput?.('request-one',{kind:'text',text:'retired'},1)).toBe(1);
+    const absent=structuredClone(state);delete absent.surfaces[0].snapshot.controller;t.publish(absent);t.publish(structuredClone(state));
+    expect(surface.controllerInput?.('request-one',{kind:'text',text:'successor'},1)).toBe(1);
+    const current=surface.snapshot();let changes=0;surface.subscribe(()=>changes++);
+    t.receipt(t.inputs[0].id,{ticket:0});await tick();
+    expect(surface.snapshot()).toBe(current);expect(surface.snapshot().controller!.inputRevision).toBe(0);expect(changes).toBe(0);
+    t.receipt(t.inputs[1].id,{ticket:20});await tick();
+    const completed=structuredClone(state);completed.surfaces[0].snapshot.controller!.inputRevision=20;t.publish(completed);
+    expect(surface.snapshot().controller!.inputRevision).toBe(1);expect(t.client.pending()).toBe(false);t.client.close();
+  });
+
+  it('retains hidden resident frame continuity across Main copy-port churn without treating visibility as retirement',async()=>{
+    const state=withController();state.sessions[0].snapshot.editor={...controller(),id:'editor-one',kind:'editor',available:true};
+    state.surfaces=[{port:'private-port',id:'private-request',methods:['controllerInput'],snapshot:{revision:1,title:'Private',controller:controller()}}];
+    const t=transport({deferred:true,state}),main=t.client.sessions()[0],surface=t.client.surfaces.snapshot()[0];
+    main.controllerInput?.('request-one',{kind:'text',text:'question'},1);main.editorInput?.('editor-one',{kind:'text',text:'editor'},1);
+    surface.controllerInput?.('request-one',{kind:'text',text:'private'},1);
+    t.receipt(t.inputs[0].id,{ticket:10});t.receipt(t.inputs[1].id,{ticket:20});t.receipt(t.inputs[2].id,{ticket:30});await tick();
+    const hidden=structuredClone(state);hidden.layout.frames=[];hidden.layout.workspace=9;
+    hidden.sessions[0].snapshot.controller!.inputRevision=10;hidden.sessions[0].snapshot.editor!.inputRevision=20;
+    hidden.surfaces[0].snapshot.controller!.inputRevision=30;t.publish(hidden);
+    expect(main.snapshot().controller!.inputRevision).toBe(1);expect(main.snapshot().editor!.inputRevision).toBe(1);
+    expect(surface.snapshot().controller!.inputRevision).toBe(1);
+    const copied=structuredClone(hidden);copied.sessions=[{...copied.sessions[0],port:'new-main-port'},
+      {...structuredClone(copied.sessions[0]),port:'copy-port',paneId:'window-1'}];
+    copied.windows=[{id:'session',label:'Main',session:'new-main-port'},{id:'window-1',label:'Main 1',session:'copy-port'}];t.publish(copied);
+    const current=t.client.sessions()[0];expect(main.isCurrent?.()).toBe(false);
+    expect(current.controllerInput?.('request-one',{kind:'text',text:'second question'},1)).toBe(2);
+    expect(current.editorInput?.('editor-one',{kind:'text',text:'second editor'},1)).toBe(2);
+    expect(surface.controllerInput?.('request-one',{kind:'text',text:'second private'},1)).toBe(2);t.client.close();
+  });
+
   it('retains surface/public ports, sends producer identities, and fences removed/old displayed callbacks',()=>{
     const state=initial();state.surfaces=[{port:'tools-port',id:'tools',methods:['answerInteraction','cancelInteraction','controllerInput'],snapshot:{revision:2,title:'Tools',view:{lines:[{text:'Action',action:'run'}]}}}];
     state.publicRender=[{port:'public-port',id:'session',revision:4,defaultView:{lines:[{text:'default'}]},override:{lines:[{text:'override',action:'extra'}]}}];

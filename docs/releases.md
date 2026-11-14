@@ -81,6 +81,12 @@ private-controller and editor scenarios through the shared PTY/browser bench. Th
 controller gate uses isolated explicit approval/question/form providers with a
 bounded loopback model; it does not select a custom editor, history or placement
 implementation. The matching source command is `npm run visual:opentui-controllers`.
+`npm run visual:opentui-child` adds delegated and managed agent requests in
+native and selected-controller compositions. Source CI and all four native jobs
+run the same CLI scenario against their actual runtime and retain its reports,
+private synthetic receipts, terminal input/output and screenshots on failure.
+It verifies source separation, exact decisions, Main draft ownership, selected
+producer registries and managed input across Main resume and shutdown.
 The additional `npm run visual:opentui-editor` gate selects a custom editor in
 two isolated compositions, covering F2/window ownership, real admission and
 recovery, Unicode checkpoints, canonical reload/resume and expired capabilities.

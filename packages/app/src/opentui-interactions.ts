@@ -11,7 +11,7 @@ import type {UiApprovalResult} from './controller-contracts.js';
 
 type ApprovalRequest = Parameters<NonNullable<AgentCoreOptions['onApproval']>>[0];
 type ApprovalResult = Awaited<ReturnType<NonNullable<AgentCoreOptions['onApproval']>>>;
-type ControllerEntry = {kind: 'controller'; requester?: string; controller?: ReturnType<typeof createOpenTuiController>; cancel(): void};
+type ControllerEntry = {kind: 'controller'; requester?: string; title?:string; controller?: ReturnType<typeof createOpenTuiController>; cancel(): void};
 type Entry = {requester?: string} & ({
   kind: 'approval'; view: ConversationApproval; approve(allow: boolean): void; cancel(): void;
 } | {
@@ -43,7 +43,7 @@ export function createInteractionInbox() {
   const queue: Entry[] = [];
   const listeners = new Set<() => void>();
   let closed = false;
-  let core: AgentCore | undefined;
+  let core: Pick<AgentCore,'host'> | undefined;
   let unbindForm: (() => void) | undefined;
   const changed = () => { for (const listener of listeners) listener(); };
   function remove(entry: Entry) {
@@ -66,7 +66,8 @@ export function createInteractionInbox() {
         signal?.removeEventListener('abort', abort);entry.controller?.close();remove(entry);
         if (value instanceof Error)reject(value);else resolve(value);
       };
-      const entry: ControllerEntry = {kind: 'controller', requester, cancel: () => finish(cancelled)};
+      const entry: ControllerEntry = {kind: 'controller', requester,
+        ...(kind==='form'?{title:(data as UiForm).title}:{}),cancel: () => finish(cancelled)};
       const abort = () => entry.cancel();
       signal?.addEventListener('abort', abort, {once: true});push(entry);
       if (signal?.aborted || closed) {abort();return;}
@@ -95,6 +96,7 @@ export function createInteractionInbox() {
     interactionSnapshot: () => !closed && queue[0]?.kind === 'interaction' ? queue[0].view : undefined,
     controllerSnapshot: () => !closed && queue[0]?.kind === 'controller' ? queue[0].controller?.snapshot() : undefined,
     requesterSnapshot: () => !closed ? queue[0]?.requester : undefined,
+    requestTitleSnapshot: () => !closed&&queue[0]?.kind==='controller'?queue[0].title:undefined,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     ask(request: ApprovalRequest, requester?: string): Promise<ApprovalResult> {
       if (closed || request.signal?.aborted) return Promise.resolve(false);
@@ -225,7 +227,7 @@ export function createInteractionInbox() {
       const first = queue[0];
       if (!closed && first?.kind === 'controller' && first.controller?.snapshot()?.id === id)first.cancel();
     },
-    bind(owner: AgentCore, options: {forms?: boolean} = {}) {
+    bind(owner: Pick<AgentCore,'host'>, options: {forms?: boolean} = {}) {
       if (closed || (core && core !== owner)) throw Error('Interaction inbox already bound or closed');
       if (core) return;
       core = owner;

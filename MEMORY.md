@@ -1,5 +1,44 @@
 # Project memory
 
+## Restart completion receipt acceptance in progress — 2026-11-15
+
+The previous status turn confirmed focused source/archive navigation9; goal work
+now committed and pushed the complete-frame bench repair as1ff271a. Its shipping
+inputs remain the original727/c732e028 and the same23315fd3 archive is installed.
+Fresh metadata-only bindings under dist/opentui-navigation-committed-* explicitly
+inherit the original95 and supplement it with the separately executed navigation9;
+no full95 rerun or rebuild is claimed. Docs and syntax/diff checks pass.
+
+The older3281 build-only run43616152753 is terminal success on all four native
+platforms, with352 actual OpenTUI checks,32 installed smokes and80 PTY receipts
+audited from digest-verified ZIPs. Its global qualification remains failed due
+to the preserved original Node26 source CI failure. Fresh1ff docs/preparation
+pass and build-only release43618662809 remains live. Source CI43618646541 passes
+Node22 but fails Node26 after6/9 navigation checks: the pointer repair passes.
+The checker reads startup-trace once after observing generation3's ready file,
+before the awaited SDK set returns and appends ready:done. Its actual retained
+trace has ready:write at1794675777173 and ready:done/finished at1794675777201,
+no faults and aborted:false. Exact ZIP/trace hashes and diagnosis are retained in
+dist/opentui-child-remote-1ff271a/ci-node26-failure. Do not reclassify that run.
+
+The next narrow bench repair observes that exact completed start3 phase using
+the existing20s bound and original oracle; it does not accept a partial JSONL
+line. Fresh source and exact sealed-archive navigation each pass all nine checks
+with PTYs 0/errors[], all three completed startup phases and no faults. Root
+visually inspected the archived restored-retile and final-restored-Main PNGs:
+the exact keyboard topology and Production answer remain. These supplemental
+runs are retained under dist/opentui-navigation-startup-ack-{source,native}-20261115.
+The same original95 runtime proof remains inherited rather than rerun.
+
+Native physical capture feasibility is now proven in isolated Alacritty/Ptyxis:
+real TTY/protocol replies, two PID-owned native PNGs inspected and clean process/
+termios restoration. Neither configuration negotiated Kitty or advertised SIXEL;
+this does not prove physical images. The official Kitty0.50.0 archive is now
+isolated under ~/.cache/agent-compositor-tools, its actual GitHub asset digest
+f04b1177 verified; no global PATH or user configuration changed. Actual Ghost
+idle/thinking verification and retained installed-CLI useful-plugin authoring
+tooling are in progress. No new paid calls or budget changes occurred.
+
 ## Complete-frame navigation acceptance in progress — 2026-11-15
 
 The full 1.0 goal remains active. The delegated/managed request implementation is

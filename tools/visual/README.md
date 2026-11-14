@@ -184,6 +184,10 @@ following legacy function-key sequence even if the parser's timer is delayed;
 it does not resend the query or retry a failed selection. Navigation's fixture
 declares the same explicit lifecycle budget for startup and reload, and records
 each awaited startup publication and final ready write for failure diagnosis.
+After restart, the checker observes the exact completed startup phase as well
+as the ready file: file visibility can precede the awaited SDK call's return and
+its completion receipt. The same bounded wait applies; incomplete final JSONL
+records cannot acknowledge completion.
 Navigation body clicks also require the full normal two-row footer and the
 intended focused pane before measuring physical cells. A completed terminal
 write can precede final reopened-pane geometry. The helper resets its three

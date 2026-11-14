@@ -555,8 +555,13 @@ try{
   const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');
   await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0&&visual.text().includes('Main'),generation);
   await observe(()=>json(launch.navigation.ready),value=>value.generation===3,'Restart must load the same plugin state');await main();
-  const startupRows=(await readFile(launch.navigation.startupTrace,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
-  assert.ok(startupRows.some(row=>row.kind==='start'&&row.generation===3&&row.phase==='ready:done'),'The actual restart lifecycle must complete its final ready write');
+  // The ready file can be visible before the awaited SDK call returns and
+  // appends its completion receipt. Observe that exact later phase as well.
+  await observe(async()=>{
+    const text=await readFile(launch.navigation.startupTrace,'utf8');
+    return text.slice(0,text.lastIndexOf('\n')+1).split('\n').filter(Boolean).map(JSON.parse);
+  },rows=>rows.some(row=>row.event==='phase'&&row.kind==='start'&&row.generation===3&&row.phase==='ready:done'),
+  'The actual restart lifecycle must complete its final ready write');
   const restored=await observe(layout,value=>JSON.stringify(value.windows)===JSON.stringify(beforeRestart.windows),'Restart must restore the exact nested tree, ratio, focus,workspace and closed windows');
   assert.deepEqual(retileTree(restored),retileExpected,'The keyboard-created topology and untouched .70 ratio must survive the real CLI restart');
   assert.equal(location(restored,'plugin-navigation-probe-fast'),undefined);assert.deepEqual(await sessionFiles(),originalJournal);

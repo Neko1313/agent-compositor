@@ -7,59 +7,46 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
-The full 1.0 objective remains active. The preceding native protocol revision
-`57cb73a` passes
-source CI, documentation and release preparation. Its build-only release
-43602516244 fails the four-platform gate: Linux x64 passes all 78 OpenTUI checks;
-Linux ARM loses selected-form paste, macOS ARM fails a second Finder transition,
-and macOS Intel reaches generation 3 without completing the startup ready write.
-The downloaded artifacts preserve 150 of 312 expected OpenTUI reports and all
-32 installed-runtime smoke reports. These failures remain failures.
+OpenTUI runs the configured application through `--renderer opentui`; Ink remains
+the default. Revision `3281bda` adds private delegated and managed agent request
+windows, genuine producer/controller ownership and source-Core lifetimes.
+Independent managed requests survive Main resume; expired Main descendants are
+revoked. These behaviors pass ten actual-CLI checks, including selected-controller
+leases, privacy, exact effects and managed archive/shutdown.
 
-Revision `3281bda` repairs the exact selected-controller paste admission race while
-retaining strict painted-revision checks for mouse/actions. The shared Finder
-helper waits for observed normal-mode output before its next F2; navigation
-declares an explicit startup lifecycle budget and retains awaited phase receipts.
-Source controller, request and navigation scenarios pass independently. Its
-immutable archive and current exact-head matrix are recorded below.
+The sealed Linux archive passes 95 native checks in fourteen runners and twenty-two
+PTYs, eight canonical installed-runtime smokes and independent source, shipping-byte,
+receipt and visual reviews. All 5879 shipping entries match the relocated archive.
+Final standalone coverage passes 2328 tests with three optional skips in 257 files;
+types, documentation and all 32 PR plugin certificates pass. The earlier local
+installer extraction failure from a full memory-backed temporary directory is
+preserved; the unchanged payload passes using disk temporary storage.
 
-Revision `3281bda` gives ordinary delegated and persistent managed agents
-distinct private request windows, actual producer registries and Core-owned
-lifetime/provenance. Managed input must survive Main resume and use committed
-replacement channels, while stale Main descendants are revoked. Native and
-selected CLI acceptance passes ten checks with both PTYs and servers exiting 0,
-exact answers/effects, managed archive/shutdown, privacy and 25 original selected
-leases disposed once. Twelve current PNGs were inspected and raw evidence hashes
-verified. The run exposed and fixed stale agent-hub UI capabilities during
-archive; real service middleware budgets and caller-specific publication preserve
-focus and passive repaint. A separate real Core symlink probe corrects expected
-effect paths for platform aliases while retaining full exact-path comparisons.
-Final standalone coverage passes 2328 tests with three optional skips in 257
-files. The sealed Linux archive also passes all 95 native checks in fourteen
-runners and twenty-two PTYs, canonical installed-runtime smoke and independent
-source/payload/receipt/visual review. All 5879 shipping entries match the relocated
-archive. An initial installer extraction exhausted the local memory-backed
-temporary directory; its failed evidence is retained, and the unchanged payload
-passes the canonical smoke using disk temporary storage.
+The exact `3281bda` build-only release 43616152753 succeeds on all four platforms.
+Its downloaded, digest-verified artifacts contain all 352 OpenTUI checks,
+32 installed-runtime smokes and 80 successful PTY receipts. Global qualification
+still fails because its Node 26 source CI clicked transient reopened-pane geometry.
+The subsequent bench-only `1ff271a` requires the complete normal footer, focused
+owner and stable full-frame geometry before its single click. Its fresh source
+CI passes the pointer scenario but fails a later one-shot startup-trace read after
+six of nine navigation checks: the ready file is visible before the awaited SDK
+call returns and appends its completion receipt. The preserved final trace proves
+that exact phase completed without a fault. Documentation and plugin preparation
+pass; its build-only four-platform release 43618662809 remains live.
 
-The exact `3281bda` build-only release 43616152753 is still running. Both Linux
-platforms and macOS ARM pass with 88 OpenTUI checks and eight installed-runtime
-smokes each, verified in their actual downloaded artifacts. macOS Intel remains
-live. Source CI passes Node 22 but fails Node 26 navigation
-after one check. Preserved terminal replay shows that the old click helper accepts
-a transient reopened-pane frame before its final two-row footer changes the
-button's row. The evidence does not identify the exact input admission branch
-or prove that the selected answer was lost.
+The current narrow bench repair observes the exact completed startup phase using
+the existing 20-second bound and original oracle. Fresh source and sealed-archive
+navigation each pass all nine checks, with the actual Production answer preserved
+through close/reopen and restart. The runtime inputs, executable and renderer are
+unchanged. A fresh exact-head CI/platform qualification is still required; neither
+failed source CI is retroactively passed.
 
-The corrected helper requires the complete normal footer, focused owner and
-stable full-frame geometry before its single click. All nine business oracles,
-including the actual model-received Production answer, pass in fresh source and
-sealed-archive navigation runs. The executable and renderer remain unchanged.
-Fresh exact-head CI and four-platform verification are required after committing
-this bench-only repair; the original failures and original 95-check proof remain
-unaltered.
-This checkpoint does not close physical-terminal media, CPU-assisted
-onboarding, broad real-model development, sustained-session or trust gates.
+Actual isolated Alacritty/Ptyxis probes establish genuine terminal replies,
+PID-owned native screenshot capture and clean TTY/process restoration. Neither
+configuration negotiates Kitty graphics or advertises SIXEL. Original-character
+playback in an isolated graphics terminal is in progress; physical media, the
+default frontend switch, CPU-assisted onboarding, repeated realistic development,
+initial useful-plugin delivery, sustained sessions and trust remain open gates.
 
 ## Plugin development and interface usability
 

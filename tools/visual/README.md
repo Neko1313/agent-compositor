@@ -51,6 +51,13 @@ Artifacts default to `dist/visual-opentui-managers/`; inspect the PNGs and repor
 Set `VISUAL_EXECUTABLE` to an executable inside a complete extracted archive for
 the same native check. The bench preserves `CI` and records native executable
 and renderer hashes.
+Before reopening Main's pending answer after manager navigation, the check waits
+for its focused native footer, draft and Edit answer button inside the same pane.
+The footer paints after the focus-dependent dock moves, so an early title update
+cannot admit coordinates from the previous unfocused layout. Mouse targets also
+wait outside synchronized output and retain the same completed-write count and
+pane text across the coordinate stability check; the real click and saved-answer
+assertion remain unchanged.
 
 `npm run visual:opentui-navigation` checks the actual configured OpenTUI shell's
 stable Arrange mode, private native finder, protected Main questions/approvals,

@@ -43,6 +43,7 @@ try{
   async function click(label,{top=false,pane,button=false,footer=false}={}){
     const attempt=++pointerAttempt;
     const point=await page.waitForFunction(({label,top,pane,button,footer,attempt})=>{
+      if(visual.terminal.modes.synchronizedOutputMode){delete window.__managerPointer;return;}
       const lines=visual.text().split('\n');let bounds;
       if(pane)for(const[y,line]of lines.entries()){
         const at=line.indexOf('─ '+pane+' ');if(at<0)continue;
@@ -57,7 +58,8 @@ try{
         const start=bounds?.x??0,end=bounds?bounds.right+1:line.length;
         const at=line.slice(start,end).indexOf(label);if(at<0)continue;
         const col=start+at+Math.min(1,label.length-1),rect=document.querySelector('.xterm-screen').getBoundingClientRect();
-        const signature=[row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height].join(':');
+        const painted=bounds?lines.slice(bounds.y,bounds.bottom+1).map(line=>line.slice(bounds.x,bounds.right+1)).join('\n'):lines.join('\n');
+        const signature=JSON.stringify([row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height,visual.frames,painted]);
         const previous=window.__managerPointer;
         if(previous?.attempt!==attempt||previous.signature!==signature){window.__managerPointer={attempt,signature,count:1};return;}
         if(++previous.count<3)return;
@@ -74,6 +76,17 @@ try{
   },label)).jsonValue();}
   const waitMain=value=>observe(()=>paneText('Main'),text=>text.replace(/[│┌┐└┘─]/g,' ').replace(/\s+/g,' ').includes(value),
     'Main must display '+value);
+  async function pendingMainDraft(){await page.waitForFunction(draft=>{
+    if(visual.terminal.modes.synchronizedOutputMode)return;
+    const lines=visual.text().split('\n');
+    for(const[y,line]of lines.entries()){
+      const at=line.indexOf('─ Main · focused ');if(at<0)continue;
+      const x=line.lastIndexOf('┌',at),right=line.indexOf('┐',at);if(x<0||right<0)continue;
+      const bottom=lines.findIndex((row,index)=>index>y&&row[x]==='└'&&row[right]==='┘');if(bottom<=y)continue;
+      const body=lines.slice(y+1,bottom).map(row=>row.slice(x+1,right)),footer=body.at(-1)??'';
+      return footer.includes('Alt+I answer or draft')&&footer.includes('Stop')&&body.some(row=>row.includes(draft))&&body.some(row=>row.includes('Edit answer'));
+    }
+  },draft);}
   async function formButton(title,label){await click(label,{pane:title,button:true});}
   async function capture(name){
     const attempts=[];
@@ -158,7 +171,7 @@ try{
   const enabled=await json(launch.managers.extensionState);assert.ok(enabled.enabled.includes(plugin));assert.ok(!enabled.disabled.includes(plugin));
   await unzoom();await click('Apply plugin changes');await waitMain('Plugin reload queued until current operations finish');
   assert.equal(await exists(launch.managers.receipt),false,'Queued reload must wait for the unresolved Main question');await noUnexpectedModelRequests(1);
-  await unzoom();await main();await wait(draft);await click('Edit answer');await wait('[x] Production');await click('Draft');
+  await unzoom();await main();await pendingMainDraft();await click('Edit answer',{pane:'Main'});await wait('[x] Production');await click('Draft');
   await capture('02-enabled-reload-pending');
   report.checks.push('Enable installed plugin opens the canonical extension management form; explicit Apply saves activation and queues reload without settling Main or executing the new plugin');
 

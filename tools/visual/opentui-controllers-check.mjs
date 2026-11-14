@@ -37,7 +37,12 @@ try{
   async function type(value){await page.keyboard.type(value);await wait(value);}
   // This sends a real terminal paste packet, never a controller or AppUI action.
   async function paste(value){await page.evaluate(data=>socket.send(JSON.stringify({type:'input',data})), '\x1b[200~'+value+'\x1b[201~');}
-  async function main(){await key('Alt+0');await wait('─ Main · focused');}
+  async function normal(main=false){await page.waitForFunction(main=>{
+    const terminal=visual.terminal,text=visual.text(),toolbar=terminal.buffer.active.getLine(terminal.buffer.active.viewportY+1)?.translateToString(true)??'';
+    return terminal.modes?.synchronizedOutputMode!==true&&toolbar.includes('Alt+W Arrange')
+      &&!text.includes('WINDOW MODE')&&!text.includes('windows · ↑↓ select · Enter open')&&(!main||text.includes('─ Main · focused'));
+  },main);}
+  async function main(){await key('Alt+0');await normal(true);}
   async function command(value){await main();await key('End');await key('Control+u');await type(value);await key('Enter');}
   const finderMarker='windows · ↑↓ select · Enter open';
   async function finderState(value,count,selected=false){const handle=await page.waitForFunction(({value,count,selected})=>{
@@ -69,7 +74,7 @@ try{
   }
   async function setZoom(enabled){await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
-    await wait('WINDOW MODE · '+(enabled?'Zoomed':'Tiled'));await key('Escape');await absent('WINDOW MODE');
+    await wait('WINDOW MODE · '+(enabled?'Zoomed':'Tiled'));await key('Escape');await normal();
   }
   let pointerAttempt=0;
   async function click(label,index=1){const attempt=++pointerAttempt;
@@ -130,7 +135,16 @@ try{
   const args=launch.launches[0].command.slice(-4);assert.deepEqual(args.slice(0,3),['--renderer','opentui','--cwd']);assert.equal(await realpath(args[3]),await realpath(launch.cwd));
   if(launch.executable){assert.equal(hash(await readFile(launch.executable)),launch.sha256);report.executable={path:launch.executable,sha256:launch.sha256};
     const renderer=join(dirname(launch.executable),'node_modules/@agent-compositor/renderer-opentui/index.js');report.renderer={path:renderer,sha256:hash(await readFile(renderer))};}
-  await page.evaluate(()=>visual.terminal.resize(180,50));await main();await setZoom(true);await command('APP_QUESTION');await wait('Main · Question');await wait('Alt+I answer');
+  await page.evaluate(()=>visual.terminal.resize(180,50));
+  // The client resizes before the app paints its new geometry. A blank partial
+  // resize frame is neither a native size acknowledgement nor a mode exit.
+  await page.waitForFunction(()=>{
+    const terminal=visual.terminal,buffer=terminal.buffer.active;
+    return terminal.cols===180&&terminal.rows===50&&terminal.modes?.synchronizedOutputMode!==true
+      &&buffer.getLine(buffer.viewportY+3)?.getCell(179)?.getChars()==='┐'
+      &&buffer.getLine(buffer.viewportY+48)?.getCell(179)?.getChars()==='┘';
+  });
+  await main();await setZoom(true);await command('APP_QUESTION');await wait('Main · Question');await wait('Alt+I answer');
   await type(draft);await key('Home');await key('ArrowRight');await key('F4');await noModelWork();
   await key('Alt+i');await wait('CUSTOM QUESTION');const mainController=await created('MAIN_QUESTION: choose deployment');
   await key('Home');await key('ArrowRight');await type('M');await wait('Value: QM|value');report.richCells=await richCells();

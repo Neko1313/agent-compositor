@@ -1,5 +1,44 @@
 # Project memory
 
+## Native frame acknowledgements in visual checks — 2026-11-14
+
+The ee54aa4 Node 22/26 CI, docs and plugin release preparation pass. Build-only
+run 43545716275 passes verification plus Linux ARM64 and macOS ARM64, but exposes
+two other timing failures. The old runs remain failed; no runtime code changes.
+
+Linux x64's controller check never submits APP_QUESTION: every recorded character
+arrives while Arrange remains active. Eight complete ANSI frames match all 50
+failure rows; none after Escape is normal. An absence-only WINDOW MODE wait had
+admitted a partial/cleared resize frame. The script now waits for the application's
+actual 180x50 corner geometry before mode input, and for positive normal toolbar,
+closed synchronized output and focused Main before typing. Same keys and timeout,
+no typing retries or arbitrary sleeps. Evidence:
+dist/remote-selected-linux-x64-43545716275/opentui-controllers-linux-x64.
+Parser interpretation of the six-millisecond Escape/Alt+0 gap is unproven.
+
+macOS Intel's unchanged managers check clicks Edit answer at its previous row 41;
+the focused dock paints it at row 40. ANSI frame 117 paints Main's focused title
+early, then moves the dock and writes its focused footer later in that frame.
+There are no output timestamps to prove exact packet/frame ordering or an SDK
+hit-test failure. The check now requires the focused Main footer, draft and button
+inside one pane before the same real click; pointer targets exclude synchronized
+output and retain frame count, pane text and coordinates across stability samples.
+The Production assertion and mouse path remain. Evidence:
+dist/remote-selected-darwin-x64-43545716275/opentui-managers-darwin-x64.
+
+Affected immutable-native checks pass: controller six in
+dist/opentui-selected-controllers-mode-ack-native and managers five in
+dist/opentui-selected-managers-focus-ack-native, both errors:[]/PTY exit 0 on the
+same bd95568f/d0c79ae7 bundle. Critical captures and both diffs were independently
+reviewed. No product, timeout, permission, acceptance or effect oracle changes.
+A new-head four-platform run is required. Bundled inputs, installed executable,
+1990-test baseline and other 41-case native evidence are unchanged.
+
+Keep shared atomic terminal snapshots as a separate bench infrastructure audit:
+caching text alone would mix old text with live cells/styles/geometry and needs
+explicit resize, reset and graphics semantics. Do not silently change visual.text
+while repairing these measured per-scenario acknowledgements.
+
 ## Controller bench late Finder selection — 2026-11-14
 
 The eb18d77 main CI (Node 22.19/26), docs and plugin release preparation pass.

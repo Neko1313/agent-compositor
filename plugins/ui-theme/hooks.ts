@@ -5,7 +5,7 @@ const FILE = ".agent-compositor/theme.json";
 const themes: Record<string, UiAppearance | null> = {
   slate: null,
   amber: {
-    colors: { accent: "#e5bd85", titleBackground: "#30291f", selectionBackground: "#4a3b28" },
+    colors: { accent: "#e5bd85", titleBackground: "#30291f", selectionBackground: "#4a3b28", selectionText: "#f3f7fa" },
     chrome: { borderStyle: "round" },
   },
   mono: {

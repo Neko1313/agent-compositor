@@ -158,6 +158,16 @@ jobs:
           trap 'rm -rf "$OPENTUI_INSTALL_DIR"' EXIT
           tar -xzf "dist/release/compositor-${{ matrix.platform }}.tar.gz" -C "$OPENTUI_INSTALL_DIR"
           VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" npm run visual:opentui-editor
+      - name: Check relocated native selected history and placement windows
+        timeout-minutes: 7
+        shell: bash
+        env:
+          VISUAL_OUTPUT: dist/release/opentui-workspace-controllers-${{ matrix.platform }}
+        run: |
+          OPENTUI_INSTALL_DIR="$(mktemp -d "$RUNNER_TEMP/opentui-native.XXXXXX")"
+          trap 'rm -rf "$OPENTUI_INSTALL_DIR"' EXIT
+          tar -xzf "dist/release/compositor-${{ matrix.platform }}.tar.gz" -C "$OPENTUI_INSTALL_DIR"
+          VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" npm run visual:opentui-workspace-controllers
       - name: Preserve installed-runtime evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -172,6 +182,7 @@ jobs:
             dist/release/opentui-requests-${{ matrix.platform }}/
             dist/release/opentui-controllers-${{ matrix.platform }}/
             dist/release/opentui-editor-${{ matrix.platform }}/
+            dist/release/opentui-workspace-controllers-${{ matrix.platform }}/
           if-no-files-found: warn
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

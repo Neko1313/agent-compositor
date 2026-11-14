@@ -449,8 +449,22 @@ old leases cannot submit to the replacement Core. This closes the selected
 editor implementation gate; actual source/native verification is recorded with
 the milestone evidence rather than inferred from host tests.
 
-Remaining frontend gates include selected history/placement controllers,
-full appearance/render overrides, legacy
+Selected history and placement implementations now use app-private windows.
+Canonical browse commands use the UI command route while Main is busy. History
+retains its semantic inputs, private forms, normal session service interception
+and selected repository; every input has fresh foreground provenance. Placement
+uses guarded windows/anchors/apply capabilities with target revalidation after
+save. Hidden state, cancellation and old-generation revocation are explicit.
+The eight-flow actual-CLI scenario passes from source and a relocated Linux
+native archive, including exact repository metadata, intercepted service calls,
+private results, restored context and saved layout. The same candidate also
+passes all 47 prior native checks. Real host regressions separately prove busy
+resume rejection, cancellation after Core preparation, same-owner closed-window
+and split-ratio retention, and current failure feedback after reload. New-head
+four-platform CI remains a required candidate gate; these local checks do not
+establish native terminal/protocol coverage or stable 1.0 readiness.
+
+Remaining frontend gates include full appearance/render overrides, legacy
 conversation copies, complete wire-protocol parity and exact delegated-child
 request attribution. Ordinary UI operations and retained plugin services now
 receive independent approval/question/questionnaire/form windows. Verification

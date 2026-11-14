@@ -210,7 +210,10 @@ focused Draft owns Main. Alt+W, then W, or the Windows button opens navigation;
 F2 Windows applies in Answer mode and other windows. Input shows Accepted or
 Queued only after host/Core ownership, and rejection restores the visible draft.
 Reload and session resume preserve its private UTF-16 checkpoint. Selected
-history and placement replacements remain unsupported in this frontend.
+history and placement controllers also open private independent windows.
+History browsing runs while Main waits; mutations/resume retain normal readiness
+checks. Arrange close hides their state, while Ctrl+C closes/cancels the selected
+controller. Their old capabilities expire on unload, reload and session changes.
 Ctrl+C in an immediate-command window cancels that command and its foreground
 tools or auxiliary model call, preserving Main and neighboring command windows.
 Explicit background work keeps its own lifetime; closing a window hides it.

@@ -1,5 +1,101 @@
 # Project memory
 
+## Selected history and placement window implementation — 2026-11-14
+
+Continue toward the complete 1.0 scope; the previous editor turn was progress.
+The current checkout starts at c5e29ba with a clean tree. Revalidated build-only
+43554752383 against that exact SHA: success, verification and all four native
+platforms pass, publication skipped. CI 43554740165, docs 43554740087 and plugin
+preparation 43554740079 also passed; the retained verification record is
+dist/opentui-selected-editor-verification.json. This closes the older pending
+editor-head audit without relabeling failed 43554289536.
+
+Selected history now uses a per-Core app-private presenter from the canonical
+session contribution. Only validated window frames/cells and receipts reach
+OpenTUI. Raw factory data, leases and capability functions do not. Named keys
+map to the existing history semantic action contract; declared native query
+fields keep their own IDs. Raw text/mouse history parity is not claimed.
+Deliberate control calls preserve the canonical session service chain and its
+necessary search/name payloads. Private frames, input and form results gain no
+unrelated UI catalog broadcast and stay out of model/session messages.
+
+History and placement inputs receive their own serialized foreground operation,
+wait abortably for a same-window predecessor and an available UI slot, and hold
+no slot for the idle view. HooksHost.withPrivateUiInput builds fresh trusted,
+instance-bound APIs outside retained service scope. Input-local async state
+keeps old/new API origins separate. Native/Ink controls-ready guards and ordinary
+service/repository interception remain authoritative.
+
+Canonical session commands use the existing UI command parser/route, rather
+than a Core immediate command that would deadlock closing its own session.
+Browse metadata is limited to /history, /sessions and /resume; explicit disk
+command owners stay authoritative. Browsing creates no empty conversation
+journal and works during a Main question. Other session commands need no new
+mandatory view. Core command registration/readiness were not relaxed.
+
+Placement has its own capability-bearing adapter. Windows/anchors are detached
+reads; apply requires the exact active input scope. Declarations, target and
+neighbor are checked before save; the same target/operation are rechecked after
+save before geometry or focus changes. An already-started write may persist
+after cancellation, without authorizing a stale move. Legacy placement mouse
+origin is row 2, column 1; validated local raw coordinates are translated once.
+Hide retains the lease, while Ctrl+C closes/cancels it. Old generation/provider
+capabilities cannot act after unload or replacement.
+
+Real host regressions reproduced two resume defects: closing the private view
+before a denied resume hid the error, and cancellation during replacement
+preparation could still commit it. Private history now stays visible until host
+commit; a live failure retains the same lease with a constant notice. The host
+checks current Core, lifetime, caller operation, readiness and newer work again
+after preparation; a revoked prepared Core is closed. Successful resume keeps
+input-time focus intent, including navigation before the handler returns.
+
+Focused history/Hooks/legacy tests pass 37 and placement tests pass 20, including
+actual host integration and cancellation at effect boundaries. Initial standalone
+coverage passed 2063 tests/three optional skips/226 files before the last three
+resume regressions. Final full/native gates remain required.
+The new actual-app workspace-controller scenario has eight flows. Its first
+failure was a full-body text oracle on a wrapped 40-column Main card; explicit
+Main zoom establishes that presentation precondition before later tiled checks.
+The second exposed a real 38-column Zoomed chrome defect: the long legend wrapped
+the footer and shrank the workspace prefix. Fixed one-row footer/status and the
+three-cell prefix/targets, keeping the original geometry oracle. Preserved
+evidence: dist/opentui-workspace-controllers-source-{first,resume-fixed}.
+
+Final regression work also reproduced and fixed same-owner semantic windows
+being forgotten during resume (moved Alpha reset to WS1, closed Beta reopened,
+manual split geometry lost). The host now detaches retained semantic identities
+only when the new Core still has their owner, and rebinds fresh content sources;
+transient private windows are disposed. A real host test compares exact canonical
+windows/tree/ratios. Another RED showed a stale local Reloaded notice masking the
+selected history factory error. A newly admitted UI operation now clears the
+old local notice after all refusal guards, so the current constant error is shown.
+
+The remaining narrow Finder failure was a wide one-line marker assumption;
+the narrow check now requires a completed native title/query/footer frame without
+weakening key/cursor/geometry checks. A final Plugins/Plugins-placement query
+collision adds an optional exact expected label to the shared Finder helper;
+default behavior for all existing clients is unchanged. The eight-flow source
+gate passes in dist/opentui-workspace-controllers-source-notice-fixed, PTY 0,
+errors:[], ten inspected stable PNGs. All preserved earlier failures stay failed.
+
+Final standalone coverage passes 2068 tests, three optional skips, 226 files.
+Full typecheck, generation and 106-page docs:check/build pass. Native build and
+release smoke pass. All 55 relocated native cases pass in
+dist/opentui-workspace-current-native-{workspace,editor,app,navigation,managers,
+cancellation,requests,controllers,ink}; the counts are 8/6/6/8/5/3/6/6/7,
+all errors:[] and process exit 0. The immutable artifact record is
+dist/opentui-workspace-controllers-artifact.json: executable
+133b44623357ae1506dc79816b6cdc0ca37eb4af69af1d4e06405e5c294d9b05,
+renderer 34ac4ba5c1d56c8bc1460fe97162aabf340b4b5d50a9b44192d27fbb481a1bd0,
+archive e6185649d02876c03dbf7b638b279597b3885b6f7be263a2fa86fec11ef0856a.
+The archive is retained under its full hash in dist/workspace-controller-artifacts
+rather than only the next build's mutable release path. New-head remote CI and
+four-platform native proof are still required. No live/paid model was used for
+this milestone. Ink/default migration, full appearance/wire parity, legacy
+conversation copies, exact delegated-child attribution and broader 1.0
+onboarding/development/model-quality requirements remain open.
+
 ## Editor admission completion acknowledgement — 2026-11-14
 
 The 1a7e5c9 editor build is installed locally and its 47 controlled native checks

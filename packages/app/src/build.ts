@@ -14,7 +14,7 @@ import { authentication } from "./auth.js";
 import { agentManager } from "./agents.js";
 import { quotaReader } from "./quota.js";
 import {setupGuide} from './setup.js';
-import { installSessionServices, sessionControls } from "./sessions.js";
+import { installSessionServices, sessionControls, sessionCommandNames, type SessionHistoryPresenter } from "./sessions.js";
 import { approvalStore } from "./approval-store.js";
 import { realpathSync } from "node:fs";
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
@@ -89,6 +89,7 @@ export interface BuiltApp {
     >[number]
   ) => Promise<string>;
   commands: () => AppCommand[];
+  bindHistoryPresenter: (core: AgentCore, presenter: SessionHistoryPresenter) => () => void;
   reloadPlugins: (core: AgentCore) => Promise<string>;
   loadLayout: () => Promise<unknown>;
   saveLayout: (layout: unknown) => Promise<void>;
@@ -688,20 +689,14 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               },
             ] as const
         ),
-        ...[
-          "/sessions",
-          "/history",
-          "/resume",
-          "/fork",
-          "/rename",
-          "/archive",
-          "/unarchive",
-        ].map(
+        ...sessionCommandNames.filter(name => !plugins.some(plugin => plugin.commands?.some(command => command.name === name))).map(
           (name) =>
             [
               name,
               {
                 name,
+                plugin: sessionPlugin.manifest.name,
+                ...(['/history', '/sessions', '/resume'].includes(name) ? {ui: {site: 'plugin-session-manager-sessions'}} : {}),
                 description: ["/history", "/sessions", "/resume"].includes(name) ? "Search and resume saved chats" : "Manage saved sessions",
                 usage: `${name} [name, id or search]`,
               },
@@ -785,6 +780,11 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     createCore,
     reloadPlugins,
     commands,
+    bindHistoryPresenter: (core, presenter) => {
+      const history = sessionPlugins.get(core);
+      if (!history || !core.host.hasPlugin('session-manager', 'trusted'))throw new Error('History is unavailable for this session');
+      return history.bindPresenter(presenter);
+    },
     shouldOfferSetup:async()=>!options.resumeSessionId&&resumedEvents.length===0&&hostEnabled(setup.plugin.manifest.name)&&await setup.shouldOffer(),
     savePlacement,
   };

@@ -133,8 +133,31 @@ captured before disposal; serialized input waits for Core ownership rather than
 model completion. Rejected ownership restores the visible draft before later
 queued input; an accepted turn failure never restores it. Lifetime-guarded
 capabilities and captured input-time navigation intent survive neither a Core
-replacement nor a revoked lease. History and placement replacement remain
-separate frontend gates.
+replacement nor a revoked lease.
+
+Selected history uses the per-Core session contribution's app-private presenter;
+it does not serialize a lease, callable data or private frame into the catalog.
+`HooksHost.withPrivateUiInput(owner, signal, run)` admits a loaded trusted owner
+with fresh foreground capabilities and actual invocation origin, outside any
+retained service scope. There is no catalog hook to continue. Input-local async
+storage keeps overlapping old/new APIs distinct, and normal session control
+services and the selected repository remain authoritative. Canonical browse
+commands use the existing UI command route instead of borrowing a model turn.
+
+Placement has a separate capability-bearing adapter over current plugin windows
+and anchors. Both private window adapters serialize inputs, wait abortably for
+the preceding same-window operation and one of four UI slots, and release the
+slot after each input. Hidden windows keep their leases. Host cancellation,
+unload and Core replacement revoke pending work. Actual render bounds and
+completed input receipts protect resident native fields during async updates.
+Resume captures input-time navigation intent; placement checks target/neighbor
+identity again after persistence before applying geometry or requesting focus.
+Session preparation rechecks Core identity, lifetime, caller operation and
+readiness before committing. A cancelled prepared Core is closed without
+replacing the current session; a failed private resume retains its history view.
+Semantic plugin windows whose owner exists in the new Core are detached and
+rebound to fresh content sources, preserving the workspace's canonical tree,
+closed identities and split ratios. Transient requests/controllers are disposed.
 
 Each admitted editor input marks fresh user intent before its asynchronous
 handler runs. Two UI commands therefore cannot share an old continuation's focus

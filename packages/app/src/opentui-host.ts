@@ -13,6 +13,10 @@ import type {DynamicWindowLayout} from './opentui-windows.js';
 import {createOpenTuiEditor} from './opentui-editor.js';
 import {referenceFiles} from './project-context.js';
 import type {UiEditorIntent, UiEditorState} from '@agent-compositor/hooks';
+import {sessionCommandNames,type SessionHistoryBinding} from './sessions.js';
+import {createOpenTuiHistoryController} from './opentui-history-controller.js';
+import {createOpenTuiPlacementController} from './opentui-placement-controller.js';
+import type {PluginWindow} from './plugin-panel.js';
 
 export {connectConversation, connectPluginTable} from './opentui-conversation.js';
 
@@ -115,6 +119,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const sessionListeners = new Set<() => void>();
   const context = new AsyncLocalStorage<Operation>();
   const operations = new Map<string, Operation>();
+  const operationWaiters = new Set<() => void>();
+  const privateWindows = new Map<Surface,{close():void}>();
   const changes = new Map<Surface, {field: string; value: string}>();
   let active = true, started = false, switching = false, pendingReload = false, reloading = false;
   let reloadPromise: Promise<boolean> | undefined;
@@ -128,6 +134,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   let offCore: (() => void) | undefined, offConversation: (() => void) | undefined, offForm: (() => void) | undefined;
   let offOrigin: (() => void) | undefined;
   let offLayout: (() => void) | undefined;
+  let offHistory: (() => void) | undefined;
   let editor: ReturnType<typeof createOpenTuiEditor> | undefined, offEditor: (() => void) | undefined;
   let editorDraft: UiEditorState = {text: '', cursor: 0};
   const pending = new Set<Promise<unknown>>();
@@ -189,6 +196,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   function remove(surface: Surface, retain = false) {
     if (!surface.active) return;
     surface.active = false;
+    const controller=privateWindows.get(surface);privateWindows.delete(surface);controller?.close();
     changes.delete(surface);
     // A handler may remove its own view before resuming a chat or opening a form.
     // Its already-admitted operation keeps its independent lifetime.
@@ -221,11 +229,6 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const retryMessage = () => reloadFailed === 'startup'
     ? 'Session startup did not finish. Retry /reload before continuing.'
     : 'Plugin reload did not finish. Retry /reload before continuing.';
-  const native = (owner: AgentCore) => {
-    for (const kind of ['history', 'placement'] as const)
-      if (owner.host.controllers.selectedOwner(kind) !== '@host')
-        throw Error('Selected ' + kind + ' controllers are not supported by OpenTUI');
-  };
   function createSurface(id: string, owner: string, title: string): Surface {
     const surface: Surface = {
       owner, active: true, generation: ++sourceSerial, listeners: new Set(), state: immutable({revision: 0, title}),
@@ -320,6 +323,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     if (reloading) {notice('Plugin reload is applying. Try the action again when it finishes.'); return;}
     if (operations.size >= 4) {notice('Four interface operations are already active'); return;}
     if (navigationSignal?.aborted) return;
+    if(localNotice!==undefined){localNotice=undefined;changed();}
     const op: Operation = {id: randomUUID(), owner, site, core, controller: new AbortController(), active: true, kind, open,
       windowIntent, opened: new Set(), destinations: new Set(), navigationSignal};
     const abortNavigation = () => op.controller.abort();
@@ -340,6 +344,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         op.inbox?.close(); op.off?.();
         if (op.surface) remove(op.surface);
         drainChanges();
+        for(const wake of [...operationWaiters])wake();
         const current = source ?? op.published;
         if (op.core === core && current?.active && surfaceMap.get(current.source.id) === current && current.owner === op.owner)
           publish(current, {...current.state,
@@ -349,6 +354,116 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     op.done = task;
     track(task);
     return op;
+  }
+  async function controllerOperation(owner:string,surface:Surface,windowIntent:number,signal:AbortSignal,
+    run:(scope:{op:Operation;signal:AbortSignal;current():boolean})=>Promise<void>) {
+    const captured=core;
+    const available=()=>operations.size<4&&![...operations.values()].some(op=>op.site===surface.source.id);
+    while(active&&captured===core&&surface.active&&!signal.aborted){
+      if(reloading||reloadFailed)throw Error('Interface input is unavailable during reload');
+      if(available()){
+        let failed=false,failure:unknown;
+        const op=runOperation(owner,surface.source.id,async current=>{
+          // A controller may close its own view before an explicit resume. Its
+          // admitted operation remains live; an external close still cancels it.
+          const abort=()=>{if(context.getStore()!==current)current.controller.abort();};
+          signal.addEventListener('abort',abort,{once:true});
+          try{signal.throwIfAborted();await run({op:current,signal:current.controller.signal,current:()=>live(current)&&surface.active});}
+          catch(error){failed=true;failure=error;throw error;}
+          finally{signal.removeEventListener('abort',abort);}
+        },surface,'action',false,undefined,windowIntent);
+        if(op){await op.done;if(failed)throw failure;return;}
+      }
+      await new Promise<void>((resolve,reject)=>{
+        const cleanup=()=>{operationWaiters.delete(wake);signal.removeEventListener('abort',abort);};
+        const wake=()=>{cleanup();resolve();},abort=()=>{cleanup();reject(Error('Controller input cancelled'));};
+        operationWaiters.add(wake);signal.addEventListener('abort',abort,{once:true});
+        if(signal.aborted)abort();else if(available())wake();
+      });
+    }
+    throw Error('Controller input has expired');
+  }
+  function privateInputActive(surface:Surface,owner:AgentCore){
+    const state=layout.snapshot();
+    return active&&core===owner&&surface.active&&surfaceMap.get(surface.source.id)===surface
+      &&navigation?.snapshot().mode==='normal'&&!state.gesture&&state.focused===surface.source.id
+      &&state.frames.some(frame=>frame.surface===surface.source.id);
+  }
+  function openHistoryWindow(owner:AgentCore,binding:SessionHistoryBinding){
+    if(!active||core!==owner||binding.lease.signal.aborted)return;
+    const old=surfaceMap.get(binding.id);if(old)remove(old);
+    const surface=createSurface(binding.id,binding.owner,binding.title);surface.semantic='sessions';
+    let controller:ReturnType<typeof createOpenTuiHistoryController>|undefined;
+    const current=()=>active&&core===owner&&surface.active&&surfaceMap.get(binding.id)===surface;
+    const update=()=>{const frame=controller?.snapshot();if(current()&&frame)publish(surface,{title:binding.title,controller:frame,busy:surface.state.busy});};
+    controller=createOpenTuiHistoryController({binding,signal:channels!.generation.signal,current,changed:update,
+      captureIntent:()=>{layout.markWindowIntent();return layout.windowIntentRevision;},
+      inputScope:(intent,signal,run)=>controllerOperation(binding.owner,surface,intent,signal,
+        scope=>owner.host.withPrivateUiInput(binding.owner,scope.signal,run)),
+      failed:cancelled=>{if(surface.active)remove(surface);if(!cancelled&&active)notice('Selected history controller is unavailable');},
+    });
+    if(!surface.active||!controller.snapshot())return;
+    privateWindows.set(surface,{close:()=>controller!.close()});
+    surface.source.controllerInput=(id,input,revision)=>{
+      if(privateInputActive(surface,owner)&&controller!.snapshot()?.id===id)return controller!.input(input,revision);
+    };
+    surface.source.controllerViewport=(id,columns,rows)=>{if(current()&&controller!.snapshot()?.id===id)controller!.viewport(columns,rows);};
+    surface.source.cancelController=id=>{if(privateInputActive(surface,owner)&&controller!.snapshot()?.id===id)track(binding.close());};
+    historyBindings.set(binding,{surface,update:()=>controller!.update()});update();
+    const placement=resolvePlacement(placementConfig,binding.owner,'sessions',{site:'sidebar',size:.75,focus:true});surface.placement=placement;
+    const intent=publicationIntent(binding.owner,binding.id,context.getStore()),op=intent.op?.owner===binding.owner?intent.op:undefined;
+    const requested=!!(op?.open&&(op.site===binding.id||op.site.startsWith('command:')));
+    layout.register({id:binding.id,label:binding.title},{...placement,focus:intent.allowed&&placement.focus===true});
+    windowTitles.set(binding.id,{title:binding.title,owner:binding.owner});
+    if(op){
+      if(requested){op.open=false;op.site=binding.id;}
+      if(intent.allowed&&!op.opened.has(binding.id)&&(requested||placement.focus===true)){op.opened.add(binding.id);layout.actAutomatic({type:'open',id:binding.id});}
+      op.published=surface;destination(op,binding.id);
+    }
+    registryChanged();
+  }
+  const historyBindings=new Map<SessionHistoryBinding,{surface:Surface;update():void}>();
+  function placementWindows():PluginWindow[]{
+    return [...surfaceMap.values()].filter(surface=>surface.active&&surface.semantic&&(surface.state.view||surface.state.controller?.kind==='history'))
+      .map(surface=>({id:surface.source.id,plugin:surface.owner,surface:surface.semantic!,title:surface.state.title,
+        placement:{...resolvePlacement(placementConfig,surface.owner,surface.semantic!,surface.placement),
+          workspace:layout.snapshot().locations[surface.source.id]??surface.placement?.workspace??layout.snapshot().workspace}}));
+  }
+  function openPlacementWindow(op:Operation){
+    const id='host-placement',existing=surfaceMap.get(id);
+    if(existing?.active){if(mayFocus(op))layout.actAutomatic({type:'open',id});op.published=existing;destination(op,id);return;}
+    const owner=op.core,surface=createSurface(id,'@host','Plugins · placement');
+    let controller:ReturnType<typeof createOpenTuiPlacementController<{op:Operation;signal:AbortSignal;current():boolean}>>|undefined;
+    const current=()=>active&&core===owner&&surface.active&&surfaceMap.get(id)===surface;
+    const update=()=>{const frame=controller?.snapshot();if(current()&&frame)publish(surface,{title:'Plugins · placement',controller:frame,busy:surface.state.busy});};
+    controller=createOpenTuiPlacementController<{op:Operation;signal:AbortSignal;current():boolean}>({registry:owner.host.controllers,id:randomUUID(),signal:channels!.generation.signal,current,changed:update,
+      captureIntent:()=>{layout.markWindowIntent();return layout.windowIntentRevision;},
+      inputScope:(intent,signal,run)=>controllerOperation('@host',surface,intent,signal,run),
+      windows:placementWindows,anchors:()=>['session',...placementWindows().map(window=>window.id)],
+      apply:async(scope,targetId,value,save=false)=>{
+        if(!scope.current()||!current())throw Error('Placement input has expired');
+        const target=surfaceMap.get(targetId),placement=surfacePlacementSchema.parse(value),neighbor=placement.relativeTo;
+        if(!target?.active||!target.semantic||!owner.host.hasPlugin(target.owner)||!placementWindows().some(window=>window.id===targetId))throw Error('Unknown plugin window');
+        if(neighbor&&(neighbor===targetId||neighbor!=='session'&&!placementWindows().some(window=>window.id===neighbor)))throw Error('Unknown neighboring window');
+        const semantic=target.semantic,rule={...placement,match:{plugin:target.owner,surface:semantic}};
+        if(save)await app.savePlacement(rule);
+        if(!scope.current()||!current()||surfaceMap.get(targetId)!==target||!target.active||target.semantic!==semantic||!owner.host.hasPlugin(target.owner))throw Error('Placement target has expired');
+        if(neighbor&&neighbor!=='session'&&!placementWindows().some(window=>window.id===neighbor))throw Error('Placement neighbor has expired');
+        placementConfig.rules=[...(placementConfig.rules??[]).filter(existing=>existing.match.plugin!==target.owner||existing.match.surface!==semantic),rule];
+        target.placement=placement;
+        layout.relocate(targetId,{...placement,focus:placement.focus===true&&scope.op.windowIntent===layout.windowIntentRevision});
+      },
+      closed:()=>remove(surface),failed:cancelled=>{if(surface.active)remove(surface);if(!cancelled&&active)notice('Selected placement controller is unavailable');},
+    });
+    if(!surface.active||!controller.snapshot())return;
+    privateWindows.set(surface,{close:()=>controller!.close()});update();
+    surface.source.controllerInput=(request,input,revision)=>{
+      if(privateInputActive(surface,owner)&&controller!.snapshot()?.id===request)return controller!.input(input,revision);
+    };
+    surface.source.controllerViewport=(request,columns,rows)=>{if(current()&&controller!.snapshot()?.id===request)controller!.viewport(columns,rows);};
+    surface.source.cancelController=request=>{if(privateInputActive(surface,owner)&&controller!.snapshot()?.id===request)remove(surface);};
+    layout.register({id,label:surface.state.title,transient:true},{site:'split',focus:mayFocus(op)});
+    if(mayFocus(op))layout.actAutomatic({type:'open',id});op.published=surface;destination(op,id);registryChanged();
   }
   function destination(op: Operation, id: string) {
     if (!live(op) || op.navigationSignal?.aborted || layout.snapshot().focused !== id) return;
@@ -605,7 +720,6 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     if (['turn.complete', 'turn.failed', 'turn.interrupted'].includes(event.event)) void reloadIfReady();
   }
   function bind(next: AgentCore, nextChannels: Channels) {
-    native(next);
     channels = nextChannels;
     nextChannels.core = next;
     const nextInbox = nextChannels.inbox;
@@ -623,19 +737,34 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     offConversation = conversation.subscribe(changed);
     offCore = next.subscribe(receive);
     bindEditor(next);
+    offHistory=next.host.hasPlugin('session-manager','trusted')?app.bindHistoryPresenter(next,{
+      show:binding=>openHistoryWindow(next,binding),
+      update:binding=>historyBindings.get(binding)?.update(),
+      remove:binding=>{const current=historyBindings.get(binding);historyBindings.delete(binding);if(current)remove(current.surface);},
+    }):undefined;
     next.runtime.setResolver('service.session.control', async (args: {action: string; id?: string}) => {
       if (args.action !== 'resume') return (await next.host.emit('service.session.store', args)).value;
       const current = context.getStore();
       if (!next.controlsReady || switching || reloading || [...operations.values()].some(op => op !== current)) return {deny: 'Wait until current operations finish'};
-      const windowIntent = layout.windowIntentRevision;
+      const windowIntent = current?.windowIntent??layout.windowIntentRevision;
+      const callerSignal=next.host.currentServiceScope?.signal??next.host.currentSignal;
       switching = true;
       const replacementChannels = createChannels();
       let replacement: AgentCore | undefined;
       try {
         replacement = await app.resume(args.id ?? next.sessionId, replacementChannels.approve, replacementChannels.ask);
-        native(replacement);
+        if(!active||core!==next||nextChannels.generation.signal.aborted||callerSignal?.aborted||current&&!live(current)
+          ||!next.controlsReady||[...operations.values()].some(op=>op!==current)){
+          replacementChannels.generation.abort();replacementChannels.inbox.close();
+          await replacement.close();replacement=undefined;
+          return {deny:'Session switch cancelled or current work changed'};
+        }
         unbind();
-        for (const surface of [...surfaceMap.values()]) remove(surface);
+        for (const surface of [...surfaceMap.values()]) {
+          // Plugin source generations change with Core; the user's retained
+          // tiling identity, closed state and ratios belong to the workspace.
+          remove(surface,Boolean(surface.semantic&&replacement.host.hasPlugin(surface.owner)));
+        }
         composerViews.clear(); visibility.clear(); mediaChanged();
         bind(replacement, replacementChannels);
         await next.close();
@@ -657,6 +786,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     });
   }
   function unbind() {
+    offHistory?.();offHistory=undefined;
     offEditor?.();offEditor = undefined;
     if (editor) {editorDraft = editor.checkpoint();editor.close();editor = undefined;}
     channels?.generation.abort(Error('Application input channel replaced'));
@@ -696,11 +826,14 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     try {return await work;}
     finally {pending.delete(work); if (reloadPromise === work) reloadPromise = undefined;}
   }
-  function route(text: string): {owner: string; site: string; key?: string; command?: string} | undefined {
+  function route(text: string): {owner: string; site: string; key?: string; command?: string;host?:'placement'} | undefined {
     const name = text.trim().split(/\s+/)[0];
+    if(name==='/placement'&&core.host.controllers.selectedOwner('placement')!=='@host')return {owner:'@host',site:'host-placement',host:'placement'};
     if (['/settings', '/models', '/providers'].includes(name)) return {owner: 'model-selector', site: 'plugin-model-selector-models', key: 'settings'};
     const mapped = name === '/plugins' ? '/extensions' : name;
     const registered = app.commands().find(command => command.name === mapped);
+    if(registered?.plugin==='session-manager'&&sessionCommandNames.some(command=>command===name)&&core.host.hasPlugin('session-manager'))
+      return {owner:'session-manager',site:registered.ui?.site??'command:'+name,key:'command:'+text.trim()};
     if (registered?.execution === 'immediate' && registered.plugin)
       return {owner: registered.plugin, site: registered.ui?.site ?? 'command:' + mapped, command: text};
     const manager = mapped === '/extensions' ? 'extension-manager-extensions' : mapped === '/marketplace' ? 'marketplace-manager-marketplaces' : undefined;
@@ -711,11 +844,14 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   }
   function uiRoutes() {
     const entries = new Map<string, {owner: string; command: string; title: string}>();
+    if(core.host.controllers.selectedOwner('placement')!=='@host')entries.set('host-placement',{owner:'@host',command:'/placement',title:'Plugins · placement'});
     for (const command of app.commands()) {
       const owner = command.plugin ?? (command.name === '/setup' ? 'setup-guide' : undefined);
       if (command.ui && owner && core.host.hasPlugin(owner)) entries.set(command.ui.site,
         {owner, command: command.name, title: command.name});
     }
+    const history=route('/history');
+    if(history?.owner==='session-manager')entries.set(history.site,{owner:history.owner,command:'/history',title:'Chat history'});
     for (const [name, title] of [['/settings', 'Models & providers'], ['/plugins', 'Plugins'], ['/marketplace', 'Marketplaces']] as const) {
       const target = route(name);
       if (target && core.host.hasPlugin(target.owner)) entries.set(target.site, {owner: target.owner, command: name, title});
@@ -731,7 +867,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       command: routes.get(id)?.command, version: surface.generation + ':'
         + (surface.state.approval?.id ?? surface.state.interaction?.id ?? surface.state.form?.id ?? ''),
     });
-    for (const [id, record] of windowTitles) if (!entries.has(id) && core.host.hasPlugin(record.owner)) entries.set(id, {
+    for (const [id, record] of windowTitles) if (!entries.has(id) && (record.owner==='@host'||core.host.hasPlugin(record.owner))) entries.set(id, {
       id, title: record.title, state: routes.has(id) ? 'available' : 'unavailable', command: routes.get(id)?.command,
       version: record.owner + ':' + core.sessionId,
     });
@@ -744,6 +880,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     if (windowIntent === undefined) layout.markWindowIntent();
     return runOperation(command.owner, command.site, op => command.command
       ? op.core.invokeCommand(command.command, op.controller.signal)
+      : command.host==='placement'?Promise.resolve(openPlacementWindow(op))
       : emit(op, 'ui.press', {site: command.site, key: command.key}), undefined, 'action', true, signal, windowIntent);
   }
   function waitForDestination(op: Operation, signal: AbortSignal) {
@@ -771,7 +908,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     const source = surfaceMap.get(id);
     if (source?.active) {layout.actAutomatic({type: 'open', id}); return;}
     const candidate = uiRoutes().get(id);
-    if (!candidate || !core.host.hasPlugin(candidate.owner) || reloadPromise || reloadFailed) throw Error('Window is unavailable');
+    if (!candidate || candidate.owner!=='@host'&&!core.host.hasPlugin(candidate.owner) || reloadPromise || reloadFailed) throw Error('Window is unavailable');
     const command = route(candidate.command);
     if (!command || command.owner !== candidate.owner || command.site !== id) throw Error('Window route is unavailable');
     const op = dispatch(command, signal);
@@ -794,7 +931,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (windowIntent === layout.windowIntentRevision) navigation?.openFinder();
       return 'command' as const;
     }
-    if (name === '/placement') return runOperation('@host', 'host:placement', arrange, undefined, 'action', false, undefined, windowIntent) ? 'command' as const : false as const;
+    if (name === '/placement') {const command=route(text);return (command?dispatch(command,undefined,windowIntent):runOperation('@host', 'host:placement', arrange, undefined, 'action', false, undefined, windowIntent)) ? 'command' as const : false as const;}
     if (name === '/reload') {
       pendingReload = true;reloadFailed = false;notice('Plugin reload queued until current operations finish');
       track(Promise.resolve().then(() => reloadIfReady()));return 'command' as const;
@@ -839,7 +976,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     if (reloadFailed && name !== '/reload') throw Error(retryMessage());
     if (name === '/chat') {layout.act({type: 'open', id: 'session'}); return;}
     if (name === '/windows') {navigation?.openFinder(); return;}
-    if (name === '/placement') {layout.markWindowIntent();runOperation('@host', 'host:placement', arrange); return;}
+    if (name === '/placement') {const command=route(text);if(command)dispatch(command);else {layout.markWindowIntent();runOperation('@host', 'host:placement', arrange);}return;}
     if (name === '/reload') {pendingReload = true; reloadFailed = false; notice('Plugin reload queued until current operations finish'); await reloadIfReady(); return;}
     const command = route(text);
     if (command) {

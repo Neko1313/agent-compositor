@@ -2,8 +2,7 @@
 import {MouseButton,TextAttributes,parseColor,defaultTextareaKeyBindings,type BoxRenderable,type InputRenderable,type MouseEvent,type KeyBinding} from '@opentui/core';
 import {flushSync,useKeyboard,usePaste} from '@opentui/react';
 import {useLayoutEffect,useRef} from 'react';
-import type {ConversationSession} from './session.js';
-import {controllerKey,type ConversationController,type ConversationEditor,type ControllerInput,type ControllerView} from './controller.js';
+import {controllerKey,type ConversationController,type ConversationEditor,type WindowController,type ControllerInput,type ControllerView} from './controller.js';
 import {color} from './colors.js';
 import {handleActionMouseDown} from './mouse-action.js';
 import {SurfaceRaster} from './surface-raster.js';
@@ -16,9 +15,17 @@ function cellColor(value:string|undefined,fallback:string){
   try{return parseColor(value??fallback);}catch{return parseColor(fallback);}
 }
 
+interface ControllerFrameSource {
+  snapshot():{controller?:ConversationController|WindowController;editor?:ConversationEditor};
+  controllerInput?(id:string,input:ControllerInput,revision:number):number|undefined;
+  controllerViewport?(id:string,columns:number,rows:number):void;
+  editorInput?(id:string,input:ControllerInput,revision:number):number|undefined;
+  editorViewport?(id:string,columns:number,rows:number,maxRows?:number):void;
+}
+
 /** A private validated frame, with input forwarded to its host-owned lease. */
 export function ControllerFrame({controller,session,width,height,maxRows=height,focused,isActive,isVisible,main=false}: {
-  controller:ConversationController|ConversationEditor;session:ConversationSession;width:number;height:number;maxRows?:number;
+  controller:ConversationController|ConversationEditor|WindowController;session:ControllerFrameSource;width:number;height:number;maxRows?:number;
   focused:boolean;isActive():boolean;isVisible():boolean;main?:boolean;
 }) {
   const bounds=useRef<BoxRenderable>(null);
@@ -63,7 +70,9 @@ export function ControllerFrame({controller,session,width,height,maxRows=height,
     if(key.ctrl&&!key.meta&&key.name==='c'||main&&(key.meta&&!key.ctrl&&key.name==='i'||key.ctrl&&!key.meta&&key.name==='x'))return;
     // A declared portable input owns its native text editing. Its changes use
     // the semantic port; function keys and decisions still reach the controller.
-    if(view.input&&(controllerKey(key).kind==='text'||nativeFieldKeys.some(binding=>binding.name===key.name
+    const historyNavigation=controller.kind==='history'&&!key.ctrl&&!key.meta&&!key.option&&!key.super&&!key.hyper
+      &&['up','down','pageup','pagedown'].includes(key.name);
+    if(view.input&&!historyNavigation&&(controllerKey(key).kind==='text'||nativeFieldKeys.some(binding=>binding.name===key.name
       &&Boolean(binding.ctrl)===key.ctrl&&Boolean(binding.meta)===Boolean(key.meta||key.option)
       &&Boolean(binding.shift)===key.shift&&Boolean(binding.super)===Boolean(key.super)&&!key.hyper)))return;
     key.preventDefault();key.stopPropagation();
@@ -91,12 +100,12 @@ export function ControllerFrame({controller,session,width,height,maxRows=height,
       ()=>send({kind:'action',action:target},controller.revision));
   }
   function line(row:ControllerView['lines'][number],id:string){
-    return <box key={id} height={1} flexShrink={0} onMouseDown={event=>action(event,row.action)}>
-      <text selectable={false} wrapMode="none" truncate fg={tones[row.tone??'text']}
-        attributes={row.bold?TextAttributes.BOLD:TextAttributes.NONE}>
+    return <box key={id} height={1} flexShrink={0} backgroundColor={row.selected?color.accent:undefined} onMouseDown={event=>action(event,row.action)}>
+      <text selectable={false} wrapMode="none" truncate fg={row.selected?color.background:tones[row.tone??'text']}
+        attributes={row.bold||row.selected?TextAttributes.BOLD:TextAttributes.NONE}>
         {row.cells?row.cells.slice(0,width).map((cell,index)=><span key={index}
-          fg={cellColor(cell.fg,tones[row.tone??'text'])} bg={cellColor(cell.bg,color.background)}
-          attributes={(cell.bold?TextAttributes.BOLD:0)|(cell.dim?TextAttributes.DIM:0)
+          fg={cellColor(row.selected?color.background:cell.fg,tones[row.tone??'text'])} bg={cellColor(row.selected?color.accent:cell.bg,color.background)}
+          attributes={(cell.bold||row.selected?TextAttributes.BOLD:0)|(cell.dim?TextAttributes.DIM:0)
             |(cell.italic?TextAttributes.ITALIC:0)|(cell.underline?TextAttributes.UNDERLINE:0)}>{literal(cell.ch)}</span>):literal(row.text)}
       </text>
     </box>;

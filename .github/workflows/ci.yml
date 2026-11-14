@@ -75,6 +75,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-editor
+      - name: Check selected OpenTUI history and placement windows
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-workspace-controllers
       - if: matrix.node == '26'
         run: npm run marketplace:validate
       - if: matrix.node == '26'
@@ -118,6 +122,7 @@ jobs:
             dist/visual-opentui-requests/
             dist/visual-opentui-controllers/
             dist/visual-opentui-editor/
+            dist/visual-opentui-workspace-controllers/
             dist/evals-ci/
             dist/evals-tools-ci/
           if-no-files-found: warn

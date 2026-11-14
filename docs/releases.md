@@ -87,6 +87,11 @@ recovery, Unicode checkpoints, canonical reload/resume and expired capabilities.
 It retains native and selected private requests, and checks the actual relocated
 executable and renderer identities. The emulator uses an explicit Unicode 11
 width profile; this does not prove every native terminal's Unicode behavior.
+`npm run visual:opentui-workspace-controllers` adds selected history and placement
+to the same actual-app gate: browse and private forms during a Main question,
+canonical session mutations/resume, real Apply/Save rules, late-focus/target
+guards, hide/cancel/unload, and restart restoration. Source and every native
+job use the same bounded loopback fixture and retain input/output plus identities.
 Reports, terminal input/output, screenshots and executable/renderer identities
 are retained with the other installed-runtime evidence, including on failure.
 

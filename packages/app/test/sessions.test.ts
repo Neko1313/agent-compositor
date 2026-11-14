@@ -2,7 +2,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ScriptedProvider, replayTranscript } from "@agent-compositor/core";
+import { ScriptedProvider } from "@agent-compositor/core";
 import { hello, type WireMessage } from "@agent-compositor/protocol";
 import { buildApp, type BuiltApp } from "../src/build.js";
 import { AppUI } from "../src/ui.js";
@@ -111,13 +111,7 @@ describe("interactive chat history", () => {
       text(command);
       key("enter");
       await ui.settled();
-      const saved = await app.store.load(previous, app.storage.paths.project);
-      expect(
-        saved.events.some((event) => event.type === "prompt.dropped"),
-      ).toBe(true);
-      expect(
-        replayTranscript(saved.events).some((m) => m.content === command),
-      ).toBe(false);
+      expect(await app.store.findByPrefix(previous, app.storage.paths.project)).toBeUndefined();
       expect(messages.get("plugin-session-manager-sessions")).toContain(
         "Auth repair",
       );

@@ -142,6 +142,34 @@ separate `native/` and `selected/` reports; `VISUAL_EXECUTABLE` runs the same ch
 against a complete relocated native archive.
 
 
+`npm run visual:opentui-workspace-controllers` selects history and placement in
+the actual configured CLI, leaving editor, question and private form controls at
+`@host`. Its eight bounded flows exercise private Unicode history search and
+cursor retention, native private forms, canonical list/rename/fork/archive and
+unarchive controls, explicit resume with model context, and real placement
+windows/anchors/Apply/Save across workspaces. Main's selected answer and message
+draft stay pending while read-only history and placement work continues. Invalid
+or removed targets fail; a gated earlier Apply cannot steal newer navigation.
+Hide preserves a lease, while focused Ctrl+C, Core replacement and provider
+unload revoke it. Restart restores committed context, rules and the complete
+saved window tree, including a deliberately closed pane. Unsent drafts are only
+checked across interactive resume, not process exit. The fixture records the
+actual selected history resume intent before the bench restarts with that ID.
+
+The separate observer proves private frames, raw inputs and local form results do
+not use public `ui.render`, `ui.press` or `ui.change`. Deliberate `data.control`
+calls retain the canonical session service interception payload, including search
+and rename arguments; these expected service calls are not described as private
+broadcast omissions. Synthetic tokens stay out of all observer events, terminal
+output, HTTP requests and journals. External files gate producer completion only.
+Artifacts default to `dist/visual-opentui-workspace-controllers/`;
+`VISUAL_EXECUTABLE` runs the same checks against a complete relocated archive.
+The shared Finder helper may pair an explicit command query with its expected
+visible label: `/plugins` selects `Plugins` without also matching
+`Plugins · placement`. Exact query, result count and selected native cells remain
+required; existing callers keep their label-as-query default.
+
+
 Known-label Finder opens in the controller, request-window, manager and
 cancellation checks share [opentui-finder.mjs](opentui-finder.mjs). The helper
 waits for one native panel's exact query, expected rows and highlighted choice;

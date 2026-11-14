@@ -413,9 +413,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   const stripPanes=navigation?panes.filter(pane=>layout.locations[pane.id]===layout.workspace):panes;
   const occupied=new Set(Object.values(layout.locations));
   const workspaceStatus=layout.error??(layout.gesture?'Drag · Esc cancel':layout.saving?'Saving layout…':navigation
-    ?width>=48?`WS ${layout.workspace}${layout.fullscreen?' · Zoomed':''} · ${navigationState.focusedLabel??'Empty workspace'}`:layout.fullscreen?'Zoomed · Alt+W f tiles':'* open':'');
+    ?width>=48?`WS ${layout.workspace}${layout.fullscreen?' · Zoomed':''} · ${navigationState.focusedLabel??'Empty workspace'}`:layout.fullscreen?'Zoomed':'* open':'');
   const workspaceBar=<box flexDirection="row" columnGap={navigation?0:1} height={1} flexShrink={0} paddingX={1}>
-    <text fg={color.muted}>{navigation?'WS ':'WS'}</text>
+    <text fg={color.muted} width={navigation?3:undefined} flexShrink={0} wrapMode="none">{navigation?'WS ':'WS'}</text>
     {layout.workspaces.map(id=>{
       const selected=id===layout.workspace,hasWindows=occupied.has(id);
       return <box key={id} height={1} width={navigation?3:undefined} flexShrink={0}
@@ -431,7 +431,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         </text>
       </box>;
     })}
-    <text flexGrow={1} minWidth={0} truncate fg={layout.error?color.error:color.muted}>{workspaceStatus}</text>
+    <text flexGrow={1} flexBasis={0} minWidth={0} height={1} wrapMode="none" truncate fg={layout.error?color.error:color.muted}>{workspaceStatus}</text>
   </box>;
   const tabs=stripPanes.map((pane,index)=>{
     const props={index,id:'window-tab-'+pane.id,showShortcut:!navigation,
@@ -490,12 +490,12 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     </box>
     {navigation?<box flexDirection="column" paddingX={1} flexShrink={0}>
       {navigationState.mode==='arrange'?<>
-        <text fg={color.accent} attributes={TextAttributes.BOLD} truncate>{'WINDOW MODE · '+(layout.fullscreen?'Zoomed':'Tiled')+' · '+(navigationState.focusedLabel??'Empty workspace')}</text>
-        <text fg={color.running} truncate>{layout.gesture
+        <text height={1} wrapMode="none" fg={color.accent} attributes={TextAttributes.BOLD} truncate>{'WINDOW MODE · '+(layout.fullscreen?'Zoomed':'Tiled')+' · '+(navigationState.focusedLabel??'Empty workspace')}</text>
+        <text height={1} wrapMode="none" fg={color.running} truncate>{layout.gesture
           ? (layout.gesture === 'resize' ? 'Mouse resize · Esc cancel' : 'Move window · Esc cancel')
           : splitTargetLabel(layout, width)}</text>
-        <text fg={color.text} truncate>{width>=88?'h/j/k/l focus · Shift move · b columns · v rows · +/− resize · f zoom · q close · 1–9 workspace · w windows · i type · Esc exit':width>=48?'h/j/k/l focus · Shift move · b/v split · +/− size · w windows · i type · Esc exit':'Esc exit · i type · w windows'}</text>
-      </>:<text fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':(layout.fullscreen?'Zoomed · Alt+W f tiles · ':'')+`Alt+W Arrange · ${editorOwns?'Alt+W w Windows':'F2 Windows'} · Alt+0 Main`+(width>=88?' · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'')}</text>}
+        <text height={1} wrapMode="none" fg={color.text} truncate>{width>=88?'h/j/k/l focus · Shift move · b columns · v rows · +/− resize · f zoom · q close · 1–9 workspace · w windows · i type · Esc exit':width>=48?'h/j/k/l focus · Shift move · b/v split · +/− size · w windows · i type · Esc exit':'Esc exit · i type · w windows'}</text>
+      </>:<text height={1} wrapMode="none" fg={color.muted} truncate>{navigationState.mode==='finder'?'WINDOWS · Esc cancel':layout.fullscreen&&width<60?'Zoomed · Alt+W f tiles':(layout.fullscreen?'Zoomed · Alt+W f tiles · ':'')+`Alt+W Arrange · ${editorOwns?'Alt+W w Windows':'F2 Windows'} · Alt+0 Main`+(width>=88?' · Alt+Tab cycle · Alt+arrows focus · Alt+1…9 workspace':'')}</text>}
     </box>:<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {controls.map((type, index) => layoutButton('F' + (controlStart + index) + ' ' +
         (type === 'zoom' && layout.fullscreen ? 'Unzoom' : controlLabels[index]), { type }))}

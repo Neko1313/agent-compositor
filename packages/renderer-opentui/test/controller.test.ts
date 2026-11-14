@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {controllerKey,type ConversationController} from '../src/controller.js';
+import {controllerKey,type ConversationController,type WindowController} from '../src/controller.js';
 import {createSurfaceRequestSession,hasSurfaceRequest,surfaceRequestStatus,type UiSurfaceSnapshot,type UiSurfaceSource} from '../src/surface.js';
 
 const key=(name:string,sequence:string,extra:object={})=>({name,sequence,ctrl:false,meta:false,shift:false,...extra});
@@ -11,6 +11,20 @@ it('normalizes private controller text, shifted Unicode, named keys and protocol
   expect(controllerKey(key('f5','\x1b[15~',{ctrl:true,shift:true}))).toEqual({kind:'key',key:'f5',modifiers:['ctrl','shift']});
   expect(controllerKey(key('x','x',{option:true}))).toEqual({kind:'key',key:'x',modifiers:['meta']});
   expect(controllerKey(key('j','\n',{ctrl:true}))).toEqual({kind:'key',key:'j',modifiers:['ctrl']});
+});
+
+it('keeps private workspace controllers distinct from human requests and native fallback answers',()=>{
+  const controller:WindowController={id:'private-history',kind:'history',revision:1,inputRevision:0,preferredRows:10,
+    view:{input:{id:'custom-query',value:'visible query'},lines:[{text:'Private history'}]}};
+  const state:UiSurfaceSnapshot={revision:1,title:'Chat history',controller,
+    form:{id:'hidden-form',kind:'form',plugin:'private',request:{title:'Never project',fields:[{id:'value',label:'Value',type:'text',value:'HIDDEN_VALUE'}],actions:[{id:'save',label:'Save'}]}}};
+  const calls:unknown[]=[];
+  const source:UiSurfaceSource={id:'history',snapshot:()=>state,subscribe:()=>()=>{},press:()=>{},change:()=>{},answerForm:(...args)=>calls.push(args)};
+  const session=createSurfaceRequestSession(source,()=>true);
+  expect(hasSurfaceRequest(state)).toBe(true);expect(surfaceRequestStatus(state)).toBe('History');
+  expect(session.snapshot()).toEqual({messages:[],running:false});
+  session.answerInteraction?.('hidden-form',{action:'save',values:{value:'wrong'}});expect(calls).toEqual([]);
+  expect(JSON.stringify(session.snapshot())).not.toContain('HIDDEN_VALUE');
 });
 
 it('keeps selected request projections exclusive and rejects stale or unfocused frame input',()=>{

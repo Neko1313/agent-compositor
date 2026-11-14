@@ -1478,7 +1478,7 @@ it('reopens an explicitly requested closed pane and preserves permanent placemen
   expect(layout.snapshot().focused).toBe(id);
 });
 
-it('fails closed at construction for unsupported selected private controller owners', async () => {
+it('fails closed when an unavailable selected history or placement controller is opened and keeps navigation usable', async () => {
   const f = await fixture();
   for (const kind of ['history', 'placement'] as const) {
     const app = await buildApp({cwd: f.cwd, env: f.env, agentHub: false,
@@ -1486,8 +1486,16 @@ it('fails closed at construction for unsupported selected private controller own
         editor: '@host', approval: '@host', question: '@host', form: '@host', history: '@host', placement: '@host',
         [kind]: 'unsupported-owner',
       }}}});
-    try {expect(() => createOpenTuiHost(app, f.layout)).toThrow('Selected ' + kind + ' controllers are not supported by OpenTUI');}
-    finally {await app.close();}
+    const layout=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'}],initial:['session']});layout.resize(140,40);
+    const host=createOpenTuiHost(app,layout);
+    try {
+      await host.start();await host.submit(kind==='history'?'/history':'/placement');
+      await expect.poll(()=>host.session.snapshot().notice).toMatch(/controller.*(?:failed|unavailable)/i);
+      expect(host.surfaces.snapshot().some(source=>source.snapshot().controller?.kind===kind)).toBe(false);
+      expect(f.requests).toHaveLength(0);
+      host.navigation.openFinder();expect(host.navigation.snapshot().mode).toBe('finder');
+      expect(host.navigation.snapshot().entries.some(entry=>entry.id==='session')).toBe(true);
+    } finally {await host.close();await layout.disconnect();await app.close();}
   }
 });
 

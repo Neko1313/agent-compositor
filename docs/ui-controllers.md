@@ -39,10 +39,11 @@ and supply its own commands instead.
 
 The configured [OpenTUI frontend](02-ui.md#experimental-opentui-application-frontend)
 supports selected editors in Main and selected approval, question and private-form
-controllers in Main and independent request windows. Only their validated views/cells reach the renderer;
+controllers in Main and independent request windows. Selected history and
+placement implementations have their own independent windows. Only their validated views/cells reach the renderer;
 the original private request is not attached as hidden native fallback data.
-Selected history and placement controllers still fail before startup;
-they are not silently replaced. Full controller adaptation remains a migration gate. The host can
+Unavailable selections fail closed when opened, without a native replacement.
+Full appearance/wire adaptation remains a migration gate. The host can
 inspect selection through `core.host.controllers.selectedOwner(kind)`, which
 returns metadata without creating a controller or receiving private input.
 
@@ -163,10 +164,14 @@ exit. Editor scroll intents scroll the transcript without changing window focus.
 
 Controller lines occupy individual clipped terminal rows; optional validated
 cells preserve their colors and text attributes, including wide characters.
-The controller receives local content coordinates and actual viewport dimensions;
+The controller receives actual content viewport dimensions;
 its hint occupies a separate host row. Portable action rows, tabs and table rows
 send declared action IDs; a declared input uses the semantic change channel.
-Raw key, text and bracketed-paste input otherwise goes directly to the lease.
+Raw key, text and bracketed-paste input otherwise goes directly to editor,
+request and placement leases. Placement mouse input retains the reference
+panel's full-frame origin: the first content cell is row 2, column 1. Other raw
+controller mouse input uses local content coordinates. Selected lines retain
+the foreground/background selection pair, including validated rich cells.
 Optional controller pointer-shape hints are not yet projected by this frontend;
 native window-navigation pointers remain host-owned.
 The host checks request identity and the displayed revision before admitting a
@@ -180,6 +185,39 @@ It receives `open` after creation. `control` supports `list` (search and archive
 filter), `rename`, `fork`, `archive` and `unarchive`. Resume is an explicit returned
 intent so the host can close the old pane before changing the UI subscription.
 The history controller owns selection, filtering, paging and presentation.
+
+In OpenTUI, named history keys become semantic actions (`enter`, `escape`,
+`up`, `down`, `pageup`, `pagedown`); a native query input keeps the factory's
+declared field ID. History does not gain a separate raw text/mouse contract.
+Canonical `/history`, `/sessions` and `/resume` browse routes run outside the
+model prompt queue, including while Main waits for an answer. Browsing does not
+create an empty conversation journal. Explicit extension commands with the same
+name retain their existing owner. Session mutations and resume still use the
+ordinary controls-ready and canonical service/repository checks.
+
+History and placement factories, leases and callable capabilities remain inside
+the application. Each admitted input waits for its window's preceding operation
+and an available UI slot, then receives a fresh foreground operation; an idle
+view holds no slot. A history input receives a fresh trusted instance-bound API
+without broadcasting its raw input or frame through `ui.press`, `ui.change` or
+`ui.render`. Deliberate `control` calls retain the ordinary session service chain
+and its necessary search/name payload; this does not hide those values from an
+explicit service provider/interceptor. Local form results remain private.
+
+Closing a window through Arrange hides its live state. **Ctrl+C** closes its
+selected history/placement controller and cancels the pending input; plugin
+Escape/close actions follow the controller's own serialized input logic.
+Reload, provider unload and Core replacement revoke old capabilities and queued
+input. A private history resume keeps its view until the host commits the new
+Core. Rejection keeps that same view with a constant notice. Cancellation while
+preparing the replacement closes the prepared Core and leaves the current one
+in place. A successful transition still expires old capabilities and respects
+newer navigation. Registered semantic plugin windows retain their saved tiling
+identities, closed state and ratios when the same owner exists in the new Core;
+their old content/input sources are replaced. Placement validates the target, neighbor and declaration before
+saving, then rechecks the same window identity and operation before applying
+geometry. A write already started may persist after cancellation; that does not
+authorize a stale in-memory move or focus transfer.
 
 Requests, drafts and local form results travel directly to the selected factory;
 they are not broadcast catalog payloads. Editor and form rendering bypasses

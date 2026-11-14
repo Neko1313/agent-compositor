@@ -170,6 +170,16 @@ export class HooksHost {
   withoutServiceScope<T>(run: () => T): T {
     return this.serviceScope.exit(() => this.serviceSignal.exit(() => this.backgroundService.exit(run)));
   }
+  /** Host-owned private UI input gets fresh, instance-bound capabilities without a catalog event. */
+  withPrivateUiInput<T>(plugin: string, signal: AbortSignal, run: (api: HooksApi) => T): T {
+    signal.throwIfAborted();
+    if (!this.hasPlugin(plugin, 'trusted') || this.pluginLifetimes.get(plugin)?.signal.aborted)
+      throw new Error('The private UI owner is unavailable');
+    return this.withoutServiceScope(() => this.userInteraction.run(true, () => run(this.buildApi(plugin, {
+      signal,
+      next: () => {throw new Error('Private UI input cannot continue a catalog hook');},
+    }))));
+  }
   setInvocationOriginProvider(provider: () => unknown): () => void {
     const binding = {};
     this.invocationOriginBinding = binding;
@@ -273,7 +283,7 @@ export class HooksHost {
 
   // ---- $ API ----------------------------------------------------------------
 
-  private buildApi(plugin: string, ctx: HookContext, detached=false): HooksApi {
+  private buildApi(plugin: string, ctx: Pick<HookContext, 'signal' | 'next'>, detached=false): HooksApi {
     const host = this;
     const inherited = this.serviceScope.getStore();
     const origin = detached ? Object.freeze({}) : inherited ? inherited.origin : this.invocationOriginProvider?.();

@@ -24,6 +24,13 @@ export interface ConversationController {
   preferredRows: number;
 }
 
+/** Private host windows retain their capabilities outside the renderer. */
+export interface WindowController extends Omit<ConversationController,'kind'> {
+  kind:'history'|'placement';
+}
+export const isWindowController=(frame:ConversationController|WindowController|undefined):frame is WindowController=>
+  frame?.kind==='history'||frame?.kind==='placement';
+
 /** A selected editor's visible frame, without its private draft or capabilities. */
 export interface ConversationEditor {
   id: string;

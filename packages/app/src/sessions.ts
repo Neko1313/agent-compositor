@@ -1,7 +1,24 @@
 import type { CorePlugin, AgentCore } from "@agent-compositor/core";
-import type { HooksApi, UiControllerLease } from "@agent-compositor/hooks";
+import {AsyncLocalStorage} from 'node:async_hooks';
+import type { HooksApi, UiControllerInput, UiControllerLease } from "@agent-compositor/hooks";
 import type { SessionRepository, SessionMeta } from "@agent-compositor/session";
 import type { UiTextView } from "@agent-compositor/events";
+
+/** App-private presentation; no lease or invocation API enters a catalog payload. */
+export interface SessionHistoryBinding {
+  readonly id: string;
+  readonly owner: string;
+  readonly title: string;
+  readonly lease: UiControllerLease;
+  input(input: UiControllerInput, api: HooksApi): Promise<void>;
+  close(): Promise<void>;
+}
+export interface SessionHistoryPresenter {
+  show(binding: SessionHistoryBinding): void;
+  update(binding: SessionHistoryBinding): void;
+  remove(binding: SessionHistoryBinding): void;
+}
+export const sessionCommandNames = ['/sessions', '/history', '/resume', '/fork', '/rename', '/archive', '/unarchive'] as const;
 export function installSessionServices(
   core: AgentCore,
   store: SessionRepository,
@@ -49,18 +66,26 @@ async function service(
   args: Record<string, unknown> = {},
 ): Promise<any> {
   const result = (await $.emit("service.session.control", {
-    action,
     ...args,
+    action,
   })) as { value?: unknown; deny?: string };
   if (result.deny) throw new Error(result.deny);
   return result.value;
 }
 export const sessionTitle = (meta: SessionMeta) =>
   meta.name || meta.firstPrompt || (meta.messageCount ? `Chat ${meta.id.slice(0, 8)}` : "New chat");
-export function sessionControls(): CorePlugin {
+export function sessionControls(): CorePlugin & {bindPresenter(presenter: SessionHistoryPresenter): () => void} {
   const site = "plugin-session-manager-sessions";
   let controller:UiControllerLease|undefined;
-  let currentApi:HooksApi;
+  const inputApi = new AsyncLocalStorage<HooksApi>();
+  let openingApi: HooksApi | undefined, presenter: SessionHistoryPresenter | undefined;
+  let presentation: {binding: SessionHistoryBinding; presenter: SessionHistoryPresenter} | undefined;
+  let lifetime = 0;
+  const api = () => {
+    const current = inputApi.getStore() ?? openingApi;
+    if (!current)throw new Error('History closed');
+    current.signal.throwIfAborted();return current;
+  };
   let defaultView:UiTextView={lines:[]};
   let state:
     | {
@@ -78,15 +103,23 @@ export function sessionControls(): CorePlugin {
         search?: AbortController;
       }
     | undefined;
-  const close = async ($: HooksApi) => {
+  const close = async ($?: HooksApi) => {
+    lifetime++;
     state?.search?.abort();
     state = undefined;
+    openingApi = undefined;
+    const shown = presentation;presentation = undefined;
     const previous=controller;controller=undefined;previous?.dispose();
-    await $.ui.remove("sessions");
+    if (shown)shown.presenter.remove(shown.binding);
+    else if ($)await $.ui.remove("sessions");
   };
   const publish = async ($: HooksApi) => {
     const s = state;
     if (!s || s.sessionId !== $.session.id) return;
+    if (presenter && controller?.isDefault !== true) {
+      if (presentation)presentation.presenter.update(presentation.binding);
+      return;
+    }
     const cut = (value: string) =>
       Array.from(value).slice(0, Math.max(12, s.columns)).join("");
     const lines: UiTextView["lines"] = [
@@ -194,7 +227,8 @@ export function sessionControls(): CorePlugin {
     await publish($);
   };
   const open = async ($: HooksApi, query = "") => {
-    await close($);
+    const closing = close($), attempt = lifetime;await closing;
+    if (attempt !== lifetime || $.signal.aborted)return;
     state = {
       sessionId: $.session.id,
       query,
@@ -208,25 +242,68 @@ export function sessionControls(): CorePlugin {
       pending: true,
       busy: false,
     };
-    currentApi=$;const openedState=state;
-    controller=$.ui.controller("history",{
+    openingApi=$;const openedState=state;
+    let opened: UiControllerLease | undefined;
+    const capabilityApi = () => {
+      const current = api();
+      if (state !== openedState || controller !== opened)throw new Error('History closed');
+      opened?.signal.throwIfAborted();return current;
+    };
+    try {
+    controller=inputApi.run($, () => $.ui.controller("history",{
       sessionId:$.session.id,query,
-      control:(action:string,args:Record<string,unknown>={})=>{
+      control:async(action:string,args:Record<string,unknown>={})=>{
         if(!["list","rename","fork","archive","unarchive"].includes(action))throw new Error("Unsupported history control");
-        if(state!==openedState)throw new Error("History closed");controller?.signal.throwIfAborted();return service(currentApi,action,args);
+        const current = capabilityApi();
+        const result = await service(current,action,args);
+        current.signal.throwIfAborted();
+        if(state!==openedState || controller!==opened)throw new Error('History closed');
+        opened?.signal.throwIfAborted();return result;
       },
-      form:(request:Parameters<HooksApi["ui"]["form"]>[0])=>{if(state!==openedState)throw new Error("History closed");controller?.signal.throwIfAborted();return currentApi.ui.form(request);},
+      form:async(request:Parameters<HooksApi["ui"]["form"]>[0])=>{
+        const current = capabilityApi(), result = await current.ui.form(request);
+        current.signal.throwIfAborted();
+        if(state!==openedState || controller!==opened)throw new Error('History closed');
+        opened?.signal.throwIfAborted();return result;
+      },
     },()=>({
       render:()=>defaultView,
       handle:input=>input.kind==="change"
-        ? defaultChange({site,id:input.id,value:input.value},currentApi)
-        : input.kind==="action"?defaultPress({site,key:input.action},currentApi):undefined,
-    }),()=>{void publish(currentApi).catch(()=>{});});
-    const opened=controller;
-    opened.signal.addEventListener("abort",()=>{if(controller===opened)void close(currentApi).catch(()=>{});},{once:true});
-    if(opened.isDefault)await refresh($);
-    else {await opened.handle({kind:"action",action:"open"});await publish($);}
+        ? defaultChange({site,id:input.id,value:input.value},api())
+        : input.kind==="action"?defaultPress({site,key:input.action},api()):undefined,
+    }),()=>{const current = inputApi.getStore() ?? openingApi;if(current)void publish(current).catch(()=>{}); }));
+    opened=controller;
+    const active = opened;
+    active.signal.addEventListener("abort",()=>{if(controller===active)void close(openingApi).catch(()=>{});},{once:true});
+    if (active.signal.aborted) {await close($);return;}
+    if (presenter && !active.isDefault) {
+      const binding: SessionHistoryBinding = {id: site, owner: 'session-manager', title: 'Chat history', lease: active,
+        input: (input, current) => handle(input, current, active),
+        close: async () => {if (controller === active)await close();},
+      };
+      presentation = {binding, presenter};presenter.show(binding);
+    }
+    if(active.isDefault)await refresh($);
+    else {await handle({kind:"action",action:"open"}, $, active);}
+    } catch (error) {
+      await close($);
+      if(presenter)throw new Error('History controller failed');
+      throw error;
+    }
   };
+  async function command(text: string, $: HooksApi) {
+    const [name, ...rest] = text.trim().split(/\s+/), value = rest.join(' ');
+    if (!sessionCommandNames.some(command => command === name))return false;
+    try {
+      if (['/sessions', '/history'].includes(name) || name === '/resume' && !value)await open($, value);
+      else if (name === '/resume') {await close($);await service($, 'resume', {id: value});}
+      else if (name === '/rename') {await service($, 'rename', {name: value});await open($);}
+      else if (name === '/fork') {
+        const meta = await service($, 'fork', {name: value});await $.ui.notify(`Fork created: ${meta.id}`);await open($);
+      } else {await service($, name.slice(1), value ? {id: value} : {});await open($);}
+    } catch (error) {await $.ui.notify(String(error), 'error');}
+    return true;
+  }
   const plugin:CorePlugin={
     manifest: {
       name: "session-manager",
@@ -240,44 +317,7 @@ export function sessionControls(): CorePlugin {
     },
     hooks: {
       "prompt.submit": async (event, $) => {
-        const [command, ...rest] = event.text.trim().split(/\s+/);
-        const value = rest.join(" ");
-        if (
-          ![
-            "/sessions",
-            "/history",
-            "/resume",
-            "/fork",
-            "/rename",
-            "/archive",
-            "/unarchive",
-          ].includes(command)
-        )
-          return;
-        try {
-          if (
-            ["/sessions", "/history"].includes(command) ||
-            (command === "/resume" && !value)
-          )
-            await open($, value);
-          else if (command === "/resume") {
-            await close($);
-            await service($, "resume", { id: value });
-          } else if (command === "/rename") {
-            await service($, "rename", { name: value });
-            await open($);
-          } else if (command === "/fork") {
-            const meta = await service($, "fork", { name: value });
-            await $.ui.notify(`Fork created: ${meta.id}`);
-            await open($);
-          } else {
-            await service($, command.slice(1), value ? { id: value } : {});
-            await open($);
-          }
-        } catch (error) {
-          await $.ui.notify(String(error), "error");
-        }
-        return { drop: "session-manager: handled" };
+        if (await command(event.text, $))return {drop: 'session-manager: handled'};
       },
       "ui.change": async (event, $) => {
         const s = state;
@@ -316,6 +356,7 @@ export function sessionControls(): CorePlugin {
           s.sessionId !== $.session.id
         )
           return;
+        if (presentation)return;
         if (!event.attached) {
           s.search?.abort();
           state = undefined;const previous=controller;controller=undefined;previous?.dispose();
@@ -418,24 +459,40 @@ export function sessionControls(): CorePlugin {
   };
   const defaultPress=plugin.hooks["ui.press"]!;
   const defaultChange=plugin.hooks["ui.change"]!;
-  plugin.hooks["ui.press"]=async(event,$)=>{
-    if(event.site!==site||!controller)return;
-    currentApi=$;const active=controller;
-    try{const result=await active.handle({kind:"action",action:event.key});
-      if(controller!==active)return;
+  async function handle(input: UiControllerInput, $: HooksApi, active = controller) {
+    if (!active || controller !== active || !state || state.sessionId !== $.session.id
+      || active.signal.aborted || $.signal.aborted || !['action', 'change'].includes(input.kind))return;
+    let privateResume = false;
+    try {
+      const result=await inputApi.run($, () => active.handle(input));
+      if(controller!==active || active.signal.aborted || $.signal.aborted)return;
       if(result==="close")await close($);
       else if(result&&typeof result==="object"&&(result as {type?:string}).type==="resume"){
         const {id,name}=result as {id?:unknown;name?:unknown};
         if(typeof id!=="string"||!id)throw new Error("Invalid session selection");
-        await close($);await service($,"resume",{id,...(typeof name==="string"?{name}:{})});
+        privateResume = presentation?.binding.lease === active;
+        if (!privateResume)await close($);
+        $.signal.throwIfAborted();
+        await service($,"resume",{id,...(typeof name==="string"?{name}:{})});
       }else await publish($);
-    }catch(error){if(!active.signal.aborted){await close($);await $.ui.notify("History controller failed","error");}}
+    }catch(error){if(!active.signal.aborted && !$.signal.aborted){
+      if(privateResume && controller===active){await $.ui.notify("Could not resume this session","error");await publish($);}
+      else {await close($);await $.ui.notify("History controller failed","error");}
+    }}
+  }
+  plugin.hooks["ui.press"]=async(event,$)=>{
+    if (event.key.startsWith('command:')) {
+      const text = event.key.slice('command:'.length), name = text.trim().split(/\s+/)[0];
+      if (event.site === site || event.site === 'command:' + name) {await command(text, $);return;}
+    }
+    if(event.site===site && !presentation)await handle({kind:"action",action:event.key}, $);
   };
   plugin.hooks["ui.change"]=async(event,$)=>{
-    if(event.site!==site||!controller)return;
-    currentApi=$;const active=controller;
-    try{await active.handle({kind:"change",id:event.id,value:event.value});if(controller===active)await publish($);}
-    catch(error){if(!active.signal.aborted){await close($);await $.ui.notify("History controller failed","error");}}
+    if(event.site===site && !presentation)await handle({kind:"change",id:event.id,value:event.value}, $);
   };
-  return plugin;
+  return Object.assign(plugin, {bindPresenter(next: SessionHistoryPresenter) {
+    if (presentation)void close().catch(()=>{});
+    presenter = next;
+    return () => {if(presenter===next){presenter=undefined;if(presentation)void close().catch(()=>{});}};
+  }});
 }

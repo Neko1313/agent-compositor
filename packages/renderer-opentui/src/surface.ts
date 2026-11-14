@@ -1,6 +1,6 @@
 import type {UiTextView} from '@agent-compositor/events';
 import type {ConversationApproval,ConversationInteraction,ConversationSession} from './session.js';
-import type {ConversationController,ControllerInput} from './controller.js';
+import {isWindowController,type ConversationController,type WindowController,type ControllerInput} from './controller.js';
 
 export interface UiSurfaceSnapshot {
   revision: number;
@@ -8,7 +8,7 @@ export interface UiSurfaceSnapshot {
   view?: UiTextView;
   approval?: ConversationApproval;
   interaction?: ConversationInteraction;
-  controller?: ConversationController;
+  controller?: ConversationController|WindowController;
   /** Compatibility alias for private form sources. */
   form?: Extract<ConversationInteraction, {kind: 'form'}>;
   busy?: boolean;
@@ -36,7 +36,7 @@ export const surfaceInteraction=(state:UiSurfaceSnapshot)=>state.interaction??st
 export const hasSurfaceRequest=(state:UiSurfaceSnapshot)=>Boolean(state.controller||state.approval||surfaceInteraction(state));
 export function surfaceRequestStatus(state:UiSurfaceSnapshot):string {
   const interaction=surfaceInteraction(state);
-  return state.controller ? {approval:'Approval',question:'Question',form:'Form'}[state.controller.kind]
+  return state.controller ? {approval:'Approval',question:'Question',form:'Form',history:'History',placement:'Placement'}[state.controller.kind]
     :state.approval?'Approval':interaction?.kind==='question'?'Question':interaction?'Form':state.busy?'Working':'';
 }
 
@@ -46,7 +46,7 @@ export function createSurfaceRequestSession(source:UiSurfaceSource,isActive:()=>
     id:source.id,label:'Request',subscribe:source.subscribe,submit:()=>{},
     snapshot:()=>{
       const state=source.snapshot();
-      if(state.controller)return {messages:[],running:false,controller:state.controller};
+      if(state.controller)return {messages:[],running:false,...(!isWindowController(state.controller)?{controller:state.controller}:{})};
       return {messages:[],running:false,approval:state.approval,interaction:surfaceInteraction(state),controller:state.controller};
     },
     get answerApproval(){

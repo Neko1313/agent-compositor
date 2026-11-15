@@ -758,6 +758,15 @@ protected files stayed unchanged; the owned CPU server exited. Evidence is in
 `dist/local-cpu-navigation-281bafb-followup/`. This is one known-case diagnostic,
 not a controlled model-quality comparison with the focused runs.
 
+A follow-up navigation run at `665379f`, after adding missing-read cycle
+tracking, also failed at the 12-request ceiling. This time the model discovered
+both source files, applied two edits and ran the same project check three times;
+each check exited with code 1. The independent grader failed and the protected
+package and check files stayed unchanged. The earlier missing-file cycle did
+not occur, so this run does not demonstrate that the new guard changed model
+behavior. The owned CPU server exited; evidence is in
+`dist/local-cpu-navigation-query-recovery/`.
+
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory
 listing and ordinary project-instruction expansion available to the user. These

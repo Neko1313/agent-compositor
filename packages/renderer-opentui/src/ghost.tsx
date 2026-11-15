@@ -18,7 +18,9 @@ export interface ComposerMedia {
   presentation?(): ComposerMediaPresentation | undefined;
 }
 
-function AnimatedImage({frame, size, protocol}: {frame: ComposerFrame; size?: {width: number; height: number}; protocol: ComposerImageProtocol}) {
+function AnimatedImage({getFrame, size, protocol}: {getFrame: () => ComposerFrame; size?: {width: number; height: number}; protocol: ComposerImageProtocol}) {
+  // React development tracing expands object props; keep pixel bytes behind an accessor.
+  const frame = getFrame();
   const renderer = useRenderer();
   const image = useRef<ImageRenderable>(null);
   useLayoutEffect(() => {
@@ -78,7 +80,7 @@ export function Ghost({ media, enabled, expanded = true, active }: { media?: Com
   }, [media, enabled, imageEnabled, active]);
 
   if (!media || !enabled || snapshot?.media !== media) return null;
-  if (imageEnabled && protocol && snapshot.frame) return <AnimatedImage frame={snapshot.frame} size={snapshot.size} protocol={protocol}/>;
+  if (imageEnabled && protocol && snapshot.frame) return <AnimatedImage getFrame={() => snapshot.frame!} size={snapshot.size} protocol={protocol}/>;
   const status = composerMediaStatus(snapshot.presentation, !protocol && graphics !== 'off');
   return status ? <box height={1} maxWidth="50%" minWidth={0} flexShrink={1}>
     <text height={1} wrapMode="none" truncate selectable={false} fg={color.muted}>{status}</text>

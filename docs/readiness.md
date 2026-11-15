@@ -38,8 +38,28 @@ ordering is not established. The test now drains actual layout persistence
 before measuring explicit invalidations, retaining all capacity, authority and
 final-publication assertions. Fresh standalone full verification passes 2554
 tests plus five optional skips in 276 files, with no unhandled errors and all
-1030 tracked/nonignored source files unchanged during the run. New archive and
-physical media verification remain pending.
+1030 tracked/nonignored source files unchanged during the run.
+
+The resulting `bf5e61b` media candidate is not qualified. Its sealed Linux
+archive passes nine canonical smokes, including six signal cases, but physical
+Kitty verification stops at the initial idle cycles with zero of fourteen
+checks complete. Frames arrive roughly every 750 ms and skip source positions.
+The exact-head Node 26 unit lane also passes 2554 tests, while its subsequent
+Ghost PTY check fails the unchanged original-frame timing oracle. The existing
+installation is retained; neither result is reclassified by other passing jobs.
+
+A focused CPU profile identifies React development tracing recursively expanding
+the 207936-byte RGBA buffer passed as a component prop. An accessor-only control
+keeps the same pixels, FRAME listener and source clock and restores the preview
+cycles. The maintained repair passes 36 focused renderer tests and typecheck;
+the ordinary source Ghost PTY command, without a diagnostic loader, measures
+idle 1084 ms and thinking 1085 ms against the unchanged 1080±180 ms bounds.
+A deterministic SDK regression observes real development profiling, rejects the
+old buffer-prop expansion and verifies two fresh native RGBA/alpha frames. Fresh
+exclusive full verification passes 2555 tests plus five optional skips in 276
+files, with all 1030 source inputs unchanged. A distinct sealed archive's
+physical checks remain required. This does not establish all-state, terminal or
+stable 1.0 readiness.
 
 ### Retained source and archive history
 

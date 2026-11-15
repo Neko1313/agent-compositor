@@ -544,6 +544,11 @@ all activity states or physical SIXEL support. Native acceptance must use a
 pinned complete archive, original source-frame hashes and actual terminal
 captures, input and resize receipts. Companion commands can run immediately
 during held Main work, so native pause/resume checks need no model request.
+Keep binary frame data behind opaque accessors at React component boundaries:
+development tracing can recursively expand typed-array props and dominate
+animation time. Preserve development mode and the original-frame timing oracle
+when diagnosing this cost; disabling tracing or retiming the assets does not
+verify the normal renderer.
 
 ## Render performance
 

@@ -1,5 +1,72 @@
 # Project memory
 
+## Media candidate timing regression and causal repair — 2026-11-15
+
+This goal turn makes concrete progress: source bf5e61b2ac83b2af4186cd313673182fa113e131
+is committed and pushed after local full2554+5skip/276files, docs, marketplace and
+all32 PR certificates. Independent source audit validates400 passed cases and
+1327 evidence references/219 files. All1030 precommit rows match actual Git
+blobs; receipt dist/opentui-media-source-committed-verification.json
+SHA83224486e9e7c59e95c53e261eaf1488030ba39bf82e2888bd7b49909fc5034a.
+New frozen manifest dist/opentui-media-artifact.json
+SHAea9a7bad41ff37dabe5a3aa9bcf85883d6986eea5e368da23b59cfbc2a783dee
+binds742 shipping inputs, archive b839211120d050b787d6f53bafda2d27a557af378db136d23a450c2314f5c02b,
+executable a56ad850ed7959415b829f47910a86db1cbb1f79d04f9b96529bbbda6c0df2f8
+and renderer46042696d6979a1c2e54b378645e495b6743b70eeb16a8b1a1009b74e6a1720c.
+All9 canonical smokes and6 installed signal cases pass. This candidate is NOT
+installed or qualified: actual physical Ghost attempt at
+dist/opentui-native-ghost-all-states-bf5e61b-20261115 fails initial idle cycles,
+zero of14 checks,28 original placements at roughly757ms with skipped indexes.
+The failure PNG is real and root-inspected. Parent archive/member/pin audits
+match, but failed-path natural PTY/TTY receipts are absent. One reported owned
+PID exits later; root's later observation finds all reported PIDs gone without
+signals. The declared public log has a proven677-byte late append; retain the
+original report/prefix and corrected inventory, not a retroactive pass. The
+executed wrapper also lacked a prelaunch kitten pin; its postlaunch observation
+is explicitly not a prelaunch proof. A separate future wrapper adds that pin.
+
+Exact-head source CI43656749807 passes both unit lanes but fails Node26's Ghost
+PTY timing check. Docs43656749787 and preparation43656749782 pass. Build-only
+release43656834158 and its four native jobs are tracked separately to terminal;
+their passing logical UI checks cannot override the failed graphics/source gate.
+No local95 run or installation is claimed for this failed media candidate.
+
+Causal diagnostics at dist/opentui-media-ghost-diagnosis-bf5e61b-20261115 preserve
+the actual RED baseline and an accessor-only control. Renderer-local React
+development tracing expands AnimatedImage.frame.rgba as props: in20.05s,
+performance.measure costs12.30s and property traversal6.24s, while51 native
+pixel imports take5.54ms total. FRAME remains enabled in the control; replacing
+only the raw React prop with getFrame restores original idle1084/thinking1086ms
+cycles and exact RGBA. Maintained Ghost955a0d9e9768fa2acb424d42796ef7ccf72d89add0cad1e5d9ed12b9b6b3de56
+passes focused36/TSC and one final canonical source PTY run without a loader:
+idle1084/thinking1085ms,14 original uploads, unchanged180ms source frames,
+1080±180ms cycle bounds and20s watchdog. Fresh full, commit and a separate
+sealed archive/native gate remain required. All calls are synthetic/local,
+paid0; existing budget, complete1.0 scope and Ink default remain unchanged.
+
+The added actual SDK regression enables real Node inspector console timestamps
+before the lazy renderer import so React development User Timing is exercised.
+Two distinct8x8 buffers retain exact native RGBA/alpha and one subscription.
+An actual positive profiler event must stay within64 property rows and must
+not enumerate an attached typed-array getter. The original raw-frame module
+produces518 rows and fails; the maintained accessor passes all9 Ghost cases
+and renderer types. The initial diagnostic lacked Vitest's intercepted Console
+timestamp and correctly failed its positive-event requirement, not a product
+RED. No development-mode switch, clock adjustment or timing assertion change.
+
+The final exclusive clock-repair full suite passes 2555 tests plus five optional
+skips in 276 files, no unhandled errors, 32.743s; all 1030 source files stay
+unchanged during execution. Receipt
+dist/headless-opentui-media-clock-exclusive-full-ci-receipt.json and log
+/home/neko/.cache/ac-tmp/compositor-opentui-media-clock-exclusive-full-test-ci-20261115.log
+SHA b6be7f035956c6466393b0812f9c77cf5ebeaf9f3ee6c7067400fe7e7d43c51d.
+Whole-workspace types, generation and docs also pass. The preceding successful
+clock full overlaps an already-live remote artifact download/extraction; retain
+its success and explicit nonexclusive addendum at
+dist/opentui-media-clock-first-full-with-download-overlap-20261115. It is not
+the exclusive gate. Only these documentation outcomes follow the exclusive
+source snapshot; a new commit/archive and physical qualification remain next.
+
 ## Media full-suite synchronization diagnosis — 2026-11-15
 
 The previous goal turn produced a status report and a controlled diagnosis that

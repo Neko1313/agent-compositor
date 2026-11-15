@@ -1,4 +1,5 @@
-import {afterEach, describe, expect, it, vi} from 'vitest';
+import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
+import {console as inspectorConsole} from 'node:inspector';
 import type {ComposerMedia} from '../src/ghost.js';
 import type {ConversationSession, ConversationSnapshot} from '../src/session.js';
 import type {WindowLayoutSource} from '../src/layout.js';
@@ -48,6 +49,45 @@ async function fixture() {
 
 // Node 22 can run the portable policy tests without loading the native SDK.
 describe.skipIf(Number(process.versions.node.split('.')[0]) < 26)('native Ghost presentation', () => {
+  let timeStamp: PropertyDescriptor | undefined;
+  beforeAll(() => {
+    // Vitest's intercepted Console omits the native timestamp method. Enable
+    // React's real User Timing path before the SDK is first imported.
+    timeStamp = Object.getOwnPropertyDescriptor(console, 'timeStamp');
+    Object.defineProperty(console, 'timeStamp', {configurable: true, writable: true, value: inspectorConsole.timeStamp.bind(inspectorConsole)});
+  });
+  afterAll(() => {
+    if (timeStamp) Object.defineProperty(console, 'timeStamp', timeStamp);
+    else Reflect.deleteProperty(console, 'timeStamp');
+  });
+  it('keeps binary pixels out of development tracing while importing fresh native RGBA', async () => {
+    vi.stubEnv('AGENT_GRAPHICS', 'auto');vi.stubEnv('NO_COLOR', undefined);vi.stubEnv('AGENT_REDUCED_MOTION', undefined);vi.stubEnv('TERM', 'xterm-256color');
+    const properties: number[] = [], measure = performance.measure;
+    vi.spyOn(performance, 'measure').mockImplementation((...args: Parameters<typeof performance.measure>) => {
+      const [name, options] = args;
+      const detail = typeof options === 'object' ? options.detail : undefined;
+      if (name.replaceAll('\u200b', '') === 'AnimatedImage' && Array.isArray(detail?.devtools?.properties))
+        properties.push(detail.devtools.properties.length);
+      return Reflect.apply(measure, performance, args);
+    });
+    const pixels = (rgba: number[]) => Uint8Array.from({length: 8 * 8 * 4}, (_, index) => rgba[index % 4]);
+    const first = pixels([12, 47, 91, 128]), second = pixels([31, 73, 119, 64]);
+    let probeReads = 0;
+    Object.defineProperty(second, 'inspectionProbe', {enumerable: true, get() {probeReads++;return 'Pixel data is not component metadata';}});
+    const f = await fixture();Object.assign(f.frame, {width: 8, height: 8, rgba: first});await f.show();
+    await f.test.waitFor(() => Boolean(f.images()[0]?.image));
+    expect([...f.images()[0].image!.raw().data]).toEqual([...first]);
+    const subscriptions = f.subscribe.mock.calls.length;properties.length = 0;
+    f.flushSync(() => {for (const [listener, expanded] of f.listeners) listener(expanded ? {width: 8, height: 8, rgba: second} : undefined);});
+    await f.test.flush({maxPasses: 30});
+    expect([...f.images()[0].image!.raw().data]).toEqual([...second]);
+    // Exercise the real development profiler, rather than passing because it
+    // was disabled. Neither byte count nor machine speed should grow its data.
+    expect(properties.length).toBeGreaterThan(0);
+    expect(Math.max(...properties)).toBeLessThanOrEqual(64);
+    expect(probeReads).toBe(0);
+    expect(f.listeners.size).toBe(1);expect(f.subscribe).toHaveBeenCalledTimes(subscriptions);
+  });
   it('retains the actual producer status when image output is disabled', async () => {
     vi.stubEnv('AGENT_GRAPHICS', 'off');
     const f = await fixture();await f.show();

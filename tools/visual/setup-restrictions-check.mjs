@@ -16,7 +16,7 @@ try{
  const click=async label=>{await wait(label);const point=await page.evaluate(label=>{const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(label)),col=lines[row].indexOf(label)+1,rect=document.querySelector('.xterm-screen').getBoundingClientRect();return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};},label);await page.mouse.click(point.x,point.y);};
  await wait('Get started');await click('Choose recommended tools');await wait('Choose your work');if(native)await page.keyboard.press('Alt+Enter');else await click('Continue');
  await wait('Choose optional tools');await wait('disabledPlugins');const initial=(await page.evaluate(()=>visual.text())).split('\n'),field=initial.findIndex(line=>line.includes('Project checks'));assert.ok(field>=0);assert.match(initial.slice(field,field+4).join('\n'),/\[ \] Disabled/);await page.screenshot({path:join(output,'restricted-option.png')});
- await page.keyboard.press('Space');if(native)await page.keyboard.press('Alt+Enter');else{for(let i=0;i<6;i++)await page.keyboard.press('Tab');await page.keyboard.press('Enter');}
+ await page.keyboard.press('Space');if(native)await page.keyboard.press('Alt+Enter');else{for(let i=0;i<7;i++)await page.keyboard.press('Tab');await page.keyboard.press('Enter');}
  await wait('project-checks:');await wait('disabledPlugins');const identity=JSON.parse(await readFile(join(output,'onboarding-identity.json'),'utf8'));
  const state=await readFile(join(identity.state,'extensions-state.json'),'utf8').then(JSON.parse,error=>{if(error.code==='ENOENT')return{};throw error;});
  assert.ok(!state.installed?.['project-checks']);assert.ok(!state.enabled?.includes('project-checks'));

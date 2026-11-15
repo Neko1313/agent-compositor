@@ -70,15 +70,19 @@ granting more scope.
 
 In the setup guide, **Choose recommended tools** asks what work you plan to do
 and lets you select optional project checks, test reports, change review, web
-research, a resource monitor and side conversations. Coding initially suggests
+research, a resource monitor, side conversations and automatic approval review. Coding initially suggests
 project checks; research suggests web access. The resource monitor and side
-conversation are unchecked until you select them. The monitor does not call a
+conversation and approval review are unchecked until you select them. The monitor does not call a
 model; side conversations require agent-hub and use the configured model.
 If agent-hub is unavailable, the guide warns before and after selection. Check
 `disabledPlugins` and any `enabledPlugins` allowlist in `agent-compositor.json`,
 enable agent-hub there, and restart the app; `/btw --once` remains available for
 an independent one-shot answer without a side-conversation window. The one-shot
 answer also uses the configured model.
+Approval review is opt-in for each session: after installing it and applying
+plugin changes, use `/auto on` to enable model-assisted review and `/auto off`
+to return to manual approvals. Reviews use a model and uncertain or high-risk
+actions can still require your decision. See [auto review](agent-features.md#auto-review).
 Only checked additions are installed if needed and enabled for the project.
 Downloads may be needed, and existing installations, versions and active plugins
 are retained. The guide does not change explicit plugin restrictions or tool

@@ -482,9 +482,10 @@ for both modes; the report identifies source/binary mode and hashes the selected
 binary. Keep the complete archive contents beside that executable.
 Set `VISUAL_ONBOARDING_OPENTUI=1` to run the same flow with OpenTUI; without it
 the scenario uses Ink. Both source and extracted-binary modes support the flag.
-The recommendations step selects the resource monitor and side conversation,
-checks that the focused side-conversation dependency hint is visible, and
-verifies installation and activation before the first model request.
+The recommendations step selects the resource monitor, side conversation and
+automatic approval review. It checks the dependency and opt-in hints, installs
+and activates the selections, and verifies `/auto status`, `/auto on` and `/auto
+off` without a model request before the first task.
 Set `VISUAL_ONBOARDING_NO_HUB=1` to start the isolated project with agent-hub
 disabled and verify that the recommendation exposes the unavailable capability.
 `VISUAL_OUTPUT=dist/setup-restrictions node tools/visual/setup-restrictions-check.mjs`

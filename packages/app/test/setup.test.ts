@@ -77,6 +77,16 @@ it('offers independent resources and side conversations without enabling them by
   expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('Apply pending tools: project-checks, resources'))).toBe(true);
  }finally{await f.close();}
 });
+it('offers approval review as explicit opt-in and explains how to start it',async()=>{
+ const f=await fixture();try{
+  f.answers.push({action:'next',values:{work:'chat'}},{action:'apply',values:{'auto-approve':true}});await f.press('tools');
+  expect(f.forms[1].fields.find((field:any)=>field.id==='auto-approve')).toMatchObject({value:false,hint:expect.stringContaining('/auto on')});
+  expect(f.operations).toEqual([{action:'list'},{action:'install',name:'auto-approve@agent-compositor',scope:'project'},{action:'enable',name:'auto-approve',scope:'project'}]);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('/auto on')&&line.text.includes('model'))).toBe(true);
+  f.setEnabled([]);await (f.guide.plugin.hooks['session.reload'] as any)({},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('/auto on'))).toBe(false);
+ }finally{await f.close();}
+});
 
 it('lets setup finish when a selected plugin is disabled elsewhere before reload',async()=>{
  const f=await fixture();try{

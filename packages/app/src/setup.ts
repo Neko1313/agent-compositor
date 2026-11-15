@@ -11,6 +11,7 @@ const suggestions=[
  {name:'web',label:'Web research',reason:'Search and fetch public information.',research:true},
  {name:'resources',label:'Resource monitor',reason:'View CPU and memory without calling a model.'},
  {name:'btw',label:'Side conversation',reason:'Chat alongside the main task; needs agent-hub and model usage.'},
+ {name:'auto-approve',label:'Automatic approval review',reason:'Optional model reviews; use /auto on after reload. Uncertain actions still ask.'},
 ];
 type ModelStatus={configured:boolean;profile:string;model:string};
 type Dependencies={
@@ -43,7 +44,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
    ...(waiting.length?[{text:`Apply pending tools: ${waiting.join(', ')}`,tone:'warning' as const},{text:'[ Apply plugin changes ]',action:'navigate:reload'}]:[]),
    {text:'[ Start chatting ]',action:'finish',tone:'accent'},
    {text:'[ Skip for now ]',action:'skip'},
-   ...current.notes.map(text=>({text:current.changed.some(name=>!enabled.includes(name)&&text===`${name}: selected for this project`)?text.replace(': selected for this project',': no longer enabled'):text,tone:'muted' as const})),
+   ...current.notes.filter(text=>!text.startsWith('auto-approve: after applying changes,')||enabled.includes('auto-approve')).map(text=>({text:current.changed.some(name=>!enabled.includes(name)&&text===`${name}: selected for this project`)?text.replace(': selected for this project',': no longer enabled'):text,tone:'muted' as const})),
    {text:'[ Models & providers ]',action:'navigate:settings'},
    {text:'[ All plugins and marketplace ]',action:'navigate:extensions'},
    {text:'You can reopen this guide with /setup. No connection is tested until you request it.',tone:'muted'},
@@ -73,6 +74,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
     const enabled=await deps.control({action:'enable',name,scope:'project'},$.signal);if(!enabled.ok)throw Error(enabled.error??'Activation failed');
     current.changed=[...new Set([...current.changed,name])];current.notes.push(`${name}: selected for this project`);
     if(name==='btw'&&!deps.sideConversationAvailable())current.notes.push('btw: side conversations need agent-hub enabled in project configuration and an app restart; /btw --once remains available');
+    if(name==='auto-approve')current.notes.push('auto-approve: after applying changes, use /auto on. Reviews use a model; uncertain actions still ask.');
     $.signal.throwIfAborted();
    }catch(error){$.signal.throwIfAborted();current.notes.push(`${name}: ${error instanceof Error?error.message:String(error)}`);}
   }

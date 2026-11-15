@@ -1876,7 +1876,8 @@ it('uses actual manager navigation, local inactive installation, cross-manager f
   const catalog = join(f.root, 'catalog'), plugin = join(catalog, 'plugins/local-flow-probe');
   await mkdir(join(catalog, '.claude-plugin'), {recursive: true}); await mkdir(plugin, {recursive: true});
   await writeFile(join(catalog, '.claude-plugin/marketplace.json'), JSON.stringify({name: 'local-flow', owner: {name: 'Local fixture'},
-    plugins: [{name: 'local-flow-probe', version: '1.0.0', source: './plugins/local-flow-probe'}]}));
+    plugins: [{name: 'local-flow-probe', version: '1.0.0', source: './plugins/local-flow-probe'},
+      {name: 'missing-flow-probe', version: '1.0.0', source: './plugins/missing-flow-probe'}]}));
   await writeFile(join(plugin, 'plugin.json'), JSON.stringify({name: 'local-flow-probe', version: '1.0.0', trust: 'trusted'}));
   await writeFile(join(plugin, 'hooks.ts'), `export default {'session.reload':async(_,$)=>$.ui.surface('main','Installed local flow','Loaded only after explicit enable and reload',{focus:false})};`);
   const main = f.host.submit('Ask before continuing');
@@ -1898,6 +1899,12 @@ it('uses actual manager navigation, local inactive installation, cross-manager f
   await press(extensionId, 'navigate:marketplace'); await press(marketId, 'catalog:local-flow');
   const search = await waitAction(marketId, 'install:local-flow-probe@local-flow'); search.change('search', 'flow-probe', search.snapshot().revision);
   await expect.poll(() => f.find(marketId)?.snapshot().view?.input?.value).toBe('flow-probe');
+  await press(marketId, 'install:missing-flow-probe@local-flow');
+  const missing = await f.waitForm('Install missing-flow-probe@local-flow'); f.answer(missing, 'install', {scope: 'project'});
+  await expect.poll(() => f.find(marketId)?.snapshot().view?.lines.some(line => line.tone === 'danger')).toBe(true);
+  expect(f.find(marketId)?.snapshot().view?.input?.value).toBe('flow-probe');
+  expect(f.find(marketId)?.snapshot().view?.lines.some(line => line.action === 'install:missing-flow-probe@local-flow')).toBe(true);
+  expect(f.find(marketId)?.snapshot().view?.lines.some(line => line.action === 'install:local-flow-probe@local-flow')).toBe(true);
   await press(marketId, 'install:local-flow-probe@local-flow');
   const install = await f.waitForm('Install local-flow-probe@local-flow'); f.answer(install, 'install', {scope: 'project'});
   await expect.poll(() => f.form()).toBeUndefined();

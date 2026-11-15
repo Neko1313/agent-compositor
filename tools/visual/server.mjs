@@ -496,7 +496,7 @@ export default {'session.start':async(_,$)=>show($),'session.reload':async(_,$)=
 `);
   await writeFile(join(catalogRoot,'.claude-plugin/marketplace.json'),JSON.stringify({name:'local-flow',owner:{name:'Local fixture'},plugins:[{
    name:'local-flow-probe',version:'1.0.0',source:'./plugins/local-flow-probe',description:'Offline manager activation proof',compositor:{format:'native'},
-  }]}));
+  },{name:'missing-flow-probe',version:'1.0.0',source:'./plugins/missing-flow-probe',description:'Missing package fixture',compositor:{format:'native'}}]}));
   const installedRoot=resolve(cwd,'.agent-compositor/plugins')===resolve(paths.home,'plugins')?join(paths.state,'project-plugins'):join(cwd,'.agent-compositor/plugins');
   appLaunch.managers={catalogRoot,source,manifest:join(installedRoot,'local-flow-probe/plugin.json'),
    receipt:join(paths.state,'plugin-state/local-flow-probe/loaded.json'),extensionState:join(paths.state,'extensions-state.json'),

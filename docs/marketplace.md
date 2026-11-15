@@ -26,7 +26,8 @@ do not activate packages. The interactive marketplace lists packages and offers
 a scope form; `/extensions` shows available/active status and scoped management.
 After installing a plugin, the catalog keeps its search and results alongside the
 operation status. Managing that installed plugin updates the status without taking
-focus away from the current window.
+focus away from the current window. If an installation fails, the error appears
+alongside the same search results so you can retry or choose another package.
 See [plugin standard 1](plugin-standard.md) for testing and independent releases.
 
 Installation defaults to user scope (`~/.agent-compositor/plugins`).

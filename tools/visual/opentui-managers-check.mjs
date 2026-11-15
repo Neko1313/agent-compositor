@@ -161,6 +161,12 @@ try{
   await formButton('Add marketplace','Add marketplace');await absent('Add marketplace · Form');await wait('Refreshed local-flow');
   await click('All marketplaces');await wait('local-flow · project');await click('local-flow · project');await wait('Choose a plugin to install.');
   await click('Search plugins',{pane:'Marketplaces'});await type('flow-probe');await wait('Search: flow-probe');
+  await click('missing-flow-probe  v1.0.0');await wait('Install missing-flow-probe@local-flow · Form');await zoom();
+  await formButton('Install missing-flow-probe@local-flow','Install inactive');
+  await observe(()=>paneText('Marketplaces'),text=>text.includes('ENOENT')&&text.includes('Search: flow-probe')&&text.includes('missing-flow-probe  v1.0.0')&&text.includes('local-flow-probe  v1.0.0'),
+    'A failed install must retain its error, search and both catalog results');
+  await capture('00-failed-install-search-retained');
+  report.checks.push('A missing package reports its installation error while retaining the query and searchable catalog during a pending Main question');
   await click('local-flow-probe  v1.0.0');await wait('Install local-flow-probe@local-flow · Form');await zoom();await paneText('Install local-flow-probe@local-flow');
   await formButton('Install local-flow-probe@local-flow','Install inactive');await wait('Installed local-flow-probe');
   await wait('Installed inactive. Check Installed plugins for current status.');

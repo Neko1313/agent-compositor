@@ -455,11 +455,9 @@ export async function marketplaces(
           if(!form||form.action!=='install')return;
           await $.ui.view('marketplaces','Marketplaces',pendingManagementView('install',name),{site:'sidebar',size:.5,focus:true});
           const result=await managementResult($,'service.extension.control',{action:'install',name,scope:form.values.scope});
-          if(result.ok){
-            $.state.set('installReceipt',name.split('@')[0]);
-            try{await browse($,extensionView('install',result));}
-            catch{await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'sidebar',size:.5,focus:true});}
-          }else await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'sidebar',size:.5,focus:true});
+          if(result.ok)$.state.set('installReceipt',name.split('@')[0]);
+          try{await browse($,extensionView('install',result));}
+          catch{await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'sidebar',size:.5,focus:true});}
         }
       },
     },

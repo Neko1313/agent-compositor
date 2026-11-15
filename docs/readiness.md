@@ -16,6 +16,13 @@ known-case diagnostic, not a representative model-family score. The repeated
 failure guard stopped the loop, but incorrectly attributed the errors to
 permissions or configuration; the guard now directs users to the actual tool
 errors without assuming their cause. The full development gate remains open.
+In a separate run at `2b78369`, the same known case and independent checks used
+the explicit `@.` project-directory reference, changing the prompt and exposed
+context. The model found and edited `greeting.mjs`, but the edit still failed the
+original and behavioral checks; it ran `npm test` with exit code 1 and exhausted
+the twelve-request limit. The package file remained unchanged and the owned
+CPU server exited. This assisted run does not demonstrate autonomous discovery
+or a correct repair; its changed prompt prevents a like-for-like comparison.
 
 An exploratory serverless CPU onboarding diagnostic now runs a pinned local
 `llama-completion` executable directly, with no model server or product actions.

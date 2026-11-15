@@ -792,6 +792,14 @@ repeated-query streak needed for a reminder, so this run does not test the new e
 Both protected files remained unchanged, the independent grader failed and the
 owned CPU server exited. Evidence is in `dist/local-cpu-glob-recovery-hint/`.
 
+A further navigation run at `a219047` recorded the host's query-recovery and
+glob-example labels in serialized requests 9–12. In response to request 9 the
+model called `glob`, then read the two discovered source files and made an edit.
+It reached the 12-request ceiling without running a project check; the independent
+grader failed and the protected files remained unchanged. The owned CPU server
+exited. Evidence is in `dist/local-cpu-glob-receipt/`. This single known-case
+run does not establish causation, general model quality or completed repair.
+
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory
 listing and ordinary project-instruction expansion available to the user. These

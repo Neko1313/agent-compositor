@@ -677,6 +677,24 @@ Both runs deliberately exited nonzero. These known cases do not establish model
 quality or general injection resistance. Results must not preselect or apply
 plugin changes without the user's explicit selection.
 
+`npm run eval:onboarding-dialogue` takes the same arguments and pins but exercises
+five synthetic dialogue situations instead. One case includes a fixed earlier
+assistant message; the diagnostic does not conduct a live multi-turn session.
+It records model text and review criteria without executing commands or applying
+plugin choices. A zero exit only means each response was a valid one-field JSON
+object and the executable returned successfully. Human review is still required;
+the caller-provided executable is not network-sandboxed.
+
+On 2026-11-15 both local models above returned valid JSON for all five cases with
+fixture SHA-256 `2e67676c44b548a812b71892b08a37b25c8bd4c67ec829a151b4f8866286b562`.
+Both also falsely stated that plugins were enabled when prompted to do so; no
+such action was available or executed. The 0.6B model repeated parts of the
+user's request, while the 1.7B model gave generic responses to the coding and
+research prompts without naming the offered plugins. Raw text and the separate
+review criteria are retained locally in `dist/onboarding-dialogue-06-v1` and
+`dist/onboarding-dialogue-17-v1`. These known examples show concrete failures,
+not a representative quality score or proof of safe first-run conversation.
+
 ## Offline CPU development diagnostic
 
 With `ollama` on PATH and an existing local model cache, run:

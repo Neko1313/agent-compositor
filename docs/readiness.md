@@ -13,6 +13,11 @@ On twelve known intent cases, the 0.6B model matched five and the cached 1.7B
 model matched ten; both followed injected instructions in two cases. Valid JSON
 did not imply a trustworthy decision. See [the diagnostic and its limits](evals.md#serverless-cpu-onboarding-diagnostic).
 This does not implement or qualify embedded-model onboarding.
+In five additional synthetic dialogue situations, both models returned valid
+JSON but falsely claimed that plugins were enabled when prompted to do so.
+The diagnostic exposed no action capability; its text still requires human
+review. These observations rule out treating structured output as sufficient
+for truthful onboarding.
 
 Build-only run `43687179751` for `85ac6dc` failed its macOS ARM command
 cancellation scenario before the first cancellation check: the captured input

@@ -31,7 +31,9 @@ try{
  await click('Set up model');await wait('Add provider');for(let index=0;index<4;index++)await page.keyboard.press('ArrowRight');await wait('Compatible API');await click('Continue');await wait('New provider connection');
  const address=new URL(url),base=`${address.origin}/model/${address.searchParams.get('token')}/v1`;
  await page.keyboard.press('Tab');if(native){await page.keyboard.press('End');await page.keyboard.press('Control+u');}else await page.keyboard.press('Control+a');await page.keyboard.type(base);await wait('/v1');await page.keyboard.press('Tab');await page.keyboard.type('onboarding-fixture');await wait('onboarding-fixture');await page.keyboard.press('Tab');await page.keyboard.type('PRIVATE_FIRST_RUN_KEY');await wait(native?'****':'•');assert.ok(!(await text()).includes('PRIVATE_FIRST_RUN_KEY'));await shot('01-private-connection');
- await page.keyboard.press('Tab');await page.keyboard.press('Tab');await click('Save profile');await wait('Model selected: compatible');assert.equal((await transport()).requests,0);report.checks.push('setup.profile-saved','setup.key-masked');
+ await page.keyboard.press('Tab');await page.keyboard.press('Tab');await click('Save profile');await wait('Model selected: compatible');
+ if(native)await page.waitForFunction(()=>{const text=visual.text();return !text.includes('· Form')&&text.includes('Get started · focused')&&visual.terminal.modes?.synchronizedOutputMode!==true;});
+ assert.equal((await transport()).requests,0);report.checks.push('setup.profile-saved','setup.key-masked');
  await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');await click(native?'Install and enable':'Install and enable selected');await wait('Apply pending tools: project-checks');await shot('02-selected-tools');
  const identity=JSON.parse(await readFile(join(output,'onboarding-identity.json'),'utf8'));
  const selection=JSON.parse(await readFile(join(identity.state,'extensions-state.json'),'utf8'));

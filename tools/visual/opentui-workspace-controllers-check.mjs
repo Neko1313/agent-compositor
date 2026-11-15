@@ -128,7 +128,7 @@ try{
   await placement();await click('CUSTOM PLACEMENT',1);await eventWhere(row=>row.event==='input'&&row.id===initialPlacement.id&&row.input==='mouse'&&row.action==='press'&&row.row===2&&row.col===2,'Placement raw mouse must retain the full-frame origin convention');
   await click('Target alpha');const inventory=await eventWhere(row=>row.event==='inventory'&&row.id===initialPlacement.id,'Placement must receive actual windows/anchors');
   assert.ok(inventory.windows.some(window=>window.id===fixture.ids.alpha&&window.plugin===fixture.requester&&window.surface==='alpha'));assert.ok(inventory.anchors.includes('session'));
-  await click('Apply workspace 2');await observe(layout,value=>location(value,fixture.ids.alpha)==='2','Actual Apply must relocate alpha toWS2');assert.equal(await exists(fixture.placement),false);
+  await click('Apply workspace 2');await observe(layout,value=>location(value,fixture.ids.alpha)==='2','Actual Apply must relocate alpha toWS2');await wait('Applied');await normal();assert.equal(await exists(fixture.placement),false);
   await click('Save workspace 3');await wait('Rule saved');const savedRule=await observe(rule,value=>value.ui?.rules?.some(rule=>rule.match.plugin===fixture.requester&&rule.match.surface==='alpha'),'Save must persist the canonical identity rule');
   const expectedRule={site:'sidebar',workspace:3,size:.4,relativeTo:'session',focus:false,match:{plugin:fixture.requester,surface:'alpha'}};assert.deepEqual(savedRule.ui.rules.find(rule=>rule.match.surface==='alpha'),expectedRule);
   await observe(layout,value=>location(value,fixture.ids.alpha)==='3','Save must relocate alpha toWS3');await setZoom(false);await capture('02-private-placement-tiled');

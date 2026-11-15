@@ -173,6 +173,8 @@ actual selected history resume intent before the bench restarts with that ID.
 Dependent history mutations wait for the refreshed native selection/list, in
 addition to the service receipt. Inserting or removing a chat shifts the action
 rows; pointer targets must remain stable in a completed terminal frame.
+After transient placement, the next click also waits for the rendered Apply
+confirmation as well as the persisted layout, so it uses the updated geometry.
 
 The separate observer proves private frames, raw inputs and local form results do
 not use public `ui.render`, `ui.press` or `ui.change`. Deliberate `data.control`
@@ -471,6 +473,8 @@ for both modes; the report identifies source/binary mode and hashes the selected
 binary. Keep the complete archive contents beside that executable.
 Set `VISUAL_ONBOARDING_OPENTUI=1` to run the same flow with OpenTUI; without it
 the scenario uses Ink. Both source and extracted-binary modes support the flag.
+On OpenTUI the next action waits until the profile form has closed and the guide
+has regained focus, because a visible status behind the form is not sufficient.
 
 `VISUAL_OUTPUT=dist/btw-proof node tools/visual/plugin-check.mjs btw` checks the
 actual side-conversation flow: opening while the main model is held, inline

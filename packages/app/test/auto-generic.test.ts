@@ -314,6 +314,36 @@ it('does not accept a late generic-tool verdict after auto is disabled', async (
     expect(await pending).toMatchObject({ value: { decision: 'ask', risk: 'unknown', reason: 'Auto review disabled or cancelled' } });
 });
 
+it('settles a review when cancellation occurs synchronously as the model starts', async () => {
+    const f = await fixture();
+    const controller = new AbortController();
+    f.$.signal = controller.signal;
+    let finish!: (value: string) => void;
+    f.$.model.complete = () => {
+        controller.abort();
+        return new Promise<string>(resolve => { finish = resolve; });
+    };
+    const pending = review['service.permission.review']({tool:'ci_check',context:{task:'Run project tests'}},f.$);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        const result = await Promise.race([pending, new Promise<'stalled'>(resolve => { timer = setTimeout(() => resolve('stalled'), 300); })]);
+        expect(result).toMatchObject({value:{decision:'ask',risk:'unknown',reason:'Auto review disabled or cancelled'}});
+    } finally {
+        clearTimeout(timer);
+        finish?.(JSON.stringify(allowed));
+        await pending;
+    }
+});
+
+it('falls back to manual review when the provider ignores its timeout signal', async () => {
+    const f = await fixture({timeoutMs:100});
+    let requestSignal:AbortSignal | undefined;
+    f.$.model.complete = (request:any) => { requestSignal=request.signal; return new Promise(() => {}); };
+    const result = await review['service.permission.review']({tool:'ci_check',context:{task:'Run project tests'}},f.$);
+    expect(result).toMatchObject({value:{decision:'ask',risk:'unknown',reason:'Risk review timed out or cancelled'}});
+    expect(requestSignal?.aborted).toBe(true);
+});
+
 it('reviews new nested files by effect and keeps protected or unresolved symlink writes manual',async()=>{
     const f=await fixture();const path=join(f.$.session.cwd,'new','nested','file.ts');
     expect(await review['service.permission.review']({tool:'custom_create',descriptor:{tool:'write',path},input:{content:'local source'},context:{task:'Create local source'}},f.$)).toMatchObject({value:{decision:'allow'}});expect(f.calls).toHaveLength(1);

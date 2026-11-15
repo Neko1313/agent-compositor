@@ -91,6 +91,15 @@ async function withAudit<T>($:any,work:()=>Promise<T>):Promise<T> {
     $.state.set('auditTail',next);
     try{await prior;return await work();}finally{release();}
 }
+async function untilAbort<T>(signal:AbortSignal,work:()=>Promise<T>):Promise<T> {
+    let onAbort!:()=>void;
+    const cancelled=new Promise<never>((_resolve,reject)=>{
+        onAbort=()=>reject(new Error('Risk review timed out or cancelled'));
+        if(signal.aborted)onAbort();else signal.addEventListener('abort',onAbort,{once:true});
+    });
+    try{return await Promise.race([cancelled,Promise.resolve().then(()=>{signal.throwIfAborted();return work();})]);}
+    finally{signal.removeEventListener('abort',onAbort);}
+}
 export default {
     "command.invoke": async (e: any, $: any) => {
         if (e.name !== '/auto') return;
@@ -150,8 +159,7 @@ export default {
                 $.signal,
                 AbortSignal.timeout(timeoutMs),
             ]);
-            const response = await Promise.race([
-                $.model.complete({
+            const response = await untilAbort(signal, () => $.model.complete({
                     ...(config.profile === undefined ? {} : {profile: config.profile}),
                     maxOutputTokens: 512,
                     signal,
@@ -169,11 +177,7 @@ export default {
                         },
                         { role: "user", content: payload },
                     ],
-                }),
-                new Promise((_resolve, reject) => {
-                    signal.addEventListener("abort", () => reject(new Error("Risk review timed out or cancelled")), { once: true });
-                }),
-            ]);
+                }));
             verdict = parseVerdict(response,e.context);
         }
         catch (error) {

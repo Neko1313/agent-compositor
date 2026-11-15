@@ -801,6 +801,10 @@ attached. Both preflight and inference use the resulting prompt.
 On each actual local HTTP request the report records the tool names, body digest
 and top-level required fields of the advertised editor. These describe the
 request before the server renders its chat template.
+For host-generated query, glob-example and failed-check recovery guidance, it
+also records fixed labels when the exact host message is present at its expected
+position in the serialized request. The receipt contains no message text. It
+proves inclusion in the request, not that the model followed the guidance.
 Reports record the reference flag, `fileReferences` composition option and the
 submitted prompt SHA-256 separately from the unchanged source case hash. This is a
 different context condition from the unassisted diagnostic; do not present it as

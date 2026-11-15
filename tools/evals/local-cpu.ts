@@ -7,6 +7,7 @@ import {estimateMessageTokens,estimateTokens} from '../../packages/context/src/i
 import {OpenAICompatProvider} from '../../packages/provider/src/openai-compat.js';
 import {runCase,type EvalCase} from './runner.js';
 import {verifyLocalCache,localModelServer,localCompletionFetch,type ModelPin} from './local-model.js';
+import {hintCandidates,deliveredHintKinds} from './hint-receipts.js';
 const {values}=parseArgs({options:{
  help:{type:'boolean',short:'h'},output:{type:'string'},cache:{type:'string'},repeat:{type:'string'},
  case:{type:'string'},composition:{type:'string'},preset:{type:'string'},'project-reference':{type:'boolean'},
@@ -26,7 +27,7 @@ await mkdir(dirname(output),{recursive:true});await mkdir(output);
 const projectReference=values['project-reference']??false;
 const composition:{tools:string[];agentHarness:boolean;instructionsPreset:'coding'|'general';fileReferences?:boolean}={tools:['read','write','edit','exec',...(roster==='navigation'?['glob','grep']:[])],agentHarness:true,instructionsPreset:preset,...(projectReference?{fileReferences:true}:{})};
 const promptFor=(test:EvalCase)=>test.prompt+(projectReference?'\nProject directory: @.':'')+'\n/no_think';
-const sourceInputs=Object.fromEntries(await Promise.all(['local-cpu.ts','local-model.ts','local-qwen.json','runner.ts','agent-cases.json'].map(async name=>[name,createHash('sha256').update(await readFile(new URL(name,import.meta.url))).digest('hex')])));
+const sourceInputs=Object.fromEntries(await Promise.all(['local-cpu.ts','local-model.ts','local-qwen.json','runner.ts','agent-cases.json','hint-receipts.ts'].map(async name=>[name,createHash('sha256').update(await readFile(new URL(name,import.meta.url))).digest('hex')])));
 const configuration={roster,projectReference,promptSha256:createHash('sha256').update(promptFor(selected[0])).digest('hex'),sourceInputs,sourceDirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),sourceRevision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),model:pin.model,localOnly:true,paidRequests:0,contextWindow:16384,maxOutputTokens:1536,maxRequestsPerCase:12,threads:2,seed:17,repeat,composition,suiteSha256:createHash('sha256').update(suite).digest('hex'),case:selected[0].id,caseSha256:createHash('sha256').update(JSON.stringify(selected[0])).digest('hex'),scope:'Known development diagnostic, not an unseen benchmark or general model-quality claim'};
 await writeFile(join(output,'configuration.json'),JSON.stringify(configuration,null,2)+'\n');
 const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(Error('Local CPU evaluation deadline')),20*60_000);
@@ -49,15 +50,17 @@ const verified=await verifyLocalCache(cache,pin,controller.signal);await writeFi
  console.log(JSON.stringify({phase:'ready',localOnly:true,pid:server.pid}));
  for(let repetition=0;repetition<repeat;repetition++)for(const test of selected){
   let admitted=0;
-  const transportRequests:{tools:string[];bodySha256:string;editRequired?:string[]}[]=[];
+  const transportRequests:{tools:string[];bodySha256:string;editRequired?:string[];harnessHints:string[]}[]=[];
+  let pendingHints:ReturnType<typeof hintCandidates>=[];
   const transport=new OpenAICompatProvider({
    baseUrl:server.base+'/v1',model:server.model,apiKey:'',retries:0,timeoutMs:180000,maxOutputTokens:1536,reasoningEffort:'none',
    fetch:localCompletionFetch(server.base,server.model,async(input,init)=>{
-    const raw=String(init?.body), tools=JSON.parse(raw).tools??[];
+    const raw=String(init?.body),body=JSON.parse(raw),tools=body.tools??[];
     const required=tools.find((tool:any)=>tool.function.name==='edit')?.function.parameters.required;
     transportRequests.push({
      tools:tools.map((tool:any)=>tool.function.name),
      bodySha256:createHash('sha256').update(raw).digest('hex'),
+     harnessHints:deliveredHintKinds(pendingHints,body),
      ...(Array.isArray(required)?{editRequired:required}:{}),
     });
     return fetch(input,init);
@@ -66,7 +69,9 @@ const verified=await verifyLocalCache(cache,pin,controller.signal);await writeFi
   const provider={name:'owned-local-cpu',async *complete(request:any){
    if(request.model!==server!.model)throw Error('Nonlocal model name');if(admitted>=12)throw Error('Local request ceiling reached');
    const input=request.messages.reduce((sum:number,message:any)=>sum+estimateMessageTokens(message),0)+estimateTokens(JSON.stringify(request.tools));if(input+1536>16384)throw Error('Local context ceiling reached before transport');
-   admitted++;yield*transport.complete({...request,maxOutputTokens:1536,signal:AbortSignal.any([request.signal,controller.signal])});
+   admitted++;pendingHints=hintCandidates(request.messages);
+   try{yield*transport.complete({...request,maxOutputTokens:1536,signal:AbortSignal.any([request.signal,controller.signal])});}
+   finally{pendingHints=[];}
   }};
   const result={...(await runCase({...test,prompt:promptFor(test)},{model:server.model,provider,baseUrl:server.base+'/v1',timeoutMs:300000,...composition})),repetition,admitted,transportRequests};results.push(result);
   await writeFile(join(output,`${test.id}-${repetition}.json`),JSON.stringify(result,null,2)+'\n');

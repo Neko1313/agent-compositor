@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {execFile,spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {copyFile,mkdir,readFile,readdir,realpath,rm,writeFile} from 'node:fs/promises';
+import {appendFile,copyFile,mkdir,readFile,readdir,realpath,rm,writeFile} from 'node:fs/promises';
 import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {promisify} from 'node:util';
@@ -13,7 +13,7 @@ const timeout=20_000,draft='CANCEL_MAIN_DRAFT_47',hash=value=>createHash('sha256
 const report={ok:false,mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[]};
 const runFile=promisify(execFile),ownedPids={};
 let server,serverExit,browser,page,launch,ptyExit;
-await mkdir(output,{recursive:true});for(const name of ['failure.png','failure.txt'])await rm(join(output,name),{force:true});
+await mkdir(output,{recursive:true});for(const name of ['failure.png','failure.txt','pointer.jsonl'])await rm(join(output,name),{force:true});
 const json=file=>readFile(file,'utf8').then(JSON.parse);
 async function observe(read,predicate,reason){const end=Date.now()+timeout;let value;
   while(Date.now()<end){value=await read().catch(error=>{if(error.code!=='ENOENT')throw error;});if(value!==undefined&&predicate(value))return value;await delay(25);}
@@ -56,10 +56,10 @@ try{
     const point=await page.waitForFunction(({label,attempt})=>{
       const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes(label));if(row<0){delete window.__cancellationPointer;return;}
       const col=lines[row].indexOf(label)+Math.min(1,label.length-1),rect=document.querySelector('.xterm-screen').getBoundingClientRect();
-      const signature=[row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height].join(':'),previous=window.__cancellationPointer;
-      if(previous?.attempt!==attempt||previous.signature!==signature){window.__cancellationPointer={attempt,signature,count:1};return;}
-      if(++previous.count<3)return;return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows};
-    },{label,attempt},{polling:'raf'});const value=await point.jsonValue();await page.mouse.click(value.x,value.y);
+      const signature=[row,col,visual.terminal.cols,visual.terminal.rows,rect.x,rect.y,rect.width,rect.height,visual.frames,visual.text()].join(':'),previous=window.__cancellationPointer,now=performance.now();
+      if(previous?.attempt!==attempt||previous.signature!==signature){window.__cancellationPointer={attempt,signature,since:now};return;}
+      if(now-previous.since<150)return;return{x:rect.x+(col+.5)*rect.width/visual.terminal.cols,y:rect.y+(row+.5)*rect.height/visual.terminal.rows,row,col,frames:visual.frames,text:visual.text()};
+    },{label,attempt},{polling:'raf'});const value=await point.jsonValue();await page.mouse.click(value.x,value.y);await appendFile(join(output,'pointer.jsonl'),JSON.stringify({label,attempt,...value})+'\n');
   }
   async function capture(name){const attempts=[];for(let attempt=0;attempt<2;attempt++){
     await page.evaluate(()=>new Promise(done=>{const subscription=visual.terminal.onRender(()=>{subscription.dispose();requestAnimationFrame(()=>requestAnimationFrame(done));});visual.terminal.refresh(0,visual.terminal.rows-1);}));

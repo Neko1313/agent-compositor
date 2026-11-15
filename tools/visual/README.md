@@ -376,6 +376,8 @@ completed `/reload` establish settlement without injecting app or window state.
 The provider is bounded loopback HTTP; no paid model or user credentials are used.
 Artifacts default to `dist/visual-opentui-cancellation/`. Set `VISUAL_EXECUTABLE`
 to the executable inside a complete extracted archive for the same native check.
+`pointer.jsonl` records the terminal frame and cell used for each single click;
+the scenario waits for a quiet, stable frame before choosing that cell.
 
 `npm run visual:opentui-requests` checks the configured CLI's independent manual
 input windows with a bounded loopback model. Main retains its pending selected

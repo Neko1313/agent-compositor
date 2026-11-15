@@ -7,6 +7,15 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+Build-only run `43687179751` for `85ac6dc` failed its macOS ARM command
+cancellation scenario before the first cancellation check: the captured input
+clicked row 20, while the retained failure screen showed the answer button on
+row 40. The exact intermediate frame sequence is unavailable. The visual bench
+now requires the complete terminal contents and geometry to remain unchanged
+for 150 ms before its single click. A source PTY run passes all three original
+cancellation checks; this does not make the failed archive run pass or establish
+macOS behavior. A fresh native run remains necessary.
+
 Source checkpoint `235abdd` passes CI 43647694838, documentation 43647694790
 and plugin preparation 43647694862. Actual downloaded artifacts contain 2526
 passing tests plus five optional skips on Node 26, 2515 plus sixteen skips on

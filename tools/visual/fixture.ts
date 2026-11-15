@@ -55,12 +55,12 @@ const app = await buildApp({
     { text: "Independent agent response" },
   ]),
 });
-if(process.env.VISUAL_QUEUE_WRITE_FAIL){
+if(process.env.VISUAL_QUEUE_WRITE_FAIL||process.env.VISUAL_INPUT_WRITE_FAIL){
  const create=app.createCore;
  app.createCore=(...args:Parameters<typeof create>)=>{
   const core=create(...args);
   core.runtime.setResolver('service.session.append',async({sessionId,cwd,event,data}:any)=>{
-   if(event==='prompt.queue.intent')return {deny:'Visual fixture: journal unavailable'};
+   if(event===(process.env.VISUAL_INPUT_WRITE_FAIL?'prompt.input.intent':'prompt.queue.intent'))return {deny:'Visual fixture: journal unavailable'};
    await app.store.create(cwd,{id:sessionId});await app.store.append(sessionId,[{type:event,...data}],cwd);return {value:true};
   });
   return core;

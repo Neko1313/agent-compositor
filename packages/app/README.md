@@ -104,9 +104,9 @@ to the agent state. Resizing reflows the visible conversation.
 - `/reload` reloads disk plugins between turns, resetting plugin state.
 
 Interrupting work cancels ordinary queued messages. After reopening a session,
-`/recover` lists newer queued messages recorded in the journal without a recorded
-submission. Queue acceptance waits for the recovery intent write when persistent
-storage is configured. Use
+`/recover` lists newer user messages recorded in the journal without a recorded
+submission. New and queued messages wait for the recovery intent write before
+acceptance when persistent storage is configured. Use
 `/recover show N` to read one, `/recover retry N` to submit it explicitly, or
 `/recover discard N` to remove it from recovery. A recovered message may have
 been cancelled or may have begun processing before a crash; inspect the session

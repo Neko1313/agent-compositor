@@ -90,8 +90,8 @@ resolves to the exported `CoreInputAdmission` value `"submitted"`, `"queued"`,
 `"steered"`, `"command"` or `false`; `completion` retains the corresponding
 `submit`/`steer` completion behavior and errors. Existing methods remain available.
 Admission resolves when Core owns the turn, queue entry, steer or immediate
-command. User queue admission additionally waits for the recovery intent journal
-write, but not for prompt notification hooks, local human input or model work. A
+command. New and queued user prompts additionally wait for a recovery intent
+journal write, but not for prompt hooks, local human input or model work. A
 hook that handles and drops a submitted prompt still counts as admitted. Idle
 steering reports `"submitted"`; immediate commands report `"command"`.
 
@@ -726,11 +726,11 @@ The journal seam replaces event writes independently. The selected
 `{value:true}`. A denial, fault or missing acknowledgement stops the core and
 blocks further execution in that instance. Repair storage and reopen/resume the
 session to continue. A core without a configured journal remains usable in memory.
-A queued user prompt is admitted only after its recovery intent is acknowledged;
+A new or queued user prompt is admitted only after its recovery intent is acknowledged;
 when a persistent journal is configured, the intent supports explicit recovery.
 The prompt cannot start until its later `prompt.queued` write is acknowledged.
 Cancellation can remove a waiting prompt without waiting for that later write.
-Other admission types are not durability receipts, and an in-memory journal does
+Steering and command admission are not durability receipts, and an in-memory journal does
 not survive process exit.
 Before the journal chain runs, the core snapshots each payload using JSON
 serialization. Backends receive detached JSON records, including when a live

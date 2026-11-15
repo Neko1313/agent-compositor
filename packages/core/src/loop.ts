@@ -1285,7 +1285,7 @@ export class AgentCore {
   private runTurn(text: string,source:"user"|"agent"="user",origin?:"harness",admitted?:InputAdmitted,recoveryId?:string): Promise<void> {
     const run=(async()=>{
       this.inputSource=source;
-      try {await this.runTurnUnchecked(text,origin,admitted,recoveryId);}
+      try {await this.runTurnUnchecked(text,source,origin,admitted,recoveryId);}
       catch(error){
         this.lastTurnError=String(error);
         if(this.journalFailure){for(const entry of this.promptQueue)entry.cancel();this.promptQueue=[];this.steerQueue=[];}
@@ -1297,7 +1297,7 @@ export class AgentCore {
     this.activeTurn=run;
     return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
   }
-  private async runTurnUnchecked(text: string,origin?:"harness",admitted?:InputAdmitted,recoveryId?:string): Promise<void> {
+  private async runTurnUnchecked(text: string,source:"user"|"agent",origin?:"harness",admitted?:InputAdmitted,recoveryId?:string): Promise<void> {
     if(this.journalFailure)throw this.journalFailure;
     const turnId = randomUUID();
     this.currentTurnId = turnId;
@@ -1309,6 +1309,16 @@ export class AgentCore {
     this.interruptedByUser = false;
     this.abort = new AbortController();
     this.terminalObservation(this.abort.signal);
+    if(source==='user'&&!recoveryId){
+      recoveryId=randomUUID();
+      const signal=this.abort.signal;
+      let wake!:()=>void;const interrupted=new Promise<false>(resolve=>{wake=()=>resolve(false);signal.addEventListener('abort',wake,{once:true});});
+      try{
+        const recorded=await Promise.race([this.persist('prompt.input.intent',{text,recoveryId}).then(()=>true as const),interrupted]);
+        if(this.journalFailure)throw this.journalFailure;
+        if(!recorded||this.interruptedByUser||this.closed)return;
+      }finally{signal.removeEventListener('abort',wake);}
+    }
     admitted?.('submitted');
     const usage = { inputTokens: 0, outputTokens: 0 };
 

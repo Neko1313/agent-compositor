@@ -28,7 +28,8 @@ not establish support for every extended emoji or grapheme-cluster sequence.
 
 `node tools/visual/queue-failure-check.mjs` runs the Ink app with an isolated
 journal denial. It verifies that an unaccepted queued message returns to the
-editor. This is a controlled storage failure, not a native crash test.
+editor. Set `VISUAL_INPUT_WRITE_FAIL=1` to check the first user turn instead.
+This is a controlled storage failure, not a native crash test.
 
 `node tools/visual/recovery-check.mjs` runs the actual Ink application with an
 isolated scripted provider. It queues a user message during a held turn,

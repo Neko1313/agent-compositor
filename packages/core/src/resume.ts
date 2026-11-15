@@ -237,7 +237,7 @@ function safeStringify(output: unknown): string {
 }
 
 /**
- * Return user inputs whose queued record has no committed submission record.
+ * Return user inputs whose intent or queue record has no committed submission record.
  * These are candidates for explicit review, not authorization to execute: a
  * process may have stopped during a hook or before cancellation was recorded.
  * Old records without host-issued IDs are intentionally excluded because text
@@ -249,7 +249,7 @@ export function recoverQueuedInputs(events: SessionEvent[]): {id:string;text:str
     .map(event=>event.recoveryId).filter((id):id is string=>typeof id==='string'));
   const found=new Map<string,string>();
   for(const event of events){
-    if((event.type==='prompt.queued'||event.type==='prompt.queue.intent')&&typeof event.recoveryId==='string'&&typeof event.text==='string'
+    if((event.type==='prompt.queued'||event.type==='prompt.queue.intent'||event.type==='prompt.input.intent')&&typeof event.recoveryId==='string'&&typeof event.text==='string'
       &&!consumed.has(event.recoveryId)&&!found.has(event.recoveryId))found.set(event.recoveryId,event.text);
   }
   return [...found].map(([id,text])=>({id,text}));

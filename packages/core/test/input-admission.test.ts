@@ -75,7 +75,7 @@ it.each(['preparation', 'provider'] as const)('keeps admission accepted when %s 
 });
 
 it('distinguishes a newly failed journal after admission from a previously failed journal before ownership', async () => {
-  const core = fixture({sessions: {create: async () => {}, append: async () => {throw Error('Storage unavailable');}}}).core;
+  const core = fixture({sessions: {create: async () => {}, append: async (_id,events) => {if(events.some(event=>event.type==='prompt.submit'))throw Error('Storage unavailable');}}}).core;
   const first = core.dispatchInput('First');expect(await first.admitted).toBe('submitted');await first.completion;
   const next = core.dispatchInput('Never owned');expect(await next.admitted).toBe(false);await next.completion;
   expect(core.failure).toContain('Storage unavailable');
@@ -157,4 +157,38 @@ it('rejects queued admission if its recovery intent cannot be saved', async () =
   const next=f.core.dispatchInput('Keep my draft');expect(await next.admitted).toBe(false);
   await expect(next.completion).rejects.toThrow('Session journal failed');provider.release();await main.completion;
   expect(provider.requests).toHaveLength(1);
+});
+
+it('does not accept a new user turn until its recovery intent is saved', async () => {
+  const write=gate(),hook=gate(),journal:SessionEvent[]=[];
+  const f=fixture({sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.input.intent'))await write.wait();journal.push(...events);
+  }},plugins:[{manifest:{name:'prompt-handler',version:'1.0.0',trust:'trusted'},hooks:{'prompt.submit':async()=>{await hook.wait();return {drop:'Handled'};}}}]});
+  const receipt=f.core.dispatchInput('New input');let admitted:CoreInputAdmission|undefined;void receipt.admitted.then(value=>{admitted=value;});
+  await write.entered;await Promise.resolve();expect(admitted).toBeUndefined();expect(f.provider.requests).toHaveLength(0);
+  write.release();expect(await receipt.admitted).toBe('submitted');await hook.entered;
+  const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},structuredClone(journal));cores.push(resumed);
+  expect(resumed.getRecoveredInputs()).toMatchObject([{text:'New input'}]);
+  hook.release();await receipt.completion;
+  const after=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},structuredClone(journal));cores.push(after);
+  expect(after.getRecoveredInputs()).toEqual([]);
+});
+
+it('rejects a new user turn when saving its recovery intent fails', async () => {
+  const f=fixture({sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.input.intent'))throw Error('disk unavailable');
+  }}});
+  const receipt=f.core.dispatchInput('Keep this draft');expect(await receipt.admitted).toBe(false);await receipt.completion;
+  expect(f.provider.requests).toHaveLength(0);expect(f.core.failure).toContain('disk unavailable');
+});
+
+it('releases an interrupted new input without waiting for a held intent write', async () => {
+  const hold=gate(),f=fixture({sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.input.intent'))await hold.wait();
+  }}});
+  const receipt=f.core.dispatchInput('Stopped before admission');await hold.entered;f.core.interrupt();
+  try{
+    expect(await Promise.race([receipt.admitted,new Promise<never>((_,reject)=>setTimeout(()=>reject(Error('input still blocked')),500))])).toBe(false);
+    expect(f.provider.requests).toHaveLength(0);
+  }finally{hold.release();await receipt.completion;}
 });

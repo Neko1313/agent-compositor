@@ -12,6 +12,12 @@ client now waits for the current edit before submission and recognizes prior
 local values when retrying. The visual fixture also holds the streamed response
 open while typing begins and verifies the full follow-up reaches the provider;
 this fixture does not force the exact wire-receipt ordering of the unit test.
+The direct native-client API drops a pending submission if another edit is
+issued before admission. A production-renderer regression holds the actual
+edit receipt and shows that terminal Enter and subsequent paste are buffered:
+after release the plugin receives `FIRST`, then its submission, then
+`FIRST_LATER`. This checks keyboard input, not mouse-driven focus changes or
+arbitrary transport failure.
 
 ## Physical tmux graphics probe — 2026-11-15
 

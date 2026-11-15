@@ -83,6 +83,28 @@ async function fixture(heldModel=false,selectedControllers=false){
 // Native Node FFI is supported from Node 26; Node 22 still runs the pure runner
 // lifecycle and adapter tests without importing the SDK runtime.
 describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native production wire admission and resident input',()=>{
+  it('buffers Enter and later typing until a held plugin-field edit is admitted',async()=>{
+    const f=await fixture();let value='';const events:string[]=[];
+    f.host.core.host.registerPlugin({name:'input-order',version:'1.0.0',trust:'trusted'}, {
+      'ui.change':event=>{value=event.value;events.push('change:'+value);},
+      'ui.press':event=>{if(event.key==='send')events.push('send:'+value);},
+    });
+    await f.host.core.host.emit('service.ui.view',{plugin:'input-order',id:'main',title:'Input order',view:{
+      input:{id:'reply',label:'Reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]},options:{site:'split'}});
+    let stage='surface';try{
+    const id='plugin-input-order-main';await f.until(()=>f.host.surfaces.snapshot().some(source=>source.id===id));
+    f.layout.act({type:'focus',id});if(!f.layout.snapshot().fullscreen)f.layout.act({type:'zoom'});
+    stage='visible';await f.until(()=>f.test.captureCharFrame().includes('Reply:'));
+    f.holdWhen(input=>input?.operation.kind==='surface-change');f.packet('\t\x1b[200~FIRST\x1b[201~');
+    stage='first edit';await f.until(()=>f.held.length>0&&f.test.captureCharFrame().includes('FIRST'));
+    stage='revision';await f.until(()=>f.client.surfaces.snapshot().find(source=>source.id===id)?.snapshot().revision===f.host.surfaces.snapshot().find(source=>source.id===id)?.snapshot().revision);
+    f.packet('\r');await f.test.flush({maxPasses:30});f.packet('\x1b[200~_LATER\x1b[201~');
+    expect(f.test.captureCharFrame()).toContain('FIRST');expect(events).not.toContain('send:FIRST');
+    f.release();stage='settled';await f.until(()=>events.includes('send:FIRST')&&events.includes('change:FIRST_LATER')&&!f.client.pending());
+    expect(events.indexOf('send:FIRST')).toBeLessThan(events.indexOf('change:FIRST_LATER'));
+    expect(f.test.captureCharFrame()).toContain('FIRST_LATER');
+    }catch(error){throw Error(`Failed at ${stage}: ${f.test.captureCharFrame()}\n${JSON.stringify(f.inputs)}`,{cause:error});}
+  },12000);
   it('preserves selected-form paste after mouse press/release in one real parser packet',async()=>{
     const f=await fixture(false,true);
     void f.host.submit('/controller-probe form');

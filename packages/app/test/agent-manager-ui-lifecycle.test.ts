@@ -84,8 +84,12 @@ it('archives an ordinary managed form through a fresh UI action after an unrelat
   await expect.poll(()=>surface(overview)?.snapshot().busy).toBe(false);
   await action('plugin-agent-hub-agent-'+id,'history:'+id);
   expect(surface('plugin-agent-hub-history-'+id)).toBeDefined();
-  const oldMain=host.core;const resume=await oldMain.host.emit('service.session.control',{action:'resume',id:oldMain.sessionId});
-  expect(resume.faults).toEqual([]);expect(resume.value).toEqual({value:true});expect(host.core).not.toBe(oldMain);
+  const oldMain=host.core;
+  await expect.poll(()=>oldMain.controlsReady).toBe(true);
+  await expect.poll(()=>host.surfaces.snapshot().filter(source=>source.snapshot().busy).map(source=>source.id)).toEqual([]);
+  const before={controlsReady:oldMain.controlsReady,busy:host.surfaces.snapshot().filter(source=>source.snapshot().busy).map(source=>source.id)};
+  const resume=await oldMain.host.emit('service.session.control',{action:'resume',id:oldMain.sessionId});
+  expect(resume.faults).toEqual([]);expect(resume.value,JSON.stringify(before)).toEqual({value:true});expect(host.core).not.toBe(oldMain);
   await press('send');expect((await receipts()).filter(row=>row.kind==='fault'),JSON.stringify(await receipts())).toEqual([]);
   await expect.poll(()=>host.surfaces.snapshot().filter(source=>source.id.startsWith('agent-request-')).length,{message:JSON.stringify(await receipts())}).toBe(1);
   await press('archive');const rows=await receipts();

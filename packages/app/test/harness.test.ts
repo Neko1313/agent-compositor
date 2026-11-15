@@ -128,6 +128,25 @@ describe('dynamic workflow scheduler', () => {
             expect(engine.runs.get(run.id)).toEqual(before);await rm(lock);
         }finally{await engine.close();}
     });
+    it('drains an in-flight retry admission before shutdown without leaving a running journal or lease', async () => {
+        const cwd=await temp();let requests=0,entered!:()=>void,release!:()=>void;
+        const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+        const engine=new WorkflowEngine({cwd,request:async()=>{requests++;throw Error('failed');}});
+        try{
+            const run=await engine.start({completion:'none',stages:[{id:'a',prompt:'work'}]});await engine.wait(run.id);
+            const before=structuredClone(engine.runs.get(run.id));let held=false;
+            const unsubscribe=engine.onChange(()=>{if(!held&&engine.runs.get(run.id)?.status==='running'){held=true;entered();return gate;}});
+            const retry=engine.control(run.id,'retry','a').then(()=>null,error=>error);await started;
+            let closed=false;const closing=engine.close().then(()=>{closed=true;});
+            await new Promise<void>(resolve=>setImmediate(resolve));expect(closed).toBe(false);
+            release();const result=await retry;await closing;unsubscribe();
+            expect(result).toBeInstanceOf(Error);expect(result.message).toContain('closed');
+            expect(engine.runs.get(run.id)).toEqual(before);expect(requests).toBe(1);
+            const root=join(cwd,'.agent-compositor','workflows','runs');
+            expect(JSON.parse(await readFile(join(root,run.id+'.json'),'utf8'))).toEqual(before);
+            await expect(readFile(join(root,run.id+'.lock'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
+        }finally{release();await engine.close();}
+    });
     it('pauses scheduling, stops active work and recovers interrupted stages conservatively', async () => {
         const cwd = await temp();
         let release!: () => void;

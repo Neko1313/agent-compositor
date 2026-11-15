@@ -92,6 +92,9 @@ retrying. Start a fresh run after material changes invalidate old results.
 If another process owns a workflow, or saving a retry or resume fails, the
 attempt does not change its stage state. Resolve the ownership or storage error
 before trying again.
+Shutdown waits for retry/resume admission already in progress; if the worker has
+not launched, it restores the prior journal when storage permits and releases
+the ownership lock. A journal restoration error is reported to the caller.
 
 Defaults: concurrency 2 (maximum 8), 100 stages (maximum 500), 60000 tokens and
 10 minutes per stage, at most 32 model steps per stage, four active workflows per

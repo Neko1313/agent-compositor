@@ -70,6 +70,7 @@ export class WorkflowEngine {
         promise: Promise<void>;
     }>();
     private writes = new Map<string, Promise<void>>();
+    private admissions = new Set<Promise<void>>();
     private leases = new Map<string, import('node:fs/promises').FileHandle>();
     private listeners = new Set<() => Promise<void> | void>();
     private contexts=new Map<string,EngineContext>();
@@ -348,25 +349,33 @@ export class WorkflowEngine {
         }
         if ([...this.runs.values()].filter(r => r.status === 'running').length >= 4)
             throw Error('Workflow concurrency limit reached');
-        await this.lease(run.id);
-        const before=structuredClone(run),previousContext=this.contexts.get(run.id);
+        let finishAdmission!:()=>void;
+        const admission=new Promise<void>(resolve=>{finishAdmission=resolve;});this.admissions.add(admission);
         try {
-            if(this.closed)throw Error('Workflow engine closed');
-            if(target){target.status='pending';target.error=undefined;}
-            else for(const s of run.stages)if(s.status==='stopped')s.status='pending';
-            this.contexts.set(run.id,context);run.ownerSessionId=context.sessionId;
-            run.status = 'running';
-            run.error = undefined;
-            await this.persist(run);
-        } catch(error) {
-            for(const key of Object.keys(run))delete (run as any)[key];
-            Object.assign(run,before);
-            if(previousContext)this.contexts.set(run.id,previousContext);else this.contexts.delete(run.id);
-            await this.release(run.id).catch(()=>{});
-            throw error;
-        }
-        this.launch(run);
-        return structuredClone(run);
+            await this.lease(run.id);
+            const before=structuredClone(run),previousContext=this.contexts.get(run.id);let persisted=false;
+            try {
+                if(this.closed)throw Error('Workflow engine closed');
+                if(target){target.status='pending';target.error=undefined;}
+                else for(const s of run.stages)if(s.status==='stopped')s.status='pending';
+                this.contexts.set(run.id,context);run.ownerSessionId=context.sessionId;
+                run.status = 'running';
+                run.error = undefined;
+                await this.persist(run);persisted=true;
+                if(this.closed)throw Error('Workflow engine closed');
+            } catch(error) {
+                for(const key of Object.keys(run))delete (run as any)[key];
+                Object.assign(run,before);
+                if(previousContext)this.contexts.set(run.id,previousContext);else this.contexts.delete(run.id);
+                let rollbackError:unknown;
+                if(persisted)try{await atomicJson(join(this.root(),run.id+'.json'),before);}catch(cause){rollbackError=cause;}
+                await this.release(run.id).catch(()=>{});
+                if(rollbackError)throw new AggregateError([error,rollbackError],'Workflow admission failed and the journal could not be restored');
+                throw error;
+            }
+            this.launch(run);
+            return structuredClone(run);
+        } finally {this.admissions.delete(admission);finishAdmission();}
     }
     async activity(agentId: string, event: string, data?: {
         tool?: string;
@@ -386,7 +395,7 @@ export class WorkflowEngine {
         const run = this.runs.get(id)!;
         run.status = 'paused';
         job.controller.abort();
-    } await Promise.allSettled([...this.active.values()].map(j => j.promise)); }
+    } await Promise.allSettled([...this.admissions]);await Promise.allSettled([...this.active.values()].map(j => j.promise)); }
 }
 
 /** The hooks entry owns this registry, including in separately bundled releases. */

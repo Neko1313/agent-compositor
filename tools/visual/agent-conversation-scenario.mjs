@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
+import {createHash} from 'node:crypto';
 
 /** Native input only; file reads verify persisted selection rather than driving UI. */
 export async function conversationTabsScenario({page,wait,click,text,command,shot,report,output}){
@@ -21,13 +22,16 @@ export async function conversationTabsScenario({page,wait,click,text,command,sho
  await page.evaluate(()=>visual.terminal.resize(60,24));await wait('[First]');await wait('[Second]');await wait('Reply: UNSENT_SECOND');await shot('01-conversations-narrow');assert.ok((await text()).includes('Working'));
  await page.evaluate(()=>visual.terminal.resize(100,30));await page.keyboard.press('Alt+i');await page.keyboard.press('Control+c');await wait('Interrupted');await click('[Second]');await title('Second');
  const launch=JSON.parse(await readFile(join(output,'fixture-launch.json'),'utf8'));
- const records=JSON.parse(await readFile(join(launch.state,'agents.json'),'utf8')),second=records.find(record=>record.name==='Second');assert.ok(second);
+ const records=JSON.parse(await readFile(join(launch.state,'agents.json'),'utf8')),first=records.find(record=>record.name==='First'),second=records.find(record=>record.name==='Second');assert.ok(first&&second);
+ const draftFile=id=>join(launch.state,'agent-drafts',createHash('sha256').update(id).digest('hex')+'.json');
+ const draftDeadline=Date.now()+5000;let stored;while(Date.now()<draftDeadline){stored=await Promise.all([first.id,second.id].map(id=>readFile(draftFile(id),'utf8').then(JSON.parse).catch(()=>undefined)));if(stored[0]==='UNSENT_FIRST'&&stored[1]==='UNSENT_SECOND')break;await new Promise(done=>setTimeout(done,10));}
+ assert.deepEqual(stored,['UNSENT_FIRST','UNSENT_SECOND']);
  const until=Date.now()+5000;let saved;
  while(Date.now()<until){saved=await readFile(join(launch.state,'layout.json'),'utf8').then(JSON.parse).catch(()=>undefined);if(saved?.windows?.focused==='plugin-agent-hub-agent-'+second.id)break;await new Promise(done=>setTimeout(done,10));}
  assert.equal(saved?.windows?.focused,'plugin-agent-hub-agent-'+second.id);
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(value=>visual.generation>value,generation);
- await title('Second');await wait('SECOND_TABLE_DONE');assert.ok(!(await text()).includes('UNSENT_SECOND'));await shot('02-selected-conversation-restored');
- await page.keyboard.press('ArrowLeft');await title('First');await wait('SIDE_TABLE_DONE');assert.ok(!(await text()).includes('SECOND_TABLE_DONE'));
+ await title('Second');await wait('SECOND_TABLE_DONE');await wait('Reply: UNSENT_SECOND');await shot('02-selected-conversation-restored');
+ await page.keyboard.press('ArrowLeft');await title('First');await wait('SIDE_TABLE_DONE');await wait('Reply: UNSENT_FIRST');assert.ok(!(await text()).includes('SECOND_TABLE_DONE'));
  report.transport=JSON.parse(await readFile(join(output,'workflow-transport.json'),'utf8'));assert.deepEqual([...report.transport.requests].sort(),['main','second','side']);assert.equal(report.transport.paidRequests,0);
- report.checks.push('native.conversations.switch','native.conversations.isolated-context','native.conversations.independent-drafts','native.conversations.send-button','native.conversations.closed-reopen','native.conversations.narrow','native.conversations.persisted-selection','native.conversations.restart-history','native.conversations.bounded-transport');
+ report.checks.push('native.conversations.switch','native.conversations.isolated-context','native.conversations.independent-drafts','native.conversations.send-button','native.conversations.closed-reopen','native.conversations.narrow','native.conversations.persisted-selection','native.conversations.restart-history-and-drafts','native.conversations.bounded-transport');
 }

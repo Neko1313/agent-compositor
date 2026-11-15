@@ -189,8 +189,9 @@ use Left/Right to focus that agent's existing pane, preserving separate Reply
 drafts and histories. Enter or **Send message** sends the pane's draft;
 PageUp/PageDown scroll its history. For larger agent lists, **Previous agents** /
 **Next agents**, or Ctrl+p / Ctrl+n, open the first agent in the adjacent group.
-Closing and reopening retains drafts within this process. Restart restores the
-selected pane and committed history; unsent drafts are not persisted. Archived
+Closing and reopening retains drafts. Restart restores the selected pane, committed
+history and agent Reply drafts saved privately in project state. The 250 ms
+autosave interval means the newest changes may be lost on a sudden crash. Archived
 agents disappear from conversation tabs and their panes close.
 
 Ctrl+C in the selected pane stops that agent. Stop cancels the current request

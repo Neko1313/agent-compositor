@@ -290,8 +290,9 @@ workflow view leaves stages running, rejects stale renders and allows explicit r
 
 Per-agent conversation tabs preserve separate drafts and histories, provide
 button/Enter submission and navigation through all sixteen allowed agents, and
-restore the selected pane with committed messages after restart. Unsent drafts
-survive navigation but do not survive restart. Saved activity exposes persisted
+restore the selected pane with committed messages after restart. Agent Reply
+drafts are stored privately and survive restart after the debounced save; the
+main editor and private form drafts are not persisted. Saved activity exposes persisted
 prompts, turn lifecycle/usage and tool arguments/results/errors through filtered,
 paginated expandable records read through the configured session repository.
 Linux PTY checks cover an actual read tool call, a held main stream and restored

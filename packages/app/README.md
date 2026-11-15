@@ -339,9 +339,17 @@ use Left/Right to focus its existing pane; each agent keeps its own Reply draft
 and transcript. Enter or **Send message** sends the current Reply draft.
 PageUp/PageDown scroll history. With more than eleven active agents, **Previous
 agents** / **Next agents** (Ctrl+p / Ctrl+n) open the first agent in the adjacent
-group. Closing a pane preserves its draft within the process; restarting restores
-the selected pane and committed messages, but not unsent drafts. Archiving removes
-the agent's pane and tab while retaining its files and saved conversation.
+group. Closing a pane preserves its draft. Agent Reply drafts are saved in the
+project's private state directory and restored with the selected pane and committed
+messages after restart. Each agent's state file is created with owner-only
+permissions and contains unsent text, so treat it as private. Concurrent sessions
+editing the same agent use the last saved draft. Writes are debounced by 250 ms:
+a sudden crash can lose the newest changes. Accepted sending clears the saved
+draft; archiving removes the draft, pane and tab while retaining the agent's files
+and saved conversation. If clearing the saved draft fails, the app warns and the
+old text may reappear after restart. If a saved draft is unreadable, the app warns and leaves
+that file untouched; move it aside and restart to re-enable saving for that agent. Main editor
+and private form drafts are not persisted.
 
 **Saved activity** opens an agent's persisted prompts, turn events and tool
 calls/results. Filter with All/Turns/Tools, expand records with mouse or keyboard,
@@ -363,8 +371,8 @@ With `btw` and `agent-hub` enabled, `/btw <question>` opens an independent agent
 while the main turn continues. Type follow-ups in its Reply field; Enter sends
 and Ctrl+C in that pane stops only that agent. Alt+i returns to the main message
 editor, and `/chat` restores its conversation window. `/btw` reopens the last
-side conversation for this project after closure or restart. Pane drafts survive
-closure within the process; only committed messages survive restart. These agents
+side conversation for this project after closure or restart. Reply drafts and committed messages survive restart, subject to the private draft
+files and debounce behavior described above. These agents
 share the project workspace and ordinary permission rules. The previous isolated
 notification is available as `/btw --once <question>`. Opening a side conversation
 requires catalog 0.26 or later.

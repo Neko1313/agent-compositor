@@ -1,3 +1,4 @@
+import {AgentDrafts} from './agent-drafts.js';
 import { agentHistory } from './agent-history.js';
 import type { SessionEvent } from '@agent-compositor/session';
 import { execFile } from "node:child_process";
@@ -68,7 +69,9 @@ export async function agentManager(
   let closePromise:Promise<void>|undefined;
   const closeCancellation=new AbortController();
   let writes = Promise.resolve();
-  const drafts=new Map<string,string>();
+  const drafts=await AgentDrafts.open(stateDir,new Set(records.filter(record=>!record.archived).map(record=>record.id)),error=>{
+    if(host&&!host.signal.aborted)void host.ui.notify('Could not save agent reply draft: '+String(error).slice(0,300),'error').catch(()=>{});
+  });
   const draftIds=new Map<string,number>();
   const sending=new Set<string>();
   let listVisible=false;
@@ -380,7 +383,9 @@ export async function agentManager(
         entries.delete(record.id);
       }
       record.archived = true;
+      drafts.set(record.id,'');
       await save();
+      try{await drafts.flush();}catch(error){await publishUi(api=>api.ui.notify('Agent archived, but could not clear its saved draft: '+String(error).slice(0,300),'error'));}
       if (target === record.id) {target=undefined;await publishUi(api=>select(undefined,api));}
       await publishUi(async api=>{await api.ui.remove('agent-'+record.id);await api.ui.remove('history-'+record.id);});
       await refreshConversationTabs();
@@ -492,6 +497,7 @@ export async function agentManager(
       "command.invoke":async(e,$)=>{if(e.plugin==='agent-hub'&&e.name==='/agents')await handleCommand(e.text,$);},
       "session.start": async (_e, $) => {
         host = $;
+        if(drafts.loadError)await $.ui.notify(drafts.loadError,'warn');
         for (const r of records.filter((r) => !r.archived)) {
           try {
             await paint(await load(r));
@@ -562,7 +568,11 @@ export async function agentManager(
           sending.add(paneId);
           try{
             const result=await $.agent.tool('agent_control',{action:'send',id:paneId,prompt});
-            if(result.ok){if(drafts.get(paneId)===draft){drafts.delete(paneId);draftIds.set(paneId,(draftIds.get(paneId)??0)+1);}await paint(await load(find(paneId)));}
+            if(result.ok){
+              let saved:Promise<void>|undefined;
+              if(drafts.get(paneId)===draft){drafts.set(paneId,'');draftIds.set(paneId,(draftIds.get(paneId)??0)+1);saved=drafts.flush().catch(async error=>{await $.ui.notify('Message accepted, but could not clear its saved draft: '+String(error).slice(0,300),'error');});}
+              await paint(await load(find(paneId)));await saved;
+            }
             else await $.ui.notify(result.error??'Agent message failed; your draft was kept','error');
           }finally{sending.delete(paneId);}
           return;
@@ -671,7 +681,7 @@ export async function agentManager(
         await Promise.allSettled([...current.map(entry=>entry.close(closeCancellation.signal)),...loading.values()]);
         await Promise.allSettled(current.map(entry=>entry.run));
         for(const entry of current)entry.unsubscribe();
-        await writes;
+        await Promise.all([writes,drafts.flush().catch(error=>{if(host&&!host.signal.aborted)void host.ui.notify('Could not save agent reply draft: '+String(error).slice(0,300),'error').catch(()=>{});})]);
       });
       void work.then(unbind,unbind);return work;
     },

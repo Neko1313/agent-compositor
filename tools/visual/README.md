@@ -431,6 +431,8 @@ manual create approval, side reply, filters, keyboard expansion, narrow fields,
 close/reopen draft and restart transcript. It expects exactly two loopback
 requests. For conversation tabs, run
 `VISUAL_CONVERSATION_TABS=1 VISUAL_EXECUTABLE=/path/to/extracted/compositor VISUAL_OUTPUT=dist/conversation-tabs-proof node tools/visual/agent-table-check.mjs`.
+The restart check waits for the private draft files and verifies both independent
+Reply fields and committed history after process replacement.
 It creates two agents while the main stream is held and checks tab switching,
 isolated transcripts, independent drafts, button submission, closed-pane reopening,
 narrow layout, persisted selected-window identity and restart history without a

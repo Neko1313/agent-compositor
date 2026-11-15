@@ -11,6 +11,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import {createHash} from "node:crypto";
+const draftFile=(state:string,id:string)=>join(state,"agent-drafts",createHash("sha256").update(id).digest("hex")+".json");
 import { ScriptedProvider } from "@agent-compositor/core";
 import { buildApp } from "../src/build.js";
 import { extensionManager } from "../src/extensions.js";
@@ -72,6 +74,36 @@ describe("independent agents, authentication and extensions", () => {
       const stale=await press(two,'conversation:'+one);expect(stale.faults.length).toBeGreaterThan(0);
       const listed=await core.invokeTool('agent_control',{action:'list',id:one});expect((listed.output as any[])[0]).toMatchObject({archived:true,state:'saved'});
       expect(provider.requests).toHaveLength(2);expect(asks).toBe(0);
+    }finally{await app.close();}
+  });
+  it('restores private unsent agent replies and clears accepted or archived drafts',async()=>{
+    const cwd=await temp(),env={HOME:cwd};let app=await buildApp({cwd,env,provider:new ScriptedProvider([])}),ids:string[]=[];
+    const site=(id:string)=>'plugin-agent-hub-agent-'+id;
+    try{
+      let core=app.createCore(async()=>true);await core.start();
+      for(const name of ['One','Two']){const result=await core.invokeTool('agent_control',{action:'create',name,worktree:false});expect(result.ok).toBe(true);ids.push((result.output as any).id);}
+      for(const [index,id] of ids.entries())await core.host.emit('ui.change',{site:site(id),id:'message-0',value:`PRIVATE_DRAFT_${index}`});
+      await app.close();const state=app.storage.paths.state,file=draftFile(state,ids[0]),other=draftFile(state,ids[1]);
+      expect((await stat(file)).mode&0o777).toBe(0o600);expect(JSON.parse(await readFile(file,'utf8'))).toBe('PRIVATE_DRAFT_0');expect(JSON.parse(await readFile(other,'utf8'))).toBe('PRIVATE_DRAFT_1');
+      app=await buildApp({cwd,env,provider:new ScriptedProvider([{text:'done'}])});core=app.createCore(async()=>true);const views=new Map<string,any>();
+      core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface')views.set(String((event.input as any).id),(event.input as any).view);});await core.start();
+      for(const [index,id] of ids.entries()){await core.host.emit('ui.press',{site:site(id),key:'conversation:'+id});expect(views.get(site(id)).input.value).toBe(`PRIVATE_DRAFT_${index}`);}
+      await core.host.emit('ui.press',{site:site(ids[0]),key:'send:'+ids[0]});
+      await expect(stat(file)).rejects.toMatchObject({code:'ENOENT'});expect(JSON.parse(await readFile(other,'utf8'))).toBe('PRIVATE_DRAFT_1');
+      expect((await core.invokeTool('agent_control',{action:'archive',id:ids[1]})).ok).toBe(true);
+      await expect(stat(other)).rejects.toMatchObject({code:'ENOENT'});
+    }finally{await app.close();}
+  });
+  it('preserves a damaged agent draft while keeping the application usable',async()=>{
+    const cwd=await temp(),env={HOME:cwd};let app=await buildApp({cwd,env,provider:new ScriptedProvider([])});const state=app.storage.paths.state;
+    try{
+      let core=app.createCore(async()=>true);await core.start();const created=await core.invokeTool('agent_control',{action:'create',name:'Available',worktree:false});expect(created.ok).toBe(true);const id=(created.output as any).id;
+      await app.close();const file=draftFile(state,id);await mkdir(join(state,'agent-drafts'),{recursive:true});await writeFile(file,'{damaged');
+      app=await buildApp({cwd,env,provider:new ScriptedProvider([])});const notices:string[]=[];core=app.createCore(async()=>true);core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.notification')notices.push((event.input as any).message);});await core.start();
+      expect(notices.some(message=>message.includes('move damaged files aside'))).toBe(true);
+      await core.host.emit('ui.change',{site:'plugin-agent-hub-agent-'+id,id:'message-0',value:'new reply'});
+      expect((await core.invokeTool('agent_control',{action:'archive',id})).ok).toBe(true);expect(notices.some(message=>message.includes('Agent archived, but could not clear'))).toBe(true);
+      expect(await readFile(file,'utf8')).toBe('{damaged');
     }finally{await app.close();}
   });
   it('keeps all sixteen agent conversations keyboard-reachable within twelve tabs',async()=>{

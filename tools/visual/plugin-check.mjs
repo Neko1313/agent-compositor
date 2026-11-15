@@ -6,12 +6,13 @@ import {spawn} from 'node:child_process';
 import {mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const name=process.argv[2],output=resolve(process.env.VISUAL_OUTPUT??'dist/plugin-visual/'+name);await mkdir(output,{recursive:true});
+if(name==='btw')for(const suffix of ['', '.started'])await rm(join(output,'btw-resume-gate'+suffix),{force:true});
 const report={plugin:name,ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
 const entries={resources:['/resources','Resources'],btw:['/btw','Side conversation'],'test-reports':['/test-report','Test reports'],'ci-review':['/ci','CI review'],'project-checks':['/checks','Project checks'],'git-review':['/git-review','Git review'],cost:['/cost','Usage'],todos:['/todos','Todos'],'ui-theme':['/theme amber','amber'],'auto-approve':['/auto history','Auto approvals'],mascot:['/mascot status','Ghost:'],mcp:['/mcp','MCP'],workflows:['/workflows','Workflows'],'checkpoint-history':['/checkpoints','Checkpoints'],'network-proxy':['/proxy status','Network proxy']};
 assert.ok(entries[name],'Unknown UI profile');
 try{
  const{NO_COLOR,...env}=process.env;
- server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_CERT_PLUGIN:name,VISUAL_OUTPUT:output,...(name==='mascot'?{VISUAL_GRAPHICS:'kitty'}:{}),...(name==='git-review'?{VISUAL_GIT_FIXTURE:'1'}:{})},stdio:['ignore','pipe','inherit']});
+ server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_CERT_PLUGIN:name,VISUAL_OUTPUT:output,...(name==='btw'?{VISUAL_BTW_GATE:join(output,'btw-resume-gate')}:{}),...(name==='mascot'?{VISUAL_GRAPHICS:'kitty'}:{}),...(name==='git-review'?{VISUAL_GIT_FIXTURE:'1'}:{})},stdio:['ignore','pipe','inherit']});
  const url=await new Promise((done,fail)=>{let text='';const timer=setTimeout(()=>fail(Error('PTY startup timeout')),15000);server.stdout.on('data',chunk=>{text+=chunk;const m=text.match(/VISUAL_URL=(http[^\s]+)/);if(m){clearTimeout(timer);done(m[1]);}});server.once('exit',code=>{clearTimeout(timer);fail(Error('PTY exited '+code));});});
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
  page=await browser.newPage({viewport:{width:1400,height:1100}});page.on('pageerror',e=>report.errors.push(e.message));await page.goto(url);
@@ -41,7 +42,7 @@ try{
  }
  async function clickPane(title){const p=await panePosition(title);await clickCell(p.col,p.row);}
  async function closePane(title){await clickPane(title);const p=await panePosition(title,true);await clickCell(p.col,p.row);}
- if(name==='btw'){await btwScenario({page,wait,text,command,clickPane,closePane,shot,report});}else if(name==='resources'){await resourcesScenario({page,wait,text,command,click:clickText,shot,report,output});}else{
+ if(name==='btw'){await btwScenario({page,wait,text,command,clickPane,closePane,shot,report,output});}else if(name==='resources'){await resourcesScenario({page,wait,text,command,click:clickText,shot,report,output});}else{
  await wait('Describe your task');await command(entries[name][0]);await wait(entries[name][1]);await shot('00-open');
  if(name==='cost')await wait('42 input');
  if(name==='todos')await wait('Inspect project');

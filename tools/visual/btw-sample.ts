@@ -1,5 +1,12 @@
+import {access,writeFile} from 'node:fs/promises';
+import {setTimeout as delay} from 'node:timers/promises';
+
 export const btwProvider={name:'btw-protocol-proof',async *complete(request:any){
  const prompt=request.messages.filter((message:any)=>message.role==='user').at(-1)?.content;
+ if(prompt==='AFTER_RESTART'&&process.env.VISUAL_BTW_GATE){
+  const gate=process.env.VISUAL_BTW_GATE;await writeFile(gate+'.started','started');
+  for(;;){request.signal.throwIfAborted();if(await access(gate).then(()=>true,()=>false))break;await delay(20,undefined,{signal:request.signal});}
+ }
  if(['MAIN_TASK','SIDE_HOLD'].includes(prompt)){
   yield{type:'text_delta' as const,text:prompt==='MAIN_TASK'?'MAIN_AGENT_WORKING':'SIDE_AGENT_WORKING'};
   await new Promise<void>((done,fail)=>{if(request.signal.aborted)return fail(request.signal.reason);request.signal.addEventListener('abort',()=>fail(request.signal.reason),{once:true});});

@@ -7,6 +7,16 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An extracted `btw` 2.0.0 package on the source Ink PTY host passed concurrent
+conversation and cancellation checks but once timed out after restart while
+waiting for its new reply. The input trace shows PageDown immediately after
+submission; the failure screen retained earlier side history. An unchanged
+repeat passed. The scenario now gates the fixture response and observes the
+side agent running and then idle before scrolling. Two local gated runs passed;
+these observations do not establish the cause of the original timeout or
+verify a native OpenTUI archive. Reports are under
+`dist/visual-btw-package-c2fd409/` and `dist/visual-btw-gated-c2fd409/`.
+
 An installed Linux x64 auto-review diagnostic used Qwen3.5 2B Q4_K_M through
 a local direct CPU executable and a loopback transport. With grammar-constrained
 JSON, the real bundled plugin allowed an explicitly requested `npm test` and

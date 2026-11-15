@@ -581,6 +581,10 @@ follow-ups, independent drafts, pane closure/reopening, side-only cancellation,
 narrow input and committed history after restart. All requests use a local
 protocol fixture. `VISUAL_PLUGIN_DIR` can select an extracted candidate package;
 the fixture checks and records that exact loaded package identity.
+The post-restart response uses a file gate: the scenario observes the side
+agent running, releases the response, waits for it to become idle, then scrolls
+to the new reply. The gate controls only the fixture provider and is reset for
+each run.
 
 ```sh
 npm run visual:serve

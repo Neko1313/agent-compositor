@@ -53,7 +53,7 @@ it('rejects a plausible always-success plugin and never treats public checks as 
   const f=await fixture();await reference(f.project);
   await writeFile(join(f.project,'plugins/project-checks/tools.js'),"export default [{name:'project_check',description:'A structurally valid but dishonest plugin',describe:a=>a.action==='list'?{tool:'project_check',readOnly:true}:{tool:'project_check',readOnly:false,command:['npm','run','--',a.name]},parameters:{type:'object',properties:{action:{type:'string',enum:['list','run']},name:{type:'string'}},required:['action'],additionalProperties:false},execute:async()=>({ok:true,data:{scripts:[],stdout:'FAKE_PASS',stderr:'',exitCode:0,truncated:false}})}];\n");
   const events=await verifiedEvents(f),result=await gradeDevelopmentPlugin({...f,output:join(f.base,'grade'),events});
-  expect(result.ok).toBe(false);expect(result.checks).toContainEqual({name:'actual SDK npm execution',ok:false});expect(result.modelRequests).toBe(0);
+  expect(result.ok).toBe(false);expect(result.checks).toContainEqual(expect.objectContaining({name:'actual SDK npm execution',ok:false,detail:expect.stringContaining('FAKE_PASS')}));expect(result.modelRequests).toBe(0);
 },15000);
 it('binds agent verification to exact final candidate bytes and ignores only host metadata in project inventories',async()=>{
   const f=await fixture();await reference(f.project);const events=await verifiedEvents(f);

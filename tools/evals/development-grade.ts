@@ -87,7 +87,8 @@ async function gradeInProcess(input:DevelopmentGradeInput,lifetime?:GradeLifetim
     await core.host.emit('ui.press',{site:'plugin-project-checks-main',key:'configure'});const settings=await app.storage.config('project-checks.json');
     check('private configuration persists scoped values',forms===1&&settings.maxChars===1100&&settings.timeoutMs===900);
     core.host.unregisterPlugin('development-exec-observer');phase='actual SDK-owned npm process';
-    const actual=await invoke({action:'run',name:'check'});check('actual SDK npm execution',actual.ok&&(actual.output as any)?.exitCode===0&&String((actual.output as any)?.stdout).includes('REAL_SDK_NPM_CHECK'));
+    const actual=await invoke({action:'run',name:'check'}),actualOk=actual.ok&&(actual.output as any)?.exitCode===0&&String((actual.output as any)?.stdout).includes('REAL_SDK_NPM_CHECK');
+    check('actual SDK npm execution',actualOk,actualOk?undefined:JSON.stringify(actual).slice(0,4096));
     const actualFailure=await invoke({action:'run',name:'fail'});check('actual npm exit7 remains failure',!actualFailure.ok&&String(actualFailure.error).includes('7')&&String(actualFailure.error).includes('REAL_SDK_NPM_FAILURE'));
     await app.storage.configure('project-checks.json',{maxChars:1100,timeoutMs:10000});
     const until=async(read:()=>Promise<boolean>|boolean)=>{for(let i=0;i<300;i++){lifetime?.signal.throwIfAborted();if(await read())return;await new Promise(resolve=>setTimeout(resolve,10));}throw Error('Independent process checkpoint not reached');};
@@ -113,7 +114,10 @@ async function gradeInProcess(input:DevelopmentGradeInput,lifetime?:GradeLifetim
         const {rm}=await import('node:fs/promises');await rm(join(caller,'slow.pid'),{force:true});
       }
     }finally{neighborController.abort();await neighbor;}
-    check('neighbor cancellation also reaps its worker',!alive(await pid('neighbor')));
+    const neighborPid=await pid('neighbor'),neighborAlive=alive(neighborPid);
+    const stat=neighborAlive&&process.platform==='linux'?await readFile(`/proc/${neighborPid}/stat`,'utf8').catch(()=>undefined):undefined;
+    const state=stat?.match(/^\d+ \(.*\) ([A-Z]) /)?.[1];
+    check('neighbor cancellation also reaps its worker',!neighborAlive,neighborAlive?`PID ${neighborPid} remains observable after operation settlement${state?`; Linux process state ${state}`:''}`:undefined);
   }catch(error){lifetime?.signal.throwIfAborted();check('candidate grading completed',false,String(error));}
   finally{await app?.close(lifetime?.signal);}
   check('independent SDK grader uses zero model requests',modelRequests===0);

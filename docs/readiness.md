@@ -25,6 +25,15 @@ script. The modified plugin SHA-256 was
 `669b64b0a618490f1b6ce2a0730cff20969c9354b48942b764bd8e82c93d057a`;
 its local report is `dist/local-auto-ci-variant-24a0a80/report.json`. This
 single-model prompt experiment did not establish a repair and was not shipped.
+A further isolated variant added the exact synthetic test script and its fixture
+file contents to the review payload. The loopback transport verified that the
+evidence reached the model. The same model still called the requested run
+non-destructive despite the supplied file-write operation; it again denied the
+explicitly prohibited run. The modified plugin SHA-256 was
+`dca18ceff7de06b88ca5a99098feb2809d0ccb61f22e64d8429ea530dded3e2a` and the
+verified report is `dist/local-auto-ci-evidence-d579355/report-verified.json`.
+The evidence was synthetic: this experiment neither read user project scripts
+nor established a safe mechanism for disclosing or keeping them current.
 
 In a local serverless onboarding experiment at `af30f14`, a small model received
 a synthetic, authoritative plugin-state snapshot but incorrectly said disabled

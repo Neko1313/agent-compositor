@@ -1,7 +1,7 @@
 import {randomBytes} from 'node:crypto';
 import {inflateSync} from 'node:zlib';
 import {describe,expect,it} from 'vitest';
-import {tmuxDeleteImage,tmuxFeatureQuery,tmuxFeatureReply,tmuxImageColor,tmuxPlaceholderRows,tmuxVirtualImage,tmuxVirtualImageBatch,tmuxWriteAtomic} from '../src/tmux-image-codec.js';
+import {TmuxFeatureProbe,tmuxDeleteImage,tmuxFeatureQuery,tmuxFeatureReply,tmuxImageColor,tmuxPlaceholderRows,tmuxVirtualImage,tmuxVirtualImageBatch,tmuxWriteAtomic} from '../src/tmux-image-codec.js';
 
 const unwrap=(data:Buffer)=>{
   const text=data.toString('utf8');expect(text.startsWith('\x1bPtmux;')).toBe(true);expect(text.endsWith('\x1b\\')).toBe(true);
@@ -54,5 +54,22 @@ describe('tmux Kitty virtual image codec',()=>{
     const sink={maxAtomicWriteBytes:10n,write:(bytes:Uint8Array)=>{if(++calls===1)return false;accepted=bytes;return true;},idle:()=>gate};
     const bytes=Uint8Array.of(1,2,3),pending=tmuxWriteAtomic(sink,bytes);bytes[0]=9;release();await pending;
     expect([...accepted!]).toEqual([1,2,3]);
+  });
+  it('requires a matching feature reply and keeps late replies from enabling graphics',async()=>{
+    const sink={maxAtomicWriteBytes:1000n,write:()=>true,idle:async()=>{}};
+    const probe=new TmuxFeatureProbe(sink,31,10),pending=probe.start();expect(probe.start()).toBe(pending);
+    expect(probe.accept('\x1b_Gi=32,e=T,U=1;OK\x1b\\')).toBe(false);
+    expect(probe.accept('\x1b_Gi=31,e=T,U=1;OK\x1b\\')).toBe(true);expect(await pending).toBe(true);
+    const timeout=new TmuxFeatureProbe(sink,32,10),expired=timeout.start();
+    await new Promise(resolve=>setTimeout(resolve,20));expect(await expired).toBe(false);
+    expect(timeout.accept('\x1b_Gi=32,e=T,U=1;OK\x1b\\')).toBe(true);expect(await timeout.start()).toBe(false);
+    timeout.dispose();expect(timeout.accept('\x1b_Gi=32,e=T,U=1;OK\x1b\\')).toBe(false);
+  });
+  it('stops a blocked probe and rejects malformed or negative feature responses',async()=>{
+    const sink={maxAtomicWriteBytes:1000n,write:()=>false,idle:()=>new Promise<void>(()=>{})};
+    const probe=new TmuxFeatureProbe(sink,31,1000),pending=probe.start();probe.dispose();expect(await pending).toBe(false);
+    const negative=new TmuxFeatureProbe({...sink,write:()=>true},33,1000),response=negative.start();
+    expect(negative.accept('\x1b_Gi=33,e=T,U=0;OK\x1b\\')).toBe(true);expect(await response).toBe(false);
+    expect(()=>new TmuxFeatureProbe(sink,0)).toThrow(RangeError);
   });
 });

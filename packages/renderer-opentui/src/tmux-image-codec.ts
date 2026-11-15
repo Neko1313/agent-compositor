@@ -91,6 +91,40 @@ export async function tmuxWriteAtomic(sink:TmuxOutputSink,bytes:Uint8Array,signa
   throw Error('Kitty output remained unavailable after draining');
 }
 
+/** One bounded capability query; unconfirmed and late responses never enable images. */
+export class TmuxFeatureProbe {
+  private readonly controller=new AbortController();
+  private result?:Promise<boolean>;
+  private finish?: (supported:boolean)=>void;
+  private closed=false;
+  constructor(private readonly sink:TmuxOutputSink,private readonly id:number,private readonly timeoutMs=1500){
+    if(!imageId(id)||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>10000)throw RangeError('Invalid tmux feature probe');
+  }
+  start():Promise<boolean>{
+    if(this.closed)return Promise.resolve(false);
+    if(this.result)return this.result;
+    this.result=new Promise<boolean>(resolve=>{
+      const timer=setTimeout(()=>finish(false),this.timeoutMs);timer.unref?.();
+      const finish=(supported:boolean)=>{
+        if(this.finish!==finish)return;
+        this.finish=undefined;clearTimeout(timer);this.controller.abort();resolve(supported);
+      };
+      this.finish=finish;
+      void tmuxWriteAtomic(this.sink,tmuxFeatureQuery(this.id),this.controller.signal).catch(()=>finish(false));
+    });
+    return this.result;
+  }
+  /** Consume only this probe's response; duplicate or late replies cannot change the result. */
+  accept(sequence:string):boolean {
+    if(this.closed||!this.result||!sequence.startsWith('\x1b_G')||!sequence.endsWith('\x1b\\'))return false;
+    const header=sequence.slice(3,-2).split(';',1)[0];
+    const ids=header.split(',').filter(field=>field.startsWith('i='));
+    if(ids.length!==1||ids[0]!==`i=${this.id}`)return false;
+    this.finish?.(tmuxFeatureReply(sequence,this.id));return true;
+  }
+  dispose(){this.closed=true;this.finish?.(false);this.controller.abort();}
+}
+
 /** Remove only this image and its virtual placements, never another client's. */
 export function tmuxDeleteImage(id:number):Buffer {
   if(!imageId(id))throw RangeError('Invalid Kitty image id');

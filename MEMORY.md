@@ -67,6 +67,14 @@ pressure, cancellation before admission, immutable pending bytes and oversized
 batch rejection. This helper is still not connected to the Ghost or the main
 renderer, and it does not yet provide animation or frame coalescing.
 
+`TmuxFeatureProbe` now owns one bounded feature query and ignores late replies
+after deciding; disposal also cancels blocked output admission. The same helper
+was exercised with the real OpenTUI session in `probe-opentui-controller-on/`
+and `probe-opentui-controller-off/`: enabled passthrough received the required
+reply and rendered/moved/deleted the multi-chunk fixture, while disabled
+passthrough timed out to the fixture's text fallback. These still do not enable
+the helper in the application or establish Ghost animation and lifecycle.
+
 ## Media candidate timing regression and causal repair — 2026-11-15
 
 This goal turn makes concrete progress: source bf5e61b2ac83b2af4186cd313673182fa113e131

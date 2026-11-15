@@ -25,8 +25,12 @@ it.skipIf(Number(process.versions.node.split('.')[0])<26)('reveals an action-cre
     flushSync(()=>update({view:{...state.view!}}));await terminal.waitForFrame(frame=>frame.includes('RASTER_START'));
     terminal.mockInput.pressKey('\x1b[6~');await terminal.waitForFrame(frame=>!frame.includes('RASTER_START'));
     flushSync(()=>update({view:{...state.view!}}));await terminal.flush({maxPasses:30});expect(terminal.captureCharFrame()).not.toContain('RASTER_START');
+    terminal.mockInput.pressArrow('down');await terminal.waitForFrame(frame=>frame.includes('ITEM_20'));
     flushSync(()=>update({view:{lines}}));terminal.mockInput.pressEnter();await terminal.waitForFrame(frame=>frame.includes('Working'));
     terminal.mockInput.pressKey('\x1b[6~');await terminal.flush({maxPasses:30});flushSync(addRaster);await terminal.flush({maxPasses:30});
     expect(terminal.captureCharFrame()).not.toContain('RASTER_START');
+    const single=lines.map((line,i)=>i===0?{text:line.text}:line);
+    flushSync(()=>update({view:{lines:single}}));await terminal.flush({maxPasses:30});
+    terminal.mockInput.pressTab();await terminal.waitForFrame(frame=>frame.includes('ITEM_20'));
   }finally{root.unmount();await terminal.dispose();}
 });

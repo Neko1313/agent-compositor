@@ -7,6 +7,11 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+Build-only [run `43709559231` for `9802f1b`](https://github.com/Neko1313/agent-compositor/actions/runs/43709559231)
+reports successful verification and all four Linux/macOS x64/ARM64 jobs;
+publication was skipped. Its archives have not been independently downloaded
+and this run does not include later resource-monitor or navigation changes.
+
 The build-only [run for `876e2d1`](https://github.com/Neko1313/agent-compositor/actions/runs/43703813967)
 passed verification and all four Linux/macOS x64/ARM64 jobs; publication was
 skipped. The downloaded quality and installed-runtime evidence archives match

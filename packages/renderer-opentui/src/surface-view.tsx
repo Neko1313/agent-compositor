@@ -83,6 +83,12 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
     pendingRasterReveal.current=override||view?.raster?undefined:state.revision;
     if(override)publicRender?.press(key,publicState.revision);else source.press(key,state.revision);
   }};
+  const chooseAction=(target:string)=>{
+    flushSync(()=>setSelected(target));
+    // Choosing the already-selected action may not cause a React render. A
+    // user who scrolled away still expects navigation to reveal that action.
+    if(target===action){const id=locations.get(target);if(id){publicScroll.input();scroller.current?.scrollChildIntoView(id);}}
+  };
   useKeyboard(key=>{
     if(key.defaultPrevented||!isActive()||hasSurfaceRequest(source.snapshot()))return;
     if(key.name==='escape'&&!key.meta&&!key.ctrl&&searching){key.preventDefault();flushSync(()=>setSearching(false));return;}
@@ -91,7 +97,7 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
       pendingRasterReveal.current=undefined;
       preserveScroll.current=false;
       if(view?.input)flushSync(()=>setSearching(value=>!value));
-      else if(actions.length)flushSync(()=>setSelected(actions[(index+(key.shift?-1:1)+actions.length)%actions.length]));
+      else if(actions.length)chooseAction(actions[(index+(key.shift?-1:1)+actions.length)%actions.length]);
       return;
     }
     if(key.name==='pageup'||key.name==='pagedown'){
@@ -100,7 +106,7 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
     if(searching)return;
     if(key.ctrl||key.meta||key.super||key.hyper)return;
     if(key.name==='up'||key.name==='down'){
-      key.preventDefault();pendingRasterReveal.current=undefined;preserveScroll.current=false;if(actions.length)flushSync(()=>setSelected(actions[Math.max(0,Math.min(actions.length-1,index+(key.name==='up'?-1:1)))]));
+      key.preventDefault();pendingRasterReveal.current=undefined;preserveScroll.current=false;if(actions.length)chooseAction(actions[Math.max(0,Math.min(actions.length-1,index+(key.name==='up'?-1:1)))]);
     }else if(key.name==='return'&&action){key.preventDefault();if(!key.repeated&&isActive())press(action);}
     else if((key.name==='left'||key.name==='right')&&view?.tabs){
       const tabs=view.tabs.filter(tab=>!tab.disabled);

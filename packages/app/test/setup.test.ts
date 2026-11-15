@@ -9,12 +9,12 @@ import {modelControls} from '../src/models.js';
 import {buildApp} from '../src/build.js';
 import {validateUiFormResult} from '@agent-compositor/events';
 
-async function fixture(failInstall=false){
+async function fixture(failInstall=false,failEnable:string[]=[]){
  const root=await mkdtemp(join(tmpdir(),'setup-guide-')),storage=new ProjectStorage(root,{HOME:root});await storage.init();
  let configured=false,sideAvailable=true,restrictions:Record<string,string>={},loaded:string[]=[],enabled:string[]=[],forms:any[]=[],answers:any[]=[],operations:any[]=[],views:any[]=[],notices:any[]=[];
  const guide=setupGuide(storage,{model:async()=>({configured,profile:'fixture',model:'fixture-model'}),configure:async()=>{configured=true;},loaded:()=>loaded,enabled:()=>enabled,
   sideConversationAvailable:()=>sideAvailable,activationRestriction:name=>restrictions[name],
-  control:async(args:any)=>{operations.push(args);if(args.action==='list')return{ok:true,data:{installed:{'project-checks':{version:'99.0.0'}},available:[]}};if(args.action==='install')return failInstall?{ok:false,error:'Download unavailable'}:{ok:true};enabled.push(args.name);return{ok:true};}});
+  control:async(args:any)=>{operations.push(args);if(args.action==='list')return{ok:true,data:{installed:{'project-checks':{version:'99.0.0'}},available:[]}};if(args.action==='install')return failInstall?{ok:false,error:'Download unavailable'}:{ok:true};if(args.action==='enable'&&failEnable.includes(args.name))return{ok:false,error:'Activation unavailable'};enabled.push(args.name);return{ok:true};}});
  const api:any={session:{id:'fixture',cwd:root},signal:new AbortController().signal,ui:{view:async(_id:string,_title:string,view:any,placement:any)=>{views.push({...view,placement});},notify:async(message:string,level:string)=>{notices.push({message,level});},remove:async()=>{},form:async(form:any)=>{forms.push(form);return answers.shift()??null;}}};
  const press=(key:string)=>(guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key},api);
  return{root,storage,guide,api,press,forms,answers,operations,views,notices,setConfigured:(value:boolean)=>{configured=value;},setSideAvailable:(value:boolean)=>{sideAvailable=value;},setRestrictions:(value:Record<string,string>)=>{restrictions=value;},setLoaded:(value:string[])=>{loaded=value;},setEnabled:(value:string[])=>{enabled=value;},close:()=>rm(root,{recursive:true,force:true})};
@@ -94,6 +94,21 @@ it('never installs restricted selections and continues with allowed selections',
   expect(f.forms[1].fields.find((field:any)=>field.id==='project-checks')).toMatchObject({value:false,hint:'Blocked by disabledPlugins'});
   expect(f.operations).toEqual([{action:'list'},{action:'install',name:'resources@agent-compositor',scope:'project'},{action:'enable',name:'resources',scope:'project'}]);
   expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('project-checks: Blocked by disabledPlugins'))).toBe(true);
+ }finally{await f.close();}
+});
+
+it('reports a successful installation separately when enabling fails and continues other selections',async()=>{
+ const f=await fixture(false,['resources','project-checks']);try{
+  f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true,resources:true,btw:true}});
+  await f.press('tools');
+  expect(f.operations).toEqual([{action:'list'},{action:'enable',name:'project-checks',scope:'project'},
+   {action:'install',name:'resources@agent-compositor',scope:'project'},{action:'enable',name:'resources',scope:'project'},
+   {action:'install',name:'btw@agent-compositor',scope:'project'},{action:'enable',name:'btw',scope:'project'}]);
+  const lines=f.views.at(-1).lines.map((line:any)=>line.text);
+  expect(lines).toContain('resources: installed; enable reported an error: Activation unavailable');
+  expect(lines).toContain('project-checks: Activation unavailable');
+  expect(lines).toContain('btw: selected for this project');
+  expect(lines.some((line:string)=>line.includes('resources: selected for this project'))).toBe(false);
  }finally{await f.close();}
 });
 

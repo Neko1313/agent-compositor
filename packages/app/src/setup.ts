@@ -78,15 +78,16 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
   for(const name of allowed){
    $.signal.throwIfAborted();
    if(deps.enabled().includes(name)){current.notes.push(`${name}: already enabled; installation kept`);continue;}
+   let installedNow=false;
    try{
     const local=inventory.data?.available?.some((row:any)=>row.name===name&&!row.bundled);
-    if(!inventory.data?.installed?.[name]&&!local){const installed=await deps.control({action:'install',name:name+'@agent-compositor',scope:'project'},$.signal);if(!installed.ok)throw Error(installed.error??'Installation failed');if($.signal.aborted){current.notes.push(`${name}: installed; activation cancelled`);$.signal.throwIfAborted();}}
+    if(!inventory.data?.installed?.[name]&&!local){const installed=await deps.control({action:'install',name:name+'@agent-compositor',scope:'project'},$.signal);if(!installed.ok)throw Error(installed.error??'Installation failed');installedNow=true;if($.signal.aborted){current.notes.push(`${name}: installed; activation cancelled`);$.signal.throwIfAborted();}}
     const enabled=await deps.control({action:'enable',name,scope:'project'},$.signal);if(!enabled.ok)throw Error(enabled.error??'Activation failed');
     current.changed=[...new Set([...current.changed,name])];current.notes.push(`${name}: selected for this project`);
     if(name==='btw'&&!deps.sideConversationAvailable())current.notes.push('btw: side conversations need agent-hub enabled in project configuration and an app restart; /btw --once remains available');
     if(name==='auto-approve')current.notes.push('auto-approve: after applying changes, use /auto on. Reviews use a model; uncertain actions still ask.');
     $.signal.throwIfAborted();
-   }catch(error){$.signal.throwIfAborted();current.notes.push(`${name}: ${error instanceof Error?error.message:String(error)}`);}
+   }catch(error){$.signal.throwIfAborted();current.notes.push(`${name}: ${installedNow?'installed; enable reported an error: ':''}${error instanceof Error?error.message:String(error)}`);}
   }
  };
  const plugin:CorePlugin={manifest:{name:'setup-guide',version:'1.0.0',trust:'trusted',hookTimeouts:{'ui.press':300000,'service.extension.control':300000}},hooks:{

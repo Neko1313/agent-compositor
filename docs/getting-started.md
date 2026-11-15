@@ -102,7 +102,10 @@ not refreshed, and refreshes it when changes are pending. Apply changes or
 disable the plugin before completing setup; Skip remains available if a plugin
 cannot load.
 Failures remain visible so you can retry or
-continue without optional tools. No model is invoked by these setup steps.
+continue without optional tools. If a download succeeds but enabling fails,
+the guide reports the installation and the enable error; inspect the current
+state in Extensions before retrying. No model is invoked
+by these setup steps.
 If an installation is interrupted, the guide stops before starting the next
 selection. An operation already in progress may have completed; reopen `/setup`
 or Extensions to inspect what was installed or enabled before retrying.

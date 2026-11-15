@@ -841,6 +841,20 @@ Smaller ceilings may stop before the three-step reminder. Polling tools such as
 can omit the flag for a read used as a deliberate poll. This is bounded recovery
 for repeated observations, not a semantic proof of task progress or correctness.
 
+### Repeated failed-check reminder
+
+For a narrow set of conventional foreground check commands executed through
+the built-in `exec` tool, the default strategy also compares the command
+arguments, nonzero exit code and captured stdout/stderr. If the turn remains
+active after the same failed observation appears twice, it gives one reminder
+to inspect the diagnostics.
+Read-only query observations may occur between the checks; an untracked call,
+different output or command, user steering, context replacement or a new turn
+resets the streak. The reminder does not stop, retry or authorize commands, and
+identical captured output does not prove that the workspace or external state
+is unchanged. Denied, interrupted, timed-out, background, composed shell and
+unrecognized commands are not treated as completed failed checks.
+
 ### Coding completion checks
 
 With `agent.instructionsPreset: "coding"`, the default completion policy asks for

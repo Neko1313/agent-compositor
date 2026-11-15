@@ -1,6 +1,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import type {CoreHumanFormHandler,CoreHumanRequestContext,CoreHumanRequestOrigin,CoreHumanRequestRoot,CoreToolInvocation} from './human-requests.js';
 import {QueryProgress,queryObservation} from './query-progress.js';
+import {CheckProgress,failedCheckObservation} from './check-progress.js';
 import {modelToolText} from './tool-text.js';
 import {compactionEvidence,isCompactionEvidence,toolObservationMetadata} from './compaction-evidence.js';
 import {
@@ -206,6 +207,7 @@ export class AgentCore {
   private readonly readTargets = new WeakMap<ChatMessage, { turnId: string; ref: string; content: string }>();
   private readonly appliedEdits = new WeakMap<ChatMessage, { turnId: string; path: string; oldText: string; newText: string }>();
   private queryObservations=new WeakMap<object,string>();
+  private failedCheckObservations=new WeakMap<object,string>();
   private refusalMemory={refused:new Map<string,string>(),pending:new Map<string,Promise<void>>()};
   private resetRefusals(){this.refusalMemory={refused:new Map(),pending:new Map()};}
   private contextSource = "fallback";
@@ -1411,12 +1413,14 @@ export class AgentCore {
 
     let recoveryAttempted=false, outputRecoveryAttempted=false, finishChecks=0;
     const queryProgress=new QueryProgress();
+    const checkProgress=new CheckProgress();
     let queryContext=this.messages;
     for (let step = 0; step < this.maxSteps; step++) {
       if (this.abort.signal.aborted) break;
       // steering lands at the natural step boundary
       while (this.steerQueue.length > 0) {
         queryProgress.reset();
+        checkProgress.reset();
         this.resetRefusals();
         const steerText = this.steerQueue.shift()!;
         this.messages.push({ role: "user", content: steerText });
@@ -1425,7 +1429,7 @@ export class AgentCore {
       // steering landed at the natural step boundary; now check context
       // pressure before paying for another model request
       await this.maybeCompact();
-      if(this.messages!==queryContext){queryProgress.reset();queryContext=this.messages;}
+      if(this.messages!==queryContext){queryProgress.reset();checkProgress.reset();queryContext=this.messages;}
       if (this.abort.signal.aborted) break;
 
       await this.emit("turn.step", { turnId });
@@ -1510,9 +1514,16 @@ export class AgentCore {
         let failures=0;for(const r of [...this.turnToolRecords].reverse()){if(r.ok)break;failures++;}
         if(failures>=(this.options.maxConsecutiveToolFailures??6)){failed="Repeated tool failures without progress. Inspect the recent tool errors and resolve their cause before continuing; progress is saved.";break;}
         if(failures>=3)this.messages.push({role:"user",origin:"harness",content:"Harness recovery: repeated tool failures produced no progress. Inspect the errors and available tool schemas. Do not repeat denied actions or bypass policy. Use permitted read-only tools for authorized investigation, or report a concrete blocker."});
-        if(this.steerQueue.length||this.messages!==queryContext){queryProgress.reset();queryContext=this.messages;}
+        if(this.steerQueue.length||this.messages!==queryContext){queryProgress.reset();checkProgress.reset();queryContext=this.messages;}
         else {
-          const repeated=queryProgress.observe(this.turnToolRecords.slice(recordStart).map(record=>this.queryObservations.get(record)));
+          const records=this.turnToolRecords.slice(recordStart);
+          for(const record of records){
+            const check=this.failedCheckObservations.get(record);
+            if(check){
+              if(checkProgress.observe(check))this.messages.push({role:'user',origin:'harness',content:'Verification recovery: the same authorized check returned the same nonzero exit and captured output again. Inspect the diagnostics and relevant code before deciding what to do next. A rerun can still be useful when external state changes; this observation does not prove the workspace is unchanged. Do not claim that the check passed.'});
+            }else if(!this.queryObservations.has(record))checkProgress.reset();
+          }
+          const repeated=queryProgress.observe(records.map(record=>this.queryObservations.get(record)));
           if(repeated>=(this.options.maxRepeatedQuerySteps??6)){failed='Repeated query results without new observations; progress saved. Change the query or report a concrete blocker before resuming.';break;}
           if(repeated===3)this.messages.push({role:'user',origin:'harness',content:'Query recovery: these successful queries repeat observations already returned. Use the available evidence: open an exact discovered path, narrow or change the query, or perform the next authorized step. Do not repeat the same query without a concrete reason. If blocked, report the blocker. Polling tools remain available for genuinely running work.'});
         }
@@ -1926,6 +1937,7 @@ export class AgentCore {
       let denied = false;
       let error: string | undefined;
       let missingRead = false;
+      let failedCheck:string|undefined;
       let approvedPath:string|undefined;
 
       const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -2127,7 +2139,12 @@ export class AgentCore {
           }
           try {
             const executed = await spec.execute(ctx, args);
-            if (executed.ok){result=executed.data;modelText=executed.modelText;}
+            if (executed.ok){
+              result=executed.data;modelText=executed.modelText;
+              if(spec.execute===execTool.execute&&spec.describe===execTool.describe){
+                try{failedCheck=failedCheckObservation(args,result);}catch{/* Observation cannot change command results. */}
+              }
+            }
             else {
               error = executed.error;
               denied = executed.denied ?? false;
@@ -2143,7 +2160,7 @@ export class AgentCore {
         result = interceptedResult;
       }
 
-      const delivered = await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText,missingRead);
+      const delivered = await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText,missingRead,failedCheck);
       if (!error && approvedPath && turnId === this.currentTurnId && !this.userOperation.getStore() &&
           this.isBuiltinEdit(spec) && isObject(result) && result.path === approvedPath &&
           result.match === 'exact' && typeof result.replacements === 'number' && result.replacements > 0 &&
@@ -2163,7 +2180,7 @@ export class AgentCore {
     }
   }
 
-  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string,missingRead=false):Promise<ChatMessage> {
+  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string,missingRead=false,failedCheck?:string):Promise<ChatMessage> {
     const record={name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result,...(denied?{denied:true}:{})};
     this.executionRecords.push(record);
     const formatted=typeof modelText==='string'&&modelText.length>0;
@@ -2178,6 +2195,7 @@ export class AgentCore {
       ...(error===undefined&&formatted?{modelText:text}:{}),
     });
     if(query&&(record.ok||missingRead))this.queryObservations.set(record,queryObservation(call.name,args,text));
+    if(failedCheck)this.failedCheckObservations.set(record,failedCheck);
     const delivered: ChatMessage = {
       role: "tool",
       toolCallId: call.id,

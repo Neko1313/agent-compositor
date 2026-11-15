@@ -223,7 +223,7 @@ async function start(ws) {
 async function stop() { if (!active) return; const previous = active; active = undefined; previous.proc.kill(); await previous.proc.exited; }
 const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(process.env.PORT ?? 0),
-  ...(process.env.VISUAL_ONBOARDING_CANCEL?{idleTimeout:120}:{}),
+  ...((process.env.VISUAL_ONBOARDING_CANCEL||process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT)?{idleTimeout:120}:{}),
   async fetch(request, server) {
     const url = new URL(request.url);
     if(process.env.VISUAL_ONBOARDING_CANCEL&&url.pathname.startsWith(`/setup-cancel/${token}/archive/`)){

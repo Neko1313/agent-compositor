@@ -63,6 +63,9 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
   let canonical:readonly ConversationSession[]=[],commands:readonly string[]=[];
   type SessionEntry={dto:NativeSession;source:ConversationSession;value:ReturnType<typeof store<ConversationSnapshot>>};
   type SurfaceEntry={dto:NativeSurface;source:UiSurfaceSource;value:ReturnType<typeof store<UiSurfaceSnapshot>>};
+  type SurfaceEdit={field:string;values:Set<string>;result?:boolean;done:Promise<boolean>};
+  const surfaceEdits=new WeakMap<SurfaceEntry,SurfaceEdit>();
+  const waitingSubmits=new WeakMap<SurfaceEntry,SurfaceEdit>();
   type PublicDto=NativeState['publicRender'][number];
   type PublicEntry={dto:PublicDto;source:PublicRenderSlotSource;value:ReturnType<typeof store<PublicRenderSlotSnapshot>>};
   const sessions=new Map<string,SessionEntry>(),surfaces=new Map<string,SurfaceEntry>(),publicEntries=new Map<string,PublicEntry>();
@@ -175,23 +178,30 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
   function changeSurface(entry:SurfaceEntry,field:string,value:string,revision:number){
     const sequence=(surfaceSerial.get(entry)??0)+1;surfaceSerial.set(entry,sequence);
     const initialValue=entry.dto.snapshot.view?.input?.value;
+    // A producer may publish an earlier local keystroke while a later edit is
+    // in flight. Retry only against bounded values this field actually sent.
+    const previous=surfaceEdits.get(entry),values=previous?.field===field?new Set(previous.values):new Set<string>();
+    if(initialValue!==undefined)values.add(initialValue);values.add(value);
+    while(values.size>64)values.delete(values.values().next().value!);
+    let resolveEdit!:(accepted:boolean)=>void;
+    const edit:SurfaceEdit={field,values,done:new Promise(resolve=>{resolveEdit=resolve;})};surfaceEdits.set(entry,edit);
     const token={};surfaceChanges.add(token);
-    const finish=()=>{surfaceChanges.delete(token);idle();};
+    const finish=(accepted=false)=>{edit.result=accepted;resolveEdit(accepted);surfaceChanges.delete(token);idle();};
     const attempt=(current:number,retries:number):void=>{
       const outcome=request(entry.dto.port,{kind:'surface-change',field,value,revision:current},current);
       const complete=(receipt:NativeReceiptMessage|undefined)=>{
         const snapshot=entry.dto.snapshot,position=layout.snapshot(),navigationState=navigation.snapshot();
         if(receipt?.status==='rejected'&&retries>0&&isSurface(entry)&&surfaceSerial.get(entry)===sequence
-          &&snapshot.revision!==current&&snapshot.view?.input?.id===field&&snapshot.view.input.value===initialValue&&!snapshot.controller&&!snapshot.approval&&!snapshot.interaction&&!snapshot.form
+          &&snapshot.revision!==current&&snapshot.view?.input?.id===field&&edit.values.has(snapshot.view.input.value)&&!snapshot.controller&&!snapshot.approval&&!snapshot.interaction&&!snapshot.form
           &&navigationState.mode==='normal'&&!position.gesture&&position.focused===entry.dto.id&&position.frames.some(frame=>frame.surface===entry.dto.id)){
           attempt(snapshot.revision,retries-1);return;
         }
         if(receipt?.status==='rejected'&&isSurface(entry)&&surfaceSerial.get(entry)===sequence&&snapshot.view?.input?.id===field){
           if(entry.value.set({...entry.value.snapshot(),error:'Input was not saved; check the field and try again.'}))entry.value.notify();
         }
-        finish();
+        finish(receipt?.status==='accepted');
       };
-      if(outcome instanceof Promise)void outcome.then(complete).catch(finish);else complete(outcome);
+      if(outcome instanceof Promise)void outcome.then(complete).catch(()=>finish());else complete(outcome);
     };
     attempt(revision,2);
   }
@@ -210,7 +220,30 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
       cancelController:(id:string)=>{if(isSurface(entry)&&entry.dto.snapshot.controller?.id===id)fire(entry.dto.port,{kind:'cancel-controller',id});},
     };
     entry.source={get id(){return entry.dto.id;},snapshot:entry.value.snapshot,subscribe:entry.value.subscribe,
-      press:(action,revision)=>{if(isSurface(entry)&&entry.dto.snapshot.revision===revision)fire(entry.dto.port,{kind:'surface-press',action,revision},revision);},
+      press:(action,revision)=>{
+        if(!isSurface(entry)||entry.dto.snapshot.revision!==revision)return;
+        const edit=surfaceEdits.get(entry),field=entry.dto.snapshot.view?.input;
+        if(field?.submitAction===action&&edit?.field===field.id&&edit.result===undefined){
+          // The host serializes admitted edits before submission, but an edit
+          // rejected on a stale revision must be retried before Enter is sent.
+          if(waitingSubmits.get(entry)===edit)return;
+          waitingSubmits.set(entry,edit);
+          const token={};surfaceChanges.add(token);
+          void edit.done.then(accepted=>{
+            try{
+              if(waitingSubmits.get(entry)!==edit)return;
+              waitingSubmits.delete(entry);
+              const snapshot=entry.dto.snapshot,position=layout.snapshot();
+              if(!accepted||!isSurface(entry)||surfaceEdits.get(entry)!==edit||snapshot.view?.input?.id!==edit.field
+                ||snapshot.view.input.submitAction!==action||snapshot.controller||snapshot.approval||snapshot.interaction||snapshot.form
+                ||navigation.snapshot().mode!=='normal'||position.gesture||position.focused!==entry.dto.id||!position.frames.some(frame=>frame.surface===entry.dto.id))return;
+              fire(entry.dto.port,{kind:'surface-press',action,revision:snapshot.revision},snapshot.revision);
+            }finally{surfaceChanges.delete(token);idle();}
+          });return;
+        }
+        if(field?.submitAction===action&&edit?.field===field.id&&edit.result===false)return;
+        fire(entry.dto.port,{kind:'surface-press',action,revision},revision);
+      },
       change:(field,value,revision)=>{if(isSurface(entry)&&entry.dto.snapshot.revision===revision)changeSurface(entry,field,value,revision);},
     };
     for(const name of Object.keys(optional) as (keyof typeof optional)[])Object.defineProperty(entry.source,name,{enumerable:true,get:()=>has(name)?optional[name]:undefined});

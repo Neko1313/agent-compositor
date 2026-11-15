@@ -5,10 +5,13 @@
 During the OpenTUI `/btw` visual check, a follow-up entered immediately after
 the streamed answer appeared reached the fixture without its final character
 (`BTW_SIDE_FOLLOWU`). Evidence: `dist/visual-opentui-btw-side-cancel-fixed/`.
-The same scenario passed on another run. The answer had not necessarily reached
-idle when input began, so the check now waits for idle before the next prompt;
-this stabilizes that scenario but does not establish whether typing during
-finalization is safe. Reproduce and investigate that separate input race.
+The same scenario passed on another run. A deterministic native-client test
+subsequently demonstrated that Enter could overtake the final pending edit and
+that a retry rejected after an earlier locally typed value was published. The
+client now waits for the current edit before submission and recognizes prior
+local values when retrying. The visual fixture also holds the streamed response
+open while typing begins and verifies the full follow-up reaches the provider;
+this fixture does not force the exact wire-receipt ordering of the unit test.
 
 ## Physical tmux graphics probe — 2026-11-15
 

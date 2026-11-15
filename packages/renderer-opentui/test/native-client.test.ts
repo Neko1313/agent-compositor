@@ -226,6 +226,29 @@ describe('native presentation client',()=>{
     surface.change('reply','no retry',3);const changed=structuredClone(next);changed.surfaces[0].snapshot.revision=4;changed.surfaces[0].snapshot.view!.input!.id='replacement';t.publish(changed);
     t.receipt(t.inputs[3].id,{status:'rejected'});await t.client.settled();expect(t.inputs).toHaveLength(4);t.client.close();
   });
+  it('preserves the last edit when Enter races an earlier published prefix',async()=>{
+    const state=initial();state.surfaces=[{port:'tools-port',id:'tools',snapshot:{revision:2,title:'Tools',view:{lines:[{text:'Send',action:'send'}],input:{id:'reply',value:'',submitAction:'send'}}}}];
+    state.layout.frames=[{surface:'tools',x:0,y:0,width:100,height:30}];state.layout.focused='tools';state.layout.locations={tools:1};
+    const t=transport({state,deferred:true}),surface=t.client.surfaces.snapshot()[0];
+    surface.change('reply','AB',2);surface.change('reply','ABC',2);surface.press('send',2);surface.press('send',2);
+    expect(t.inputs.map(input=>input.operation.kind)).toEqual(['surface-change','surface-change']);
+    const next=structuredClone(state);next.surfaces[0].snapshot.revision=3;next.surfaces[0].snapshot.view!.input!.value='AB';t.publish(next);
+    t.receipt(t.inputs[0].id);t.receipt(t.inputs[1].id,{status:'rejected'});await tick();
+    expect(t.inputs[2].operation).toMatchObject({kind:'surface-change',value:'ABC',revision:3});
+    t.receipt(t.inputs[2].id);await tick();
+    expect(t.inputs[3].operation).toMatchObject({kind:'surface-press',action:'send',revision:3});
+    t.receipt(t.inputs[3].id);await t.client.settled();t.client.close();
+  });
+  it.each(['rejected','focus','new edit'] as const)('does not submit an edit after %s',async reason=>{
+    const state=initial();state.surfaces=[{port:'tools-port',id:'tools',snapshot:{revision:2,title:'Tools',view:{lines:[{text:'Send',action:'send'}],input:{id:'reply',value:'',submitAction:'send'}}}}];
+    state.layout.frames=[{surface:'tools',x:0,y:0,width:100,height:30}];state.layout.focused='tools';state.layout.locations={tools:1};
+    const t=transport({state,deferred:true}),surface=t.client.surfaces.snapshot()[0];surface.change('reply','ABC',2);surface.press('send',2);
+    if(reason==='focus'){const next=structuredClone(state);next.layout.focused='session';t.publish(next);}
+    if(reason==='new edit')surface.change('reply','ABCD',2);
+    t.receipt(t.inputs[0].id,{status:reason==='rejected'?'rejected':'accepted'});await tick();
+    expect(t.inputs.some(input=>input.operation.kind==='surface-press')).toBe(false);
+    if(reason==='new edit')t.receipt(t.inputs[1].id);await t.client.settled();t.client.close();
+  });
   it('bounds retries and reports an edit that remains rejected',async()=>{
     const state=initial();state.surfaces=[{port:'tools-port',id:'tools',snapshot:{revision:2,title:'Tools',view:{lines:[],input:{id:'reply',value:''}}}}];
     state.layout.frames=[{surface:'tools',x:0,y:0,width:100,height:30}];state.layout.focused='tools';state.layout.locations={tools:1};

@@ -588,11 +588,13 @@ each run.
 
 `VISUAL_OUTPUT=dist/opentui-btw npm run visual:opentui-btw` uses
 the actual OpenTUI CLI and a loopback provider to hold Main while `/btw` opens,
-replies and retains an independent draft. It also interrupts a running side
+replies and retains an independent draft. A gated side response lets the test
+type during finalization and verify the complete submitted follow-up. It also interrupts a running side
 agent with Ctrl+C while verifying that Main keeps running. It closes and reopens the side window,
 then restarts the CLI and checks the same history and draft. Set
 `VISUAL_EXECUTABLE` to an executable inside an extracted release archive to
-exercise the packaged app; the report records its SHA-256.
+exercise the packaged app; the report records SHA-256 hashes for the executable
+and its separately bundled OpenTUI renderer.
 
 ```sh
 npm run visual:serve

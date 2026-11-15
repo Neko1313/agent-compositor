@@ -250,6 +250,17 @@ const server = Bun.serve({
         }
         if(!['BTW_SIDE_QUESTION','BTW_SIDE_FOLLOWUP'].includes(prompt))return new Response('Unexpected side-chat prompt',{status:400});
         const content=prompt==='BTW_SIDE_QUESTION'?'BTW_SIDE_ANSWER':'BTW_SIDE_FOLLOWUP_ANSWER';
+        if(prompt==='BTW_SIDE_QUESTION'){
+          return new Response(new ReadableStream({start(controller){
+            const bytes=new TextEncoder();let closed=false,timer;
+            controller.enqueue(bytes.encode(`data: ${JSON.stringify({choices:[{delta:{content},finish_reason:null}]})}\n\n`));
+            const close=()=>{if(closed)return;closed=true;clearTimeout(timer);try{controller.close();}catch{}};
+            request.signal.addEventListener('abort',close,{once:true});
+            const poll=async()=>{if(closed)return;if(await readFile(join(cwd,'btw-release.txt')).then(()=>true,()=>false)){
+              if(closed)return;controller.enqueue(bytes.encode(`data: ${JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`));close();
+            }else timer=setTimeout(poll,25);};void poll();
+          }}),{headers:{'content-type':'text/event-stream'}});
+        }
         return new Response(`data: ${JSON.stringify({choices:[{delta:{content},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
       }
       if(process.env.VISUAL_OPENTUI_CHILD){

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {mkdir,readFile,writeFile,readdir} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
+import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
 import {createOpenTuiFinder} from './opentui-finder.mjs';
@@ -24,7 +24,9 @@ try{
  const json=path=>readFile(path,'utf8').then(JSON.parse);
  launch=await observe(()=>json(join(output,'opentui-app-launch.json')),value=>Boolean(value.child),'Actual child fixture');
  report.mode=launch.mode;
- if(process.env.VISUAL_EXECUTABLE){assert.equal(launch.executable,resolve(process.env.VISUAL_EXECUTABLE));assert.equal(createHash('sha256').update(await readFile(launch.executable)).digest('hex'),launch.sha256);report.executable={path:launch.executable,sha256:launch.sha256};}
+ if(process.env.VISUAL_EXECUTABLE){assert.equal(launch.executable,resolve(process.env.VISUAL_EXECUTABLE));assert.equal(createHash('sha256').update(await readFile(launch.executable)).digest('hex'),launch.sha256);
+  const renderer=join(dirname(launch.executable),'node_modules/@agent-compositor/renderer-opentui/index.js');
+  report.executable={path:launch.executable,sha256:launch.sha256,renderer:{path:renderer,sha256:createHash('sha256').update(await readFile(renderer)).digest('hex')}};}
  async function command(value){await key('Alt+0');await wait('Main · focused');await key('Alt+w');await wait('WINDOW MODE');if(!(await screen()).includes('WINDOW MODE · Zoomed'))await key('f');await wait('WINDOW MODE · Zoomed');await key('Escape');await finder.normal();await key('End');await key('Control+u');await page.keyboard.type(value);await wait(value);await key('Enter');}
  async function pick(label){await finder.pick(label);await wait(label+' · focused');}
  async function capture(name){
@@ -34,9 +36,10 @@ try{
   assert.deepEqual(after,before,'Screenshot must capture one stable terminal frame');report.screenshots.push(name+'.png');
  }
  await wait('Alt+W Arrange');await command('BTW_MAIN_HOLD');await wait('BTW_MAIN_WORKING');await wait('Main · Running');
- await command('/btw BTW_SIDE_QUESTION');await wait('Side conversation');await pick('Side conversation');await wait('BTW_SIDE_ANSWER');await wait('idle · shared workspace');
+ await command('/btw BTW_SIDE_QUESTION');await wait('Side conversation');await pick('Side conversation');await wait('BTW_SIDE_ANSWER');await wait('running · shared workspace');
  await capture('01-side-during-main');
- await key('Tab');await page.keyboard.type('BTW_SIDE_FOLLOWUP');await wait('BTW_SIDE_FOLLOWUP');await key('Enter');await wait('BTW_SIDE_FOLLOWUP_ANSWER');await wait('idle · shared workspace');
+ await key('Tab');await page.keyboard.type('BTW_SIDE_FOLLOWU');await wait('BTW_SIDE_FOLLOWU');await writeFile(join(launch.cwd,'btw-release.txt'),'release');
+ await wait('idle · shared workspace');await page.keyboard.type('P');await wait('BTW_SIDE_FOLLOWUP');await key('Enter');await wait('BTW_SIDE_FOLLOWUP_ANSWER');await wait('idle · shared workspace');
  await page.keyboard.type('BTW_SIDE_HOLD');await wait('BTW_SIDE_HOLD');await key('Enter');await wait('BTW_SIDE_WORKING');await key('Control+c');
  const receipts=async()=>(await readFile(join(output,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
  await observe(receipts,rows=>rows.some(row=>row.kind==='btw-side-aborted'),'Side request must be interrupted');
@@ -54,6 +57,6 @@ try{
  await command('/btw');await wait('Side conversation');await pick('Side conversation');await wait('BTW_SIDE_FOLLOWUP_ANSWER');await wait('BTW_SIDE_DRAFT');await capture('04-side-after-restart');
  const http=(await readFile(join(output,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse),completions=http.filter(row=>row.kind==='completion');
  assert.equal(completions.length,4);assert.deepEqual(completions.map(row=>row.body.messages.filter(message=>message.role==='user').at(-1).content),['BTW_MAIN_HOLD','BTW_SIDE_QUESTION','BTW_SIDE_FOLLOWUP','BTW_SIDE_HOLD']);
- report.checks.push('Main remains running while /btw opens and replies','Stopping the side agent aborts only its own request','Side follow-up uses its own conversation while Main keeps its draft','Closing and reopening /btw retains the side draft and history','After restart /btw restores the side draft and history','Only the four explicit prompts reached the loopback provider');report.ok=true;
+ report.checks.push('Main remains running while /btw opens and replies','Follow-up typed during side response finalization reaches the provider intact','Stopping the side agent aborts only its own request','Side follow-up uses its own conversation while Main keeps its draft','Closing and reopening /btw retains the side draft and history','After restart /btw restores the side draft and history','Only the four explicit prompts reached the loopback provider');report.ok=true;
 }catch(error){report.errors.push(String(error));if(page){await writeFile(join(output,'failure.txt'),await page.evaluate(()=>visual.text()).catch(()=>''));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});}}
 finally{await browser?.close();if(server?.exitCode===null){server.kill('SIGTERM');await serverExit;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

@@ -144,6 +144,21 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     expect(f.inputs.filter(input=>input.operation.kind==='layout-action'&&input.operation.action.type==='pointer')).toHaveLength(0);
     expect(f.layout.snapshot().focused).toBe('session');
   },12000);
+  it('reopens a hidden selected window before replaying later input',async()=>{
+    const f=await fixture();let value='';
+    f.host.core.host.registerPlugin({name:'mouse-hidden',version:'1.0.0',trust:'trusted'},{'ui.change':event=>{value=event.value;}});
+    await f.host.core.host.emit('service.ui.view',{plugin:'mouse-hidden',id:'main',title:'Mouse hidden',view:{input:{id:'reply',label:'Reply',value:''},lines:[]},options:{site:'split'}});
+    const id='plugin-mouse-hidden-main';await f.until(()=>f.host.surfaces.snapshot().some(source=>source.id===id));
+    f.layout.act({type:'focus',id});await f.until(()=>f.test.captureCharFrame().includes('Reply:'));
+    f.holdWhen(input=>input?.operation.kind==='surface-change');f.packet('\t\x1b[200~FIRST\x1b[201~');
+    await f.until(()=>f.held.length>0&&f.test.captureCharFrame().includes('FIRST'));
+    const main=f.layout.snapshot().frames.find(frame=>frame.surface==='session')!;
+    await f.test.mockMouse.click(main.x+5,main.y+7);f.packet('\x1b[200~FOR_MAIN\x1b[201~');
+    f.layout.act({type:'focus',id:'session'});f.layout.act({type:'close'});
+    await f.until(()=>!f.layout.snapshot().frames.some(frame=>frame.surface==='session'));
+    f.release();await f.until(()=>f.layout.snapshot().focused==='session'&&f.test.captureCharFrame().includes('FOR_MAIN')&&!f.client.pending());
+    expect(value).toBe('FIRST');
+  },12000);
   it('replays a queued drag through its own geometry updates and releases the gesture',async()=>{
     const f=await fixture();
     f.host.core.host.registerPlugin({name:'mouse-drag',version:'1.0.0',trust:'trusted'},{'ui.change':()=>{}});

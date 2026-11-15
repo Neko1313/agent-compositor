@@ -566,15 +566,15 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     if(scheduleMouse?.(()=>{
       if(phase==='down'){
         if(geometry()!==observed){
-          // A pane body click selects a logical window. If it merely moved,
-          // retain that intent rather than retargeting the following typing.
+          // A pane body click selects a logical window. If it moved or was
+          // hidden, retain that intent instead of retargeting later typing.
           const current=windowLayout.snapshot();
           const same=target?.surface?surfaces.snapshot().includes(target.surface):target?.session
             ?conversationWindows?conversationWindows.snapshot().some(window=>window.id===target.id&&window.session===target.session):sessions.includes(target.session)
             :false;
           if(same&&target&&current.workspace===initial.workspace&&!current.gesture
-            &&(!navigation||navigation.snapshot().mode==='normal')&&current.frames.some(item=>item.surface===target.id))
-            windowLayout.act({type:'focus',id:target.id});
+            &&(!navigation||navigation.snapshot().mode==='normal'))
+            windowLayout.act({type:current.frames.some(item=>item.surface===target.id)?'focus':'open',id:target.id});
           return;
         }
         gesture!.accepted=true;

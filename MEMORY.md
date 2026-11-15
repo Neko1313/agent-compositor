@@ -31,8 +31,11 @@ own movements and release still run. A further test showed that dropping a
 body click left subsequent typing targeted at the old window. If the originally
 clicked window is still visible and has the same owner, the renderer now selects
 that window by identity after it moves; the test verifies subsequent input goes
-to it. Other stale gestures remain discarded. Handling subsequent queued input
-when the intended target disappears remains unverified.
+to it. A subsequent held-receipt test hid the selected Main window before
+admission: the previous renderer delivered later input to the old focus. If the
+same window owner still exists, OpenTUI now reopens the hidden target before
+replaying that input. Other stale gestures remain discarded. Handling queued
+input when the selected owner is removed or replaced remains unverified.
 
 ## Physical tmux graphics probe — 2026-11-15
 

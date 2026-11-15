@@ -672,6 +672,20 @@ the chart. Two trials at 50 ms used 0.06 seconds in this same 40 ms-spaced
 scenario, but do not establish behavior at slower resize frequencies. This
 narrow XTerm/SIXEL fixture is not a general benchmark; the 20 ms
 change was reverted pending a better balance of responsiveness and resource use.
+A fresh source-tree control at `9b8a750` reproduced the text-only artifact in
+the same isolated XTerm fixture with `AGENT_GRAPHICS=off`: immediately after
+expanding the window, the first capture shows duplicated workspace text and an
+old panel edge; a later capture shows the settled layout. The PTY exited normally
+and the private display was removed. The report and captures are in
+`dist/sixel-xterm-research/text-resize-current-9b8a750/`; the retained local
+probe has SHA-256 `13532d44b36475d5b66110f70225b83407754928d7f626cbba5255b0846b981b`.
+This confirms a visible intermediate artifact in one environment, not its cause
+or a regression across all terminals. A blind reduction of the debounce remains
+insufficient evidence of a fix. A separate single trial with a temporary 50 ms
+delay still showed the duplicate text and panel edge in the first restored-frame
+capture; the application change was reverted. Its captures are in
+`dist/sixel-xterm-research/text-resize-50ms-9b8a750/`. This is not a CPU or
+terminal compatibility benchmark.
 Evidence is under `dist/sixel-xterm-research/timing-*` and `cpu-*`. A further
 run focused the panel, closed it with its
 mouse `[x]` control and reopened it through the window finder; the screenshot

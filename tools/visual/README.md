@@ -337,6 +337,9 @@ must appear in actual ANSI output even when no text frame changes. The other
 processes verify rejection cleanup and explicit stop with a blocked source.
 Five checks retain their PNGs, original ANSI/input, codec log, exact identities
 and final process exits under `dist/visual-opentui-wire/`.
+The underlying fixture accepts `VISUAL_WIRE_GRAPHICS=kitty|sixel|auto|off` for
+targeted terminal experiments; the standard scenario defaults to `off` and
+its text-fallback assertions are not a graphics-passthrough qualification.
 
 Set `VISUAL_RENDERER_MODULE` to an absolute relocated
 `compositor/node_modules/@agent-compositor/renderer-opentui/index.js` to exercise

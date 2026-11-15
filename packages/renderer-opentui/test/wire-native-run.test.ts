@@ -11,6 +11,24 @@ const layout:WireMessage={type:'layout',width:44,height:14,frames:[{surface:'mai
 
 // The SDK's native Node FFI requires Node 26.4; pure wire-client lifecycle runs on Node 22 too.
 describe.skipIf(Number(process.versions.node.split('.')[0])<26)('real native wire source/send client',()=>{
+ it.each([{TERM:'tmux-256color',TMUX:'/tmp/private-tmux,123,0'},{TERM:'screen',STY:'private-screen'}])('does not advertise forced Kitty raster output through $TERM',async environment=>{
+  const streams=tty(),pending=queue(),sent:WireMessage[]=[];
+  const handle=await runOpenTuiWireRenderer({...streams,source:pending.source,send:m=>sent.push(m),hostControlsExit:true,graphics:'kitty',environment});
+  try{
+   const hello=sent.find(message=>message.type==='hello');expect(hello?.type).toBe('hello');
+   if(hello?.type!=='hello')throw Error('Missing renderer hello');
+   expect(hello.capabilities.elements).not.toContain('Raster');expect(handle.store.state.nativeImages).toBe(false);
+  }finally{await handle.stop();pending.end();streams.stdin.destroy();streams.stdout.destroy();}
+ });
+ it('retains explicitly requested Kitty output on a direct terminal before probe replies',async()=>{
+  const streams=tty(),pending=queue(),sent:WireMessage[]=[];
+  const handle=await runOpenTuiWireRenderer({...streams,source:pending.source,send:m=>sent.push(m),hostControlsExit:true,graphics:'kitty',environment:{TERM:'xterm-256color'}});
+  try{
+   const hello=sent.find(message=>message.type==='hello');expect(hello?.type).toBe('hello');
+   if(hello?.type!=='hello')throw Error('Missing renderer hello');
+   expect(hello.capabilities.elements).toContain('Raster');expect(handle.store.state.nativeImages).toBe(true);
+  }finally{await handle.stop();pending.end();streams.stdin.destroy();streams.stdout.destroy();}
+ });
  it('gates pre-ACK input, forwards keys/paste/global mouse to current focus, applies pointer, and restores terminal',async()=>{
   const streams=tty(),pending=queue(),sent:WireMessage[]=[];
   const before=streams.stdin.listenerCount('data');

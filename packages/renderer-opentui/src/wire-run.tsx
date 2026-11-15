@@ -97,7 +97,7 @@ export async function runOpenTuiWireRenderer(options:OpenTuiWireRendererOptions)
       void renderer.closed.then(()=>finish(),error=>finish(error));
     }
     let protocol:ImageRenderProtocol='kitty';
-    if(mouseEnabled&&mode!=='off'&&renderer){
+    if(mouseEnabled&&mode!=='off'&&renderer&&!env.TMUX&&!env.STY&&renderer.capabilities?.multiplexer!=='tmux'&&renderer.capabilities?.multiplexer!=='screen'){
       const requested=mode==='auto'?'auto':mode;
       protocol=sdk!.resolveImageRenderProtocol(requested,renderer.capabilities,Boolean(renderer.resolution));
       store.state.nativeImages=protocol==='kitty'&&(mode==='kitty'||renderer.capabilities?.kitty_graphics===true)

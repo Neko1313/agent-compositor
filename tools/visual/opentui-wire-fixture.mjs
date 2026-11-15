@@ -55,7 +55,7 @@ async function run(){
  };
  try{
   const module=await import(pathToFileURL(modulePath).href);if(typeof module.runOpenTuiWireRenderer!=='function')throw Error('Public runOpenTuiWireRenderer export is missing');
-  handle=await module.runOpenTuiWireRenderer({source,send,hostControlsExit:true,graphics:'off',localHello:{...hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Box','Layout','Pointer'],encodings:['jsonl']}),version:'0.6.0'},
+  handle=await module.runOpenTuiWireRenderer({source,send,hostControlsExit:true,graphics:process.env.VISUAL_WIRE_GRAPHICS??'off',localHello:{...hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Box','Layout','Pointer'],encodings:['jsonl']}),version:'0.6.0'},
    onResize(columns,rows){push(wireFixtureLayout(columns,rows));trace('resize',{columns,rows});}});
   if(variant==='bad-ack')push({type:'hello-ack',ok:false,reason:'WIRE_BAD_ACK_06'});else for(const message of wireFixtureLog(Number(process.env.VISUAL_COLS??100),Number(process.env.VISUAL_ROWS??30)))push(message);
   await handle.waitUntilExit;

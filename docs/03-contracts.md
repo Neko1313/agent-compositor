@@ -273,6 +273,12 @@ for an uncooperative source iterator. The public agent `SessionPane` emits
 schema-valid grid messages; its `declarePane(columns, rows)` dimension hints
 must be integers between 1 and 10000 inclusive.
 
+The OpenTUI grid client can advertise `Raster` when native image output is
+selected; SIXEL also requires pixel geometry. tmux and screen use the grid
+fallback until image passthrough is implemented, including when
+`AGENT_GRAPHICS` explicitly requests a protocol. Explicit Kitty selection
+still permits the protocol before capability probing completes.
+
 Renderers own: cell-grid semantics (full/diff ops, scroll, cursor), style mapping to their toolkit, input key mapping. Renderers never own: focus policy for panes they didn't draw, event ordering, plugin state.
 
 Cell-grid text and titles are literal display data. Both grid renderers paint control,

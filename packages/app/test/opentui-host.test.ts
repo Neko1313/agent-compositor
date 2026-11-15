@@ -1447,17 +1447,20 @@ it('retains later input when a submission replaces the field with an empty one',
   }finally{release();}
 });
 
-it.each(['field', 'surface'])('retains later input when the %s disappears during submission',async removed=>{
+it.each(['field', 'surface', 'action'])('retains later input when the submitted %s changes',async removed=>{
   const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});const values:string[]=[];
   f.host.core.host.registerPlugin({name:'missing-input',version:'1.0.0',trust:'trusted'},{
     'ui.change':event=>{if(event.site==='plugin-missing-input-main')values.push(event.value);},
-    'ui.press':async(event,$)=>{if(event.site==='plugin-missing-input-main'&&event.key==='send'){started();await gate;if(removed==='surface')await $.ui.remove('main');else await $.ui.view('main','Waiting',{lines:[{text:'Waiting'}]});}},
+    'ui.press':async(event,$)=>{if(event.site==='plugin-missing-input-main'&&event.key==='send'){started();await gate;if(removed==='surface')await $.ui.remove('main');else if(removed==='action')await $.ui.view('main','Waiting',{input:{id:'first',value:'SERVER',submitAction:'other'},lines:[{text:'Other',action:'other'}]});else await $.ui.view('main','Waiting',{lines:[{text:'Waiting'}]});}},
   });
   const view=(id:string)=>({input:{id,value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]});
   await f.host.core.host.emit('service.ui.view',{plugin:'missing-input',id:'main',title:'Submit',view:view('first')});let source=f.find('plugin-missing-input-main')!;
   try{source.change('first','before',source.snapshot().revision);await expect.poll(()=>values.length).toBe(1);await expect.poll(()=>source.snapshot().busy).toBe(false);
     expect(source.press('send',source.snapshot().revision)).not.toBe(false);await entered;expect(source.change('first','before later',source.snapshot().revision)).not.toBe(false);release();
-    if(removed==='surface')await expect.poll(()=>f.find('plugin-missing-input-main')).toBeUndefined();else await expect.poll(()=>source.snapshot().view?.lines.some(line=>line.text==='Waiting for an input to restore')).toBe(true);
+    if(removed==='surface')await expect.poll(()=>f.find('plugin-missing-input-main')).toBeUndefined();else if(removed==='field')await expect.poll(()=>source.snapshot().view?.lines.some(line=>line.text==='Waiting for an input to restore')).toBe(true);else {
+      await expect.poll(()=>source.snapshot().view?.lines.some(line=>line.text==='[ Restore queued input ]')).toBe(true);expect(source.snapshot().view?.input?.value).toBe('SERVER');expect(values).toEqual(['before']);expect(source.press('other',source.snapshot().revision)).toBe(false);
+      const restore=source.snapshot().view!.lines.find(line=>line.text==='[ Restore queued input ]')!.action!;expect(source.press(restore,source.snapshot().revision)).toBe(true);await expect.poll(()=>values).toEqual(['before','before later']);return;
+    }
     await f.host.core.host.emit('service.ui.view',{plugin:'missing-input',id:'main',title:'Return',view:view('next')});source=f.find('plugin-missing-input-main')!;
     const restore=source.snapshot().view!.lines.find(line=>line.text==='[ Restore queued input ]')!.action!;expect(values).toEqual(['before']);expect(source.press(restore,source.snapshot().revision)).toBe(true);await expect.poll(()=>values).toEqual(['before','before later']);
   }finally{release();}

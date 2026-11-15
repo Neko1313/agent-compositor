@@ -34,6 +34,15 @@ host navigation test. The captured log shows the question was not observed
 within the poll deadline; it does not establish whether the cause was scheduling
 or a product defect. This failure remains open pending investigation. Other
 platform or local passes do not turn it into a pass.
+The subsequent `b6ee298` Node 22 CI lane passed. A separate local Node 22.19.0
+full suite passed 2635 tests with 34 skips, and the failing test passed 21
+repetitions both normally and with two competing workers on one CPU. These
+observations did not reproduce or explain the original failure. The test now
+retains submission, request, core and recent event state in its failure message
+without changing the question assertion or its deadline. A separate injected
+missing-question fixture confirmed that this message identifies a completed
+submission, the received request and the relevant events; it does not explain
+the original uninstrumented failure.
 
 At source revision `5133d5b`, the configured OpenTUI CLI passed nine
 browser-backed PTY navigation checks and eight conversation-copy checks.

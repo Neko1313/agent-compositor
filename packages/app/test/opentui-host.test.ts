@@ -2137,7 +2137,15 @@ it('forgets a retained but unpublished owner when a later reload actually disabl
 it('navigates real pending questions and private forms without changing their decisions or the main conversation identity', async () => {
   const f = await fixture();
   const main = f.host.submit('Ask before continuing');
-  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  let submission = 'pending';
+  void main.then(() => {submission = 'resolved';}, error => {submission = `rejected: ${String(error)}`;});
+  try {
+    await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  } catch (error) {
+    const snapshot = f.host.session.snapshot();
+    const events = f.events.map((event: any) => event.kind === 'catalog' ? event.event : event.kind).filter(Boolean).slice(-20);
+    throw new Error(`Question was not observed: ${JSON.stringify({submission, requests: f.requests.length, core: f.host.core.getState(), running: snapshot.running, error: snapshot.error, interaction: snapshot.interaction?.kind, events})}`, {cause: error});
+  }
   const question = f.host.session.snapshot().interaction!, sessionId = f.host.core.sessionId;
   const {form} = await connection(f);
   const request = form.snapshot().form!;

@@ -30,6 +30,10 @@ receives a valid OSC 11 reply, including when graphics are disabled. Terminals
 that do not answer retain the dark defaults. Explicit plugin colors keep their
 usual precedence; plugins supplying custom colors should select contrasting
 foreground and background pairs for the terminals they support.
+For an Ink terminal that cannot report its background, set
+`AGENT_TERMINAL_BACKGROUND=light` or `AGENT_TERMINAL_BACKGROUND=dark` before
+launching. This explicitly selects the default palette for that process;
+omitting it or using `auto` enables terminal detection.
 
 Tools no longer occupy an empty window at startup. In Ink, `Alt+t` opens detailed
 tool activity. In OpenTUI, F2 Windows can open canonical Tools, while Arrange

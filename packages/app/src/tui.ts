@@ -13,6 +13,9 @@ export async function runTui(app: BuiltApp, stdin: NodeJS.ReadStream, stdout: No
   const ui: AppUI = new AppUI(app.createCore, app.reloadPlugins, [
     ...app.pluginErrors.map(e => `Plugin error: ${e.error}`), ...app.config.warnings,
   ], app.commands, app.config.config.ui, { save: app.savePlacement, resume: app.resume, bindHumanRequests: app.bindHumanRequests, saveLayout: app.saveLayout, files: prefix => referenceFiles(ui.core.workspace,prefix), edit: draft => editDraft(draft, callback => renderer.runExternal(callback)) });
+  const background = process.env.AGENT_TERMINAL_BACKGROUND;
+  const forcedBackground = background === 'light' || background === 'dark';
+  if (forcedBackground) ui.setTerminalBackground(background === 'light' ? [255,255,255] : [0,0,0]);
   const source = (async function* () {
     while (!ended || queue.length) {
       if (!queue.length) await new Promise<void>(resolve => { wake = resolve; });
@@ -28,7 +31,8 @@ export async function runTui(app: BuiltApp, stdin: NodeJS.ReadStream, stdout: No
   resize(); stdout.on("resize", resize);
   try {
     renderer = await runInkRenderer({ source, send: message => ui.receive(message), stdin, stdout,
-      hostControlsExit: true, exit: () => {},onTerminalBackground: color => ui.setTerminalBackground(color) });
+      hostControlsExit: true, exit: () => {},
+      onTerminalBackground: forcedBackground ? undefined : color => ui.setTerminalBackground(color) });
     await renderer.waitUntilExit;
   } finally {
     stdout.off("resize", resize); ui.close(); await app.close(); await ui.settled();

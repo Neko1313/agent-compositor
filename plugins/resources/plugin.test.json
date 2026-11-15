@@ -353,6 +353,16 @@
       "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor samples child CPU only on its active tab and resets the interval across pause and hide"}
     },
     {
+      "id": "process-cpu-share-freshness",
+      "kind": "deterministic",
+      "requirements": ["view.content", "view.lifecycle"],
+      "setup": "The monitor obtains a complete process CPU interval before pause, hide and counter failure.",
+      "expect": ["History remains available, but the current reading and sharing wait for a new complete interval."],
+      "forbidden": ["Displaying or queuing an old interval as the current process CPU observation."],
+      "timeoutMs": 60000,
+      "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor does not display or share an old process CPU interval after pause, hide or sampling failure"}
+    },
+    {
       "id": "child-cpu-share-freshness",
       "kind": "deterministic",
       "requirements": ["view.content", "view.lifecycle"],

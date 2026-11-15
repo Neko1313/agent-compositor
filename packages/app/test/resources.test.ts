@@ -78,6 +78,20 @@ describe('resources monitor',()=>{
    expect(latest.lines.some(line=>line.text.includes('Child CPU: waiting for interval'))).toBe(true);
   }finally{monitor.dispose();}
  });
+ it('does not display or share an old process CPU interval after pause, hide or sampling failure',async()=>{
+  vi.useFakeTimers();let latest!:UiTextView,broken=false;const queued:string[]=[];
+  const sampler=new Sampler({now:()=>BigInt(Date.now())*1000000n+1n,cpu:()=>({user:Date.now(),system:0}),memory:()=>{if(broken)throw Error('COUNTERS_DOWN');return {rss:1,heapUsed:1,heapTotal:1};}});
+  const api={ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{latest=view;},remove:async()=>{}},emit:async(_event:string,input:{text:string})=>{queued.push(input.text);return {value:{queued:true}};}};
+  const monitor=new Monitor(api,sampler);
+  try{
+   await monitor.show();await vi.advanceTimersByTimeAsync(1000);await monitor.press('share');expect(queued).toHaveLength(1);
+   await monitor.press('pause');expect(latest.lines.some(line=>line.text.includes('CPU: waiting for interval'))).toBe(true);await monitor.press('share');expect(queued).toHaveLength(1);
+   await monitor.press('pause');await monitor.press('share');expect(queued).toHaveLength(1);await vi.advanceTimersByTimeAsync(2000);await monitor.press('share');expect(queued).toHaveLength(2);
+   await monitor.visibility({visible:false,attached:true,columns:40});await monitor.visibility({visible:true,attached:true,columns:40});await monitor.press('share');expect(queued).toHaveLength(2);
+   await vi.advanceTimersByTimeAsync(1000);await monitor.press('share');expect(queued).toHaveLength(3);
+   broken=true;await monitor.press('sample');expect(latest.lines.some(line=>line.text.includes('CPU: waiting for interval'))).toBe(true);await monitor.press('share');expect(queued).toHaveLength(3);
+  }finally{monitor.dispose();}
+ });
  it('does not share an old child CPU interval after pause, tab change or hide',async()=>{
   vi.useFakeTimers();let calls=0,latest!:UiTextView;const queued:string[]=[];
   const read=async()=>{calls++;return {count:1,rss:100,partial:false,system:{ticks:BigInt(calls*200),cpus:'cpu0,cpu1'},processes:new Map([[1,{start:1n,ticks:BigInt(calls*100)}]])};};

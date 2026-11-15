@@ -22,13 +22,15 @@ export class Monitor {
   private readonly childrenCpu=new ChildrenCpu();
   private childrenHistory:{cpu?:number;partial:boolean}[]=[];
   private currentChildCpu?:{cpu?:number;partial:boolean};
+  private currentProcessCpu?:number;
   constructor(private readonly $:any,private readonly sampler=new Sampler(),private readonly readChildren=snapshotChildren){}
   private stop(){clearTimeout(this.timer);this.timer=undefined;this.revision++;}
   private cancelChildren(){this.childrenRevision++;this.childrenController?.abort();this.childrenController=undefined;this.childrenPending=false;this.childrenCpu.reset();this.currentChildCpu=undefined;}
-  dispose(){this.open=false;this.cancelChildren();this.stop();this.sampler.reset();}
+  private resetSampler(){this.sampler.reset();this.currentProcessCpu=undefined;}
+  dispose(){this.open=false;this.cancelChildren();this.stop();this.resetSampler();}
   private take(){
-    try{this.samples.push(this.sampler.sample());this.samples=this.samples.slice(-120);this.error=undefined;}
-    catch(error){this.error=String(error).slice(0,500);this.sampler.reset();}
+    try{const sample=this.sampler.sample();this.currentProcessCpu=sample.cpu;this.samples.push(sample);this.samples=this.samples.slice(-120);this.error=undefined;}
+    catch(error){this.error=String(error).slice(0,500);this.resetSampler();}
   }
   private schedule(){
     this.stop();
@@ -55,7 +57,7 @@ export class Monitor {
         {text:`Compositor process · PID ${process.pid}`,bold:true},
         {text:'Main metrics include in-process agents; exclude child processes.',tone:'muted'},
         {text:`${this.paused?'Paused':'Live'} · Samples ${this.samples.length}/120 · 1 s target interval`,bold:true},
-        {text:`CPU: ${latest?.cpu===undefined?'waiting for interval':latest.cpu.toFixed(1)+'%'} · 100% = one core`},
+        {text:`CPU: ${this.currentProcessCpu===undefined?'waiting for interval':this.currentProcessCpu.toFixed(1)+'%'} · 100% = one core`},
         {text:latest?`RSS: ${mib(latest.rss)} MiB · JS heap used: ${mib(latest.heapUsed)} MiB`:'No measurements yet.'},
         ...(this.childrenPending?[{text:'Reading child processes…',tone:'muted' as const}]:this.childrenError?[{text:'Child snapshot failed. Try again.',tone:'danger' as const}]:this.children===null?[{text:'Child snapshots are available on Linux only.',tone:'muted' as const}]:this.children?[{text:`Last child snapshot: ${this.children.count} processes · ${mib(this.children.rss)} MiB RSS${this.children.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
         ...(this.error?[{text:'Sampling failed: '+this.error,tone:'danger' as const},{text:'Use Sample now to retry.',tone:'muted' as const}]:[]),
@@ -82,7 +84,7 @@ export class Monitor {
     }catch{if(revision===this.childrenRevision){this.childrenError=true;this.childrenCpu.reset();this.currentChildCpu=undefined;}}
     if(revision===this.childrenRevision){this.childrenController=undefined;this.childrenPending=false;}
   }
-  async show(){this.stop();this.cancelChildren();this.open=true;this.visible=true;this.sampler.reset();this.take();await this.paint(true);this.schedule();}
+  async show(){this.stop();this.cancelChildren();this.open=true;this.visible=true;this.resetSampler();this.take();await this.paint(true);this.schedule();}
   private async share($:any){
     if(this.sharing)return;
     const latest=this.samples.at(-1),child=this.currentChildCpu;
@@ -91,8 +93,8 @@ export class Monitor {
       if(!child||child.cpu===undefined||child.partial){this.shareStatus='No complete child CPU interval to send.';await this.paint();return;}
       observation=`Child CPU: ${child.cpu.toFixed(1)}% (100% is one core). Approximate live descendant estimate; short-lived processes can be missed.`;
     }else if(this.metric==='cpu'){
-      if(latest?.cpu===undefined){this.shareStatus='No process CPU interval to send yet.';await this.paint();return;}
-      observation=`Compositor process CPU: ${latest.cpu.toFixed(1)}% (100% is one core). Includes in-process agents and excludes child processes.`;
+      if(this.currentProcessCpu===undefined){this.shareStatus='No process CPU interval to send yet.';await this.paint();return;}
+      observation=`Compositor process CPU: ${this.currentProcessCpu.toFixed(1)}% (100% is one core). Includes in-process agents and excludes child processes.`;
     }else{
       if(!latest){this.shareStatus='No memory sample to send yet.';await this.paint();return;}
       observation=`Compositor process RSS: ${(latest.rss/1048576).toFixed(1)} MiB; JavaScript heap used: ${(latest.heapUsed/1048576).toFixed(1)} MiB. Includes in-process agents and excludes child processes.`;
@@ -123,9 +125,9 @@ export class Monitor {
     if(key==='cpu'||key==='memory')this.metric=key;
     if(key==='child-cpu')this.metric='children';
     if(key==='switch')this.metric=this.metric==='cpu'?'memory':this.metric==='memory'?'children':'cpu';
-    if(key==='pause'){this.paused=!this.paused;this.sampler.reset();}
+    if(key==='pause'){this.paused=!this.paused;this.resetSampler();}
     if(key==='sample'){this.take();if(this.metric==='children')await this.sampleChildren(true);}
-    if(key==='clear'){this.samples=[];this.childrenHistory=[];this.sampler.reset();this.take();}
+    if(key==='clear'){this.samples=[];this.childrenHistory=[];this.resetSampler();this.take();}
     await this.paint();this.schedule();
   }
   async visibility(event:{visible:boolean;attached:boolean;columns:number}){
@@ -134,8 +136,8 @@ export class Monitor {
     const width=Math.max(14,event.columns);
     if(this.visible===event.visible&&this.columns===width)return;
     const wasVisible=this.visible;this.visible=event.visible;this.columns=width;this.stop();
-    if(!this.visible){this.cancelChildren();this.sampler.reset();return;}
-    if(!wasVisible){this.sampler.reset();if(!this.paused)this.take();}
+    if(!this.visible){this.cancelChildren();this.resetSampler();return;}
+    if(!wasVisible){this.resetSampler();if(!this.paused)this.take();}
     await this.paint();this.schedule();
   }
 }

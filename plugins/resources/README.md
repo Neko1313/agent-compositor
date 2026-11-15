@@ -55,6 +55,8 @@ tabs receive a Switch chart action.
 Child CPU history remains visible across pauses and tab changes, but its current
 reading cannot be sent until a new complete interval has been measured after
 resuming, showing the window or returning to the Child CPU tab.
+Process CPU history is also retained, but its current reading is cleared on
+pause, hide, reopen or counter failure; sharing waits for a new interval.
 
 The plugin uses the existing text-view and visibility contracts; its graph is
 portable terminal cells, not a native image/video or OpenTUI implementation.

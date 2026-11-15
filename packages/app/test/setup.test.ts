@@ -99,6 +99,34 @@ it('lets setup finish when a selected plugin is disabled elsewhere before reload
  }finally{await f.close();}
 });
 
+it('tracks enabled recommendations across sessions and permits completion after they load or are disabled',async()=>{
+ const f=await fixture();try{
+  f.setConfigured(true);f.setEnabled(['project-checks','unrelated-plugin']);
+  await (f.guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text==='Apply pending tools: project-checks')).toBe(true);
+  await f.press('finish');expect(f.notices.at(-1).message).toMatch(/Apply plugin changes/);
+  await expect(readFile(join(f.storage.paths.home,'setup.json'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
+  const other={...f.api,session:{...f.api.session,id:'other'}};
+  await (f.guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},other);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text==='Apply pending tools: project-checks')).toBe(true);
+  f.setLoaded(['project-checks']);await (f.guide.plugin.hooks['session.reload'] as any)({},other);
+  expect(f.views.at(-1).lines.some((line:any)=>line.action==='navigate:reload')).toBe(false);
+  await (f.guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key:'finish'},other);
+  expect(JSON.parse(await readFile(join(f.storage.paths.home,'setup.json'),'utf8')).status).toBe('complete');
+ }finally{await f.close();}
+});
+
+it('refreshes an already open guide when completion detects an external change',async()=>{
+ const f=await fixture();try{
+  f.setConfigured(true);await (f.guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.action==='navigate:reload')).toBe(false);
+  f.setEnabled(['project-checks']);await f.press('finish');
+  expect(f.notices.at(-1).message).toMatch(/Apply plugin changes/);
+  expect(f.views.at(-1).placement.focus).toBe(false);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text==='Apply pending tools: project-checks')).toBe(true);
+ }finally{await f.close();}
+});
+
 it('refreshes a visible guide after a successful external selection change without taking focus',async()=>{
  const f=await fixture();try{
   f.setConfigured(true);f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true}});

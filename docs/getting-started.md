@@ -92,6 +92,12 @@ selected. Other selected recommendations can still be installed. Use **Apply plu
 for an active agent when necessary. If you disable a selected plugin through
 Extensions before applying changes, the open guide in that session updates
 without taking focus and no longer waits for that plugin to load.
+When the guide is opened or refreshed, it also detects recommended plugins
+enabled outside the guide that are not loaded yet, including selections made in
+another session. Completion checks the current state even if the open view has
+not refreshed, and refreshes it when changes are pending. Apply changes or
+disable the plugin before completing setup; Skip remains available if a plugin
+cannot load.
 Failures remain visible so you can retry or
 continue without optional tools. No model is invoked by these setup steps.
 If an installation is interrupted, the guide stops before starting the next

@@ -30,11 +30,11 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
  const file=join(storage.paths.home,'setup.json'),sessions=new Map<string,GuideState>();
  const guide=($:HooksApi)=>{let value=sessions.get($.session.id);if(!value){value={visible:false,revision:0,changed:[],notes:[]};sessions.set($.session.id,value);}return value;};
  const state=async()=>readFile(file,'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return{};});
- const pending=($:HooksApi)=>{const enabled=deps.enabled(),loaded=deps.loaded();return guide($).changed.filter(name=>enabled.includes(name)&&!loaded.includes(name));};
+ const pending=()=>{const enabled=deps.enabled(),loaded=deps.loaded();return suggestions.map(item=>item.name).filter(name=>enabled.includes(name)&&!loaded.includes(name));};
  const show=async($:HooksApi,focus=true)=>{
   const current=guide($);current.visible=true;const revision=++current.revision,model=await deps.model();
   if(!current.visible||current.revision!==revision||sessions.get($.session.id)!==current||$.signal.aborted)return;
-  const waiting=pending($),enabled=deps.enabled();
+  const waiting=pending(),enabled=deps.enabled();
   await $.ui.view('setup','Get started',{hint:'No model is needed for this guide. You choose what to configure and install.',lines:[
    {text:'Connect a model, choose tools, then start a task.',bold:true},
    {text:model.configured?`Model selected: ${model.profile} · ${model.model}`:'Model: choose a connection before sending a task',tone:model.configured?'accent':'warning'},
@@ -90,7 +90,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
     else if(event.key==='tools')await tools($);
     else if(event.key==='finish'||event.key==='skip'){
      if(event.key==='finish'){const model=await deps.model();$.signal.throwIfAborted();if(!model.configured){await $.ui.notify('Set up a model or choose Skip for now.','warn');return;}}
-     if(event.key==='finish'&&pending($).length){await $.ui.notify('Apply plugin changes before starting, or choose Skip for now.','warn');return;}
+     if(event.key==='finish'&&pending().length){await $.ui.notify('Apply plugin changes before starting, or choose Skip for now.','warn');await show($,false);return;}
      $.signal.throwIfAborted();
      await atomicJson(file,{version:1,status:event.key==='finish'?'complete':'skipped'});current.visible=false;current.revision++;await $.ui.remove('setup');
      await $.ui.notify(event.key==='finish'?'Ready. Enter a task in the main message box.':'Setup skipped. Reopen it with /setup.');return;

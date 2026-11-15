@@ -105,6 +105,28 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     expect(f.test.captureCharFrame()).toContain('FIRST_LATER');
     }catch(error){throw Error(`Failed at ${stage}: ${f.test.captureCharFrame()}\n${JSON.stringify(f.inputs)}`,{cause:error});}
   },12000);
+  it.each(['pane','tab'] as const)('keeps queued field input out of Main after a mouse %s focus change',async target=>{
+    const f=await fixture();let value='';
+    f.host.core.host.registerPlugin({name:'mouse-order',version:'1.0.0',trust:'trusted'}, {
+      'ui.change':event=>{value=event.value;},
+    });
+    await f.host.core.host.emit('service.ui.view',{plugin:'mouse-order',id:'main',title:'Mouse order',view:{
+      input:{id:'reply',label:'Reply',value:''},lines:[]},options:{site:'split'}});
+    let stage='surface';try{
+    const id='plugin-mouse-order-main';await f.until(()=>f.host.surfaces.snapshot().some(source=>source.id===id));
+    f.layout.act({type:'focus',id});stage='visible';await f.until(()=>f.test.captureCharFrame().includes('Reply:'));
+    f.holdWhen(input=>input?.operation.kind==='surface-change');f.packet('\t\x1b[200~FIRST\x1b[201~');
+    stage='edit';await f.until(()=>f.held.length>0&&f.test.captureCharFrame().includes('FIRST'));
+    f.packet('\x1b[200~_LATER\x1b[201~');
+    const main=f.layout.snapshot().frames.find(frame=>frame.surface==='session')!;
+    if(target==='pane')await f.test.mockMouse.click(main.x+5,main.y+7);
+    else await f.test.mockMouse.click(2,2);
+    expect(f.layout.snapshot().focused).toBe(id);
+    f.packet('\x1b[200~MAIN_NEXT\x1b[201~');
+    f.release();stage='settled';await f.until(()=>f.layout.snapshot().focused==='session'&&value==='FIRST_LATER'&&f.test.captureCharFrame().includes('MAIN_NEXT')&&!f.client.pending());
+    expect(f.test.captureCharFrame()).not.toContain('MAIN_NEXT_LATER');expect(value).toBe('FIRST_LATER');
+    }catch(error){throw Error(`Failed at ${stage}: value=${value}, editor=${f.editor().plainText}\n${f.test.captureCharFrame()}\n${JSON.stringify(f.inputs)}`,{cause:error});}
+  },12000);
   it('preserves selected-form paste after mouse press/release in one real parser packet',async()=>{
     const f=await fixture(false,true);
     void f.host.submit('/controller-probe form');

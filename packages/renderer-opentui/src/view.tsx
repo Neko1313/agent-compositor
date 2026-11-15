@@ -389,7 +389,7 @@ function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSour
   return <Tab {...tab} label={state.title+(status?' · '+status:'')} />;
 }
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows,publicRender }: {
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows,publicRender,scheduleMouse }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
@@ -401,6 +401,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   editorOwnership?:EditorInputOwnership;
   conversationWindows?:ConversationWindowRegistry;
   publicRender?:PublicRenderSlots;
+  scheduleMouse?(run:()=>void):boolean;
 }) {
   const appearance=useAppearance(),{color,presentation}=appearance;
   const editorOwns=useSyncExternalStore(editorOwnership?.subscribe??(()=>()=>{}),editorOwnership?.snapshot??(()=>false));
@@ -548,6 +549,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   });
 
   function pointer(phase: 'down' | 'move' | 'up', event: MouseEvent) {
+    if(scheduleMouse?.(()=>pointer(phase,event))){event.preventDefault();event.stopPropagation();return;}
     if(navigation?.snapshot().mode==='finder')return;
     const bounds = viewport.current;
     if (!bounds || (phase !== 'move' && event.button !== MouseButton.LEFT)) return;
@@ -582,14 +584,14 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
 
   function layoutButton(label: string, action: WindowLayoutAction) {
     return <box key={label} height={1} onMouseDown={event => {
-      if (event.button === MouseButton.LEFT) act(action);
+      if (event.button === MouseButton.LEFT) {const run=()=>act(action);if(!scheduleMouse?.(run))run();}
     }}>
       <text selectable={false} fg={color.muted}>{label}</text>
     </box>;
   }
   function navigationButton(label:string,active:boolean,run:()=>void){
     return <box height={1} paddingX={1} backgroundColor={active?color.selectionBackground:color.panel}
-      onMouseDown={event=>{if(event.button===MouseButton.LEFT)flushSync(run);}}>
+      onMouseDown={event=>{if(event.button===MouseButton.LEFT){const action=()=>flushSync(run);if(!scheduleMouse?.(action))action();}}}>
       <text selectable={false} fg={active?color.selectionText:color.text}>{label}</text>
     </box>;
   }
@@ -606,7 +608,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         ref={button=>{if(button)workspaceButtons.current.set(id,button);else workspaceButtons.current.delete(id);}}
         backgroundColor={selected?color.selectionBackground:navigation&&hasWindows?color.panel:undefined}
         onMouseDown={event=>{
-          if(event.button===MouseButton.LEFT&&!windowLayout.snapshot().gesture)act({type:'workspace',id});
+          if(event.button===MouseButton.LEFT&&!windowLayout.snapshot().gesture){const run=()=>act({type:'workspace',id});if(!scheduleMouse?.(run))run();}
         }}>
         <text selectable={false} attributes={selected||navigation&&hasWindows?TextAttributes.BOLD:TextAttributes.NONE}
           fg={selected?color.selectionText:navigation&&hasWindows?color.text:color.muted}>
@@ -619,7 +621,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   const tabs=stripPanes.map((pane,index)=>{
     const props={index,id:'window-tab-'+pane.id,showShortcut:!navigation,
       selected:layout.focused===pane.id&&layout.locations[pane.id]===layout.workspace,
-      onSelect:()=>act({type:'open',id:pane.id})};
+      onSelect:()=>{const run=()=>act({type:'open',id:pane.id});if(!scheduleMouse?.(run))run();}};
     return pane.session?<SessionTab key={pane.id} session={pane.session} label={pane.label} {...props}/>
       :pane.surface?<SurfaceTab key={pane.id} source={pane.surface} {...props}/>
       :<Tab key={pane.id} label={pane.label} {...props}/>;

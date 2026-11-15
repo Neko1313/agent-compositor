@@ -16,8 +16,13 @@ The direct native-client API drops a pending submission if another edit is
 issued before admission. A production-renderer regression holds the actual
 edit receipt and shows that terminal Enter and subsequent paste are buffered:
 after release the plugin receives `FIRST`, then its submission, then
-`FIRST_LATER`. This checks keyboard input, not mouse-driven focus changes or
-arbitrary transport failure.
+`FIRST_LATER`. A follow-up production-renderer test held the edit receipt,
+queued a paste and clicked Main: the old renderer placed that paste in Main.
+Window and workspace mouse actions now join the same input admission queue.
+The test verifies both pane and tab clicks: pre-click text reaches the original
+field, the click changes focus, and post-click text reaches Main. This is a
+controlled delayed-receipt fixture, not a claim about arbitrary transport failure
+or every plugin-specific mouse action.
 
 ## Physical tmux graphics probe — 2026-11-15
 

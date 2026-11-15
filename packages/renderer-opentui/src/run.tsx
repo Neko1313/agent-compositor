@@ -69,7 +69,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   const abort=()=>destroy();
   options.signal?.addEventListener('abort',abort,{once:true});
   let replaying=false,draining=false,inputFailure:unknown;
-  type QueuedInput={generation:string}&({kind:'key';key:KeyEvent}|{kind:'paste';event:PasteEvent});
+  type QueuedInput={generation:string}&({kind:'key';key:KeyEvent}|{kind:'paste';event:PasteEvent}|{kind:'mouse';run():void});
   const queued:QueuedInput[]=[];
   const generation=()=>options.inputAdmission?.generation()??'';
   const settled=()=>options.inputAdmission?.settled()??Promise.resolve();
@@ -91,14 +91,15 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     return consumed||admission;
   }
   function consume(item:QueuedInput):boolean|Promise<boolean>{
-    return item.kind==='key'?consumeKey(item.key):options.navigation?.handle({kind:'paste',text:''})??false;
+    return item.kind==='key'?consumeKey(item.key):item.kind==='paste'?options.navigation?.handle({kind:'paste',text:''})??false:false;
   }
   function replay(item:QueuedInput,consumed:boolean){
     if(consumed||item.generation!==generation()||options.signal?.aborted)return;
     replaying=true;
     try{flushSync(()=>{
       if(item.kind==='key')renderer.keyInput.processParsedKey({...item.key});
-      else renderer.keyInput.processPaste(item.event.bytes,item.event.metadata);
+      else if(item.kind==='paste')renderer.keyInput.processPaste(item.event.bytes,item.event.metadata);
+      else item.run();
     });}finally{replaying=false;}
   }
   async function drain(first?:{item:QueuedInput;admission:Promise<boolean>}){
@@ -123,6 +124,11 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
       event.preventDefault();event.stopPropagation();draining=true;void drain({item,admission});
     }else if(admission){event.preventDefault();event.stopPropagation();}
   }
+  function scheduleMouse(run:()=>void):boolean{
+    if(replaying||!draining&&!options.inputAdmission?.pending())return false;
+    queued.push({kind:'mouse',run,generation:generation()});
+    if(!draining){draining=true;void drain();}return true;
+  }
   const captureKey=(key:KeyEvent)=>capture({kind:'key',key,generation:generation()},key);
   const capturePaste=(event:PasteEvent)=>{
     // Preserve the original bytes/caret edit while a preceding window command
@@ -143,7 +149,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     return <TmuxComposerProvider runtime={runtime}><AppearanceProvider source={options.appearance}><ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
       animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership}
-      conversationWindows={options.conversationWindows} publicRender={options.publicRender} /></AppearanceProvider></TmuxComposerProvider>;
+      conversationWindows={options.conversationWindows} publicRender={options.publicRender} scheduleMouse={scheduleMouse} /></AppearanceProvider></TmuxComposerProvider>;
   }
   try {
     renderer.keyInput.setMaxListeners(keyboardListenerLimit);

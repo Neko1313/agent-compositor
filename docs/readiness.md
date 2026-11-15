@@ -7,6 +7,17 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An installed Linux x64 auto-review diagnostic used Qwen3.5 2B Q4_K_M through
+a local direct CPU executable and a loopback transport. With grammar-constrained
+JSON, the real bundled plugin allowed an explicitly requested `npm test` and
+denied the same command when the user had prohibited all commands. Both cases
+preserved an unrelated draft; the denied command did not run. The allowed case's
+model explanation incorrectly described the command as non-destructive, while the
+fixture's test script wrote a marker. This is two known cases, not evidence that
+the model reliably infers arbitrary script effects or is safe for unattended
+review. The diagnostic used no paid calls and no OS network sandbox; its script,
+responses, executable/model pins and report are in `dist/local-auto-ci-5af22af/`.
+
 In a local serverless onboarding experiment at `af30f14`, a small model received
 a synthetic, authoritative plugin-state snapshot but incorrectly said disabled
 test reports prevented test execution. It did not claim to perform the requested

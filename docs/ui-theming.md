@@ -287,7 +287,13 @@ unadvertised action is not invoked. A field without `submitAction` keeps its
 existing behavior; do not infer submission from its label. Independent plugins
 should check `$.ui.supports?.('input-submit') === true` before supplying the
 optional property, so strict older hosts can receive a compatible view instead.
-Typing continues to publish `ui.change` separately from submission.
+Typing continues to publish `ui.change` separately from submission. Ink orders
+subsequent edits after the pending submit action. If that action replaces the
+field with an empty field, text typed while it was pending is retained for review;
+it can include text that was still visible from the submitted value. OpenTUI
+also queues the latest later edit until submission finishes. If a producer replaces
+the field with a nonempty value, neither renderer overwrites it with queued input;
+the interface reports that the queued input could not be applied.
 
 ## Semantic tabs
 

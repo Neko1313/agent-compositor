@@ -1008,6 +1008,7 @@ synthetic loopback provider request; no paid model is called. It types independe
 waits for the private state files, restarts and verifies both values. It also
 types rapidly into a delayed plugin field that republishes each edit, switches
 windows immediately and verifies the exact value received by the producer. It
-also submits a Reply with Enter and checks the exact request and response. The
+also submits a Reply with Enter and checks the exact request and response. A
+delayed submit verifies that later typing is delivered separately. The
 scenario exercises native surface input admission and restart, not external
 terminal compatibility or a packaged distribution.

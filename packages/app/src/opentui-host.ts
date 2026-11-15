@@ -159,6 +159,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   let nextRequestNumber=0;
   const changes = new Map<Surface, {field: string; value: string}>();
   const submitting = new Map<Surface,object>();
+  const afterSubmission = new Map<Surface,{field:string;value:string;action:string}>();
   const changeFailures = new WeakMap<Surface,number>();
   let active = true, started = false, switching = false, pendingReload = false, reloading = false;
   let reloadPromise: Promise<boolean> | undefined;
@@ -419,7 +420,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     surface.active = false;
     publicRendering.remove(surface.source.id);
     const controller=privateWindows.get(surface);privateWindows.delete(surface);controller?.close();
-    changes.delete(surface);
+    changes.delete(surface);afterSubmission.delete(surface);
     // A handler may remove its own view before resuming a chat or opening a form.
     // Its already-admitted operation keeps its independent lifetime.
     for (const op of operations.values()) if (op.site === surface.source.id && op !== context.getStore()) op.controller.abort();
@@ -470,7 +471,10 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
           if (reloading) {if (active) notice('Plugin reload is applying. Retry this input after it finishes.'); return false;}
           if (!admitted(surface, revision) || surface.state.view?.input?.id !== field
             || typeof value !== 'string' || value.length > 4000) return false;
-          if(submitting.has(surface)){notice('Input submission is still being processed');return false;}
+          if(submitting.has(surface)){
+            const action=surface.state.view?.input?.submitAction;if(!action)return false;
+            afterSubmission.set(surface,{field,value,action});return true;
+          }
           changes.set(surface, {field, value});
           if (!surface.state.busy) publish(surface, {...surface.state, busy: true});
           if (operations.size >= 4) notice('Interface input queued until an operation finishes');
@@ -510,8 +514,21 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     if(field?.submitAction===action){
       if(submitting.has(surface))return false;
       if(surface.state.error){notice('Input must be saved before submission');return false;}
-      const submission={},failure=changeFailures.get(surface)??0;submitting.set(surface,submission);
-      const clearSubmission=()=>{if(submitting.get(surface)===submission)submitting.delete(surface);};
+      const submission={},failure=changeFailures.get(surface)??0;let submissionFailed=false;submitting.set(surface,submission);
+      const clearSubmission=()=>{
+        if(submitting.get(surface)!==submission)return;
+        submitting.delete(surface);const later=afterSubmission.get(surface);afterSubmission.delete(surface);
+        if(!later||!active||!surface.active||surfaceMap.get(surface.source.id)!==surface)return;
+        const view=surface.state.view,input=view?.input;if(!view||!input||input.submitAction!==later.action)return;
+        if(input.id!==later.field){
+          if(input.value!==''){notice('Later input could not be applied to the replaced field');return;}
+          publish(surface,{...surface.state,view:{...view,input:{...input,value:later.value}},busy:true});
+        }
+        changes.set(surface,{field:input.id,value:later.value});
+        if(!surface.state.busy)publish(surface,{...surface.state,busy:true});
+        drainChanges();
+        if(submissionFailed)notice('Input submission failed; later input is retained');
+      };
       const operation=runOperation(surface.owner,surface.source.id,async op=>{
         const waiting=()=>changes.has(surface)||[...operations.values()].some(other=>other!==op&&other.site===surface.source.id&&other.kind==='change');
         while(live(op)&&waiting())await new Promise<void>(resolve=>{
@@ -519,10 +536,10 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
           operationWaiters.add(done);op.controller.signal.addEventListener('abort',done,{once:true});
           if(!live(op)||!waiting())done();
         });
-        if(live(op)&&surface.active&&(changeFailures.get(surface)??0)!==failure){publish(surface,{...surface.state,error:'Input change failed; submission cancelled'});return;}
+        if(live(op)&&surface.active&&(changeFailures.get(surface)??0)!==failure){submissionFailed=true;publish(surface,{...surface.state,error:'Input change failed; submission cancelled'});return;}
         if(live(op)&&surface.active&&surfaceMap.get(surface.source.id)===surface&&surface.state.view?.input?.id===field.id
           &&surface.state.view.input.submitAction===action&&actions(surface.state.view).has(action)){
-          clearSubmission();await emit(op,'ui.press',{site:surface.source.id,key:action});
+          try{await emit(op,'ui.press',{site:surface.source.id,key:action});}catch(error){submissionFailed=true;throw error;}
         }
       },surface);
       if(!operation){clearSubmission();return false;}
@@ -1456,7 +1473,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       publicRendering.close();
       publicRenderDispatch.abort(Error('OpenTUI host closed'));
       navigation?.close();
-      changes.clear();
+      changes.clear();afterSubmission.clear();
       offLayout?.();
       for (const op of operations.values()) op.controller.abort();
       unbind();

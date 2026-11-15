@@ -203,6 +203,44 @@ describe("plugin action navigation", () => {
       release();await ui.settled();expect(submitted).toBe('first latest');expect(submissions).toBe(1);
     }finally{release();ui.close();}
   });
+  it('keeps edits typed after Enter out of the earlier delayed submission',async()=>{
+    const {ui,text,key}=setup();let releaseChange!:()=>void,releaseSubmit!:()=>void,pressStarted!:()=>void;
+    const changeGate=new Promise<void>(resolve=>{releaseChange=resolve;}),submitGate=new Promise<void>(resolve=>{releaseSubmit=resolve;}),entered=new Promise<void>(resolve=>{pressStarted=resolve;});
+    let value='',submitted:string|undefined;
+    ui.core.host.registerPlugin({name:'ordered-submit',version:'1.0.0',trust:'trusted'},{
+      'ui.change':async event=>{if(event.site!=='plugin-ordered-submit-main')return;if(event.value==='first')await changeGate;value=event.value;},
+      'ui.press':async event=>{if(event.site==='plugin-ordered-submit-main'&&event.key==='send'){pressStarted();await submitGate;submitted=value;}},
+    });
+    try{
+      await ui.core.host.emit('service.ui.view',{plugin:'ordered-submit',id:'main',title:'Submit',view:{input:{id:'reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]},placement:{site:'sidebar',size:.75,focus:true}});
+      text('first');key('enter');text(' second');releaseChange();await entered;await new Promise(resolve=>setImmediate(resolve));expect(value).toBe('first');
+      releaseSubmit();await ui.settled();expect(submitted).toBe('first');expect(value).toBe('first second');
+    }finally{releaseChange();releaseSubmit();ui.close();}
+  });
+  it('retains edits typed after Enter when the submitted field is replaced',async()=>{
+    const {ui,text,key,renders}=setup();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='';
+    ui.core.host.registerPlugin({name:'replace-submit',version:'1.0.0',trust:'trusted'},{
+      'ui.change':event=>{if(event.site==='plugin-replace-submit-main')value=event.value;},
+      'ui.press':async(event,$)=>{if(event.site==='plugin-replace-submit-main'&&event.key==='send'){started();await gate;await $.ui.view('main','Submit',{input:{id:'next',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
+    });
+    try{
+      await ui.core.host.emit('service.ui.view',{plugin:'replace-submit',id:'main',title:'Submit',view:{input:{id:'first',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]},placement:{site:'sidebar',size:.75,focus:true}});
+      text('first');key('enter');await entered;text(' second');release();await ui.settled();
+      expect(renders.get('plugin-replace-submit-main')).toContain('first second');expect(value).toBe('first second');
+    }finally{release();ui.close();}
+  });
+  it('does not overwrite a nonempty replacement field with later queued edits',async()=>{
+    const {ui,text,key,renders}=setup();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='';
+    ui.core.host.registerPlugin({name:'replace-protected',version:'1.0.0',trust:'trusted'},{
+      'ui.change':event=>{if(event.site==='plugin-replace-protected-main')value=event.value;},
+      'ui.press':async(event,$)=>{if(event.site==='plugin-replace-protected-main'&&event.key==='send'){started();await gate;await $.ui.view('main','Submit',{input:{id:'next',value:'SERVER_VALUE',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
+    });
+    try{
+      await ui.core.host.emit('service.ui.view',{plugin:'replace-protected',id:'main',title:'Submit',view:{input:{id:'first',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]},placement:{site:'sidebar',size:.75,focus:true}});
+      text('first');key('enter');await entered;text(' second');release();await ui.settled();
+      expect(renders.get('plugin-replace-protected-main')).toContain('SERVER_VALUE');expect(value).toBe('first');expect(renders.get('session')?.replace(/\s+/g,' ')).toContain('Plugin input expired');
+    }finally{release();ui.close();}
+  });
   it('keeps the search label and literal characters visible in a narrow plugin pane',async()=>{
     const {ui,renders,text}=setup();ui.resize(60,24);
     await ui.core.host.emit('service.ui.view',{plugin:'search',id:'list',title:'Search',view:{input:{id:'search',value:'',placeholder:'Title, ID or conversation text'},lines:[{text:'Results'}]},placement:{site:'sidebar',size:.75,focus:true}});

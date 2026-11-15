@@ -1413,6 +1413,64 @@ it('does not submit after a pending input operation is cancelled',async()=>{
   }finally{release();}
 });
 
+it('keeps later field edits separate from an already admitted delayed submission',async()=>{
+  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='',submitted:string|undefined;
+  f.host.core.host.registerPlugin({name:'submit-order',version:'1.0.0',trust:'trusted'},{
+    'ui.change':event=>{if(event.site==='plugin-submit-order-main')value=event.value;},
+    'ui.press':async event=>{if(event.site==='plugin-submit-order-main'&&event.key==='send'){started();await gate;submitted=value;}},
+  });
+  await f.host.core.host.emit('service.ui.view',{plugin:'submit-order',id:'main',title:'Submit',view:{input:{id:'reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+  const source=f.find('plugin-submit-order-main')!;
+  try{source.change('reply','first',source.snapshot().revision);await expect.poll(()=>value).toBe('first');await expect.poll(()=>source.snapshot().busy).toBe(false);
+    expect(source.press('send',source.snapshot().revision)).not.toBe(false);await entered;
+    expect(source.change('reply','first second',source.snapshot().revision)).not.toBe(false);await new Promise(resolve=>setImmediate(resolve));expect(value).toBe('first');
+    release();await expect.poll(()=>submitted).toBe('first');await expect.poll(()=>value).toBe('first second');
+  }finally{release();}
+});
+
+it('retains later input when a submission replaces the field with an empty one',async()=>{
+  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});const values:{id:string;value:string}[]=[];
+  f.host.core.host.registerPlugin({name:'submit-replace',version:'1.0.0',trust:'trusted'},{
+    'ui.change':event=>{if(event.site==='plugin-submit-replace-main')values.push({id:event.id,value:event.value});},
+    'ui.press':async(event,$)=>{if(event.site==='plugin-submit-replace-main'&&event.key==='send'){started();await gate;await $.ui.view('main','Submit',{input:{id:'next',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
+  });
+  await f.host.core.host.emit('service.ui.view',{plugin:'submit-replace',id:'main',title:'Submit',view:{input:{id:'first',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+  const source=f.find('plugin-submit-replace-main')!;
+  try{source.change('first','before',source.snapshot().revision);await expect.poll(()=>values.length).toBe(1);await expect.poll(()=>source.snapshot().busy).toBe(false);
+    expect(source.press('send',source.snapshot().revision)).not.toBe(false);await entered;
+    expect(source.change('first','before interim',source.snapshot().revision)).not.toBe(false);expect(source.change('first','before later',source.snapshot().revision)).not.toBe(false);release();
+    await expect.poll(()=>values.length).toBe(2);expect(values[1]).toEqual({id:'next',value:'before later'});expect(source.snapshot().view?.input?.value).toBe('before later');
+  }finally{release();}
+});
+
+it('does not overwrite a nonempty replacement after a delayed submission',async()=>{
+  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});const values:string[]=[];
+  f.host.core.host.registerPlugin({name:'submit-protected',version:'1.0.0',trust:'trusted'},{
+    'ui.change':event=>{if(event.site==='plugin-submit-protected-main')values.push(event.value);},
+    'ui.press':async(event,$)=>{if(event.site==='plugin-submit-protected-main'&&event.key==='send'){started();await gate;await $.ui.view('main','Submit',{input:{id:'next',value:'SERVER',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
+  });
+  await f.host.core.host.emit('service.ui.view',{plugin:'submit-protected',id:'main',title:'Submit',view:{input:{id:'first',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+  const source=f.find('plugin-submit-protected-main')!;
+  try{source.change('first','before',source.snapshot().revision);await expect.poll(()=>values.length).toBe(1);await expect.poll(()=>source.snapshot().busy).toBe(false);
+    expect(source.press('send',source.snapshot().revision)).not.toBe(false);await entered;expect(source.change('first','before later',source.snapshot().revision)).not.toBe(false);release();
+    await expect.poll(()=>f.host.session.snapshot().notice).toContain('Later input could not be applied');expect(values).toEqual(['before']);expect(source.snapshot().view?.input?.value).toBe('SERVER');
+  }finally{release();}
+});
+
+it('reports a failed submission while retaining a later edit',async()=>{
+  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='';
+  f.host.core.host.registerPlugin({name:'submit-fails-later',version:'1.0.0',trust:'trusted'},{
+    'ui.change':event=>{if(event.site==='plugin-submit-fails-later-main')value=event.value;},
+    'ui.press':async event=>{if(event.site==='plugin-submit-fails-later-main'){started();await gate;throw Error('send failed');}},
+  });
+  await f.host.core.host.emit('service.ui.view',{plugin:'submit-fails-later',id:'main',title:'Submit',view:{input:{id:'reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+  const source=f.find('plugin-submit-fails-later-main')!;
+  try{source.change('reply','before',source.snapshot().revision);await expect.poll(()=>value).toBe('before');await expect.poll(()=>source.snapshot().busy).toBe(false);
+    expect(source.press('send',source.snapshot().revision)).not.toBe(false);await entered;expect(source.change('reply','before later',source.snapshot().revision)).not.toBe(false);release();
+    await expect.poll(()=>value).toBe('before later');expect(f.host.session.snapshot().notice).toContain('Input submission failed');
+  }finally{release();}
+});
+
 it('bounds simultaneous UI operations and shuts down each private form through its owning signal', async () => {
   const f = await fixture();
   let calls = 0;

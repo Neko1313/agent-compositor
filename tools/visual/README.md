@@ -34,7 +34,7 @@ This is a controlled storage failure, not a native crash test.
 `node tools/visual/recovery-check.mjs` runs the actual Ink application with an
 isolated scripted provider. It queues a user message during a held turn,
 restarts the PTY session, checks the recovery warning and list, and explicitly
-retries the message. The report and screenshots do not prove process-kill or
+retries the message. Set `VISUAL_STEER_RECOVERY=1` to exercise unapplied steering. The report and screenshots do not prove process-kill or
 native-terminal behavior; older journal entries without IDs remain ambiguous.
 
 The standard `visual:check` smoke uses its source ScriptedProvider and rejects

@@ -239,7 +239,7 @@ export class AgentCore {
   private stopShells:()=>Promise<void>=async()=>{};
   private revalidateShells:()=>Promise<void>=async()=>{};
   private inputSource:"user"|"agent"="user";
-  private steerQueue: string[] = [];
+  private steerQueue: {text:string;recoveryId:string;ready:Promise<void>}[] = [];
   private abort: AbortController = new AbortController();
   private interruptedByUser = false;
   private state: CoreState = "idle";
@@ -1232,10 +1232,15 @@ export class AgentCore {
       await this.submitInput(text,'user',admitted);
       return;
     }
-    this.steerQueue.push(text);
+    const turnId=this.currentTurnId??'',recoveryId=randomUUID(),cancellation=this.promptCancellation;
+    if(!await this.waitForQueuedWrite(this.persist('prompt.steer.intent',{text,recoveryId,turnId})))return;
+    if(this.closed)throw Error('Session is closed');
+    if(cancellation!==this.promptCancellation)return;
+    if(this.state!=='running'||this.currentTurnId!==turnId){await this.submitInput(text,'user',admitted,recoveryId);return;}
+    const entry={text,recoveryId,ready:Promise.resolve()};this.steerQueue.push(entry);
     admitted?.('steered');
-    const turnId=this.currentTurnId??'';
-    await this.emit("prompt.steer", { turnId, text },undefined,{turnId});
+    const write=this.emit("prompt.steer", { turnId, text },undefined,{turnId,recoveryId}).then(()=>{});
+    entry.ready=write;void write.catch(()=>{});await write;
   }
 
   /** Stop the running turn or pause accepted automatic work before it starts. */
@@ -1245,7 +1250,7 @@ export class AgentCore {
     // Ordinary queued prompts are cancelled; accepted plugin wakes stay paused.
     for(const entry of this.promptQueue)if(!entry.owner){entry.cancel();if(entry.recoveryId)this.recoveringInputs.delete(entry.recoveryId);}
     this.promptQueue = this.promptQueue.filter(entry => entry.owner);
-    this.steerQueue = [];
+    this.parkUnappliedSteers();
     clearTimeout(this.queueTimer);this.queueTimer=undefined;
     if (this.state !== "running") {
       if(this.promptQueue.length&&!this.closed){this.interruptedByUser=true;this.state="interrupted";}
@@ -1292,7 +1297,7 @@ export class AgentCore {
         const failure={turnId:this.currentTurnId??randomUUID(),error:this.lastTurnError};
         try { await this.emit('turn.failed',failure); }
         catch { this.broadcast({kind:'catalog',event:'turn.failed',input:failure}); }
-      } finally {this.state=this.interruptedByUser?'interrupted':'idle';this.currentTurnId=undefined;this.resetRefusals();}
+      } finally {this.parkUnappliedSteers();this.state=this.interruptedByUser?'interrupted':'idle';this.currentTurnId=undefined;this.resetRefusals();}
     })();
     this.activeTurn=run;
     return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
@@ -1458,8 +1463,14 @@ export class AgentCore {
         queryProgress.reset();
         checkProgress.reset();
         this.resetRefusals();
-        const steerText = this.steerQueue.shift()!;
-        this.messages.push({ role: "user", content: steerText });
+        const steer=this.steerQueue[0];
+        if(!await this.waitForQueuedWrite(steer.ready)||this.abort.signal.aborted)break;
+        if(this.steerQueue[0]!==steer)continue;
+        const context=this.messages;
+        await this.persist('prompt.steer.applied',{recoveryId:steer.recoveryId,turnId});
+        const index=this.steerQueue.indexOf(steer);if(index>=0)this.steerQueue.splice(index,1);
+        this.recoveredInputs=this.recoveredInputs.filter(input=>input.id!==steer.recoveryId);
+        context.push({ role: "user", content: steer.text });
       }
 
       // steering landed at the natural step boundary; now check context
@@ -1846,6 +1857,11 @@ export class AgentCore {
     }
   }
 
+  private parkUnappliedSteers():void {
+    const pending=this.steerQueue.splice(0);if(!pending.length)return;
+    for(const entry of pending)if(!this.recoveredInputs.some(item=>item.id===entry.recoveryId))this.recoveredInputs.push({id:entry.recoveryId,text:entry.text});
+    if(!this.closed)this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'session-manager',message:'Steering may not have been applied. Review it with /recover.',level:'warning'}});
+  }
   private queuePrompt(input:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string},admitted?:InputAdmitted):Promise<void>{
     let cancel!:()=>void;const cancelled=new Promise<void>(resolve=>{cancel=resolve;});
     const entry={...input,ready:Promise.resolve(),cancel};this.promptQueue.push(entry);

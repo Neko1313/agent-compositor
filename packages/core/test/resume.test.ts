@@ -262,3 +262,19 @@ it('persists explicit discard, and keeps a queued retry reviewable when interrup
   expect(resumed.getRecoveredInputs()).toEqual([{id:'keep-id',text:'keep'}]);
   await core.close();await resumed.close();
 });
+
+it('replays identified steering at its applied boundary rather than its earlier notification', () => {
+  const events:SessionEvent[]=[
+    {type:'prompt.submit',turnId:'turn',text:'Question'},
+    {type:'turn.start',turnId:'turn'},
+    {type:'assistant.text',turnId:'turn',text:'First answer'},
+    {type:'prompt.steer.intent',turnId:'turn',recoveryId:'steer',text:'Correction'},
+    {type:'prompt.steer',turnId:'turn',recoveryId:'steer',text:'Correction'},
+    {type:'assistant.text',turnId:'turn',text:' continued'},
+    {type:'prompt.steer.applied',turnId:'turn',recoveryId:'steer'},
+    {type:'assistant.text',turnId:'turn',text:'Second answer'},
+  ];
+  expect(replayTranscript(events).map(message=>[message.role,message.content])).toEqual([
+    ['user','Question'],['assistant','First answer continued'],['user','Correction'],['assistant','Second answer'],
+  ]);
+});

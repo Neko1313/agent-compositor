@@ -192,3 +192,86 @@ it('releases an interrupted new input without waiting for a held intent write', 
     expect(f.provider.requests).toHaveLength(0);
   }finally{hold.release();await receipt.completion;}
 });
+
+it('records steering intent before admission and makes unapplied steering reviewable', async () => {
+  const journal:SessionEvent[]=[],write=gate(),provider=new ScriptedProvider([{text:'Final answer',hold:true}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.steer.intent'))await write.wait();journal.push(...events);
+  }}});
+  const main=f.core.dispatchInput('First');expect(await main.admitted).toBe('submitted');await expect.poll(()=>provider.requests.length).toBe(1);
+  const steer=f.core.dispatchInput('Correction','steer');let accepted:CoreInputAdmission|undefined;void steer.admitted.then(value=>{accepted=value;});
+  await write.entered;await Promise.resolve();expect(accepted).toBeUndefined();write.release();expect(await steer.admitted).toBe('steered');await steer.completion;
+  provider.release();await main.completion;
+  expect(f.core.getMessages().some(message=>message.content==='Correction')).toBe(false);
+  expect(f.core.getRecoveredInputs()).toMatchObject([{text:'Correction'}]);
+  const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},structuredClone(journal));cores.push(resumed);
+  expect(resumed.getRecoveredInputs()).toMatchObject([{text:'Correction'}]);
+  expect(resumed.getMessages().some(message=>message.content==='Correction')).toBe(false);
+});
+
+it('rejects steering when its intent cannot be saved', async () => {
+  const provider=new ScriptedProvider([{text:'Working',hold:true}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.steer.intent'))throw Error('disk unavailable');
+  }}});
+  const main=f.core.dispatchInput('First');expect(await main.admitted).toBe('submitted');await expect.poll(()=>provider.requests.length).toBe(1);
+  const steer=f.core.dispatchInput('Keep this correction','steer');expect(await steer.admitted).toBe(false);
+  await expect(steer.completion).rejects.toThrow('Session journal failed');provider.release();await main.completion;
+  expect(provider.requests).toHaveLength(1);
+});
+
+it('releases interrupted steering while its intent write is held', async () => {
+  const write=gate(),provider=new ScriptedProvider([{text:'Working',hold:true}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.steer.intent'))await write.wait();
+  }}});
+  const main=f.core.dispatchInput('First');await main.admitted;await expect.poll(()=>provider.requests.length).toBe(1);
+  const steer=f.core.dispatchInput('Stopped correction','steer');await write.entered;f.core.interrupt();
+  try {expect(await Promise.race([steer.admitted,new Promise<never>((_,reject)=>setTimeout(()=>reject(Error('steering still blocked')),500))])).toBe(false);}
+  finally {write.release();provider.release();await steer.completion;await main.completion;}
+});
+
+it('submits steering as a new turn if the running turn finishes while its intent is being saved', async () => {
+  const write=gate(),provider=new ScriptedProvider([{text:'First done',hold:true},{text:'Correction handled'}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.steer.intent'))await write.wait();
+  }}});
+  const main=f.core.dispatchInput('First');await main.admitted;await expect.poll(()=>provider.requests.length).toBe(1);
+  const steer=f.core.dispatchInput('Late correction','steer');await write.entered;provider.release();await main.completion;
+  write.release();expect(await steer.admitted).toBe('submitted');await steer.completion;
+  expect(provider.requests).toHaveLength(2);expect(provider.requests[1].messages.at(-1)?.content).toBe('Late correction');
+});
+
+it('replays a steering message that reached the next model step and excludes it from recovery', async () => {
+  const journal:SessionEvent[]=[];
+  const provider=new ScriptedProvider([{toolCalls:[{name:'probe',args:{}}],hold:true},{text:'Done'}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{journal.push(...events);}},
+    tools:[{name:'probe',description:'Read-only probe',parameters:{type:'object'},describe:()=>({tool:'probe',readOnly:true}),execute:async()=>({ok:true,data:'ok'})}],
+    rules:[{tool:'probe',decision:'allow'}]});
+  const main=f.core.dispatchInput('First');await main.admitted;await expect.poll(()=>provider.requests.length).toBe(1);
+  const steer=f.core.dispatchInput('Applied correction','steer');expect(await steer.admitted).toBe('steered');await steer.completion;
+  provider.release();await main.completion;
+  expect(provider.requests[1].messages.some(message=>message.content==='Applied correction')).toBe(true);
+  expect(journal.some(event=>event.type==='prompt.steer.applied')).toBe(true);
+  const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},structuredClone(journal));cores.push(resumed);
+  expect(resumed.getRecoveredInputs()).toEqual([]);
+  expect(resumed.getMessages().filter(message=>message.content==='Applied correction')).toHaveLength(1);
+});
+
+it('keeps a steer consistent when interruption races its applied journal write', async () => {
+  const journal:SessionEvent[]=[],applied=gate();
+  const provider=new ScriptedProvider([{toolCalls:[{name:'probe',args:{}}],hold:true},{text:'Must not run'}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.steer.applied'))await applied.wait();journal.push(...events);
+  }},tools:[{name:'probe',description:'Read-only probe',parameters:{type:'object'},describe:()=>({tool:'probe',readOnly:true}),execute:async()=>({ok:true,data:'ok'})}],
+    rules:[{tool:'probe',decision:'allow'}]});
+  const main=f.core.dispatchInput('First');await main.admitted;await expect.poll(()=>provider.requests.length).toBe(1);
+  const steer=f.core.dispatchInput('Applied as stopping','steer');await steer.admitted;await steer.completion;
+  provider.release();await applied.entered;f.core.interrupt();applied.release();await main.completion;
+  expect(provider.requests).toHaveLength(1);
+  expect(f.core.getMessages().filter(message=>message.content==='Applied as stopping')).toHaveLength(1);
+  expect(f.core.getRecoveredInputs()).toEqual([]);
+  const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},structuredClone(journal));cores.push(resumed);
+  expect(resumed.getMessages().filter(message=>message.content==='Applied as stopping')).toHaveLength(1);
+  expect(resumed.getRecoveredInputs()).toEqual([]);
+});

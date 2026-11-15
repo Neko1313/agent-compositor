@@ -55,6 +55,14 @@ const app = await buildApp({
     { text: "Independent agent response" },
   ]),
 });
+if(process.env.VISUAL_STEER_RECOVERY){
+ const create=app.createCore;
+ app.createCore=(...args:Parameters<typeof create>)=>{
+  const core=create(...args);core.subscribe(event=>{
+   if(event.kind==='catalog'&&event.event==='prompt.steer')void import('node:fs/promises').then(({writeFile})=>writeFile(process.env.VISUAL_OUTPUT!+'/steer-persisted','yes'));
+  });return core;
+ };
+}
 if(process.env.VISUAL_QUEUE_WRITE_FAIL||process.env.VISUAL_INPUT_WRITE_FAIL){
  const create=app.createCore;
  app.createCore=(...args:Parameters<typeof create>)=>{

@@ -105,13 +105,13 @@ to the agent state. Resizing reflows the visible conversation.
 
 Interrupting work cancels ordinary queued messages. After reopening a session,
 `/recover` lists newer user messages recorded in the journal without a recorded
-submission. New and queued messages wait for the recovery intent write before
+submission. New, queued and steering messages wait for the recovery intent write before
 acceptance when persistent storage is configured. Use
 `/recover show N` to read one, `/recover retry N` to submit it explicitly, or
 `/recover discard N` to remove it from recovery. A recovered message may have
 been cancelled or may have begun processing before a crash; inspect the session
-and any external effects before retrying. Recovery never runs a message on its
-own. Older queue records without an identifier cannot be reconstructed.
+and any external effects before retrying. Steering that misses the next model
+step is also offered for review. Recovery never runs a message on its own. Older queue records without an identifier cannot be reconstructed.
 
 Settings → Models & providers (`/model`) includes a Reasoning action per profile.
 Choose the model's supported effort and save it for this project or all projects;

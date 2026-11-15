@@ -37,6 +37,7 @@ export function replayTranscript(
   const unpreparedTurns=new Map<string,ChatMessage>(),deferredSteers=new Map<string,ChatMessage[]>();
   const recordedTurns=new Set(events.filter(e=>e.type==='prompt.submit'&&typeof e.turnId==='string').map(e=>e.turnId as string));
   const seenTurns=new Set<string>();
+  const steeringRecords=new Map(events.filter(e=>e.type==='prompt.steer'&&typeof e.recoveryId==='string').map(e=>[e.recoveryId as string,e]));
   const resetPreparation=()=>{submitted=undefined;unpreparedTurns.clear();};
 
   const flushAssistant = () => {
@@ -85,12 +86,16 @@ export function replayTranscript(
         pendingMetadata = event.metadata as Record<string, unknown>;
         break;
       case "prompt.submit":
-      case "prompt.steer": {
+      case "prompt.steer":
+      case "prompt.steer.applied": {
+        if(event.type==='prompt.steer'&&typeof event.recoveryId==='string')break;
+        const steering=event.type==='prompt.steer.applied'&&typeof event.recoveryId==='string'?steeringRecords.get(event.recoveryId):undefined;
+        if(event.type==='prompt.steer.applied'&&!steering)break;
         flushAssistant();
         batchClosed = false;
         const message:ChatMessage={
           role: "user",
-          content: typeof event.text === "string" ? event.text : "",
+          content: typeof (steering??event).text === "string" ? (steering??event).text as string : "",
           ...(event.type==='prompt.submit'&&event.origin==='harness'?{origin:'harness' as const}:{}),
         };
         const turnId=typeof event.turnId==='string'?event.turnId:undefined;
@@ -245,11 +250,11 @@ function safeStringify(output: unknown): string {
  * @internal
  */
 export function recoverQueuedInputs(events: SessionEvent[]): {id:string;text:string}[] {
-  const consumed=new Set(events.filter(event=>event.type==='prompt.submit'||event.type==='prompt.dropped'||event.type==='prompt.recovery.discarded')
+  const consumed=new Set(events.filter(event=>event.type==='prompt.submit'||event.type==='prompt.dropped'||event.type==='prompt.steer.applied'||event.type==='prompt.recovery.discarded')
     .map(event=>event.recoveryId).filter((id):id is string=>typeof id==='string'));
   const found=new Map<string,string>();
   for(const event of events){
-    if((event.type==='prompt.queued'||event.type==='prompt.queue.intent'||event.type==='prompt.input.intent')&&typeof event.recoveryId==='string'&&typeof event.text==='string'
+    if((event.type==='prompt.queued'||event.type==='prompt.queue.intent'||event.type==='prompt.input.intent'||event.type==='prompt.steer.intent')&&typeof event.recoveryId==='string'&&typeof event.text==='string'
       &&!consumed.has(event.recoveryId)&&!found.has(event.recoveryId))found.set(event.recoveryId,event.text);
   }
   return [...found].map(([id,text])=>({id,text}));

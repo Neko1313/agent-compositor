@@ -3,6 +3,7 @@ import {isDeepStrictEqual} from "node:util";
 import type { ToolContext, ToolResult, ToolSpec } from "../types.js";
 import { fileResult } from '../file-result.js';
 import {decodeEditRef,resolveEditRef,editTargetPath,type EditArgs} from '../edit-ref.js';
+import type {ReadArgs} from './fs.js';
 
 export type {EditArgs} from '../edit-ref.js';
 
@@ -14,6 +15,8 @@ export interface EditOutcome {
   hashAfter?:string;
   /** Advisory only: the requested replacement repeated adjacent existing text. */
   warning?:string;
+  /** Suggested bounded read of a suspected duplicate; normal read permissions apply. */
+  inspect?:ReadArgs;
   undo?:Omit<EditArgs,"path">;
 }
 

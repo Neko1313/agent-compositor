@@ -186,6 +186,9 @@ describe("edit tool", () => {
     expect(result.ok).toBe(true);if(!result.ok)throw Error(result.error);
     expect(result.data.warning).toContain('duplicated adjacent existing text');
     expect(JSON.parse(result.modelText!).warning).toBe(result.data.warning);
+    expect(result.data.inspect).toEqual({path:target,offset:1,limit:21});
+    expect(JSON.parse(result.modelText!).inspect).toEqual(result.data.inspect);
+    const inspected=await readTool.execute(ctx,result.data.inspect!);expect(inspected.ok&&inspected.data.content).toBe(`${header}\n${line}\n${line}\n`);
     expect(await fs.readFile(target,'utf8')).toBe(`${header}\n${line}\n${line}\n`);expect(ctx.undo.size).toBe(1);
   });
 
@@ -196,6 +199,16 @@ describe("edit tool", () => {
     await fs.writeFile(target,`${block}end`);
     const distinct=await editTool.execute(makeCtx(),{path:'f.txt',oldText:'end',newText:'function different() { return 456; }\nend'});
     expect(distinct.ok&&distinct.data.warning).toBeUndefined();
+  });
+
+  it('locates the duplicate boundary using one-based lines in a longer file',async()=>{
+    const target=path.join(cwd,'f.txt'),prefix=Array.from({length:30},(_,i)=>`line ${i}\n`).join('');
+    const block='function existing() { return 123; }\n';await fs.writeFile(target,prefix+block+'end');
+    const ctx=makeCtx(),result=await editTool.execute(ctx,{path:'f.txt',oldText:'end',newText:block+'end'});
+    if(!result.ok||!result.data.inspect)throw Error('Expected duplicate advisory');
+    expect(result.data.inspect).toEqual({path:target,offset:22,limit:21});
+    const read=await readTool.execute(ctx,result.data.inspect);if(!read.ok)throw Error(read.error);
+    expect(read.data.content).toContain(block+block);expect(read.data.editRef).toBeTruthy();
   });
 
   it("ambiguous match without replaceAll → error value", async () => {

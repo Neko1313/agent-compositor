@@ -275,6 +275,12 @@ count. Hooks continue to receive the original structured service outcome.
 The coding preset directs the model to inspect the project's documented check
 and run it with an available authorized tool once its changes are ready.
 
+When an exact single replacement duplicates substantial adjacent text, the edit
+still succeeds and returns an advisory plus `inspect` arguments for a bounded
+`read` around the duplicate boundary. Reading remains a separate, permissioned
+operation and returns a fresh snapshot; the advisory does not decide whether the
+duplication was intentional or automatically alter the file.
+
 ### Snapshot edit references
 
 Builtin `read` adds optional `editRef` to its structured result and model-facing

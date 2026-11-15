@@ -11,6 +11,7 @@ window.visual = { terminal, frames:0, generation:0, pointer:'default', text:() =
 window.visual.metrics=observeTerminalPerformance(terminal);
 terminal.parser.registerOscHandler(22, shape => { const allowed=['default','pointer','text','grab','grabbing','ew-resize','ns-resize','not-allowed'];shape=allowed.includes(shape)?shape:'default';window.visual.pointer=shape;visual.metrics.pointer(shape);document.querySelector('#terminal').style.setProperty('--pointer-shape',shape);return true; });
 const socket=new WebSocket(`ws://${location.host}/ws${location.search}`);
+window.visual.crashRestart=()=>socket.send(JSON.stringify({type:'crash-restart'}));
 const graphics=createGraphicsBench(terminal,data=>socket.readyState===1&&socket.send(JSON.stringify({type:'input',data})),new URLSearchParams(location.search).get('graphics')==='kitty');
 window.visual.graphics=graphics;
 let writes=Promise.resolve();

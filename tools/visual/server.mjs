@@ -223,7 +223,7 @@ async function start(ws) {
 async function stop() { if (!active) return; const previous = active; active = undefined; previous.proc.kill(); await previous.proc.exited; }
 const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(process.env.PORT ?? 0),
-  ...((process.env.VISUAL_ONBOARDING_CANCEL||process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT)?{idleTimeout:120}:{}),
+  ...((process.env.VISUAL_ONBOARDING_CANCEL||process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT||process.env.VISUAL_OPENTUI_PROCESS_KILL)?{idleTimeout:120}:{}),
   async fetch(request, server) {
     const url = new URL(request.url);
     if(process.env.VISUAL_ONBOARDING_CANCEL&&url.pathname.startsWith(`/setup-cancel/${token}/archive/`)){
@@ -400,6 +400,12 @@ const server = Bun.serve({
     async message(ws, data) {
       const message = JSON.parse(String(data));
       if (message.type === 'restart') { await stop(); ws.send(JSON.stringify({ type: 'reset' })); await start(ws); return; }
+      if(message.type==='crash-restart'&&process.env.VISUAL_OPENTUI_PROCESS_KILL&&active?.ws===ws){
+        const previous=active;previous.proc.stdin.write(JSON.stringify({type:'crash'})+'\n');previous.proc.stdin.flush();
+        const code=await previous.proc.exited;await writeFile(join(output,'crash-receipt.json'),JSON.stringify({bridgeExitCode:code,signal:'SIGKILL'}));
+        if(code!==137)throw Error('Crash fixture did not observe SIGKILL exit: '+code);
+        if(active!==previous)return;active=undefined;ws.send(JSON.stringify({type:'reset'}));await start(ws);return;
+      }
       if (active?.ws === ws && ['input', 'resize'].includes(message.type)) {
         if(message.type==='resize')terminalSize={cols:Math.max(16,Math.min(240,Number(message.cols)||100)),rows:Math.max(12,Math.min(100,Number(message.rows)||30))};
         if(process.env.VISUAL_PERFORMANCE&&message.type==='resize')appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'resize',...terminalSize})+'\n');

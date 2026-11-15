@@ -7,6 +7,16 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+A local browser-backed PTY check now kills the actual OpenTUI CLI with SIGKILL
+only after a queued message or steering notification is saved in its session
+journal. The bridge observed exit status 137 in both runs. After a fresh start,
+each input appeared for explicit review; no new model request occurred until
+`/recover retry 1`. Reports are in `dist/recovery-sigkill-20261116/` and
+`dist/steering-sigkill-20261116/`. These source checks use a scripted provider
+and do not establish multi-hour behavior, native-terminal compatibility or
+recovery at arbitrary effect boundaries.
+
+
 Build-only [run `43749137231` for `8c789e6`](https://github.com/Neko1313/agent-compositor/actions/runs/43749137231)
 failed its Linux x64 installed OpenTUI plugin placement check. The retained form
 shows Network proxy selected and moved to workspace 2 while the test expected

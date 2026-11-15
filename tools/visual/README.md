@@ -34,7 +34,11 @@ and subsequent queued turn. It does not exercise a paid model or native terminal
 `node tools/visual/opentui-recovery-check.mjs` runs the actual OpenTUI CLI
 against an isolated loopback provider, verifies that unapplied steering survives
 restart and retries only after a user command. Set `VISUAL_OPENTUI_QUEUE=1` to
-check the Enter-to-queue path instead. Set `VISUAL_OPENTUI_RECOVERY_INTERRUPT=1`
+check the Enter-to-queue path instead. Set `VISUAL_OPENTUI_PROCESS_KILL=1`
+to kill the CLI with SIGKILL after its input is persisted and verify explicit
+recovery after a fresh start; the report retains the observed exit code. The
+queued-input variant runs in Node 26 CI. Set
+`VISUAL_OPENTUI_RECOVERY_INTERRUPT=1`
 to hold the retry journal write and verify that Ctrl+C reports the unaccepted retry
 without sending a model request. This interrupted-retry variant also runs in
 Node 26 CI and retains its report and screenshots. The scenarios use a controlled

@@ -25,3 +25,13 @@ it('terminates its owned child when the bridge is stopped',async()=>{
   expect(()=>process.kill(pid,0)).toThrow();
  }finally{f.child.kill('SIGTERM');f.child.stdin.destroy();}
 });
+
+it('kills only its owned PTY child and reports SIGKILL on a crash request',async()=>{
+ const f=bridge("import os,time;print('OWNED_CHILD:'+str(os.getpid()),flush=True);time.sleep(60)");
+ try{
+  await expect.poll(()=>f.stdout.includes('OWNED_CHILD:')).toBe(true);
+  const events=f.stdout.trim().split('\n').map(line=>JSON.parse(line));const pid=Number(events.map(event=>event.data).join('').match(/OWNED_CHILD:(\d+)/)![1]);
+  f.child.stdin.write(JSON.stringify({type:'crash'})+'\n');expect(await f.done).toBe(137);expect(f.stderr).toBe('');
+  expect(()=>process.kill(pid,0)).toThrow();
+ }finally{f.child.kill('SIGTERM');f.child.stdin.destroy();}
+});

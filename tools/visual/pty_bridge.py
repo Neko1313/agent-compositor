@@ -83,6 +83,8 @@ try:
                     message = json.loads(line)
                     if message["type"] == "input":
                         os.write(master, message["data"].encode())
+                    elif message["type"] == "crash":
+                        os.kill(pid, signal.SIGKILL)
                     elif message["type"] == "resize":
                         resize(master, max(16, min(240, int(message["cols"]))), max(12, min(100, int(message["rows"]))))
 finally:

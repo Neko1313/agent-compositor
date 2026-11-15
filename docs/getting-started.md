@@ -25,6 +25,9 @@ The guide itself runs locally without a model or inference server. You can skip
 it and reopen it with `/setup` or **Settings → Setup guide**. Skip is remembered
 privately for your user; plain/headless runs and explicit session resumes do not
 open it automatically.
+If the saved setup status is malformed or from an unsupported version, startup
+continues and the guide warns about it. The existing file is left untouched
+until you explicitly finish or skip the guide.
 
 **Set up model** lets you choose an existing connection or create one using five
 fields: profile ID, endpoint, model ID, optional API key, and save scope. Keys are

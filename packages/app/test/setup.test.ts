@@ -30,6 +30,21 @@ it('shows a local guide without mutations, supports skipping and keeps manual se
  }finally{await f.close();}
 });
 
+it('recovers from invalid saved setup state without overwriting it until the user chooses',async()=>{
+ const f=await fixture();try{
+  const file=join(f.storage.paths.home,'setup.json');
+  for(const invalid of ['{broken','null','[]','{"version":1,"status":"unexpected"}','{"version":2,"status":"complete"}']){
+   await writeFile(file,invalid);expect(await f.guide.shouldOffer()).toBe(true);
+   await (f.guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);
+   expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('Saved setup status is invalid'))).toBe(true);
+   expect(await readFile(file,'utf8')).toBe(invalid);
+  }
+  f.setConfigured(true);expect(await f.guide.shouldOffer()).toBe(false);f.setConfigured(false);
+  await f.press('skip');expect(JSON.parse(await readFile(file,'utf8'))).toEqual({version:1,status:'skipped'});
+  expect(await f.guide.shouldOffer()).toBe(false);
+ }finally{await f.close();}
+});
+
 it('warns when side-conversation support is unavailable without changing its configuration',async()=>{
  const f=await fixture();try{
   f.setSideAvailable(false);f.answers.push({action:'next',values:{work:'chat'}},{action:'apply',values:{btw:true}});await f.press('tools');

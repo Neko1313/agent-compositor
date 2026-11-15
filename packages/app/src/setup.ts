@@ -29,14 +29,24 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
  type GuideState={visible:boolean;revision:number;changed:string[];notes:string[]};
  const file=join(storage.paths.home,'setup.json'),sessions=new Map<string,GuideState>();
  const guide=($:HooksApi)=>{let value=sessions.get($.session.id);if(!value){value={visible:false,revision:0,changed:[],notes:[]};sessions.set($.session.id,value);}return value;};
- const state=async()=>readFile(file,'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return{};});
+ const state=async():Promise<{status?:'complete'|'skipped';invalid?:boolean}>=>{
+  let text:string;
+  try{text=await readFile(file,'utf8');}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return{};throw error;}
+  let saved:unknown;
+  try{saved=JSON.parse(text);}catch{return{invalid:true};}
+  if(!saved||typeof saved!=='object'||Array.isArray(saved))return{invalid:true};
+  const record=saved as Record<string,unknown>;
+  if(record.version!==1||(record.status!=='complete'&&record.status!=='skipped'))return{invalid:true};
+  return{status:record.status};
+ };
  const pending=()=>{const enabled=deps.enabled(),loaded=deps.loaded();return suggestions.map(item=>item.name).filter(name=>enabled.includes(name)&&!loaded.includes(name));};
  const show=async($:HooksApi,focus=true)=>{
-  const current=guide($);current.visible=true;const revision=++current.revision,model=await deps.model();
+  const current=guide($);current.visible=true;const revision=++current.revision,[model,saved]=await Promise.all([deps.model(),state()]);
   if(!current.visible||current.revision!==revision||sessions.get($.session.id)!==current||$.signal.aborted)return;
   const waiting=pending(),enabled=deps.enabled();
   await $.ui.view('setup','Get started',{hint:'No model is needed for this guide. You choose what to configure and install.',lines:[
    {text:'Connect a model, choose tools, then start a task.',bold:true},
+   ...(saved.invalid?[{text:'Saved setup status is invalid. Finish or skip to replace it.',tone:'warning' as const}]:[]),
    {text:model.configured?`Model selected: ${model.profile} · ${model.model}`:'Model: choose a connection before sending a task',tone:model.configured?'accent':'warning'},
    {text:'[ Set up model ]',action:'model',tone:'accent'},
    {text:`Tools: ${deps.loaded().filter(name=>suggestions.some(item=>item.name===name)).length} suggested plugins active`},

@@ -49,6 +49,19 @@ function setup() {
   };
 }
 describe("reviewable action approvals", () => {
+  it('cancels the closed window action without cancelling a neighboring window action',async()=>{
+    const {ui,titles}=setup();const signals=new Map<string,AbortSignal>();let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+    ui.core.host.registerPlugin({name:'action-cancel-proof',version:'1.0.0',trust:'trusted'},{
+      'ui.press':async(event,$)=>{if(event.key==='run'){signals.set(event.site,$.signal);await gate;}},
+    });
+    try{
+      for(const id of ['first','second'])await ui.core.host.emit('service.ui.view',{plugin:'action-cancel-proof',id,title:id,view:{lines:[{text:'Run',action:'run'}]},placement:{site:'sidebar',focus:true}});
+      const first=(ui as any).press('plugin-action-cancel-proof-first','run'),second=(ui as any).press('plugin-action-cancel-proof-second','run');
+      await expect.poll(()=>signals.size).toBe(2);expect(titles.get('plugin-action-cancel-proof-first')).toContain('Working');expect(titles.get('plugin-action-cancel-proof-second')).toContain('Working');expect((ui as any).dismissPluginWindow('plugin-action-cancel-proof-first')).toBe(true);
+      expect(signals.get('plugin-action-cancel-proof-first')!.aborted).toBe(true);expect(signals.get('plugin-action-cancel-proof-second')!.aborted).toBe(false);
+      release();await Promise.all([first,second]);expect(titles.get('plugin-action-cancel-proof-second')).not.toContain('Working');
+    }finally{release();ui.close();}
+  });
   it("keeps tool, leading command and choices visible and scrolls every argument", () => {
     const command =
       "first-target " +

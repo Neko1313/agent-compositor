@@ -140,6 +140,7 @@ export class AppUI {
   private viewSubmissions = new Map<string,Promise<void>>();
   private reboundViewInputs = new WeakMap<object,{id:string;value:string}>();
   private viewRecovery = new Map<string,{value:string;restore:string;discard:string;owner:string;core:AgentCore;pending?:boolean}>();
+  private viewActions = new Map<string,Set<AbortController>>();
   private switchingSession = false;
   private visibility = new Map<string, string>();
   private composerViews = new Map<string, {plugin:string;surface:string;view:UiTextView}>();
@@ -529,6 +530,11 @@ export class AppUI {
     // destination. Reset routing even if this window was already focused.
     this.track(this.core.host.emit('ui.focus',{site:'session'}).then(()=>{}));
   }
+  private cancelViewActions(site:string):boolean {
+    const actions=this.viewActions.get(site);if(!actions?.size)return false;
+    for(const controller of actions)controller.abort(new Error('Plugin action cancelled'));
+    return true;
+  }
   private dismissPluginWindow(site:string):boolean {
     const owner=this.pluginWindows.get(site)?.plugin;
     if(!owner)return false;
@@ -536,6 +542,7 @@ export class AppUI {
     // updates hidden until an explicit action reopens this plugin's views.
     this.closedPluginWindows.set(site,owner);
     this.windows.forget(site);
+    this.cancelViewActions(site);
     if(![...this.pluginWindows.values()].some(view=>view.plugin===owner&&this.windows.has(view.id)))
       this.core.cancelOperations(owner);
     return true;
@@ -584,8 +591,11 @@ export class AppUI {
       this.closedPluginWindows.delete(site);
       if(owner)for(const [id,plugin]of this.closedPluginWindows)if(plugin===owner)this.closedPluginWindows.delete(id);
     }
-    const result=await this.core.host.emit('ui.press',{site,key});
-    if(result.faults.length)throw Error('Plugin action failed: '+JSON.stringify(result.faults));
+    const controller=new AbortController(),actions=this.viewActions.get(site)??new Set<AbortController>();actions.add(controller);this.viewActions.set(site,actions);this.draw();
+    try{
+      const result=await this.core.host.emit('ui.press',{site,key},AbortSignal.any([controller.signal,this.uiLifetime.signal]));
+      if(!controller.signal.aborted&&result.faults.length)throw Error('Plugin action failed: '+JSON.stringify(result.faults));
+    }finally{actions.delete(controller);if(!actions.size&&this.viewActions.get(site)===actions)this.viewActions.delete(site);if(!this.closed)this.draw();}
   }
   private applyPendingReload():void {
     if(!this.pendingReload||this.reloading||this.closed||this.form||this.core.getState()==='running'||this.core.hasActiveOperations||!this.reload)return;
@@ -973,6 +983,7 @@ export class AppUI {
     }
     if(this.routeWindowInput(data))return;
     if(data.kind==='key'&&data.key==='c'&&data.modifiers?.includes('ctrl')&&this.windows.focused!=='input'){
+      if(this.cancelViewActions(this.windows.focused)){this.draw();return;}
       const owner=this.pluginWindows.get(this.windows.focused)?.plugin;
       if(owner&&this.core.cancelOperations(owner)){this.draw();return;}
     }
@@ -1605,7 +1616,7 @@ export class AppUI {
         for(const approval of approvals)approval.resolve(false);
         this.core.host.controllers.disposeAll();
         this.formUnsubscribe?.();this.formUnsubscribe=undefined;
-        this.viewRecovery.clear();
+        this.viewRecovery.clear();for(const actions of this.viewActions.values())for(const controller of actions)controller.abort(new Error('Session changed'));this.viewActions.clear();
         this.core = next;
         this.filePrefix=undefined;this.fileCatalog=undefined;this.fileRevision++;
         this.bindForms();
@@ -2255,7 +2266,7 @@ export class AppUI {
       ...(this.windowMode?{controls:'always' as const}:{}) };
     this.sink?.({
       type: "declare",
-      surfaces: [...[...this.panes].map(([id, pane]) => ({id,kind:'pane' as const,title:pane.title})),
+      surfaces: [...[...this.panes].map(([id, pane]) => ({id,kind:'pane' as const,title:pane.title+(this.viewActions.get(id)?.size?' · Working':'')})),
         {id:'input',kind:'pane' as const,title:this.approval?'Approval required':this.question?(this.question.dialog.request.questions?'Questionnaire':'Your answer'):`${this.inputTitle}${this.composer()?" · "+clean(this.composer()![1].view.attachment!.label)+(this.composer()![1].view.raster&&!this.nativeRaster?" · images unavailable":""):""}`}],
     });
     if (formActive) this.sink?.({ type: 'declare', surfaces: [{ id: 'settings-form', kind: 'pane', title: this.form!.dialog.request.title }] });

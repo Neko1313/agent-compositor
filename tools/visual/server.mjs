@@ -202,8 +202,14 @@ async function start(ws) {
 async function stop() { if (!active) return; const previous = active; active = undefined; previous.proc.kill(); await previous.proc.exited; }
 const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(process.env.PORT ?? 0),
+  ...(process.env.VISUAL_ONBOARDING_CANCEL?{idleTimeout:120}:{}),
   async fetch(request, server) {
     const url = new URL(request.url);
+    if(process.env.VISUAL_ONBOARDING_CANCEL&&url.pathname.startsWith(`/setup-cancel/${token}/archive/`)){
+      appendFileSync(join(output,'setup-cancel-requests.jsonl'),JSON.stringify({name:url.pathname.split('/').at(-1)})+'\n');
+      await new Promise(resolve=>{const aborted=()=>{appendFileSync(join(output,'setup-cancel-requests.jsonl'),JSON.stringify({aborted:true})+'\n');resolve();};request.signal.addEventListener('abort',aborted,{once:true});if(request.signal.aborted)aborted();});
+      return new Response('Fixture cancelled',{status:503});
+    }
     if(process.env.VISUAL_OPENTUI_APP&&url.pathname===`/app-model/${token}/v1/models`){
       const authorization=request.headers.get('authorization')??'';
       appReceipt({kind:'models',credential:authorization==='Bearer '+appUiKey?'ui':authorization==='Bearer '+appBootKey?'bootstrap':'unexpected',authorizationHash:new Bun.CryptoHasher('sha256').update(authorization).digest('hex')});
@@ -436,6 +442,14 @@ export default {'session.start':async(_,$)=>show($),'session.reload':async(_,$)=
    placement:join(cwd,'.agent-compositor/agent-compositor.jsonc')};
  }
  await writeFile(join(output,'opentui-app-launch.json'),JSON.stringify(appLaunch));
+}
+if(process.env.VISUAL_ONBOARDING_CANCEL){
+ const paths=storagePaths(cwd,{HOME:cwd}),catalogRoot=join(cwd,'setup-cancel-catalog'),platform=`${process.platform}-${process.arch}`;
+ await mkdir(join(catalogRoot,'.claude-plugin'),{recursive:true});await mkdir(paths.home,{recursive:true});
+ const plugins=['project-checks','test-reports'].map(name=>({name,version:'1.0.0',source:{source:'archive',assets:{[platform]:{url:`http://127.0.0.1:${server.port}/setup-cancel/${token}/archive/${name}`,sha256:'0'.repeat(64)}}}}));
+ await writeFile(join(catalogRoot,'.claude-plugin/marketplace.json'),JSON.stringify({name:'agent-compositor',owner:{name:'Local fixture'},plugins}));
+ await writeFile(join(paths.home,'marketplaces.json'),JSON.stringify({'agent-compositor':{source:catalogRoot,root:catalogRoot,ref:'main',scope:'user'}}));
+ await writeFile(join(output,'setup-cancel-requests.jsonl'),'');
 }
 if(process.env.VISUAL_WORKSPACES)await writeFile(join(cwd,'.agent-compositor/web.json'),JSON.stringify({searchUrl:`http://127.0.0.1:${server.port}/search/${token}`}));
 let closing = false;

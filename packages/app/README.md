@@ -576,9 +576,11 @@ works. These operations keep normal tool permissions and separate cancellation;
 their results appear in the panel/transcript without entering the agent's model
 context. Up to four concurrent user operations are allowed, with a five-minute
 limit including approvals. Reload also waits for these operations to finish.
-When a plugin with an active operation is focused, **Ctrl+C** cancels that
-plugin's operations; **Alt+i** returns to the agent input, where Ctrl+C interrupts
-the agent. The footer shows active UI tools when space allows.
+In Ink, **Ctrl+C** in a plugin panel cancels its running panel actions; closing
+the panel also cancels those actions. Other panels' actions remain independent.
+If the panel has no running action, Ctrl+C can cancel that plugin's active user
+operations. **Alt+i** returns to the agent input, where Ctrl+C interrupts the
+agent. The footer shows active UI tools when space allows.
 
 ## Manage plugin placement in the UI
 

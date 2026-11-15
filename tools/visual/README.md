@@ -482,6 +482,12 @@ for both modes; the report identifies source/binary mode and hashes the selected
 binary. Keep the complete archive contents beside that executable.
 Set `VISUAL_ONBOARDING_OPENTUI=1` to run the same flow with OpenTUI; without it
 the scenario uses Ink. Both source and extracted-binary modes support the flag.
+`VISUAL_OUTPUT=dist/setup-cancellation node tools/visual/setup-cancellation-check.mjs`
+uses a held local archive response and selects two plugins through the real setup
+window. Ink closes the panel; OpenTUI uses Ctrl+C, then closes the panel. The
+scenario verifies cancellation reaches the request, the second plugin is not
+installed, and setup can reopen. Set `VISUAL_ONBOARDING_OPENTUI=1` for OpenTUI.
+Set `VISUAL_SETUP_CANCEL_KEY=1` to exercise Ctrl+C in Ink instead of closing it.
 On OpenTUI the next action waits until the profile form has closed and the guide
 has regained focus, because a visible status behind the form is not sufficient.
 

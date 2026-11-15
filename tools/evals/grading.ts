@@ -44,6 +44,13 @@ function verifiedAfterLastChange(events:any[],marker:string,commands?:string[]):
       verified = false;
       for (const call of pending.values()) call.matches = false;
     }
+    if (event.event === 'tool.result' && entry.tool === 'exec' && !entry.denied) {
+      // A shell can mutate files even when it exits nonzero. Treat every other
+      // completed shell operation as potentially mutating, including UI calls.
+      // This also invalidates checks that overlap such an operation.
+      verified = false;
+      for (const [id,call] of pending) if (entry.operationId !== undefined || id !== entry.callId) call.matches = false;
+    }
     if (entry.operationId !== undefined || typeof entry.callId !== 'string' || !entry.callId) continue;
     const call = pending.get(entry.callId);
     if (event.event === 'tool.call') {

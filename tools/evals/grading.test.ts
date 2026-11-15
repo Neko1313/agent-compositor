@@ -35,6 +35,11 @@ it.each([
  {name:'earlier successful check',events:[call(),checked(),result(),mutation()]},
  {name:'check in flight across a write',events:[call(),checked(),mutation('write'),result()]},
  {name:'check invalidated by an independent edit',events:[call(),checked(),result(),{...mutation(),input:{...mutation().input,operationId:'user'}}]},
+ {name:'later shell operation',events:[call(),checked(),result(),call('node update.mjs','update'),checked('node update.mjs','update'),result('update',1)]},
+ {name:'later shell tool error',events:[call(),checked(),result(),call('node update.mjs','update'),checked('node update.mjs','update'),{kind:'catalog',event:'tool.result',input:{tool:'exec',callId:'update',ok:false,error:'timed out'}}]},
+ {name:'independent shell operation',events:[call(),checked(),result(),{...result('user-shell'),input:{...result('user-shell').input,operationId:'user'}}]},
+ {name:'shell operation completing during the check',events:[call(),checked(),call('node update.mjs','update'),checked('node update.mjs','update'),result('update',1),result()]},
+ {name:'shell operation completing after the check',events:[call(),checked(),call('node update.mjs','update'),checked('node update.mjs','update'),result(),result('update',1)]},
  {name:'background request',events:[call(),checked('npm test','check',{background:true}),result()]},
  {name:'background result',events:[call(),checked(),{...result(),input:{...result().input,output:{...result().input.output,started:true,shellId:'job'}}}]},
  {name:'denied result',events:[call(),checked(),{...result(),input:{...result().input,denied:true}}]},
@@ -43,6 +48,22 @@ it.each([
  {name:'ambiguous preflight during overlapping id reuse',events:[call(),call(),result('check',1),checked(),result()]},
 ])('rejects verification evidence from $name',async({events})=>{
  expect((await grade({events})).find(check=>check.name==='agent executed verification successfully')?.ok).toBe(false);
+});
+
+it.each([false,true])('requires fresh verification after a real shell changes the project (rerun=%s)',async rerun=>{
+ const check='node checks.mjs',update='node update.mjs';
+ await writeFile(join(cwd,'checks.mjs'),"console.log('PROJECT_CHECKS_PASSED');");
+ await writeFile(join(cwd,'update.mjs'),"import {writeFileSync} from 'node:fs';writeFileSync('implementation.mjs','export const value=2;');process.exitCode=1;");
+ const run={toolCalls:[{name:'exec',args:{command:check}}]};
+ const core=new AgentCore({cwd,provider:new ScriptedProvider([run,{toolCalls:[{name:'exec',args:{command:update}}]},...(rerun?[run]:[]),{text:'Finished.'}]),rules:[{tool:'exec',command:check,decision:'allow'},{tool:'exec',command:update,decision:'allow'}]});
+ const events:Parameters<typeof gradeProject>[0]['events']=[];core.subscribe(event=>events.push(event));
+ try{
+  await core.submit('Check and update the project.');
+  expect(await readFile(join(cwd,'implementation.mjs'),'utf8')).toBe('export const value=2;');
+  expect(events.filter(event=>event.event==='tool.result'&&event.input.tool==='exec').map(event=>event.input.output.exitCode)).toEqual(rerun?[0,1,0]:[0,1]);
+  const checks=await grade({events,expect:{verification:'PROJECT_CHECKS_PASSED',verificationCommands:[check]}});
+  expect(checks).toEqual([{name:'agent executed verification successfully',ok:rerun}]);
+ }finally{await core.close();}
 });
 it('accepts a fresh run after the last successful edit with a previously settled call id',async()=>{
  const events=[call(),checked(),result(),mutation(),call(),checked(),result(),mutation('edit',false)];

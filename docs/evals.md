@@ -54,6 +54,14 @@ Independent user operations are excluded. These descriptive counters do not
 change rubric grades, authorize commands or establish safe recovery. Inspect
 the trajectory before treating another refused action as a repeated attempt;
 successful task verification and refusal-free execution are separate claims.
+For project cases requiring agent-run verification, an observed successful
+foreground check stops counting if another non-denied shell result follows
+or overlaps it, including a user operation or a command that exits nonzero:
+shell commands can change files even when they fail. This conservative rule
+also rejects harmless later shell commands; rerun the check to establish fresh
+evidence. It is not a filesystem snapshot or proof against unobserved effects
+from other tools or background processes. Earlier reports used a weaker rule
+and are not retroactively regraded.
 A failed case produces a nonzero exit code. Add tasks with observable
 results for new plugins; separate training examples and held-out cases with
 `split`. Do not optimize a harness against test answers or copy grading data into

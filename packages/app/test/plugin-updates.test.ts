@@ -102,3 +102,35 @@ it('installs a pinned release archive through the marketplace and retains that v
   const restarted=await buildApp({cwd,env:{HOME:home},provider:new ScriptedProvider([]),agentHub:false});apps.push(restarted);expect(restarted.plugins[0].manifest.version).toBe('1.0.0');
  }finally{server.closeAllConnections();await new Promise<void>(done=>server.close(()=>done()));}
 });
+
+it('aborts an in-flight deferred update when the application closes',async()=>{
+ const {createServer}=await import('node:http'),{execFile}=await import('node:child_process'),{promisify}=await import('node:util'),{createHash}=await import('node:crypto');
+ const root=await mkdtemp(join(tmpdir(),'ac-update-close-'));roots.push(root);
+ const cwd=join(root,'project'),home=join(root,'home'),market=join(root,'market'),plugin=join(root,'source/probe');
+ await mkdir(cwd);await mkdir(home);await mkdir(join(market,'.claude-plugin'),{recursive:true});await mkdir(plugin,{recursive:true});
+ let bytes=Buffer.alloc(0),hold=false,entered!:()=>void,release!:()=>void;
+ const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+ const server=createServer(async(_req,res)=>{if(hold){entered();await gate;}res.end(bytes);});await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const url=`http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/plugin.tar.gz`;
+ async function publish(version:string){
+  await writeFile(join(plugin,'plugin.json'),JSON.stringify({name:'probe',version,main:'hooks.js',trust:'trusted',compositor:{standard:1,apiVersion:1}}));
+  await writeFile(join(plugin,'hooks.js'),'export default {};');
+  const archive=join(root,'plugin.tar.gz');await promisify(execFile)('tar',['--format=ustar','-czf',archive,'-C',join(root,'source'),'probe']);bytes=await readFile(archive);
+  await writeFile(join(market,'.claude-plugin/marketplace.json'),JSON.stringify({name:'close-market',owner:{name:'Fixture'},plugins:[{name:'probe',version,source:{source:'archive',assets:{[`${process.platform}-${process.arch}`]:{url,sha256:createHash('sha256').update(bytes).digest('hex')}}}}]}));
+ }
+ let reload:Promise<unknown>|undefined;
+ try{
+  await publish('1.0.0');const provider=new ScriptedProvider([{text:'held',hold:true}]);
+  const app=await buildApp({cwd,env:{HOME:home},provider,agentHub:false});apps.push(app);const core=app.createCore(async()=>true);await core.start();
+  expect((await core.invokeTool('marketplace_control',{action:'add',source:market,scope:'project'})).ok).toBe(true);
+  expect((await core.invokeTool('extension_control',{action:'install',name:'probe@close-market',scope:'project'})).ok).toBe(true);
+  expect((await core.invokeTool('extension_control',{action:'enable',name:'probe',scope:'project'})).ok).toBe(true);await app.reloadPlugins(core);
+  await publish('1.1.0');const running=core.submit('Hold while requesting update');await expect.poll(()=>provider.requests.length).toBe(1);
+  expect(JSON.stringify((await core.host.emit('service.extension.control',{action:'update',name:'probe',scope:'project'})).value)).toContain('queued');
+  provider.release();await running;hold=true;
+  reload=app.reloadPlugins(core);await started;
+  await app.close();release();await reload.catch(()=>{});reload=undefined;
+  const state=JSON.parse(await readFile(join(app.storage.paths.state,'extensions-state.json'),'utf8'));
+  expect(state.installed.probe.version).toBe('1.0.0');
+ }finally{release();await reload?.catch(()=>{});server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+},15000);

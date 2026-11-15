@@ -558,9 +558,25 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
         navigation?.snapshot().mode,phase==='down'?state.focused:undefined]);
     };
     const observed=geometry(),gesture=phase==='down'?{accepted:false}:queuedPointer.current;
+    const initial=windowLayout.snapshot(),initialBounds=viewport.current;
+    const observedX=initialBounds?event.x-initialBounds.x:-1,observedY=initialBounds?event.y-initialBounds.y:-1;
+    const observedFrame=initial.frames.find(item=>observedX>=item.x&&observedX<item.x+item.width&&observedY>item.y&&observedY<item.y+item.height);
+    const target=phase==='down'&&event.button===MouseButton.LEFT&&!initial.gesture&&observedFrame
+      ?panes.find(pane=>pane.id===observedFrame.surface):undefined;
     if(scheduleMouse?.(()=>{
       if(phase==='down'){
-        if(geometry()!==observed)return;
+        if(geometry()!==observed){
+          // A pane body click selects a logical window. If it merely moved,
+          // retain that intent rather than retargeting the following typing.
+          const current=windowLayout.snapshot();
+          const same=target?.surface?surfaces.snapshot().includes(target.surface):target?.session
+            ?conversationWindows?conversationWindows.snapshot().some(window=>window.id===target.id&&window.session===target.session):sessions.includes(target.session)
+            :false;
+          if(same&&target&&current.workspace===initial.workspace&&!current.gesture
+            &&(!navigation||navigation.snapshot().mode==='normal')&&current.frames.some(item=>item.surface===target.id))
+            windowLayout.act({type:'focus',id:target.id});
+          return;
+        }
         gesture!.accepted=true;
       }else if(gesture&&!gesture.accepted)return;
       pointer(phase,event);

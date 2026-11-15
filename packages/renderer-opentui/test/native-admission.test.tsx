@@ -127,7 +127,7 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     expect(f.test.captureCharFrame()).not.toContain('MAIN_NEXT_LATER');expect(value).toBe('FIRST_LATER');
     }catch(error){throw Error(`Failed at ${stage}: value=${value}, editor=${f.editor().plainText}\n${f.test.captureCharFrame()}\n${JSON.stringify(f.inputs)}`,{cause:error});}
   },12000);
-  it('rejects a queued pane click after its layout changes',async()=>{
+  it('keeps a queued pane selection on its original window after layout changes',async()=>{
     const f=await fixture();
     f.host.core.host.registerPlugin({name:'mouse-stale',version:'1.0.0',trust:'trusted'},{'ui.change':()=>{}});
     await f.host.core.host.emit('service.ui.view',{plugin:'mouse-stale',id:'main',title:'Mouse stale',view:{input:{id:'reply',label:'Reply',value:''},lines:[]},options:{site:'split'}});
@@ -137,11 +137,12 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     await f.until(()=>f.held.length>0&&f.test.captureCharFrame().includes('FIRST'));
     const main=f.layout.snapshot().frames.find(frame=>frame.surface==='session')!;
     await f.test.mockMouse.click(main.x+5,main.y+7);
+    f.packet('\x1b[200~FOR_MAIN\x1b[201~');
     const before=f.layout.snapshot().frames.find(frame=>frame.surface==='session')!;f.layout.act({type:'swap'});
     await f.until(()=>f.layout.snapshot().frames.find(frame=>frame.surface==='session')!.x!==before.x);
-    f.release();await f.until(()=>!f.client.pending());await f.test.flush({maxPasses:30});
+    f.release();await f.until(()=>f.layout.snapshot().focused==='session'&&f.test.captureCharFrame().includes('FOR_MAIN')&&!f.client.pending());
     expect(f.inputs.filter(input=>input.operation.kind==='layout-action'&&input.operation.action.type==='pointer')).toHaveLength(0);
-    expect(f.layout.snapshot().focused).toBe(id);
+    expect(f.layout.snapshot().focused).toBe('session');
   },12000);
   it('replays a queued drag through its own geometry updates and releases the gesture',async()=>{
     const f=await fixture();

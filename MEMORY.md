@@ -26,9 +26,13 @@ or every plugin-specific mouse action.
 Another held-receipt fixture reproduced a queued pane click being applied after
 the windows had swapped positions. OpenTUI now checks the visible geometry
 before admitting the queued pointer press. A stale press and its associated
-gesture are dropped; a separate delayed drag test checks that its own movements
-and release still run. This covers controlled layout changes in the production
-renderer, not every possible asynchronous UI change.
+gesture were initially dropped; a separate delayed drag test checks that its
+own movements and release still run. A further test showed that dropping a
+body click left subsequent typing targeted at the old window. If the originally
+clicked window is still visible and has the same owner, the renderer now selects
+that window by identity after it moves; the test verifies subsequent input goes
+to it. Other stale gestures remain discarded. Handling subsequent queued input
+when the intended target disappears remains unverified.
 
 ## Physical tmux graphics probe — 2026-11-15
 

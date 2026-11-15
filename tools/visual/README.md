@@ -51,6 +51,9 @@ during foreground interruption, and exact layout plus session restoration with
 `--resume`. Synthetic keys must be absent from terminal output, provider bodies,
 session journals and non-secret profile settings; diagnostic raw keyboard logs
 are deliberately excluded. No user profiles or credentials are read.
+With `VISUAL_APP_DELAY_ANSWER=1`, the loopback fixture streams the answer before
+delaying its finish; the scenario checks Main is running, then waits for ready
+before submitting the next task. This exercises the turn-settlement boundary.
 
 Set `VISUAL_EXECUTABLE=/absolute/path/to/extracted/compositor` for the same proof
 against a native archive. The report records the executable identity. The older

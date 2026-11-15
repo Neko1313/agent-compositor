@@ -7,6 +7,31 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+Build-only [run `43724725266` for `69078aa`](https://github.com/Neko1313/agent-compositor/actions/runs/43724725266)
+passed source verification and all four Linux/macOS x64/ARM64 jobs, including
+the previously failing Intel Main-copy scenario; publication was skipped. The
+downloaded quality and four installed-runtime evidence archives match GitHub's
+recorded SHA-256 digests. The quality archive has 2702 passing tests, five skips,
+and 32 certificates with 405 passing results and 1347 matching evidence
+references. Each platform archive has 13 successful OpenTUI reports (88 checks)
+and nine successful smoke reports. These retained reports do not independently
+verify all four binary artifacts or cover later auto-review, form and workflow
+changes, physical terminals, or general 1.0 readiness.
+
+The generated plugin-release PR's [Node 26 CI run `43726191303`](https://github.com/Neko1313/agent-compositor/actions/runs/43726191303)
+failed the configured OpenTUI application scenario while waiting for the next
+model response. Its retained input trace contains the typed prompt and Enter;
+the final screen still shows that prompt as a draft. The exact running state at
+Enter was not recorded. Main intentionally keeps ordinary input as a draft
+while the preceding turn is running, and answer text can appear before that turn
+settles. The scenario now waits for Main's ready state before the next submit.
+An isolated loopback test that deliberately delays the preceding response's
+finish reproduced the same missing-response failure without the wait and passed
+with it; both PTY reports are retained under
+`dist/opentui-app-no-ready-control-20261116/` and
+`dist/opentui-app-ready-delayed-20261116/`. This demonstrates a possible race,
+not the precise cause of the original failure. The failed run remains failed.
+
 Build-only [run `43722164397` for `f72b017`](https://github.com/Neko1313/agent-compositor/actions/runs/43722164397)
 passed source verification and the Linux x64, Linux ARM64 and macOS ARM64 jobs,
 but failed the macOS Intel Main-copy migration scenario while parsing the fork

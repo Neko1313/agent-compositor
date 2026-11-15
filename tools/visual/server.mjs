@@ -260,6 +260,15 @@ const server = Bun.serve({
         :answer?{content:'APP_ANSWER_RECEIVED: '+(answer.includes('Production')?'Production':'unexpected')+'; model='+body.model}
         :{tool_calls:[{index:0,id:'app-main-question',type:'function',function:{name:'ask_user',arguments:JSON.stringify({question:'MAIN_QUESTION: choose deployment',options:['Preview','Production'],allowOther:false})}}]};
       const tool=Boolean(delta.tool_calls);
+      if(process.env.VISUAL_APP_DELAY_ANSWER==='1'&&prompt==='APP_QUESTION'&&answer){
+        const first=`data: ${JSON.stringify({choices:[{delta,finish_reason:null}]})}\n\n`;
+        const last=`data: ${JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`;
+        return new Response(new ReadableStream({start(controller){
+          controller.enqueue(new TextEncoder().encode(first));
+          const timer=setTimeout(()=>{try{controller.enqueue(new TextEncoder().encode(last));controller.close();}catch{}},3000);
+          request.signal.addEventListener('abort',()=>{clearTimeout(timer);try{controller.close();}catch{}},{once:true});
+        }}),{headers:{'content-type':'text/event-stream'}});
+      }
       return new Response(`data: ${JSON.stringify({choices:[{delta,finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{delta:{},finish_reason:tool?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
     }
     if(process.env.VISUAL_HARNESS&&url.pathname===`/model/${token}/v1/models`)return Response.json({data:[{id:'visual-fixture',context_window:32768}]});

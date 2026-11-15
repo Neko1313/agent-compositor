@@ -25,6 +25,7 @@ async function observe(read,predicate,reason){
 try{
   const runtimeEnv=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR','PYTHON','LD_LIBRARY_PATH','CI'].flatMap(name=>process.env[name]===undefined?[]:[[name,process.env[name]]]));
   server=spawn('bun',['tools/visual/server.mjs'],{cwd:root,env:{...runtimeEnv,VISUAL_OPENTUI_APP:'1',VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off',
+    ...(process.env.VISUAL_APP_DELAY_ANSWER==='1'?{VISUAL_APP_DELAY_ANSWER:'1'}:{}),
     ...(process.env.VISUAL_EXECUTABLE?{VISUAL_EXECUTABLE:resolve(process.env.VISUAL_EXECUTABLE)}:{})},stdio:['ignore','pipe','inherit']});
   serverExit=new Promise(done=>server.once('close',done));
   const url=await new Promise((done,fail)=>{
@@ -229,6 +230,7 @@ try{
   await capture('05-question-and-draft-retained');
   assert.equal((await events()).filter(event=>event.type==='tool.result'&&event.tool==='ask_user').length,0);
   await key('Alt+Enter');await wait('APP_ANSWER_RECEIVED: Production; model=app-beta');
+  if(process.env.VISUAL_APP_DELAY_ANSWER==='1')await waitPane('Main','Main · Running');
   await wait(draft);
   const continuation=await observe(completions,rows=>rows.length===2,'Explicit answer must produce one actual continuation');
   assert.equal(continuation[1].model,'app-beta');assert.equal(continuation[1].credential,'ui');
@@ -238,7 +240,11 @@ try{
   await privateChannels();
   report.checks.push('Proxy settings remain private and preserve loopback bypass; only explicit Main submission sends the selected answer using the newly selected model and private header');
 
-  await main();await key('End');await key('Control+u');await wait('Message Main…');
+  // The answer text can be painted before the preceding turn settles. Main
+  // deliberately retains ordinary input as a draft while it is still running.
+  await main();await waitPane('Main','Main · Ready');
+  if(process.env.VISUAL_APP_DELAY_ANSWER==='1')report.checks.push('Waits for the earlier streamed turn to finish before submitting the next message');
+  await key('End');await key('Control+u');await wait('Message Main…');
   await submit('APP_HOLD');await wait('APP_MODEL_HELD');
   await focusTab('Models & providers');await click('[ Edit connection ]',{last:true});await wait('Edit provider · ui-profile');
   await main();await key('Control+x');await absent('Main · Running');

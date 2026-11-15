@@ -3,7 +3,7 @@ import {Sampler,SystemSampler,chart,chartRaster,type Sample,type SystemSample} f
 import {ChildrenCpu,snapshotChildren,type ChildrenSnapshot} from './children.js';
 
 export class Monitor {
-  samples:Sample[]=[];
+  samples:(Sample|undefined)[]=[];
   private open=false;
   private visible=true;
   private paused=false;
@@ -27,20 +27,21 @@ export class Monitor {
   private childrenHistory:{cpu?:number;partial:boolean}[]=[];
   private currentChildCpu?:{cpu?:number;partial:boolean};
   private currentProcessCpu?:number;
+  private currentProcess?:Sample;
   constructor(private readonly $:any,private readonly sampler=new Sampler(),private readonly readChildren=snapshotChildren,private readonly systemSampler=new SystemSampler()){}
   private stop(){clearTimeout(this.timer);this.timer=undefined;this.revision++;}
   private cancelChildren(){this.childrenRevision++;this.childrenController?.abort();this.childrenController=undefined;this.childrenPending=false;this.childrenCpu.reset();this.currentChildCpu=undefined;}
-  private resetSampler(){this.sampler.reset();this.systemSampler.reset();this.currentProcessCpu=undefined;this.currentSystem=undefined;}
+  private resetSampler(){this.sampler.reset();this.systemSampler.reset();this.currentProcessCpu=undefined;this.currentProcess=undefined;this.currentSystem=undefined;}
   dispose(){this.open=false;this.cancelChildren();this.stop();this.resetSampler();}
   private take(){
-    try{const sample=this.sampler.sample();this.currentProcessCpu=sample.cpu;this.samples.push(sample);this.samples=this.samples.slice(-120);this.error=undefined;}
-    catch(error){this.error=String(error).slice(0,500);this.resetSampler();}
+    try{const sample=this.sampler.sample();this.currentProcess=sample;this.currentProcessCpu=sample.cpu;this.samples.push(sample);this.samples=this.samples.slice(-120);this.error=undefined;}
+    catch(error){this.error=String(error).slice(0,500);this.sampler.reset();this.currentProcess=undefined;this.currentProcessCpu=undefined;this.samples.push(undefined);this.samples=this.samples.slice(-120);}
     try{const sample=this.systemSampler.sample();this.currentSystem=sample;this.systemSamples.push(sample);this.systemSamples=this.systemSamples.slice(-120);this.systemError=undefined;}
     catch(error){this.systemError=String(error).slice(0,500);this.systemSampler.reset();this.currentSystem=undefined;this.systemSamples.push(undefined);this.systemSamples=this.systemSamples.slice(-120);}
   }
   private schedule(){
     this.stop();
-    if(!this.open||!this.visible||this.paused||this.error)return;
+    if(!this.open||!this.visible||this.paused)return;
     const revision=this.revision;
     this.timer=setTimeout(async()=>{
       this.timer=undefined;
@@ -55,9 +56,9 @@ export class Monitor {
   }
   private async paint(focus=false){
     if(!this.open||!this.visible)return;
-    const latest=this.samples.at(-1),mib=(bytes:number)=>(bytes/1048576).toFixed(1),tabs=this.$.ui.supports?.('tabs')===true;
+    const latest=this.currentProcess,mib=(bytes:number)=>(bytes/1048576).toFixed(1),tabs=this.$.ui.supports?.('tabs')===true;
     const system=this.metric==='system-cpu'||this.metric==='system-memory';
-    const values=this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):system?this.systemSamples.map(sample=>sample?(this.metric==='system-cpu'?sample.cpu:sample.nonFreeMemory/1048576):undefined):this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576);
+    const values=this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):system?this.systemSamples.map(sample=>sample?(this.metric==='system-cpu'?sample.cpu:sample.nonFreeMemory/1048576):undefined):this.samples.map(sample=>sample?(this.metric==='cpu'?sample.cpu:sample.rss/1048576):undefined);
     const memory=this.metric==='memory'||this.metric==='system-memory',unit=memory?'MiB':'%',floor=memory?0:100;
     const labels={cpu:'CPU',memory:'Memory',children:'Child CPU','system-cpu':'System CPU','system-memory':'System memory'} as const;
     await this.$.ui.view('resources','Resources',{
@@ -71,7 +72,7 @@ export class Monitor {
         ...(!system?[{text:`CPU: ${this.currentProcessCpu===undefined?'waiting for interval':this.currentProcessCpu.toFixed(1)+'%'} · 100% = one core`},
           {text:latest?`RSS: ${mib(latest.rss)} MiB · JS heap used: ${mib(latest.heapUsed)} MiB`:'No measurements yet.'},
           ...(this.childrenPending?[{text:'Reading child processes…',tone:'muted' as const}]:this.childrenError?[{text:'Child snapshot failed. Try again.',tone:'danger' as const}]:this.children===null?[{text:'Child snapshots are available on Linux only.',tone:'muted' as const}]:this.children?[{text:`Last child snapshot: ${this.children.count} processes · ${mib(this.children.rss)} MiB RSS${this.children.partial?' · incomplete':''}`,tone:'muted' as const}]:[])]:[]),
-        ...(this.error?[{text:'Sampling failed: '+this.error,tone:'danger' as const},{text:'Use Sample now to retry.',tone:'muted' as const}]:[]),
+        ...(this.error?[{text:'Process sampling failed: '+this.error,tone:'danger' as const},{text:'Retrying while live; use Sample now to retry immediately.',tone:'muted' as const}]:[]),
         ...(system?[{text:'System counters describe the host reported by the OS; container limits may differ.',tone:'muted' as const},
           {text:`System CPU: ${this.currentSystem?.cpu===undefined?'waiting for interval':this.currentSystem.cpu.toFixed(1)+'%'} · 100% = all reported cores`},
           {text:this.currentSystem?`System memory: ${mib(this.currentSystem.nonFreeMemory)} / ${mib(this.currentSystem.totalMemory)} MiB non-free (may include cache)`:'No current system memory sample.'},
@@ -103,7 +104,7 @@ export class Monitor {
   async show(){this.stop();this.cancelChildren();this.open=true;this.visible=true;this.resetSampler();this.take();await this.paint(true);this.schedule();}
   private async share($:any){
     if(this.sharing)return;
-    const latest=this.samples.at(-1),child=this.currentChildCpu;
+    const latest=this.currentProcess,child=this.currentChildCpu;
     let observation:string;
     if(this.metric==='children'){
       if(!child||child.cpu===undefined||child.partial){this.shareStatus='No complete child CPU interval to send.';await this.paint();return;}

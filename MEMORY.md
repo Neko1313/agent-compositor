@@ -1,5 +1,16 @@
 # Project memory
 
+## Resource sampling failure isolation — 2026-11-16
+
+Process counter failures previously stopped the shared timer, interrupting
+otherwise available system charts. They also left the last process memory
+sample eligible for sharing after a failure, pause or hide. Process and system
+sampling now retry independently while live; failed process readings are gaps,
+and process memory requires a fresh observation. A controlled fake-counter
+test verifies recovery, system CPU continuity and refusal to share old memory.
+The resources PR certificate and source OpenTUI PTY flow passed; the PTY did
+not inject a process counter failure. These checks do not certify all platforms.
+
 ## System resource charts — 2026-11-16
 
 The `resources` plugin now measures OS-reported aggregate CPU and non-free

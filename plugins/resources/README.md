@@ -80,6 +80,10 @@ pause, hide, reopen or counter failure; sharing waits for a new interval.
 System CPU follows the same interval reset. System memory requires a fresh sample
 after pause or hide; use Sample now while paused to take one explicitly. Failed
 system readings appear as gaps and cannot be shared.
+Process memory also requires a fresh sample after pause, hide or a failed process
+reading. Process failures leave gaps in its charts and are retried while live;
+they do not stop system sampling. System failures likewise do not stop process
+sampling.
 
 The plugin uses existing text-view and visibility contracts; the text plot
 remains portable and the optional image uses the host's raster support.

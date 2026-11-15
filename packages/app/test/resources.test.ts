@@ -141,6 +141,23 @@ describe('resources monitor',()=>{
    broken=true;await monitor.press('sample');expect(latest.lines.some(line=>line.text.includes('CPU: waiting for interval'))).toBe(true);await monitor.press('share');expect(queued).toHaveLength(3);
   }finally{monitor.dispose();}
  });
+ it('keeps system sampling live during process failures and refuses stale process memory',async()=>{
+  vi.useFakeTimers();let broken=false,busy=0,idle=0,latest!:UiTextView;const queued:string[]=[];
+  const sampler=new Sampler({now:()=>BigInt(Date.now())*1000000n+1n,cpu:()=>({user:Date.now(),system:0}),memory:()=>{if(broken)throw Error('PROCESS_DOWN');return {rss:1048576,heapUsed:1,heapTotal:1};}});
+  const system=new SystemSampler({cores:()=>[{times:{user:busy,nice:0,sys:0,idle,irq:0}}],totalMemory:()=>2048,freeMemory:()=>1024});
+  const api={ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{latest=view;},remove:async()=>{}},emit:async(_event:string,input:{text:string})=>{queued.push(input.text);return {value:{queued:true}};}};
+  const monitor=new Monitor(api,sampler,undefined,system);
+  try{
+   await monitor.show();await monitor.press('memory');await monitor.press('share');expect(queued).toHaveLength(1);
+   broken=true;busy=25;idle=75;await vi.advanceTimersByTimeAsync(1000);
+   expect(latest.lines.some(line=>line.text.includes('PROCESS_DOWN'))).toBe(true);expect(monitor.samples.at(-1)).toBeUndefined();
+   await monitor.press('share');expect(queued).toHaveLength(1);expect(latest.lines.some(line=>line.text.includes('No memory sample'))).toBe(true);
+   await monitor.press('system-cpu');expect(latest.lines.some(line=>line.text.includes('System CPU: 25.0%'))).toBe(true);
+   busy=50;idle=150;await vi.advanceTimersByTimeAsync(1000);await monitor.press('share');expect(queued).toHaveLength(2);expect(queued[1]).toContain('System CPU: 25.0%');
+   broken=false;await vi.advanceTimersByTimeAsync(1000);await monitor.press('memory');await monitor.press('share');expect(queued).toHaveLength(3);
+   await monitor.press('pause');await monitor.press('share');expect(queued).toHaveLength(3);
+  }finally{monitor.dispose();}
+ });
  it('does not share an old child CPU interval after pause, tab change or hide',async()=>{
   vi.useFakeTimers();let calls=0,latest!:UiTextView;const queued:string[]=[];
   const read=async()=>{calls++;return {count:1,rss:100,partial:false,system:{ticks:BigInt(calls*200),cpus:'cpu0,cpu1'},processes:new Map([[1,{start:1n,ticks:BigInt(calls*100)}]])};};
@@ -193,7 +210,7 @@ describe('resources monitor',()=>{
   const sampler=new Sampler({now:()=>++time,cpu:()=>({user:0,system:0}),memory:()=>{if(broken)throw Error('COUNTERS_DOWN');return{rss:1048576,heapUsed:100,heapTotal:200};}});
   const monitor=new Monitor({ui:{supports:()=>false,view:async(_id:string,_title:string,view:UiTextView)=>{latest=view;},remove:async()=>{}}},sampler);
   try{
-   await monitor.show();expect(latest.lines.some(line=>line.text.includes('COUNTERS_DOWN'))).toBe(true);expect(vi.getTimerCount()).toBe(0);
+   await monitor.show();expect(latest.lines.some(line=>line.text.includes('COUNTERS_DOWN'))).toBe(true);expect(vi.getTimerCount()).toBe(1);
    broken=false;await monitor.press('sample');expect(latest.lines.some(line=>line.tone==='danger')).toBe(false);expect(vi.getTimerCount()).toBe(1);
    await monitor.press('switch');expect(latest.tabs).toBeUndefined();expect(latest.lines.some(line=>line.text==='Resident memory history (MiB)')).toBe(true);
   }finally{monitor.dispose();}

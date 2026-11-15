@@ -16,7 +16,7 @@ export function resources(f:Fixture,b:Casebook){
  b.add(['hook.failure','command.failure','view.error'],async()=>{
   await f.start();f.failView=true;assert.ok((await f.prompt('/resources',true)).faults.length);f.failView=false;
   const original=process.memoryUsage;
-  try{process.memoryUsage=(()=>{throw Error('COUNTERS_UNAVAILABLE');}) as unknown as typeof original;await f.prompt('/resources');assert.match(JSON.stringify(view()),/Sampling failed.*COUNTERS_UNAVAILABLE/);}
+  try{process.memoryUsage=(()=>{throw Error('COUNTERS_UNAVAILABLE');}) as unknown as typeof original;await f.prompt('/resources');assert.match(JSON.stringify(view()),/Process sampling failed.*COUNTERS_UNAVAILABLE/);}
   finally{process.memoryUsage=original;}
   await press('sample');assert.doesNotMatch(JSON.stringify(view()),/Sampling failed/);await press('pause');
  });

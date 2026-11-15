@@ -6,6 +6,7 @@ import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
 import {createOpenTuiFinder} from './opentui-finder.mjs';
+import {completeJsonLines} from './jsonl.mjs';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-conversation-copies');
 const timeout=20_000,hash=text=>createHash('sha256').update(text).digest('hex');
@@ -71,9 +72,9 @@ for(const composition of ['native','selected']){
     const wait=value=>page.waitForFunction(value=>window.visual?.text().includes(value),value).catch(error=>{throw Error('Terminal missing '+JSON.stringify(value),{cause:error});});
     const absent=value=>page.waitForFunction(value=>!window.visual?.text().includes(value),value).catch(error=>{throw Error('Terminal retained '+JSON.stringify(value),{cause:error});});
     const raw=data=>page.evaluate(data=>socket.send(JSON.stringify({type:'input',data})),data),paste=value=>raw('\x1b[200~'+value+'\x1b[201~');
-    const layout=()=>json(join(launch.state,'layout.json')),trace=async()=>{const value=await readFile(launch.conversationCopies.trace,'utf8');return value.trim().split('\n').filter(Boolean).map(JSON.parse);};
+    const layout=()=>json(join(launch.state,'layout.json')),trace=async()=>completeJsonLines(await readFile(launch.conversationCopies.trace,'utf8'));
     const selectedTrace=async()=>{const file=launch.conversationCopies.selectedTrace;if(!file)return[];const value=await readFile(file,'utf8');return value.trim().split('\n').filter(Boolean).map(JSON.parse);};
-    const completions=async()=>(await readFile(join(directory,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse).filter(row=>row.kind==='completion');
+    const completions=async()=>completeJsonLines(await readFile(join(directory,'app-http.jsonl'),'utf8')).filter(row=>row.kind==='completion');
     const sessions=async()=>(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));
     const journal=async()=>(await Promise.all((await sessions()).map(name=>readFile(join(launch.state,'sessions',name),'utf8')))).join('\n');
     const check=text=>result.checks.push(text);

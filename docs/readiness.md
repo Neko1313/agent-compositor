@@ -7,6 +7,28 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+Build-only [run `43722164397` for `f72b017`](https://github.com/Neko1313/agent-compositor/actions/runs/43722164397)
+passed source verification and the Linux x64, Linux ARM64 and macOS ARM64 jobs,
+but failed the macOS Intel Main-copy migration scenario while parsing the fork
+fixture's JSON. The exact bytes read at failure were not retained. The fixture
+previously wrote its active and fork JSON files in place while the observer
+could read them; it now publishes complete files by rename. Concurrent JSONL
+reads in this scenario also use the complete-line parser. These changes address
+possible partial reads without establishing the cause of the original failure.
+The failed candidate remains failed; a fresh four-platform run is required.
+The revised fixture subsequently passed all eight Main-copy checks in both
+native and selected-controller compositions against the downloaded Linux x64
+binary, with a natural PTY exit. That local run does not establish Intel macOS
+behavior. Evidence is in `dist/candidate-f72b017/copies-fixture-repair/`.
+Its source CI passed on Node 22 and 26. The downloaded quality and three
+successful installed-runtime evidence archives match GitHub's SHA-256 digests;
+the 32 certificates contain 405 passing results and 1347 matching evidence
+references. The failed Intel evidence archive also matches its recorded digest.
+An independently downloaded Linux x64 binary artifact matched its digest,
+reported version 0.8.0, and passed nine local PTY navigation checks including
+keyboard retiling and restart. This does not qualify the other binaries or
+establish daily usability, physical-terminal coverage or 1.0 readiness.
+
 Source [CI for `321a8c8`](https://github.com/Neko1313/agent-compositor/actions/runs/43721499619)
 failed its Node 26 history-resume test: saved focus differed from the baseline
 when the assertion ran. The captured log does not establish the exact ordering

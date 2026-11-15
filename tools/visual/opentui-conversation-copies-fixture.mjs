@@ -12,10 +12,11 @@ export async function seedOpenTuiConversationCopiesFixture(cwd,paths,composition
   await writeFile(join(directory,'plugin.json'),JSON.stringify({name:requester,version:'1.0.0',trust:'trusted',main:'hooks.js',
     commands:[{name:'/copy-probe',description:'Isolated conversation-copy lifecycle proof',execution:'immediate'}],hookTimeouts:{'command.invoke':300000,'ui.press':300000}}));
   await writeFile(join(directory,'hooks.js'),String.raw`
-import {appendFileSync,writeFileSync,readFileSync} from 'node:fs';import {createHash} from 'node:crypto';
+import {appendFileSync,writeFileSync,readFileSync,renameSync} from 'node:fs';import {createHash} from 'node:crypto';
 const trace=TRACE,active=ACTIVE,fork=FORK,hash=text=>createHash('sha256').update(text).digest('hex');
+let sequence=0;const publish=(file,value)=>{const temp=file+'.'+process.pid+'.'+(++sequence)+'.tmp';writeFileSync(temp,JSON.stringify(value));renameSync(temp,file);};
 const record=value=>appendFileSync(trace,JSON.stringify({at:Date.now(),...value})+'\n');
-async function started($,event){writeFileSync(active,JSON.stringify({id:$.session.id}));record({event,sessionId:$.session.id});
+async function started($,event){publish(active,{id:$.session.id});record({event,sessionId:$.session.id});
   await $.ui.view('controls','Copy controls',{lines:[{text:'COPY_CONTROLS',bold:true},{text:'Open private form',action:'form'},
     {text:'Fork current conversation',action:'fork'},{text:'Resume fork',action:'resume'}]},{workspace:6,focus:false});}
 async function run(args,$){
@@ -26,7 +27,7 @@ async function run(args,$){
     const token=String(result?.values.token??'');record({event:'form-result',sessionId:$.session.id,result:result?
       {action:result.action,name:result.values.name,tokenLength:token.length,tokenHash:hash(token)}:{cancelled:true}});
   }else if(mode==='fork'){
-    const result=await $.emit('service.session.control',{action:'fork',name:'Copy fork proof'});record({event:'fork-result',result});if(result?.value?.id)writeFileSync(fork,JSON.stringify({id:result.value.id}));
+    const result=await $.emit('service.session.control',{action:'fork',name:'Copy fork proof'});record({event:'fork-result',result});if(result?.value?.id)publish(fork,{id:result.value.id});
   }else if(mode==='resume'){
     const result=await $.emit('service.session.control',{action:'resume',id:id??JSON.parse(readFileSync(fork,'utf8')).id});record({event:'resume-result',result});
   }else throw Error('Unknown copy fixture command');

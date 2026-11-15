@@ -35,12 +35,13 @@ async function fixture(heldModel=false,selectedControllers=false){
   cleanup.push(()=>app.close());
   const layout=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'}],initial:['session']});cleanup.push(()=>layout.disconnect());
   const host=createOpenTuiHost(app,layout);cleanup.push(()=>host.close());await host.start();
-  const inputs:NativeInputMessage[]=[],held:NativeReceiptMessage[]=[],admissionTrace:unknown[]=[];
+  const inputs:NativeInputMessage[]=[],held:NativeReceiptMessage[]=[],heldInputs:NativeInputMessage[]=[],admissionTrace:unknown[]=[];
   const rawFrames=()=>host.surfaces.snapshot().flatMap(source=>{const frame=source.snapshot().controller;return frame?[{
     pane:source.id,id:frame.id,revision:frame.revision,inputRevision:frame.inputRevision,
     name:frame.view.lines.find(line=>line.text.startsWith('Name: '))?.text,
   }]:[];});
   let hold:(input:NativeInputMessage)=>boolean=()=>false;
+  let holdInput:(input:NativeInputMessage)=>boolean=()=>false;
   let client:ReturnType<typeof createNativePresentationClient>;
   const copy=(message:WireMessage)=>decodeLine(encodeMessage(message));
   const broker=createOpenTuiWireHost({host,layout,onCtrlC(){
@@ -54,6 +55,7 @@ async function fixture(heldModel=false,selectedControllers=false){
   });cleanup.push(()=>broker.close());
   client=createNativePresentationClient(message=>{
     const wire=copy(message);if(wire.type==='native-input')inputs.push(wire);
+    if(wire.type==='native-input'&&holdInput(wire)){heldInputs.push(wire);return;}
     queueMicrotask(()=>{if(selectedControllers&&wire.type==='native-input')admissionTrace.push({stage:'host-receive',input:wire,raw:rawFrames()});broker.receive(wire);});
   });cleanup.push(()=>client.close());client.hello();broker.hello();await client.ready;
   const test=terminal.current=await createTestRenderer({width:100,height:36,exitOnCtrlC:false});cleanup.push(()=>test.dispose());
@@ -72,9 +74,11 @@ async function fixture(heldModel=false,selectedControllers=false){
     await writeFile(join(directory,'setup-final.json'),JSON.stringify({surfaces:host.surfaces.snapshot().map(source=>({id:source.id,state:source.snapshot()})),notice:host.session.snapshot().notice,
       raw:rawFrames(),admission:admissionTrace,inputs,originalControllerTrace:await readFile(controllerFixture!.trace,'utf8'),frame:test.captureCharFrame()},null,2)+'\n');
   });
-  return{app,host,provider,layout,client,test,inputs,held,editor,until,running,controllerFixture,admissionTrace,rawFrames,exited:()=>exited,
+  return{app,host,provider,layout,client,test,inputs,held,heldInputs,editor,until,running,controllerFixture,admissionTrace,rawFrames,exited:()=>exited,
     holdWhen(predicate:typeof hold){hold=predicate;},
     release(){hold=()=>false;for(const receipt of held.splice(0))client.receive(receipt);},
+    holdInputWhen(predicate:typeof holdInput){holdInput=predicate;},
+    releaseInputs(){holdInput=()=>false;for(const input of heldInputs.splice(0))broker.receive(input);},
     // One actual SDK parser packet, rather than separate synthetic key callbacks.
     packet(text:string){test.renderer.stdin.emit('data',Buffer.from(text));},
   };
@@ -83,6 +87,30 @@ async function fixture(heldModel=false,selectedControllers=false){
 // Native Node FFI is supported from Node 26; Node 22 still runs the pure runner
 // lifecycle and adapter tests without importing the SDK runtime.
 describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native production wire admission and resident input',()=>{
+  it('retains the final draft character across a stale field revision and immediate focus switch',async()=>{
+    const f=await fixture();let release!:()=>void,entered=false,value='';const gate=new Promise<void>(resolve=>{release=resolve;});
+    f.host.core.host.registerPlugin({name:'draft-revision',version:'1.0.0',trust:'trusted'}, {
+      'ui.change':async(event,$)=>{if(event.value==='DRAF'){entered=true;await gate;}value=event.value;
+        await $.ui.view('main','Draft revision',{input:{id:'reply',label:'Reply',value},lines:[]});},
+    });
+    await f.host.core.host.emit('service.ui.view',{plugin:'draft-revision',id:'main',title:'Draft revision',view:{input:{id:'reply',label:'Reply',value:''},lines:[]},options:{site:'split'}});
+    const id='plugin-draft-revision-main';await f.until(()=>f.host.surfaces.snapshot().some(source=>source.id===id));
+    f.layout.act({type:'focus',id});if(!f.layout.snapshot().fullscreen)f.layout.act({type:'zoom'});
+    let stage='initial';try{
+      await f.until(()=>f.test.captureCharFrame().includes('Reply:'));f.packet('\t\x1b[200~DRAF\x1b[201~');
+      stage='prefix';await f.until(()=>entered&&f.test.captureCharFrame().includes('DRAF'));
+      f.holdInputWhen(input=>input.operation.kind==='surface-change'&&input.operation.value==='DRAFT');f.packet('T');
+      stage='held final';await f.until(()=>f.heldInputs.length===1);const stale=f.heldInputs[0];f.packet('\x1b0');
+      release();stage='published prefix';await f.until(()=>f.client.surfaces.snapshot().find(source=>source.id===id)?.snapshot().view?.input?.value==='DRAF');
+      expect(f.layout.snapshot().focused).toBe(id);f.releaseInputs();
+      stage='recovered final';await f.until(()=>value==='DRAFT'&&f.layout.snapshot().focused==='session'&&!f.client.pending());
+      const edits=f.inputs.filter(input=>input.operation.kind==='surface-change'&&input.operation.value==='DRAFT');
+      expect(edits.length).toBeGreaterThanOrEqual(2);expect(edits[0].id).toBe(stale.id);
+      expect(edits[1].operation).toMatchObject({kind:'surface-change',value:'DRAFT'});
+      expect(edits[1].revision).toBeGreaterThan(edits[0].revision!);
+    }catch(error){throw Error(`Failed at ${stage}: value=${value}; inputs=${JSON.stringify(f.inputs)}\n${f.test.captureCharFrame()}`,{cause:error});}
+    finally{release();f.releaseInputs();}
+  },12000);
   it('buffers Enter and later typing until a held plugin-field edit is admitted',async()=>{
     const f=await fixture();let value='';const events:string[]=[];
     f.host.core.host.registerPlugin({name:'input-order',version:'1.0.0',trust:'trusted'}, {

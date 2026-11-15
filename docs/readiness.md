@@ -18,9 +18,15 @@ failed the installed Linux ARM64 `/btw` scenario: its side draft was saved as
 failure report and terminal trace are in
 `dist/candidate-938-arm-failure/opentui-btw-linux-arm64/`. Later changes include
 retry handling for an earlier locally typed field value and input-admission
-ordering, but this artifact does not establish which race caused the failure.
-The candidate has not passed; current-source four-platform certification is
-still required. At the time of inspection its macOS Intel job was still running.
+ordering. A controlled production-renderer regression delays the final edit,
+publishes its previous prefix and switches focus; with the `938edb9` native
+client it retains `DRAF`, while the current client retries and retains `DRAFT`.
+That hybrid source experiment establishes one possible mechanism, not the exact
+event ordering of the ARM64 failure. The candidate completed with the other
+three platforms passing and publication skipped. Current-source four-platform
+certification remains required; build-only run `43766867589` for `c119f4e` has
+started verification. The hybrid and current test outputs are retained under
+`dist/draft-revision-comparison-20261116/`.
 
 An installed Linux x64 OpenTUI `/btw` probe reproduced a stale side Reply field:
 the draft reached private storage after switching to a held Main, but reopening

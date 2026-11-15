@@ -10,10 +10,15 @@ Build-only run `43762410510` for `938edb9` failed its installed Linux ARM64
 side-conversation gate: the final durable draft was `BTW_SIDE_DRAF` while the
 PTY input trace contains the final `T`. Evidence was downloaded to
 `dist/candidate-938-arm-failure/opentui-btw-linux-arm64/`. This predates
-`ab20151` and later input-order fixes; the saved evidence does not identify the
-rejected or lost event, so do not claim those fixes resolve this exact failure
-without a fresh native candidate. Its macOS Intel job was still running when
-last inspected; this failed candidate is not a release certificate.
+`ab20151` and later input-order fixes. A controlled regression with the current
+renderer/host and only the `938edb9` native client substituted holds the final
+edit until its prior prefix is published: that hybrid retains `DRAF`, while the
+current client retries and retains `DRAFT` before focus changes. The experiment
+proves a possible cause, not the exact ordering in the ARM64 artifact. Run
+`43762410510` completed with the other three platforms passing and publication
+skipped. Fresh build-only run `43766867589` for `c119f4e` has started; the
+failed candidate is not a release certificate. The hybrid failure and current
+pass are in `dist/draft-revision-comparison-20261116/`.
 
 ## Side-agent input observation — 2026-11-16
 

@@ -517,8 +517,8 @@ protected files still fail. A separate child with a sanitized evaluation
 environment runs the actual SDK host and checks the delivered plugin with zero
 model requests. Its metadata probes and real process checks are
 reported distinctly. Failed npm execution records the actual tool result;
-if the cancelled neighbor PID is still observable when the operation settles,
-its PID and, on Linux when available, process state are recorded. These
+if the cancelled neighbor PID remains observable after a bounded wait, its PID
+and, on Linux when available, process state are recorded. These
 diagnostics do not turn an observable PID into a cleanup pass. Installed
 authoring, independent SDK grading, package
 certification and the actual terminal install/configure/update/remove lifecycle

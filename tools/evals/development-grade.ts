@@ -91,7 +91,7 @@ async function gradeInProcess(input:DevelopmentGradeInput,lifetime?:GradeLifetim
     check('actual SDK npm execution',actualOk,actualOk?undefined:JSON.stringify(actual).slice(0,4096));
     const actualFailure=await invoke({action:'run',name:'fail'});check('actual npm exit7 remains failure',!actualFailure.ok&&String(actualFailure.error).includes('7')&&String(actualFailure.error).includes('REAL_SDK_NPM_FAILURE'));
     await app.storage.configure('project-checks.json',{maxChars:1100,timeoutMs:10000});
-    const until=async(read:()=>Promise<boolean>|boolean)=>{for(let i=0;i<300;i++){lifetime?.signal.throwIfAborted();if(await read())return;await new Promise(resolve=>setTimeout(resolve,10));}throw Error('Independent process checkpoint not reached');};
+    const until=async(read:()=>Promise<boolean>|boolean,required=true)=>{for(let i=0;i<300;i++){lifetime?.signal.throwIfAborted();if(await read())return true;await new Promise(resolve=>setTimeout(resolve,10));}if(required)throw Error('Independent process checkpoint not reached');return false;};
     const pid=async(name:string)=>Number(await readFile(join(caller,name+'.pid'),'utf8').catch(()=>''));
     const alive=(value:number)=>{try{process.kill(value,0);return value>0;}catch{return false;}};
     const neighborController=new AbortController();
@@ -114,6 +114,9 @@ async function gradeInProcess(input:DevelopmentGradeInput,lifetime?:GradeLifetim
         const {rm}=await import('node:fs/promises');await rm(join(caller,'slow.pid'),{force:true});
       }
     }finally{neighborController.abort();await neighbor;}
+    // The npm child can briefly remain as an exited zombie until its parent
+    // reaps it. Require the same bounded disappearance used for slow workers.
+    await until(async()=>!alive(await pid('neighbor')),false);
     const neighborPid=await pid('neighbor'),neighborAlive=alive(neighborPid);
     const stat=neighborAlive&&process.platform==='linux'?await readFile(`/proc/${neighborPid}/stat`,'utf8').catch(()=>undefined):undefined;
     const state=stat?.match(/^\d+ \(.*\) ([A-Z]) /)?.[1];

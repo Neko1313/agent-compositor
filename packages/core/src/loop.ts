@@ -1205,7 +1205,7 @@ export class AgentCore {
     if(this.options.isWorkBlocked?.()){
       const recoveryId=source==='user'?(recoveredId??randomUUID()):undefined;
       await this.queuePrompt({text,source,recoveryId},admitted);
-      this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'extension-manager',message:'Message queued while plugins change. Apply /reload if the change requires it.',level:'info'}});
+      if(cancellation===this.promptCancellation)this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'extension-manager',message:'Message queued while plugins change. Apply /reload if the change requires it.',level:'info'}});
       return;
     }
     // Terminal hooks and journal writes still belong to the previous turn.
@@ -1882,12 +1882,12 @@ export class AgentCore {
       await this.emit('prompt.queued',{text:input.text,depth},undefined,input.recoveryId?{recoveryId:input.recoveryId}:undefined);
     })().catch(error=>{
       const index=this.promptQueue.indexOf(entry);if(index>=0)this.promptQueue.splice(index,1);
-      entry.cancel();if(input.recoveryId)this.recoveringInputs.delete(input.recoveryId);
+      if(input.recoveryId)this.recoveringInputs.delete(input.recoveryId);
       throw error;
     });
     entry.ready=Promise.race([write,cancelled]);
     void entry.ready.catch(()=>{});
-    return write;
+    return entry.ready;
   }
   private async waitForQueuedWrite(ready:Promise<void>):Promise<boolean>{
     const signal=this.queuePause.signal;if(signal.aborted)return false;

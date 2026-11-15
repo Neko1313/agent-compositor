@@ -275,3 +275,18 @@ it('keeps a steer consistent when interruption races its applied journal write',
   expect(resumed.getMessages().filter(message=>message.content==='Applied as stopping')).toHaveLength(1);
   expect(resumed.getRecoveredInputs()).toEqual([]);
 });
+
+it('releases an interrupted queued input while its intent write is held', async () => {
+  const write=gate(),journal:SessionEvent[]=[],provider=new ScriptedProvider([{text:'Working',hold:true}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.queue.intent'))await write.wait();journal.push(...events);
+  }}});
+  const main=f.core.dispatchInput('First');await main.admitted;await expect.poll(()=>provider.requests.length).toBe(1);
+  const queued=f.core.dispatchInput('Keep this draft');await write.entered;f.core.interrupt();
+  try {expect(await Promise.race([queued.admitted,new Promise<never>((_,reject)=>setTimeout(()=>reject(Error('queued input still blocked')),500))])).toBe(false);}
+  finally {write.release();provider.release();await queued.completion;await main.completion;}
+  await expect.poll(()=>journal.some(event=>event.type==='prompt.queue.intent')).toBe(true);
+  const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},structuredClone(journal));cores.push(resumed);
+  expect(resumed.getRecoveredInputs()).toMatchObject([{text:'Keep this draft'}]);
+  expect(provider.requests).toHaveLength(1);
+});

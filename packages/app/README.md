@@ -107,7 +107,9 @@ Interrupting work cancels ordinary queued messages, including messages waiting
 for plugin changes. The app remains open; a second Ctrl+C exits if no work remains. After reopening a session,
 `/recover` lists newer user messages recorded in the journal without a recorded
 submission. New, queued and steering messages wait for the recovery intent write before
-acceptance when persistent storage is configured. Use
+acceptance when persistent storage is configured. Interrupting an input before
+its intent write completes keeps the draft unaccepted; a late write can still
+make it appear in `/recover` after reopening. Use
 `/recover show N` to read one, `/recover retry N` to submit it explicitly, or
 `/recover discard N` to remove it from recovery. A recovered message may have
 been cancelled or may have begun processing before a crash; inspect the session

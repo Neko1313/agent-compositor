@@ -46,6 +46,27 @@ The source wire fixture additionally ran through real tmux with forced Kitty:
 it advertised no `Raster` and retained the text fallback, with a painted frame
 in `dist/tmux-research-20261115/wire-source-forced-painted/`.
 
+The follow-up `tmux-image-codec.ts` is an internal building block, not enabled
+in the application. Its compressed and chunked RGBA output, feature query,
+explicit cell coordinates and image-specific deletion were exercised through
+actual OpenTUI `NativeSession`, tmux 3.8 and Kitty 0.50.0. The retained
+`probe-opentui-codec-delete-v2/` captures show red pixels at the initial and
+moved positions and none after deletion even though placeholder text remains.
+With passthrough off, `probe-opentui-codec-off/` reports an unconfirmed query
+and the fixture shows its fallback. These are synthetic toolkit fixtures, not
+the Ghost plugin or a shipping tmux renderer. Production integration must
+still implement ordered writes, backpressure, bounded frame coalescing,
+capability timeout, resource cleanup and full real-app lifecycle validation.
+
+The next source step adds a bounded atomic-output admission helper. A
+synthetic 128×128 RGBA image requiring multiple Kitty chunks was compressed,
+submitted as one ordered OpenTUI `NativeSession` write and displayed through
+tmux; moving the placeholders and deleting the image were checked by actual
+Kitty screen pixels in `probe-opentui-codec-atomic/`. Unit tests cover queue
+pressure, cancellation before admission, immutable pending bytes and oversized
+batch rejection. This helper is still not connected to the Ghost or the main
+renderer, and it does not yet provide animation or frame coalescing.
+
 ## Media candidate timing regression and causal repair — 2026-11-15
 
 This goal turn makes concrete progress: source bf5e61b2ac83b2af4186cd313673182fa113e131

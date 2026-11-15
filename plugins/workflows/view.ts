@@ -36,6 +36,18 @@ function stageDetails(stage:Stage):UiTextView['lines']{
  ];
 }
 
+/** Match the engine's recovery rules in both semantic and legacy views. */
+export function workflowControls(run:Run):UiTextView['lines']{
+ if(run.status==='completed')return [];
+ const hasFailedStage=run.stages.some(stage=>stage.status==='failed');
+ return [
+  ...(run.status==='running'?[{text:'[ Pause scheduling ]',action:'pause',tone:'accent' as const}]:
+   hasFailedStage?[{text:'Open a failed stage and retry it to resume.',tone:'warning' as const}]:
+   [{text:'[ Resume workflow ]',action:'resume',tone:'accent' as const}]),
+  {text:'[ Stop workflow ]',action:'stop',tone:'danger'},
+ ];
+}
+
 /** Pure semantic views; the plugin owns navigation and the engine owns execution. */
 export function workflowView(runs:Run[],state:WorkflowViewState,withTabs=false):UiTextView{
  const common:UiTextView['lines']=[{text:'Dynamic workflows',bold:true},{text:'[ Refresh ]',action:'refresh'}];
@@ -47,7 +59,7 @@ export function workflowView(runs:Run[],state:WorkflowViewState,withTabs=false):
    {text:`${run.title} · ${run.status}`,bold:true},
    {text:`${run.stages.reduce((n,stage)=>n+(stage.tokens??0),0)} accounted tokens · ${run.concurrency} workers max`,tone:'muted'},
    ...(run.error?chunks(run.error).map(line=>({...line,tone:'warning' as const})):[]),
-   ...(run.status==='completed'?[]:[{text:run.status==='running'?'[ Pause scheduling ]':'[ Resume workflow ]',action:run.status==='running'?'pause':'resume',tone:'accent' as const},{text:'[ Stop workflow ]',action:'stop',tone:'danger' as const}]),
+   ...workflowControls(run),
    ...page.lines,
   ],table:{columns:[{label:'Stage',width:26},{label:'State',width:12},{label:'Attempt',width:7},{label:'Tokens',width:10}],rows:run.stages.slice(page.start,page.start+PAGE_SIZE).map(stage=>({
    id:stage.id,cells:[title(stage.title,stage.id).slice(0,500),stage.status??'pending',String(stage.attempts??0),String(stage.tokens??0)],

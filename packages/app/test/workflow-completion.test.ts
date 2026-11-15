@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 import {WorkflowEngine} from '../../../plugins/workflows/engine.js';
-import {workflowView,stageAction,initialViewState} from '../../../plugins/workflows/view.js';
+import {workflowView,workflowControls,stageAction,initialViewState} from '../../../plugins/workflows/view.js';
 import {uiTextViewSchema} from '@agent-compositor/events';
 import workflowHooks,{dispose as disposeWorkflowViews} from '../../../plugins/workflows/hooks.js';
 const roots:string[]=[],apps:Awaited<ReturnType<typeof buildApp>>[]=[];
@@ -112,6 +112,16 @@ it('paginates all 500 stages and preserves large results in schema-valid expanda
  const details=unicode.table!.rows[0].details!,index=details.findIndex(line=>line.text==='Output');
  expect(details.slice(index+1).map(line=>line.text).join('')).toBe(output);
  expect(details.every(line=>!/[\uD800-\uDBFF]$/.test(line.text))).toBe(true);
+});
+it('directs failed workflows to stage retry instead of offering a resume that the engine rejects',()=>{
+ const run:any={id:'one',title:'Recovery',status:'failed',concurrency:1,stages:[{id:'a',title:'Build',prompt:'run build',status:'failed',error:'failed'}]};
+ const view=uiTextViewSchema.parse(workflowView([run],{...initialViewState,mode:'stages',runId:'one',stageId:'a'}));
+ expect(view.lines.some(line=>line.action==='resume')).toBe(false);
+ expect(view.lines.some(line=>line.text.includes('Open a failed stage and retry'))).toBe(true);
+ expect(view.table!.rows[0].details!.some(line=>line.action==='retry')).toBe(true);
+ expect(workflowControls({...run,status:'paused',stages:[{...run.stages[0],status:'pending'}]}).some(line=>line.action==='resume')).toBe(true);
+ expect(workflowControls({...run,status:'running'}).some(line=>line.action==='pause')).toBe(true);
+ expect(workflowControls({...run,status:'completed'})).toEqual([]);
 });
 it('wakes the originating agent on workflow completion without parent polling and permits foreground chat',async()=>{
  const f=await setup();const result=await f.core.invokeTool('workflow_run',{action:'start',stages:[{id:'a',prompt:'WORKER'}]});expect(result.ok).toBe(true);

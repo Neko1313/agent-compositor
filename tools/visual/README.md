@@ -526,6 +526,10 @@ corrupts a selected plugin manifest in the isolated fixture, checks that the
 guide reports the unresolved selection after reload, then restores the file and
 checks recovery without model requests. Set `VISUAL_ONBOARDING_OPENTUI=1` for
 OpenTUI. This is a controlled loader failure, not a marketplace availability test.
+`VISUAL_OUTPUT=dist/workflow-recovery node tools/visual/workflow-recovery-check.mjs`
+uses a scripted provider to fail a workflow stage, verifies the recovery guidance
+and executes the selected-stage retry through the real Ink view. The retry fails
+again by design; the persisted attempt count verifies it actually ran.
 
 `VISUAL_OUTPUT=dist/btw-proof node tools/visual/plugin-check.mjs btw` checks the
 actual side-conversation flow: opening while the main model is held, inline

@@ -66,7 +66,8 @@ labeled fields; Alt+f opens a full-width table. Run and stage lists use pages of
 100 items with Previous/Next controls, including workflows with 500 stages.
 
 Click a stage to expand its agent ID, dependencies, prompt, output/error and retry
-action. Only the selected stage includes its full detail payload; long prompts
+action. When a stage fails, open that stage and choose **Retry selected stage**;
+resuming the workflow directly cannot bypass a failed stage. Only the selected stage includes its full detail payload; long prompts
 and results are split into bounded lines rather than silently shortened. The
 table shows current/last activity, attempts and accounted tokens (which can be
 estimates). Closing the panel suppresses background redraws and later workflow

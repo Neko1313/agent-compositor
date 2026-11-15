@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { HooksApi } from "@agent-compositor/hooks";
 import type { UiTextView } from "@agent-compositor/events";
-import {workflowView,initialViewState,stageAction,type WorkflowViewState} from './view.js';
+import {workflowView,workflowControls,initialViewState,stageAction,type WorkflowViewState} from './view.js';
 
 type Run = { id: string; steps: { prompt: string; result: string }[] };
 // Reject superseded renders and drain submitted frames at the close boundary.
@@ -129,7 +129,7 @@ async function showText($:HooksApi,token:RenderToken){
     {text:`${run.title} · ${run.status}`,bold:true,tone:run.status==='completed'?'success':'text'},
     {text:`${run.stages.reduce((n,s)=>n+(s.tokens??0),0)} accounted tokens · ${run.concurrency} workers max`,tone:'muted'},
     ...(run.error?[{text:run.error,tone:'warning'}]:[]),
-    ...(run.status==='completed'?[]:[{text:run.status==='running'?'[ Pause scheduling ]':'[ Resume workflow ]',action:run.status==='running'?'pause':'resume',tone:'accent'},{text:'[ Stop workflow ]',action:'stop',tone:'danger'}]),
+    ...workflowControls(run),
     ...run.stages.map(s=>({text:`${s.status==='completed'?'✓':s.status==='failed'?'!':s.status==='running'?'●':'○'} ${s.title??s.id} · ${s.status} · attempt ${s.attempts??0} · ${s.tokens??0} tokens${s.status==='running'&&s.activity?' · '+s.activity:''}`,action:'stage:'+s.id,selected:s.id===selected})),
     ...(stage?[{text:'',},{text:`Stage: ${stage.title??stage.id}`,bold:true},{text:`Agent: ${stage.agentId??'not started'}`,tone:'muted'},{text:`Depends on: ${(stage.dependsOn??[]).join(', ')||'none'}`,tone:'muted'},...(['failed','stopped'].includes(stage.status!)?[{text:'[ Retry selected stage ]',action:'retry',tone:'accent'}]:[]),{text:stage.prompt},{text:stage.error??stage.output??'Waiting for a result',tone:stage.error?'danger':'text'}]:[]),
     {text:'[ Legacy Python journals ]',action:'legacy',tone:'muted'},

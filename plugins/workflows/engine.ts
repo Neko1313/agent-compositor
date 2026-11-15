@@ -70,6 +70,7 @@ export class WorkflowEngine {
         promise: Promise<void>;
     }>();
     private writes = new Map<string, Promise<void>>();
+    private versions = new Map<string,string>();
     private admissions = new Set<Promise<void>>();
     private leases = new Map<string, import('node:fs/promises').FileHandle>();
     private listeners = new Set<() => Promise<void> | void>();
@@ -82,7 +83,8 @@ export class WorkflowEngine {
         if (!/^[a-f0-9-]{36}\.json$/.test(name))
             continue;
         try {
-            const run = JSON.parse(await readFile(join(this.root(), name), 'utf8')) as Run;
+            const raw=await readFile(join(this.root(), name), 'utf8');
+            const run = JSON.parse(raw) as Run;
             this.validate(run.stages, run.maxStages);
             run.maxTokensTotal ??= 120000;
             run.tokensCharged ??= run.stages.reduce((n,s)=>n+(s.tokens??0),0);
@@ -101,7 +103,7 @@ export class WorkflowEngine {
                     }
                 run.error = 'Recovered after interruption. Resume explicitly after checking side effects.';
             }
-            this.runs.set(run.id, run);
+            this.runs.set(run.id, run);this.versions.set(run.id,raw);
         }
         catch { /* Ignore corrupt runs; never start work while loading. */ }
     } })(); }
@@ -109,7 +111,7 @@ export class WorkflowEngine {
     private async persist(run: Run) {
         run.updatedAt = new Date().toISOString();
         const snapshot = structuredClone(run);
-        const write = (this.writes.get(run.id) ?? Promise.resolve()).catch(() => { }).then(() => atomicJson(join(this.root(), run.id + '.json'), snapshot));
+        const write = (this.writes.get(run.id) ?? Promise.resolve()).catch(() => { }).then(async()=>{await atomicJson(join(this.root(), run.id + '.json'), snapshot);this.versions.set(run.id,JSON.stringify(snapshot,null,2));});
         this.writes.set(run.id, write);
         await write;
         for (const listener of this.listeners)
@@ -144,8 +146,12 @@ export class WorkflowEngine {
     }
     private async release(id: string) { const handle = this.leases.get(id); if (!handle)
         return; this.leases.delete(id); await handle.close(); await unlink(join(this.root(), id + '.lock')).catch(() => { }); }
-    async refresh() { if (this.active.size)
-        return; this.ready = undefined; this.runs.clear(); await this.load(); }
+    private async requireCurrent(id:string){
+        const actual=await readFile(join(this.root(),id+'.json'),'utf8');
+        if(actual!==this.versions.get(id))throw Error('Workflow changed in another process; refresh before changing it');
+    }
+    async refresh() { if (this.active.size || this.admissions.size)
+        return; this.ready = undefined; this.runs.clear();this.versions.clear(); await this.load(); }
     private validate(stages: Stage[], max = 100) {
         if (!Array.isArray(stages) || !stages.length || stages.length > max || !Number.isInteger(max) || max > 500 || max < 1)
             throw Error('Workflow requires 1..maxStages stages (max 500)');
@@ -209,7 +215,7 @@ export class WorkflowEngine {
             this.launch(run);
             return structuredClone(run);
         } catch(error) {
-            this.runs.delete(run.id);this.contexts.delete(run.id);this.writes.delete(run.id);
+            this.runs.delete(run.id);this.contexts.delete(run.id);this.writes.delete(run.id);this.versions.delete(run.id);
             const failures:unknown[]=[];
             if(persisted)try{await unlink(join(this.root(),run.id+'.json'));}catch(cause:any){if(cause.code!=='ENOENT')failures.push(cause);}
             if(owned)try{await this.release(run.id);}catch(cause){failures.push(cause);}
@@ -279,6 +285,7 @@ export class WorkflowEngine {
             await Promise.race(jobs.values());
         }
         await Promise.allSettled(jobs.values());
+        if(run.status==='stopped')for(const stage of run.stages)if(stage.status==='pending')stage.status='stopped';
         await this.persist(run);
     }
     private async execute(run: Run, stage: Stage, signal: AbortSignal, allocation:number) {
@@ -336,15 +343,22 @@ export class WorkflowEngine {
             return structuredClone(run);
         }
         if (action === 'stop') {
-            run.status = 'stopped';
-            this.active.get(id)?.controller.abort();
-            await this.active.get(id)?.promise;
-            for (const s of run.stages)
-                if (s.status === 'pending')
-                    s.status = 'stopped';
-            await this.persist(run);
-            await this.deliver(run,this.contexts.get(id)??context);
-            return structuredClone(run);
+            const job=this.active.get(id);
+            if(job){run.status='stopped';job.controller.abort();await job.promise;return structuredClone(run);}
+            if(this.closed)throw Error('Workflow engine closed');
+            let finish!:()=>void;const admission=new Promise<void>(resolve=>{finish=resolve;});this.admissions.add(admission);
+            try{
+                await this.lease(id);
+                try{
+                    if(this.closed)throw Error('Workflow engine closed');
+                    await this.requireCurrent(id);
+                    const before=structuredClone(run);
+                    try{run.status='stopped';for(const s of run.stages)if(s.status==='pending')s.status='stopped';await this.persist(run);}
+                    catch(error){for(const key of Object.keys(run))delete (run as any)[key];Object.assign(run,before);throw error;}
+                    await this.deliver(run,this.contexts.get(id)??context);
+                    return structuredClone(run);
+                }finally{await this.release(id);}
+            }finally{this.admissions.delete(admission);finish();}
         }
         if (run.status === 'running')
             return structuredClone(run);
@@ -371,6 +385,7 @@ export class WorkflowEngine {
             const before=structuredClone(run),previousContext=this.contexts.get(run.id);let persisted=false;
             try {
                 if(this.closed)throw Error('Workflow engine closed');
+                await this.requireCurrent(run.id);
                 if(target){target.status='pending';target.error=undefined;}
                 else for(const s of run.stages)if(s.status==='stopped')s.status='pending';
                 this.contexts.set(run.id,context);run.ownerSessionId=context.sessionId;
@@ -383,7 +398,7 @@ export class WorkflowEngine {
                 Object.assign(run,before);
                 if(previousContext)this.contexts.set(run.id,previousContext);else this.contexts.delete(run.id);
                 let rollbackError:unknown;
-                if(persisted)try{await atomicJson(join(this.root(),run.id+'.json'),before);}catch(cause){rollbackError=cause;}
+                if(persisted)try{await atomicJson(join(this.root(),run.id+'.json'),before);this.versions.set(run.id,JSON.stringify(before,null,2));}catch(cause){rollbackError=cause;}
                 await this.release(run.id).catch(()=>{});
                 if(rollbackError)throw new AggregateError([error,rollbackError],'Workflow admission failed and the journal could not be restored');
                 throw error;

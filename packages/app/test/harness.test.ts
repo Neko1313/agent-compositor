@@ -254,6 +254,25 @@ describe('harness failure boundaries',()=>{
   const run=await owner.start({stages:[{id:'a',prompt:'work'}]});await vi.waitFor(()=>expect(owner.runs.get(run.id)?.stages[0].status).toBe('running'));
   const observer=new WorkflowEngine({cwd,request:async()=>{throw Error('duplicate execution');}});await observer.load();await expect(observer.control(run.id,'resume')).rejects.toThrow('owned by a running process');await owner.close();await observer.close();
  });
+ it('does not let another process stop and overwrite a live workflow',async()=>{
+  const cwd=await temp();let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+  const owner=new WorkflowEngine({cwd,request:async()=>{await gate;return {output:'done',tokens:1} as any;}});
+  const observer=new WorkflowEngine({cwd,request:async()=>{throw Error('observer must not run work');}});
+  try{
+   const run=await owner.start({completion:'none',stages:[{id:'a',prompt:'work'}]});
+   const file=join(cwd,'.agent-compositor','workflows','runs',run.id+'.json');
+   await vi.waitFor(async()=>expect(JSON.parse(await readFile(file,'utf8')).stages[0].status).toBe('running'));
+   await observer.load();const before=structuredClone(observer.runs.get(run.id)),disk=await readFile(file,'utf8');
+   await expect(observer.control(run.id,'stop')).rejects.toThrow('owned by a running process');
+   expect(observer.runs.get(run.id)).toEqual(before);expect(await readFile(file,'utf8')).toBe(disk);
+   release();expect((await owner.wait(run.id))?.status).toBe('completed');
+   const completed=await readFile(file,'utf8');
+   await expect(observer.control(run.id,'stop')).rejects.toThrow('changed in another process');
+   await expect(observer.control(run.id,'resume')).rejects.toThrow('changed in another process');
+   expect(observer.runs.get(run.id)).toEqual(before);expect(await readFile(file,'utf8')).toBe(completed);
+   await observer.refresh();expect(observer.runs.get(run.id)?.status).toBe('completed');
+  }finally{release();await owner.close();await observer.close();}
+ });
 });
 
 it('clearing a saved context override does not resurrect a legacy limit on restart',async()=>{

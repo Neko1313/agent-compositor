@@ -92,6 +92,9 @@ retrying. Start a fresh run after material changes invalidate old results.
 If another process owns a workflow, or saving a retry or resume fails, the
 attempt does not change its stage state. Resolve the ownership or storage error
 before trying again.
+Stopping, retrying or resuming an inactive workflow also checks its persisted
+journal after acquiring ownership. If another process changed it, refresh the
+workflow list before making a decision; the stale copy is not written back.
 Shutdown waits for retry/resume admission already in progress; if the worker has
 not launched, it restores the prior journal when storage permits and releases
 the ownership lock. A journal restoration error is reported to the caller.

@@ -93,6 +93,8 @@ explicit focus hints and configured rules keep their opt-in/opt-out behavior.
 The same controlled gate proves a still-selected retained Finder route can open,
 while an abandoned route cannot create a late window. Gate files control fixture
 completion only; all user interaction still crosses the actual terminal.
+The inventory-refresh fixture also waits at a gate until Finder has displayed the
+still-available pane; releasing it then verifies that the pane becomes unavailable.
 The ninth flow publishes three ordinary windows on workspace7 through the public
 plugin API. Shift+direction must retain center swapping; Ctrl+Arrow in Arrange
 must edge-drop the focused window, retain the unaffected outer ratio, resize only

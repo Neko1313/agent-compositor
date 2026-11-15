@@ -128,7 +128,7 @@ export default {
       await detached.storage.set('slow-finished',{published});return;
     }
     if(event.key==='refresh'){
-      await $.storage.set('refresh-started',true);await pause(800);
+      await $.storage.set('refresh-started',true);await gate($,'refresh');
       await $.ui.remove('pane12');
       await $.ui.view('pane11','Nav pane 11 refreshed',{lines:[{text:'NAV_REFRESH_COMPLETE'}]},{workspace:2,focus:false});
       await $.storage.set('refresh-finished',true);
@@ -142,7 +142,7 @@ export default {
     {match:{plugin:'navigation-probe',surface:'focus-rule-true'},focus:true,workspace:6},
   ]};await writeFile(configFile,JSON.stringify(config));
   const state=join(paths.state,'plugin-state/navigation-probe');
-  return{state,retile:{ready:join(state,'retile-ready.json'),ids:Object.fromEntries(['a','b','c'].map(name=>[name,'plugin-navigation-probe-retile-'+name]))},focus:{gates:Object.fromEntries(['passive','late-main','late-mode','retained','slow'].map(name=>[name,join(gates,name)])),
+  return{state,retile:{ready:join(state,'retile-ready.json'),ids:Object.fromEntries(['a','b','c'].map(name=>[name,'plugin-navigation-probe-retile-'+name]))},focus:{gates:Object.fromEntries(['passive','late-main','late-mode','retained','slow','refresh'].map(name=>[name,join(gates,name)])),
     started:Object.fromEntries(['passive','late-main','late-mode'].map(name=>[name,join(state,'focus-started-'+name+'.json')])),
     published:Object.fromEntries(['passive','true','false','rule-false','rule-true','late-main','late-mode'].map(name=>[name,join(state,'focus-published-'+name+'.json')])),
     launcher:join(state,'focus-launcher-completed.json'),retainedStarted:join(state,'retained-started.json'),retainedFinished:join(state,'retained-finished.json')},formReceipt:join(state,'form-result.json'),formCalls:join(state,'form-calls.json'),ready:join(state,'ready.json'),startupTrace:join(gates,'startup-trace.jsonl'),

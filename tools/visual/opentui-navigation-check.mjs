@@ -504,7 +504,7 @@ try{
   await observe(()=>json(launch.navigation.slowFinished),Boolean,'Cancelled route producer must finish its bounded late callback');
   assert.equal(location(await layout(),'plugin-navigation-probe-slow'),undefined);assert.ok(!(await screen()).includes('LATE_CANCELLED_ROUTE'));
   await pick('Navigation controls');await click('Refresh inventory','Navigation controls');await observe(()=>json(launch.navigation.refreshStarted),Boolean,'Real refresh action must start');
-  await finder('Nav pane 12');await wait('WS 2');await observe(()=>json(launch.navigation.refreshFinished),Boolean,'Real refresh must remove its source');await wait('Unavailable');
+  await finder('Nav pane 12');await wait('WS 2');await capture('04a-finder-before-refresh');await release('refresh');await observe(()=>json(launch.navigation.refreshFinished),Boolean,'Real refresh must remove its source');await wait('Unavailable');await capture('04b-finder-after-refresh');
   await key('Enter');await wait('fresh view from its plugin');
   const removed=await observe(layout,value=>location(value,'plugin-navigation-probe-pane12')===undefined,'Saved layout must acknowledge removal of the unavailable pane');assert.equal(location(removed,'plugin-navigation-probe-pane12'),undefined);
   await key('Control+u');await type('Nav pane 11');await key('Enter');await absent(finderMarker);await wait('NAV_REFRESH_COMPLETE');

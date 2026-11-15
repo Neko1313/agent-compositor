@@ -32,20 +32,20 @@ function parseVerdict(response:unknown,context:any):Verdict {
         typeof parsed.reason!=='string'||!parsed.reason.trim()||parsed.reason.length>1000)
         throw Error('Invalid risk review response');
     const structured=Object.hasOwn(parsed,'approved');
+    const task=[context?.task,context?.parentTask].some(value=>typeof value==='string'&&value.trim());
     const expected=structured?['approved','reason','risk']:['decision','reason','risk'];
     if(JSON.stringify(Object.keys(parsed).sort())!==JSON.stringify(expected))throw Error('Invalid risk review response fields');
     if(structured){
         if(parsed.approved!==true&&parsed.approved!==false&&parsed.approved!==null)throw Error('Invalid approval decision');
         if(parsed.approved===false)return{decision:'deny',risk:parsed.risk,reason:parsed.reason};
-        const task=[context?.task,context?.parentTask].some(value=>typeof value==='string'&&value.trim());
         if(parsed.approved===true&&task&&['low','medium'].includes(parsed.risk))
             return{decision:'allow',risk:parsed.risk,reason:parsed.reason,policy:'task-context'};
         const reason=parsed.approved===true?`${task?'Automatic approval requires low/medium risk':'Automatic approval requires user task context'}. ${parsed.reason}`.slice(0,1000):parsed.reason;
         return{decision:'ask',risk:parsed.risk,reason};
     }
     if(!['allow','deny','ask'].includes(parsed.decision))throw Error('Invalid risk review response');
-    const reason=parsed.decision==='allow'&&parsed.risk!=='low'?`Legacy review can automatically approve only low risk. ${parsed.reason}`.slice(0,1000):parsed.reason;
-    return{decision:parsed.decision==='deny'?'deny':parsed.decision==='allow'&&parsed.risk==='low'?'allow':'ask',risk:parsed.risk,reason};
+    const reason=parsed.decision==='allow'&&(!task||parsed.risk!=='low')?`${!task?'Automatic approval requires user task context':'Legacy review can automatically approve only low risk'}. ${parsed.reason}`.slice(0,1000):parsed.reason;
+    return{decision:parsed.decision==='deny'?'deny':parsed.decision==='allow'&&task&&parsed.risk==='low'?'allow':'ask',risk:parsed.risk,reason};
 }
 async function show($: any) {
     const history = $.state.get("history") ?? [];

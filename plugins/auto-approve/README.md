@@ -27,7 +27,8 @@ The reviewer returns exactly three fields: `approved` (`true`, `false` or `null`
 low/medium risk; `false` becomes a denied tool result without another approval
 dialog; `null` returns to manual approval. High/unknown-risk approvals, malformed
 responses, timeouts and unavailable audit storage remain manual. Legacy
-`decision/risk/reason` responses still allow only low risk. Neither form creates
+`decision/risk/reason` responses allow only low risk and also require task
+context. Neither form creates
 standing approval for subsequent calls. Normal clarification questions are unaffected.
 The host supplies the complete submitted request and delegated parent request,
 preserving late restrictions separately from prepared attachment data. Review

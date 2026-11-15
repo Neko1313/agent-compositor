@@ -70,6 +70,23 @@ it('does not widen a medium-risk approval when there is no user task context',as
     const f=await fixture({}, {approved:true,risk:'medium',reason:'No task supplied'});
     expect(await review['service.permission.review']({tool:'project_check'},f.$)).toMatchObject({value:{decision:'ask'}});
 });
+it.each([undefined,{}, {task:'  '}, {parentTask:''}])('requires a real task for a legacy low-risk approval: %j',async context=>{
+    const f=await fixture({},allowed);
+    expect(await review['service.permission.review']({tool:'project_check',context},f.$)).toMatchObject({value:{decision:'ask',risk:'low',reason:expect.stringContaining('task context')}});
+});
+it('retains task-scoped legacy approvals and explicit refusals',async()=>{
+    const allow=await fixture({},allowed),deny=await fixture({},{decision:'deny',risk:'low',reason:'Explicit prohibited effect'});
+    expect(await review['service.permission.review']({tool:'project_check',context:{parentTask:'Run project tests'}},allow.$)).toMatchObject({value:allowed});
+    expect(await review['service.permission.review']({tool:'project_check'},deny.$)).toMatchObject({value:{decision:'deny'}});
+});
+it('does not execute an unscoped user-tool call after a legacy low-risk verdict',async()=>{
+    const cwd=await temp(),provider=new ScriptedProvider([{text:JSON.stringify(allowed)}]);let effects=0,asked=0;
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins')]});
+    app.plugins.push({manifest:{name:'unscoped-fixture',version:'1.0.0',trust:'trusted'},hooks:{},tools:[{name:'unscoped_action',description:'A user tool requiring approval',parameters:{type:'object'},describe:()=>({tool:'unscoped_action'}),execute:async()=>{effects++;return{ok:true,data:'done'};}}]} as any);
+    const core=app.createCore(async()=>{asked++;return false;});
+    try{await core.submit('/auto on');const result=await core.invokeTool('unscoped_action',{});expect(result.ok).toBe(false);expect(asked).toBe(1);expect(effects).toBe(0);expect(provider.requests).toHaveLength(1);}
+    finally{await app.close();}
+});
 it.each([[true,'medium',1,0],[false,'high',0,0],[null,'unknown',0,1]] as const)('uses the actual auto hook for approval=%s risk=%s',async(approved,risk,effects,questions)=>{
     const cwd=await temp();let executed=0,asked=0;
     const provider=new ScriptedProvider([
@@ -212,7 +229,7 @@ it('does not accept a late generic-tool verdict after auto is disabled', async (
 
 it('reviews new nested files by effect and keeps protected or unresolved symlink writes manual',async()=>{
     const f=await fixture();const path=join(f.$.session.cwd,'new','nested','file.ts');
-    expect(await review['service.permission.review']({tool:'custom_create',descriptor:{tool:'write',path},input:{content:'local source'}},f.$)).toMatchObject({value:{decision:'allow'}});expect(f.calls).toHaveLength(1);
+    expect(await review['service.permission.review']({tool:'custom_create',descriptor:{tool:'write',path},input:{content:'local source'},context:{task:'Create local source'}},f.$)).toMatchObject({value:{decision:'allow'}});expect(f.calls).toHaveLength(1);
     expect(await review['service.permission.review']({tool:'custom_create',descriptor:{tool:'write',path:join(f.$.session.cwd,'.env')},input:{}},f.$)).toMatchObject({value:{decision:'ask'}});expect(f.calls).toHaveLength(1);
     const link=join(f.$.session.cwd,'dangling');await symlink(join(await temp(),'missing'),link);
     expect(await review['service.permission.review']({tool:'custom_create',descriptor:{tool:'write',path:link},input:{}},f.$)).toMatchObject({value:{decision:'ask'}});expect(f.calls).toHaveLength(1);
@@ -220,6 +237,6 @@ it('reviews new nested files by effect and keeps protected or unresolved symlink
 
 it('rechecks disable while the approval audit is being saved',async()=>{
     const f=await fixture();f.$.fs.write=async()=>{f.state.set('enabled',false);};
-    expect(await review['service.permission.review']({tool:'custom_action',input:{}},f.$)).toMatchObject({value:{decision:'ask',risk:'unknown'}});
+    expect(await review['service.permission.review']({tool:'custom_action',input:{},context:{task:'Perform the requested action'}},f.$)).toMatchObject({value:{decision:'ask',risk:'unknown'}});
     expect(f.state.get('history').at(-1).decision).toBe('ask');
 });

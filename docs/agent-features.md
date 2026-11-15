@@ -93,6 +93,8 @@ The reviewer returns exactly three fields:
 `{decision:"allow",risk,reason,policy:"task-context"}` for that exact call.
 `approved: false` returns a denied tool result with the review reason, without
 asking the same question again. `approved: null` means the user must decide.
+Legacy `decision` responses can approve only low-risk actions and also require
+task context; a legacy refusal remains a refusal without task context.
 The reviewer is instructed to use `null`/`unknown` when targets or effects are
 undefined, and reserve refusal for concrete prohibited, unrelated or unsafe
 effects. Missing information alone does not establish a violation.

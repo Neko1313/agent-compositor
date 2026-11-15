@@ -42,8 +42,9 @@ export class ProviderRouter implements ModelProvider {
     this.provider=!this.selected.type||this.selected.type==='openai-compat'?new OpenAICompatProvider(this.selected):new NativeProvider({...this.selected,type:this.selected.type});
   }
   select(name: string): void {
-    if (this.profiles[name]) this.profileName = name;
-    const profile = this.profiles[name] ?? {
+    const known=Object.hasOwn(this.profiles,name);
+    if (known) this.profileName = name;
+    const profile = (known ? this.profiles[name] : undefined) ?? {
       ...this.profiles[this.profileName],
       model: name,
     };

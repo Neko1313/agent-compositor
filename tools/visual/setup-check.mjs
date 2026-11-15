@@ -21,6 +21,7 @@ try{
  const shot=async label=>{await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));await page.screenshot({path:join(output,label+'.png')});report.screenshots.push(label+'.png');await writeFile(join(output,label+'.txt'),await text());};
  const transport=async()=>JSON.parse(await readFile(join(output,'onboarding-transport.json'),'utf8'));
  await wait('Get started');await wait('Set up model');assert.equal((await transport()).requests,0);await shot('00-first-launch');report.checks.push('setup.automatic','setup.no-model-needed');
+ if(process.env.VISUAL_ONBOARDING_INVALID_MODEL){const identity=JSON.parse(await readFile(join(output,'onboarding-identity.json'),'utf8'));assert.equal(await readFile(join(identity.state,'model.json'),'utf8'),'""');report.checks.push('setup.invalid-model-retained');}
  await click('View tool status');await wait('Resource monitor: not active');await shot('00a-tool-status');
  await click('Hide tool status');await page.waitForFunction(()=>!visual.text().includes('Resource monitor: not active'));assert.equal((await transport()).requests,0);report.checks.push('setup.live-tool-status');
  await click('Skip for now');await page.waitForFunction(()=>!visual.text().includes('Get started'));

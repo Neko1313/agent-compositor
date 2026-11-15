@@ -374,6 +374,29 @@ it('keeps the guide available when saved provider JSON was skipped as malformed 
  try{expect(app.config.warnings).toContain('Saved provider connections could not be loaded');expect(await app.shouldOfferSetup?.()).toBe(true);}finally{await app.close();await rm(root,{recursive:true,force:true});}
 });
 
+it.each(['""','"   "','true','42','[]','{}','{"profile":"missing","model":"example"}','{"profile":"default","model":""}'])
+ ('ignores invalid saved model selection %s without hiding setup or changing the file',async selected=>{
+ const root=await mkdtemp(join(tmpdir(),'setup-invalid-model-'));const storage=new ProjectStorage(root,{HOME:root});await storage.init();
+ const file=join(storage.paths.state,'model.json');await writeFile(file,selected);
+ const app=await buildApp({cwd:root,env:{HOME:root},pluginDirs:[]});
+ try{expect(await app.shouldOfferSetup?.()).toBe(true);expect(await readFile(file,'utf8')).toBe(selected);}
+ finally{await app.close();await rm(root,{recursive:true,force:true});}
+});
+
+it.each(['"existing-model"','"constructor"','"__proto__"','{"profile":"default","model":"existing-model"}'])
+ ('preserves a valid saved model selection %s',async selected=>{
+ const root=await mkdtemp(join(tmpdir(),'setup-valid-model-'));const storage=new ProjectStorage(root,{HOME:root});await storage.init();
+ await writeFile(join(storage.paths.state,'model.json'),selected);
+ const app=await buildApp({cwd:root,env:{HOME:root},pluginDirs:[]});
+ try{expect(await app.shouldOfferSetup?.()).toBe(false);expect(await readFile(join(storage.paths.state,'model.json'),'utf8')).toBe(selected);}
+ finally{await app.close();await rm(root,{recursive:true,force:true});}
+});
+
+it('treats inherited property names as model IDs rather than provider profiles',()=>{
+ const router=new ProviderRouter({default:{type:'openai-compat',baseUrl:'http://127.0.0.1:1234/v1',model:'initial',apiKey:''}});
+ for(const model of ['constructor','__proto__']){router.select(model);expect(router.model).toBe(model);expect(router.credentialProfile).toBe('default');}
+});
+
 it('does not use the guide to bypass a disabled model-settings component',async()=>{
  const root=await mkdtemp(join(tmpdir(),'setup-capability-ceiling-'));
  await writeFile(join(root,'agent-compositor.json'),JSON.stringify({enabledPlugins:['setup-guide']}));

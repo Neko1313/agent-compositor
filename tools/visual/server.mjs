@@ -137,6 +137,7 @@ let onboardingRequests=0;
 if(process.env.VISUAL_ONBOARDING){
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false},...((process.env.VISUAL_ONBOARDING_NO_HUB||process.env.VISUAL_ONBOARDING_BLOCK_CHECKS)?{disabledPlugins:[...(process.env.VISUAL_ONBOARDING_NO_HUB?['agent-hub']:[]),...(process.env.VISUAL_ONBOARDING_BLOCK_CHECKS?['project-checks']:[])]}:{})}));
  const paths=storagePaths(cwd,{...process.env,HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
+ if(process.env.VISUAL_ONBOARDING_INVALID_MODEL){await mkdir(paths.state,{recursive:true});await writeFile(join(paths.state,'model.json'),'""');}
  await writeFile(join(output,'onboarding-identity.json'),JSON.stringify({cwd:paths.project,home:paths.home,state:paths.state}));
  await writeFile(join(output,'onboarding-transport.json'),JSON.stringify({requests:0}));
 }

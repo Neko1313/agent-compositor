@@ -566,6 +566,8 @@ for both modes; the report identifies source/binary mode and hashes the selected
 binary. Keep the complete archive contents beside that executable.
 Set `VISUAL_ONBOARDING_OPENTUI=1` to run the same flow with OpenTUI; without it
 the scenario uses Ink. Both source and extracted-binary modes support the flag.
+Set `VISUAL_ONBOARDING_INVALID_MODEL=1` to start with an empty saved model
+selection and check that setup opens without overwriting it.
 The recommendations step selects the resource monitor, side conversation and
 automatic approval review. It checks the dependency and opt-in hints, installs
 and activates the selections, and verifies `/auto status`, `/auto on` and `/auto

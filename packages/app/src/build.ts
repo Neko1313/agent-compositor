@@ -232,15 +232,20 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     storage.paths.home
   );
   const readQuota = quotaReader(router);
+  const validRememberedModel=(value:unknown):value is string|{profile:string;model:string}=>
+    typeof value==='string'?value.trim().length>0:
+    !!value&&typeof value==='object'&&!Array.isArray(value)&&
+    typeof (value as any).profile==='string'&&Object.hasOwn(profiles,(value as any).profile)&&
+    typeof (value as any).model==='string'&&(value as any).model.trim().length>0;
   const remembered = await readFile(
     path.join(storage.paths.state, "model.json"),
     "utf8"
   )
     .then(JSON.parse)
     .catch(() => undefined);
-  if (typeof remembered === "string" && !env.AGENT_MODEL)
+  if (typeof remembered === "string" && validRememberedModel(remembered) && !env.AGENT_MODEL)
     router.select(remembered);
-  if (remembered && typeof remembered === 'object' && typeof remembered.profile === 'string' && typeof remembered.model === 'string' && profiles[remembered.profile] && !env.AGENT_MODEL) {
+  if (validRememberedModel(remembered) && typeof remembered === 'object' && !env.AGENT_MODEL) {
     router.select(remembered.profile); router.select(remembered.model);
   }
   if (env.AGENT_MODEL && profiles[env.AGENT_MODEL])
@@ -428,7 +433,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const setupModel=async()=>{
     const saved=await storage.config('providers.json').catch(()=>({}));
     const selected=await readFile(path.join(storage.paths.state,'model.json'),'utf8').then(JSON.parse).catch(()=>undefined);
-    const explicit=!!options.provider||!!env.AGENT_MODEL||!!config.config.model||!!(profileConfig.default as any)?.model||!!selected||router.credentialProfile!=='default'||!!saved.profiles?.default?.model;
+    const explicit=!!options.provider||!!env.AGENT_MODEL||!!config.config.model||!!(profileConfig.default as any)?.model||validRememberedModel(selected)||router.credentialProfile!=='default'||!!saved.profiles?.default?.model;
     return{configured:explicit,profile:router.credentialProfile,model:router.model};
   };
   const setup=setupGuide(storage,{

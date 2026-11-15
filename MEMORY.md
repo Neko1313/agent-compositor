@@ -13,7 +13,8 @@ PTY input trace contains the final `T`. Evidence was downloaded to
 `ab20151` and later input-order fixes. A controlled regression with the current
 renderer/host and only the `938edb9` native client substituted holds the final
 edit until its prior prefix is published: that hybrid retains `DRAF`, while the
-current client retries and retains `DRAFT` before focus changes. The experiment
+current client retries and retains `DRAFT` before focus changes while Main is
+held running. The current test checks the actual rejection and accepted retry. The experiment
 proves a possible cause, not the exact ordering in the ARM64 artifact. Run
 `43762410510` completed with the other three platforms passing and publication
 skipped. Fresh build-only run `43766867589` for `c119f4e` has started; the

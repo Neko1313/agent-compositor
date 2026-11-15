@@ -20,7 +20,9 @@ failure report and terminal trace are in
 retry handling for an earlier locally typed field value and input-admission
 ordering. A controlled production-renderer regression delays the final edit,
 publishes its previous prefix and switches focus; with the `938edb9` native
-client it retains `DRAF`, while the current client retries and retains `DRAFT`.
+client it retains `DRAF`, while the current client retries and retains `DRAFT`
+with Main held running. The test observes rejection of the old revision and
+acceptance of the retry.
 That hybrid source experiment establishes one possible mechanism, not the exact
 event ordering of the ARM64 failure. The candidate completed with the other
 three platforms passing and publication skipped. Current-source four-platform

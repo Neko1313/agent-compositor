@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {answerHello,hello,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,nativeStateSchema,parseSemVer,type HelloAckMessage,type HelloMessage,type WireMessage} from '@agent-compositor/protocol';
+import {answerHello,hello,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,nativeStateSchema,parseSemVer,type HelloAckMessage,type HelloMessage,type WireMessage} from '@agent-compositor/protocol';
 import type {ControllerInput,ControllerView,ConversationSession,PublicRenderSlotSource,UiSurfaceSource,WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {createOpenTuiHost} from './opentui-host.js';
 import type {UiTextView} from '@agent-compositor/events';
@@ -9,7 +9,7 @@ type NativeReceipt=Extract<WireMessage,{type:'native-receipt'}>;
 type NativeState=Extract<WireMessage,{type:'native-state'}>;
 type Host=ReturnType<typeof createOpenTuiHost>;
 type Port={kind:'session';source:ConversationSession}|{kind:'surface';source:UiSurfaceSource}|{kind:'public';source:PublicRenderSlotSource};
-const elements=['Text','Box','Layout','Pointer','native-presentation-v1','native-input-v1',COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK];
+const elements=['Text','Box','Layout','Pointer','native-presentation-v1','native-input-v1',COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING];
 const sessionMethods=['submit','steer','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction','controllerInput','controllerViewport','cancelController','editorInput','editorViewport'] as const;
 const surfaceMethods=['press','change','answerApproval','answerInteraction','cancelInteraction','answerForm','cancelForm','controllerInput','controllerViewport','cancelController'] as const;
 function hasAction(view:UiTextView|undefined,action:string){
@@ -30,7 +30,7 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
   const tokens=new WeakMap<object,string>(),subscriptions=new Map<object,()=>void>(),globalSubscriptions:(()=>void)[]=[];
   const receipts=new Map<number,{input:string;receipt:NativeReceipt}>();
   const pendingReceipts=new Map<number,string>();
-  let serial=0,revision=0,mediaRevision=0,highestInput=-1,active=true,negotiated=false,mediaStatus=false,steering=false,pendingWork=false,publishing=false,dirty=false;
+  let serial=0,revision=0,mediaRevision=0,highestInput=-1,active=true,negotiated=false,mediaStatus=false,steering=false,pendingWork=false,sessionRestoring=false,publishing=false,dirty=false;
   let receivedAck:HelloAckMessage|undefined,negotiatedVersion:string|undefined;
   let ports=new Map<string,Port>(),lastState='',offMedia:(()=>void)|undefined;
   function transmit(message:WireMessage){
@@ -52,7 +52,7 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
       const sessions=windows.map(window=>{
         const source=window.session,port=token(source);watch(source);nextPorts.set(port,{kind:'session',source});
         return {port,id:source.id,conversationId:source.conversationId,generation:source.generation,paneId:source.paneId,
-          label:source.label,current:source.isCurrent?.()!==false,snapshot:(()=>{const snapshot=source.snapshot();if(pendingWork)return snapshot;const {pending,...legacy}=snapshot;return legacy;})(),
+          label:source.label,current:source.isCurrent?.()!==false,snapshot:(()=>{const {pending,restoring,...base}=source.snapshot();return {...base,...(pendingWork&&pending!==undefined?{pending}:{}),...(sessionRestoring&&restoring!==undefined?{restoring}:{})};})(),
           methods:sessionMethods.filter(method=>(method!=='steer'||steering)&&typeof source[method]==='function')};
       });
       const surfaces=options.host.surfaces.snapshot().map(source=>{
@@ -188,6 +188,7 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
       mediaStatus=negotiated&&remote.capabilities.elements.includes(COMPOSER_MEDIA_STATUS);
       steering=negotiated&&remote.capabilities.elements.includes(NATIVE_STEER);
       pendingWork=negotiated&&remote.capabilities.elements.includes(NATIVE_PENDING_WORK);
+      sessionRestoring=negotiated&&remote.capabilities.elements.includes(NATIVE_SESSION_RESTORING);
       negotiatedVersion=negotiated?ack.version:undefined;
       transmit(negotiated?ack:{type:'hello-ack',ok:false,reason:'Native presentation and input v1 are required'});
       if(!active)return;

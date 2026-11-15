@@ -143,7 +143,7 @@ it('keeps one editor lease across copies, admits only its singleton anchor viewp
   const next = f.host.mainSession('window-2')!;
   expect(f.host.core).not.toBe(oldCore);expect(next.id).toBe(old.id);expect(next.generation).not.toBe(old.generation);
   expect(old.isCurrent!()).toBe(false);expect(old.submit('STALE_AFTER_RESUME')).toBe(false);
-  expect(old.snapshot()).toBe(oldState);expect(next.label).toBe('Main');
+  expect(old.snapshot()).toEqual({...oldState,restoring:true});expect(next.label).toBe('Main');
   expect(states).toEqual([{text: '', cursor: 0}, {text: 'PRIVATE😀窗', cursor: 'PRIVATE😀窗'.length}]);
   f.focus('window-2');const nextEditor = next.snapshot().editor!;
   expect(old.editorInput!(nextEditor.id, {kind: 'text', text: 'STALE'}, nextEditor.revision)).toBeUndefined();
@@ -187,9 +187,11 @@ it('rejects native submission during a held replacement startup while retaining 
   const oldCore = f.host.core, switching = oldCore.host.emit('service.session.control', {action: 'resume', id: oldCore.sessionId});
   await expect.poll(() => entered).toBe(true);
   const port = f.host.mainSession('window-1')!;expect(port.isCurrent!()).toBe(true);
+  expect(port.snapshot().restoring).toBe(true);
   expect(port.submit('UNSENT_DURING_STARTUP')).toBe(false);
   expect(f.provider.requests).toHaveLength(1);expect(f.host.core.getMessages().some(message => message.content.includes('UNSENT_DURING_STARTUP'))).toBe(false);
   release();await switching;f.focus('window-1');
+  expect(port.snapshot().restoring).toBeUndefined();
   expect(await port.submit('Admitted after startup')).toBe(true);
   await expect.poll(() => port.snapshot().messages.at(-1)).toEqual({role: 'assistant', text: 'Second reply'});
   expect(f.provider.requests).toHaveLength(2);

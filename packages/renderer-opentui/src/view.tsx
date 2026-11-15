@@ -298,7 +298,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
         <ApprovalCard key={requestEpoch+':'+state.approval.id} request={state.approval} session={selected} height={height} isActive={isActive}/>
       </box>}
       <box visible={!editing&&!state.editor} border={['top']} borderColor={color.rule} titleColor={state.running ? color.running : color.accent}
-        title={` ${selected.label} · ${state.approval||controllerBlocksInput(state.controller) ? 'Draft' : state.running ? 'Running' : state.pending ? 'Queued' : 'Ready'} `}
+        title={` ${selected.label} · ${state.restoring ? 'Restoring' : state.approval||controllerBlocksInput(state.controller) ? 'Draft' : state.running ? 'Running' : state.pending ? 'Queued' : 'Ready'} `}
         backgroundColor={composerBackground} flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
         <textarea ref={editor} focused={focused && !editing && !state.editor}
             height={editorHeight} flexGrow={1} flexBasis={0} minWidth={1} wrapMode="word"
@@ -323,7 +323,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
       </box>
       {state.editor&&<box visible={!editing} border={['top']} borderColor={color.rule}
         titleColor={state.running?color.running:color.accent}
-        title={` ${selected.label} · ${state.running?'Running':state.pending?'Queued':'Ready'} `}
+        title={` ${selected.label} · ${state.restoring?'Restoring':state.running?'Running':state.pending?'Queued':'Ready'} `}
         flexShrink={0} flexDirection="row" paddingX={1} gap={1}>
         <box flexGrow={1} flexBasis={0} minWidth={1} height={customEditorRows}
           onSizeChange={function(this:BoxRenderable){if(this.width>0)setEditorWidth(this.width);}}>

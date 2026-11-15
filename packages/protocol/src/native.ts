@@ -11,6 +11,8 @@ export const COMPOSER_MEDIA_STATUS='composer-media-status-v1';
 export const NATIVE_STEER='native-steer-v1';
 /** Optional state for work waiting before a model turn. */
 export const NATIVE_PENDING_WORK='native-pending-work-v1';
+/** Optional state for a session switch that has not finished starting. */
+export const NATIVE_SESSION_RESTORING='native-session-restoring-v1';
 
 const uint=z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const id=z.string().min(1).max(256);
@@ -47,7 +49,7 @@ const message=z.union([
     state:z.enum(['running','done','error','complete'])}).strict()}).strict(),
 ]);
 /** Transcript size remains the existing host contract; no history is silently dropped. */
-export const nativeConversationSnapshotSchema=z.object({messages:z.array(message),running:z.boolean(),pending:z.boolean().optional(),error:z.string().optional(),notice:z.string().optional(),
+export const nativeConversationSnapshotSchema=z.object({messages:z.array(message),running:z.boolean(),restoring:z.boolean().optional(),pending:z.boolean().optional(),error:z.string().optional(),notice:z.string().optional(),
   approval:approval.optional(),interaction:nativeInteractionSchema.optional(),
   controller:nativeControllerSchema.extend({kind:z.enum(['approval','question','form'])}).optional(),
   editor:nativeEditorSchema.optional(),

@@ -258,3 +258,18 @@ it('negotiates queued-work state without changing legacy native snapshots',async
   expect(modern.state().state.sessions[0].snapshot.pending).toBe(true);
   modern.host.core.interrupt();expect(modern.state().state.sessions[0].snapshot.pending).toBe(false);
 });
+
+it.each([false,true])('negotiates session restoration state with capability %s',async supported=>{
+  const f=await fixture(new ScriptedProvider([{text:'Saved reply'}]));
+  f.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,...(supported?['native-session-restoring-v1']:[])],encodings:['jsonl']}));
+  await f.host.submit('Save a session');
+  let entered=false,release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});cleanup.push(()=>release());
+  const resume=f.app.resume;f.app.resume=async(...args)=>{const replacement=await resume(...args),start=replacement.start.bind(replacement);
+    replacement.start=async()=>{entered=true;await gate;await start();};return replacement;};
+  const old=f.host.core,switching=old.host.emit('service.session.control',{action:'resume',id:old.sessionId});
+  await expect.poll(()=>entered).toBe(true);
+  if(supported)expect(f.state().state.sessions[0].snapshot.restoring).toBe(true);
+  else expect(f.state().state.sessions[0].snapshot).not.toHaveProperty('restoring');
+  release();await switching;
+  expect(f.state().state.sessions[0].snapshot).not.toHaveProperty('restoring');
+});

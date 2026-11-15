@@ -172,6 +172,7 @@ for(const composition of ['native','selected']){
       const firstOlder='EDITOR_HISTORY_'+String(Math.min(...beforeScroll)-1).padStart(2,'0');await key('F9');await normal(true);await wait(firstOlder);await absent('EDITOR_RESUME_HISTORY');
       result.historyScroll={firstPreviouslyVisible:Math.min(...beforeScroll),olderVisible:firstOlder,rows:3};await editor(draft,1);
       await key('Shift+F9');await normal(true);await wait('EDITOR_RESUME_HISTORY');await editor(draft,1);
+      await wait('Main · Ready');
       await send('APP_EDITOR_RESUMED');await wait('EDITOR_DONE: APP_EDITOR_RESUMED');await wait('Main · Ready');
       assert.ok((await completions()).at(-1).body.messages.some(message=>message.content==='Historical editor context'));await capture('05-reload-resume-checkpoint');
       result.checks.push('Canonical plugin reload snapshots before destructive dispose; real history resume transfers the private draft/cursor into the new Core generation, revokes old commands/files and ignores a gated late submit');

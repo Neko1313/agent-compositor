@@ -7,6 +7,20 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+A local Qwen3 1.7B CPU run against `89ec1a4` found and edited the known
+multi-file case, but reached its 12-request limit with invalid JavaScript and
+no successful verification. The independent grader failed; protected files
+survived and the owned server exited. The report is
+`dist/local-cpu-navigation-89ec1a4/report.json`. This is one known task, not a
+general model-quality measurement.
+
+Node 26 CI for `89ec1a4` failed a restored custom-editor scenario. Its final
+screen shows the submitted text retained as an unaccepted draft. An existing
+held-startup test confirms that input is rejected while a replacement starts;
+the CI trace does not establish whether that exact condition caused the failure.
+Main now exposes `Restoring` during the switch, and the scenario waits for the
+actual ready state before submitting. The original CI run remains failed.
+
 The ignored-parent discovery fix introduced a separate exclusion regression:
 re-rooting Git could expose files covered by path-specific enclosing ignore
 rules. An installed Linux x64 probe reproduced this in both glob and semantic

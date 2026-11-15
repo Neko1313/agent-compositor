@@ -209,7 +209,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     },
   });
   const changed = () => {
-    sessionState = {...conversation.snapshot(), ...(editor ? {editor: editor.snapshot()} : {}), ...(localNotice ? {notice: localNotice} : {})};
+    sessionState = {...conversation.snapshot(), ...(switching ? {restoring: true} : {}), ...(editor ? {editor: editor.snapshot()} : {}), ...(localNotice ? {notice: localNotice} : {})};
     if (mainBinding?.owner === core) mainBinding.state = sessionState;
     publicRendering.refresh();
     for (const fn of sessionListeners) fn();
@@ -1217,6 +1217,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       const windowIntent = current?.windowIntent??layout.windowIntentRevision;
       const callerSignal=next.host.currentServiceScope?.signal??next.host.currentSignal;
       switching = true;
+      changed();
       const replacementChannels = createChannels();
       let replacement: AgentCore | undefined;
       try {
@@ -1251,7 +1252,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         if (replacement && replacement !== core) await replacement.close();
         replacementChannels.generation.abort(); replacementChannels.inbox.close(); return {deny: 'Could not resume this session'};
       }
-      finally {switching = false;}
+      finally {switching = false;if(active)changed();}
     },{settleOnCancel:true,preserveResultOnCancel:true});
   }
   function unbind() {

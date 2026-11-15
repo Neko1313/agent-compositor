@@ -212,6 +212,10 @@ state for admitted work waiting before a model turn. It lets the frontend show
 queued work and offer Stop while the Core is idle. Legacy peers receive the
 original strict snapshot without that field.
 
+The optional `native-session-restoring-v1` capability adds `restoring` while an
+interactive session switch is still starting. Peers without it retain the
+original strict snapshot; rejected input must remain recoverable.
+
 The optional `composer-media-status-v1` element adds selected-producer
 presentation (`label`, `alt`, `hasImage`) to `native-media` and an `expanded`
 flag to media subscription input. Both peers must advertise it before either

@@ -102,6 +102,9 @@ The resulting keyboard-created topology is retained through the same reload and
 restart checks and inspected again from the actual restored window.
 The separate deterministic preview
 retains its development keymap.
+After the batched Finder paste is cancelled, the scenario waits for a fresh
+frame with Finder closed and Main focused before typing the next prompt. A
+placeholder visible behind Finder does not acknowledge focus.
 Artifacts default to `dist/visual-opentui-navigation/`; `VISUAL_EXECUTABLE` selects
 a complete extracted native candidate rather than a source override.
 

@@ -277,7 +277,14 @@ try{
   await type('_');await wait('N_AV_DRAFT_47');await key('Control+z');await wait('NAV_DRAFT_47');
   await key('End');await key('Control+u');
   const batch='/windows\r\x1b[200~BATCH_窗_47\x1b[201~';await rawInput(batch);await wait(finderMarker);await wait('BATCH_窗_47');await noRequests(0);
-  await key('Escape');await absent(finderMarker);await wait('Message Main…');
+  const finderFrame=await page.evaluate(()=>visual.frames);
+  await key('Escape');
+  await page.waitForFunction(before=>{
+    const terminal=visual.terminal,text=visual.text();
+    const toolbar=terminal.buffer.active.getLine(terminal.buffer.active.viewportY+1)?.translateToString(true)??'';
+    return visual.frames>before&&terminal.modes?.synchronizedOutputMode!==true&&toolbar.includes('Alt+W Arrange')
+      &&!text.includes('─ Windows ')&&!text.includes('WINDOWS · Esc cancel')&&text.includes('Message Main…')&&text.includes('─ Main · focused');
+  },finderFrame);
   const recorded=(await readFile(join(output,'input.jsonl'),'utf8')).trim().split('\n').map(JSON.parse);assert.ok(recorded.some(row=>row.data===batch));
   report.checks.push('Stable Main/Finder keys work with12 resident panes; private Unicode/native editing and a batched command+paste preserve Main draft, cursor, undo and exact return context without model work');
 

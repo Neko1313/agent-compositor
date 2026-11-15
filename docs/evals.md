@@ -775,6 +775,15 @@ independent grader failed and the owned CPU server exited. Its evidence is in
 `dist/local-cpu-repeated-check-reminder/`. This does not establish a change in
 model quality or response to the reminder.
 
+A navigation run at `ebcb17c`, after tracking invalid native read arguments,
+also failed the known checkout case. It alternated empty searches with reads of
+one missing file; the existing repeated-query bound stopped the turn after nine
+admitted requests. This run did not produce an invalid-offset call, so it does
+not exercise the new validation-failure branch. Both protected files were
+preserved, the independent grader failed and the owned CPU server exited.
+Evidence is in `dist/local-cpu-invalid-read-recovery/`. This observation is not
+a controlled quality comparison or a completed development task.
+
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory
 listing and ordinary project-instruction expansion available to the user. These

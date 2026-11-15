@@ -159,25 +159,25 @@ try{
   await click('All marketplaces');await wait('local-flow · project');await click('local-flow · project');await wait('Choose a plugin to install.');
   await click('local-flow-probe  v1.0.0');await wait('Install local-flow-probe@local-flow · Form');await zoom();await paneText('Install local-flow-probe@local-flow');
   await formButton('Install local-flow-probe@local-flow','Install inactive');await wait('Installed local-flow-probe');
-  await wait('Inactive until you explicitly enable it.');
+  await wait('Installed inactive. Check Installed plugins for current status.');
   const installed=await observe(()=>json(launch.managers.extensionState),value=>value.installed?.[plugin]?.version==='1.0.0','Actual install must write the lock');
   assert.ok(installed.disabled.includes(plugin));assert.equal((await json(launch.managers.manifest)).version,'1.0.0');
   assert.equal(await exists(launch.managers.receipt),false,'Inactive plugin must not run its hooks');await noUnexpectedModelRequests(1);
   await capture('01-installed-inactive');
   report.checks.push('Actual /windows stays host-owned; /plugins Browse redirects to the canonical marketplace, registers an offline catalog and installs its exact package inactive while Main waits');
 
-  await click('Enable installed plugin');await wait('Manage local-flow-probe · Form');await zoom();await paneText('Manage local-flow-probe');
+  await click('Manage installed plugin');await wait('Manage local-flow-probe · Form');await zoom();await paneText('Manage local-flow-probe');
   assert.equal(await field('Manage local-flow-probe','Action'),'enable');
   await formButton('Manage local-flow-probe','Apply');await wait('Enabled local-flow-probe');
   const enabled=await json(launch.managers.extensionState);assert.ok(enabled.enabled.includes(plugin));assert.ok(!enabled.disabled.includes(plugin));
   await unzoom();
-  await observe(()=>paneText('Marketplaces'),text=>text.includes('Enabled local-flow-probe')&&!text.includes('Inactive until you explicitly enable'),
+  await observe(()=>paneText('Marketplaces'),text=>text.includes('Enabled local-flow-probe')&&!text.includes('Installed inactive. Check Installed plugins'),
     'Marketplace receipt must reflect the successful activation');
   await click('Apply plugin changes');await waitMain('Plugin reload queued until current operations finish');
   assert.equal(await exists(launch.managers.receipt),false,'Queued reload must wait for the unresolved Main question');await noUnexpectedModelRequests(1);
   await unzoom();await main();await pendingMainDraft();await click('Edit answer',{pane:'Main'});await wait('[x] Production');await click('Draft');
   await capture('02-enabled-reload-pending');
-  report.checks.push('Enable installed plugin opens the canonical extension management form; explicit Apply saves activation and queues reload without settling Main or executing the new plugin');
+  report.checks.push('Manage installed plugin opens the canonical extension management form; explicit Apply saves activation and queues reload without settling Main or executing the new plugin');
 
   await focusTab('Extensions');await click('Arrange plugin windows');await wait('Arrange plugin windows');await zoom();
   const title='Arrange plugin windows';await select(title,'Plugin window','Todos · todos');await tab();await select(title,'Placement','sidebar');

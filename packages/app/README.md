@@ -544,7 +544,7 @@ Click **[Plugins]** or submit **/plugins** to open the plugin manager. Choose
 **Browse marketplace**, open a catalog, and type in its search field. Up/Down
 selects a matching plugin; Enter or a mouse click opens the installation form.
 Choose **This project** or **All my projects** and **Install inactive**. The result
-provides **Enable installed plugin** and **Apply plugin changes**. The manager
+provides **Manage installed plugin** and **Apply plugin changes**. The manager
 also provides update checks, update/rollback/disable/remove actions, and links
 back to installed plugins and catalogs. Catalog registration and refresh are
 explicit actions. The management form defaults to the installation's scope.

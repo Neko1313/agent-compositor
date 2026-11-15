@@ -42,7 +42,7 @@ try {
   await shot('00-clean-kernel.png');
   await send('/marketplace');await wait('agent-compositor');await shot('01-default-market.png');
   report.checks.push('A fresh app has no plugin windows and exposes the offline default marketplace');
-  await send('/extensions install mascot@agent-compositor --project');await wait('Inactive until you explicitly enable it.');await shot('02-installed-inactive.png');
+  await send('/extensions install mascot@agent-compositor --project');await wait('Installed inactive.');await shot('02-installed-inactive.png');
   report.checks.push('Installing from the default catalog leaves the package inactive');
   await send('/extensions install todos@agent-compositor --project');await wait('Installed todos');
   await send('/extensions enable todos --project');await wait('Enabled todos · project');
@@ -66,7 +66,10 @@ try {
   await wait('Manage auto-approve');await page.keyboard.press('Tab');await wait('All my projects');await shot('07-manage-scope-form.png');await clickText('Apply');
   await wait('Enabled auto-approve · user');await shot('08-managed-user.png');
   report.checks.push('Terminal mouse actions browse the catalog, install inactive through a scope form, and explicitly enable through the management form');
-  await page.keyboard.press('Alt+f');
+  if(await page.evaluate(()=>visual.text().includes('FULLSCREEN'))){
+    await clickText('Extensions');await page.keyboard.press('Alt+f');
+    await page.waitForFunction(()=>!visual.text().includes('FULLSCREEN'));
+  }
   await send('Work while I manage plugins');await wait('AGENT_BUSY');
   await clickText('[Plugins]');await wait('enabled ·');
   await clickText('Browse marketplace');await clickText('agent-compositor · bundled');await wait('Search plugins');
@@ -74,7 +77,7 @@ try {
   await page.waitForFunction(()=>visual.text().includes('1 plugins')&&!visual.text().includes('mascot  v'));
   await shot('09-search-while-working.png');
   await clickText('cost  v');await wait('Install cost@agent-compositor');await clickText('Install inactive');
-  await wait('Installed cost');await clickText('Enable installed plugin');await wait('Manage cost');await clickText('Apply');
+  await wait('Installed cost');await clickText('Manage installed plugin');await wait('Manage cost');await clickText('Apply');
   await wait('Enabled cost');await shot('10-enabled-while-working.png');
   await clickText('Apply plugin changes');await wait('plugins pending');
   await shot('11-reload-pending.png');
@@ -91,7 +94,8 @@ try {
   report.checks.push('An unanswered agent question stays docked while marketplace search and provider settings accept input');
   await page.evaluate(()=>visual.terminal.resize(48,18));
   await page.waitForFunction(()=>visual.terminal.cols===48&&!visual.text().includes('[Plugins]'));
-  await page.keyboard.press('Alt+o');await wait('Browse marketplace');
+  const beforePlugins=await page.evaluate(()=>visual.frames);
+  await page.keyboard.press('Alt+o');await page.waitForFunction(frame=>visual.frames>frame,beforePlugins);await wait('Browse marketplace');
   await page.keyboard.press('Alt+,');await wait('Add provider');
   await wait('Alt+i to answer');await shot('15-narrow-management-with-question.png');
   await clickText('Alt+i to answer');await wait('AGENT_QUESTION');
@@ -101,7 +105,8 @@ try {
   await page.keyboard.press('Alt+s');await wait('AGENT_DONE');
   await shot('16-question-answered-after-management.png');
   await page.keyboard.press('Alt+i');await page.keyboard.type('Unsent draft');await wait('Unsent draft');
-  await page.keyboard.press('Alt+o');await wait('Browse marketplace');
+  const beforePluginsAgain=await page.evaluate(()=>visual.frames);
+  await page.keyboard.press('Alt+o');await page.waitForFunction(frame=>visual.frames>frame,beforePluginsAgain);await wait('Browse marketplace');
   await page.keyboard.press('Alt+,');await wait('Add provider');
   await page.keyboard.press('Alt+i');await wait('Unsent draft');
   await shot('17-draft-preserved-after-management.png');

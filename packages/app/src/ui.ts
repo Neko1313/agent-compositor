@@ -603,7 +603,7 @@ export class AppUI {
   private applyPendingReload():void {
     if(!this.pendingReload||this.reloading||this.closed||this.form||this.core.getState()==='running'||this.core.hasActiveOperations||!this.reload)return;
     this.pendingReload=false;this.reloading=true;
-    this.track(this.reload(this.core).then(text=>{
+    this.track(this.core.host.withoutServiceScope(()=>this.reload!(this.core)).then(text=>{
       this.transcript.push({kind:'notice',text});this.viewCache.clear();
     }).finally(()=>{this.reloading=false;this.draw();}));
   }

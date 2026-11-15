@@ -17,7 +17,7 @@ export function extensionView(action:string,result:any):UiTextView{
  return{lines:[
   {text:action==='install'?`Installed ${name} v${data.version} · ${scope}`:`${action==='enable'?'Enabled':action==='disable'?'Disabled':action==='rollback'?'Rolled back':action==='remove'?'Removed':'Updated'} ${name}${data.version?' v'+data.version:''} · ${scope}`,bold:true},
   ...(['enable','disable'].includes(action)?[{text:'Selection saved. Apply changes to update the running session.',tone:'muted' as const}]:[]),
-  ...(action==='install'?[{text:'Enable installed plugin',action:'manage:'+name},{text:'Inactive until you explicitly enable it.',tone:'muted' as const},{text:`/extensions enable ${name} --${scope}`}]:[]),
+  ...(action==='install'?[{text:'Manage installed plugin',action:'manage:'+name},{text:'Installed inactive. Check Installed plugins for current status.',tone:'muted' as const},{text:`/extensions enable ${name} --${scope}`}]:[]),
   ...(action==='enable'&&data.enabled===false?[{text:'Effective state: off. A project decision or capability selection takes precedence.',tone:'warning' as const}]:[]),
   ...(action==='disable'&&data.enabled===true?[{text:'Effective state: enabled by the project decision. Disable it in project scope to turn it off here.',tone:'warning' as const}]:[]),
   ...navigation,

@@ -221,7 +221,8 @@ export class AgentCore {
   private outputLimit?:number;
   private recoveredInputs:{id:string;text:string}[]=[];
   private recoveringInputs=new Set<string>();
-  private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string}[]=[];
+  private queuePause=new AbortController();
+  private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string;ready:Promise<void>;cancel:()=>void}[]=[];
   private backgroundReceipts=new Set<string>();
   private queueTimer?:ReturnType<typeof setTimeout>;
   private draining?:Promise<void>;
@@ -342,7 +343,7 @@ export class AgentCore {
       signal: () => this.state==="running" ? this.abort.signal : undefined,
       onPluginRemoved: (plugin) => {
         this.cancelOperations(plugin);
-        for(const entry of this.promptQueue)if(entry.owner===plugin&&entry.key)this.backgroundReceipts.delete(entry.key);
+        for(const entry of this.promptQueue)if(entry.owner===plugin){entry.cancel();if(entry.key)this.backgroundReceipts.delete(entry.key);}
         this.promptQueue=this.promptQueue.filter(entry=>entry.owner!==plugin);
         this.broadcast({
           kind: "catalog",
@@ -524,7 +525,7 @@ export class AgentCore {
       }
     );
     this.stopShells=shells;this.revalidateShells=shells.revalidate;
-    this.runtime.setResolver('session.end',async()=>{this.promptQueue=this.promptQueue.filter(entry=>!entry.owner);await this.stopShells();return undefined;});
+    this.runtime.setResolver('session.end',async()=>{for(const entry of this.promptQueue)if(entry.owner)entry.cancel();this.promptQueue=this.promptQueue.filter(entry=>!entry.owner);await this.stopShells();return undefined;});
     this.runtime.setResolver('service.agent.enqueue',async({plugin,key,text}:any)=>{
       if(this.closed)return{deny:'Session is closed'};
       if(typeof plugin!=='string'||!this.host.hasPlugin(plugin,'trusted'))return{deny:'Follow-up owner must be an active trusted plugin'};
@@ -533,8 +534,8 @@ export class AgentCore {
       if(this.backgroundReceipts.has(receipt))return{value:{queued:false,duplicate:true}};
       if(this.promptQueue.length>=128)return{deny:'Follow-up queue is full'};
       if(this.backgroundReceipts.size>=1024){const first=[...this.backgroundReceipts].find(id=>!this.promptQueue.some(entry=>entry.key===id));if(first)this.backgroundReceipts.delete(first);else return{deny:'Follow-up receipt limit reached'};}
-      this.backgroundReceipts.add(receipt);this.promptQueue.push({text,source:'agent',owner:plugin,key:receipt});
-      await this.emit('prompt.queued',{text,depth:this.promptQueue.length});this.scheduleQueue();
+      this.backgroundReceipts.add(receipt);
+      await this.queuePrompt({text,source:'agent',owner:plugin,key:receipt});this.scheduleQueue();
       return{value:{queued:true}};
     });
     this.runtime.setResolver(
@@ -1199,8 +1200,7 @@ export class AgentCore {
     if(source==='user'&&!recoveredId&&this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
     if(this.options.isWorkBlocked?.()){
       const recoveryId=source==='user'?(recoveredId??randomUUID()):undefined;
-      this.promptQueue.push({text,source,recoveryId});admitted?.('queued');
-      await this.emit('prompt.queued',{text,depth:this.promptQueue.length},undefined,recoveryId?{recoveryId}:undefined);
+      await this.queuePrompt({text,source,recoveryId},admitted);
       this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'extension-manager',message:'Message queued while plugins change. Apply /reload if the change requires it.',level:'info'}});
       return;
     }
@@ -1212,14 +1212,9 @@ export class AgentCore {
       if(cancellation!==this.promptCancellation)return;
       return this.submitInput(text,source,admitted,recoveredId);
     }
-    if (this.state === "running") {
+    if (this.state === "running"||this.draining) {
       const recoveryId=source==='user'?(recoveredId??randomUUID()):undefined;
-      this.promptQueue.push({text,source,recoveryId});
-      admitted?.('queued');
-      await this.emit("prompt.queued", {
-        text,
-        depth: this.promptQueue.length,
-      },undefined,recoveryId?{recoveryId}:undefined);
+      await this.queuePrompt({text,source,recoveryId},admitted);
       return;
     }
     await this.runTurn(text,source,undefined,admitted,recoveredId);
@@ -1245,9 +1240,10 @@ export class AgentCore {
 
   /** Stop the running turn or pause accepted automatic work before it starts. */
   interrupt(): void {
+    this.queuePause.abort();this.queuePause=new AbortController();
     this.promptCancellation++;
     // Ordinary queued prompts are cancelled; accepted plugin wakes stay paused.
-    for(const entry of this.promptQueue)if(entry.recoveryId)this.recoveringInputs.delete(entry.recoveryId);
+    for(const entry of this.promptQueue)if(!entry.owner){entry.cancel();if(entry.recoveryId)this.recoveringInputs.delete(entry.recoveryId);}
     this.promptQueue = this.promptQueue.filter(entry => entry.owner);
     this.steerQueue = [];
     clearTimeout(this.queueTimer);this.queueTimer=undefined;
@@ -1292,7 +1288,7 @@ export class AgentCore {
       try {await this.runTurnUnchecked(text,origin,admitted,recoveryId);}
       catch(error){
         this.lastTurnError=String(error);
-        if(this.journalFailure){this.promptQueue=[];this.steerQueue=[];}
+        if(this.journalFailure){for(const entry of this.promptQueue)entry.cancel();this.promptQueue=[];this.steerQueue=[];}
         const failure={turnId:this.currentTurnId??randomUUID(),error:this.lastTurnError};
         try { await this.emit('turn.failed',failure); }
         catch { this.broadcast({kind:'catalog',event:'turn.failed',input:failure}); }
@@ -1684,8 +1680,9 @@ export class AgentCore {
   /** Drop the conversation, keep the system head (Claude's /clear). */
   clear(): void {
     if(this.userOperation.getStore())throw Error("A concurrent operation cannot clear the agent conversation");
+    this.queuePause.abort();this.queuePause=new AbortController();
     this.promptCancellation++;
-    this.promptQueue=[];this.recoveringInputs.clear();clearTimeout(this.queueTimer);this.queueTimer=undefined;
+    for(const entry of this.promptQueue)entry.cancel();this.promptQueue=[];this.recoveringInputs.clear();clearTimeout(this.queueTimer);this.queueTimer=undefined;
     this.resettingBackground=true;
     this.cancelOperations();
     this.resetBackground=Promise.allSettled(this.activeOperations().map(op=>op.promise)).then(()=>this.host.emit('session.end',{reason:'clear'})).then(async()=>{
@@ -1705,7 +1702,7 @@ export class AgentCore {
     }
     this.closed=true;
     const work=this.closePromise??=Promise.resolve().then(async()=>{
-      this.humanLifetime.abort();this.offHumanForm?.();this.interrupt();this.promptQueue=[];this.cancelOperations();clearTimeout(this.queueTimer);this.queueTimer=undefined;
+      this.humanLifetime.abort();this.offHumanForm?.();this.interrupt();for(const entry of this.promptQueue)entry.cancel();this.promptQueue=[];this.cancelOperations();clearTimeout(this.queueTimer);this.queueTimer=undefined;
       try {
         await this.resetBackground;
         await Promise.allSettled([this.activeTurn,this.draining,...this.activeOperations().map(op=>op.promise)]);
@@ -1839,21 +1836,46 @@ export class AgentCore {
     }
   }
 
+  private queuePrompt(input:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string},admitted?:InputAdmitted):Promise<void>{
+    let cancel!:()=>void;const cancelled=new Promise<void>(resolve=>{cancel=resolve;});
+    const entry={...input,ready:Promise.resolve(),cancel};this.promptQueue.push(entry);
+    admitted?.('queued');
+    const write=this.emit('prompt.queued',{text:input.text,depth:this.promptQueue.length},undefined,input.recoveryId?{recoveryId:input.recoveryId}:undefined).then(()=>{});
+    entry.ready=Promise.race([write,cancelled]);
+    void entry.ready.catch(()=>{});
+    return write;
+  }
+  private async waitForQueuedWrite(ready:Promise<void>):Promise<boolean>{
+    const signal=this.queuePause.signal;if(signal.aborted)return false;
+    let wake!:()=>void;const paused=new Promise<false>(resolve=>{wake=()=>resolve(false);signal.addEventListener('abort',wake,{once:true});});
+    try{return await Promise.race([ready.then(()=>true as const),paused]);}
+    finally{signal.removeEventListener('abort',wake);}
+  }
   private scheduleQueue(){
-    if(this.queueTimer||this.closed||this.state!=='idle'||!this.promptQueue.length||this.options.isWorkBlocked?.())return;
+    if(this.queueTimer||this.closed||this.journalFailure||this.state!=='idle'||!this.promptQueue.length||this.options.isWorkBlocked?.())return;
     this.queueTimer=setTimeout(()=>{this.queueTimer=undefined;void this.drainQueue().catch(error=>this.options.notify?.(String(error),'error','background-jobs'));},20);
   }
   private drainQueue():Promise<void>{
     if(this.draining)return this.draining;
     this.draining=(async()=>{
       while(this.promptQueue.length&&!this.closed&&this.state==='idle'&&!this.options.isWorkBlocked?.()){
-        const next=this.promptQueue.shift()!;
+        const next=this.promptQueue[0];if(!await this.waitForQueuedWrite(next.ready))break;
+        if(this.promptQueue[0]!==next)continue;
+        if(this.closed||this.state!=='idle'||this.options.isWorkBlocked?.())break;
+        this.promptQueue.shift();
         if(next.owner&&!this.host.hasPlugin(next.owner,'trusted'))continue;
-        if(next.owner)while(this.promptQueue[0]?.owner===next.owner&&next.text.length+this.promptQueue[0].text.length<4096)next.text+='\n\n'+this.promptQueue.shift()!.text;
-        // Queue ownership distinguishes host follow-ups from initial delegated tasks.
+        while(next.owner&&this.promptQueue[0]?.owner===next.owner&&next.text.length+this.promptQueue[0].text.length<4096){
+          const following=this.promptQueue[0];if(!await this.waitForQueuedWrite(following.ready))break;
+          if(this.promptQueue[0]!==following)continue;
+          if(this.closed||this.state!=='idle'||this.options.isWorkBlocked?.())break;
+          next.text+='\n\n'+this.promptQueue.shift()!.text;
+        }
+        if(this.closed||this.state!=='idle'||this.options.isWorkBlocked?.()){
+          this.promptQueue.unshift(next);break;
+        }
         await this.runTurn(next.text,next.source,next.owner?"harness":undefined,undefined,next.recoveryId);
       }
-    })().finally(()=>{this.draining=undefined;});
+    })().finally(()=>{this.draining=undefined;this.scheduleQueue();});
     return this.draining;
   }
 

@@ -725,6 +725,9 @@ The journal seam replaces event writes independently. The selected
 `{value:true}`. A denial, fault or missing acknowledgement stops the core and
 blocks further execution in that instance. Repair storage and reopen/resume the
 session to continue. A core without a configured journal remains usable in memory.
+A queued prompt cannot start until its `prompt.queued` write is acknowledged;
+queue admission itself still returns before that write, so it is not a durability
+receipt. Cancellation can remove a waiting prompt without waiting for its write.
 Before the journal chain runs, the core snapshots each payload using JSON
 serialization. Backends receive detached JSON records, including when a live
 service input contains an AbortSignal; they do not receive live signals or

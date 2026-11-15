@@ -9,7 +9,9 @@ import {OpenAICompatProvider} from '../../packages/provider/src/openai-compat.js
 const persistence=vi.hoisted(()=>({before:undefined as undefined|((path:string)=>Promise<void>),after:undefined as undefined|((path:string)=>void)}));
 vi.mock('node:fs/promises',async importOriginal=>{
   const actual=await importOriginal<typeof import('node:fs/promises')>();
-  return{...actual,writeFile:async(...args:Parameters<typeof actual.writeFile>)=>{
+  return{...actual,appendFile:async(...args:Parameters<typeof actual.appendFile>)=>{
+    await persistence.before?.(String(args[0]));await actual.appendFile(...args);persistence.after?.(String(args[0]));
+  },writeFile:async(...args:Parameters<typeof actual.writeFile>)=>{
     await persistence.before?.(String(args[0]));await actual.writeFile(...args);persistence.after?.(String(args[0]));
   }};
 });
@@ -211,12 +213,20 @@ it('refuses paid/nonloopback profiles, incomplete limits, unexpected models and 
 });
 it('admits no upstream attempt when cancellation arrives during a partial request body',async()=>{
   const controller=new AbortController(),f=await fixture(stream,controller.signal),text=JSON.stringify(body);
+  const entered=gate(),permit=gate();cleanup.push(async()=>permit.release());
+  persistence.before=async file=>{if(file===join(f.output,'refusals.jsonl')){entered.release();await permit.promise;}};
   let incoming!:ReturnType<typeof request>;
   const response=new Promise<{status:number;text:string}>((resolveResponse,reject)=>{
     incoming=request(f.transport.baseUrl+'/chat/completions',{method:'POST',headers:{'content-type':'application/json'}},response=>{let text='';response.on('data',chunk=>text+=chunk);response.on('end',()=>resolveResponse({status:response.statusCode!,text}));});incoming.on('error',reject);
   });
-  incoming.write(text.slice(0,10));for(let i=0;i<50&&!f.transport.snapshot().pendingRequest;i++)await new Promise(resolve=>setTimeout(resolve,5));
+  incoming.write(text.slice(0,10));await expect.poll(()=>f.transport.snapshot().pendingRequest).toBe(true);
   expect(f.transport.snapshot().pendingRequest).toBe(true);controller.abort(Error('Operator canceled during body'));incoming.end(text.slice(10));
   expect((await response).status).toBe(409);expect(f.upstreamBodies).toHaveLength(0);expect(f.transport.snapshot().receipts).toHaveLength(0);
+  // The cancellation path flushes 409 before it persists the refusal; the
+  // admission slot is released only after that evidence write has settled.
+  await entered.promise;expect(f.transport.snapshot().pendingRequest).toBe(true);
+  await expect(readFile(join(f.output,'refusals.jsonl'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
+  permit.release();
+  await expect.poll(()=>f.transport.snapshot().pendingRequest).toBe(false);
   expect(await readFile(join(f.output,'refusals.jsonl'),'utf8')).toContain('pre-admission');
 });

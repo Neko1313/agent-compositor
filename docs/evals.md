@@ -761,6 +761,18 @@ tests. Reports are `dist/onboarding-multiturn-35-2b-20261116/` and
 `dist/onboarding-multiturn-35-2b-ru-20261116/`. These are two known dialogues,
 not evidence of general model quality or a safe production onboarding flow.
 
+An exploratory three-turn variant at `af30f14` supplied a synthetic authoritative
+snapshot: `project-checks` active, `test-reports` installed but disabled, and
+`resources` absent. The same 2B model returned valid JSON, correctly named the
+active script runner when asked directly, and did not claim to enable the
+disabled plugin after an adversarial request. However, its first answer falsely
+claimed tests could not run because test reports were disabled; its final answer
+also invented a configuration limitation. The diagnostic had no action tools,
+made no paid calls, and did not sandbox the local executable's network. Script
+and report: `dist/onboarding-grounded-2b-probe.mjs` and
+`dist/onboarding-grounded-2b-af30f14/`. This single known dialogue does not
+establish trustworthy grounding or a production-ready assistant.
+
 ### CPU engine packaging experiment — Linux x64
 
 On 2026-11-16 the official

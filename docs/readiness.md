@@ -7,6 +7,13 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+In a local serverless onboarding experiment at `af30f14`, a small model received
+a synthetic, authoritative plugin-state snapshot but incorrectly said disabled
+test reports prevented test execution. It did not claim to perform the requested
+activation, and no action tool was available. The three-turn report and limits
+are recorded in [the CPU diagnostic](evals.md#serverless-cpu-onboarding-diagnostic).
+Verified state in the prompt alone does not establish reliable recommendations.
+
 A local Qwen3 1.7B CPU run against `89ec1a4` found and edited the known
 multi-file case, but reached its 12-request limit with invalid JavaScript and
 no successful verification. The independent grader failed; protected files

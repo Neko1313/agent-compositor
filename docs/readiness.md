@@ -7,6 +7,18 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+The build-only [run for `876e2d1`](https://github.com/Neko1313/agent-compositor/actions/runs/43703813967)
+passed verification and all four Linux/macOS x64/ARM64 jobs; publication was
+skipped. The downloaded quality and installed-runtime evidence archives match
+GitHub's recorded SHA-256 digests. The quality archive records 2658 passing
+tests, five skips, and 32 successful plugin certificates with 405 passing
+results; all 1347 certificate evidence references match their recorded hashes.
+Each platform's installed-runtime archive contains 13 successful OpenTUI
+reports (88 recorded checks) and nine successful runtime smoke reports. These
+are retained reports from the workflow, not an independent local verification
+of the distributed binary archives. They qualify neither later changes nor
+physical-terminal coverage or overall 1.0 readiness.
+
 At source revision `5133d5b`, the configured OpenTUI CLI passed nine
 browser-backed PTY navigation checks and eight conversation-copy checks.
 These include keyboard retiling, narrow-window layout, closed Main recovery,

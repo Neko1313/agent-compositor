@@ -595,7 +595,12 @@ remove installed plugin files while they are running. Use the management
 interface during the turn to queue those changes, then apply them when idle.
 Prompts received during a file change or while its reload is pending stay queued;
 immediate commands and the management interface remain available.
+When a deferred file operation fails, `/reload` reports the failed operation and
+continues applying other queued changes. The failed request is removed; fix the
+cause and submit it again to retry. Requests queued during a reload wait for the
+next application.
 If an agent's refresh fails, retry `/reload` before sending it more work.
+A successfully queued action survives completion of its management window action.
 Closing the app discards unapplied deferred file operations. Saved installation
 and activation choices survive restart. A cancelled management caller also
 discards its own unapplied deferred file operations; replacing a queued action

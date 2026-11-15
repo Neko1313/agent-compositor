@@ -151,7 +151,8 @@ try{
   await observe(layout,value=>value.registered.includes('plugin-network-proxy-network')&&location(value,'plugin-network-proxy-network')===undefined,'Network proxy must be deliberately closed before reload');
   await command('/plugins');await wait('Browse marketplace');await absent('Extensions · Working');
   await main();await type('APP_QUESTION');await key('Enter');await wait('MAIN_QUESTION: choose deployment');
-  await click('Edit answer');await click('[ ] Production');await wait('[x] Production');await click('Draft');await type(draft);
+  await command('/extensions remove not-installed --project');await wait('remove not-installed queued');
+  await main();await click('Edit answer');await click('[ ] Production');await wait('[x] Production');await click('Draft');await type(draft);
   await focusTab('Extensions');await click('Browse marketplace');await wait('Plugin marketplaces');
   await click('Add marketplace');await wait('Add marketplace · Form');await zoom();await paneText('Add marketplace');await type(launch.managers.catalogRoot);
   await noListenerWarnings();
@@ -202,12 +203,13 @@ try{
   await key('Alt+Enter');await waitMain('APP_ANSWER_RECEIVED: Production; model=app-start');
   const loaded=await observe(()=>json(launch.managers.receipt),value=>value.version==='1.0.0','Queued reload must finish after Main answer');
   await wait('LOCAL_FLOW_PROBE_LOADED');await wait('Reloaded ');await main();await wait(draft);
+  await waitMain('Only managed extensions in this scope can be removed');
   assert.equal((await completions()).length,2);assert.equal(location(await layout(),todo),3);
   assert.ok((await layout()).registered.includes('plugin-network-proxy-network'));assert.equal(location(await layout(),'plugin-network-proxy-network'),undefined);
   await capture('04-reloaded-after-question');
   await key('End');await key('Control+u');await wait('Message Main…');await type('APP_RESTORED');await key('Enter');await wait('APP_RESTORED: Production retained');await wait('Main · Ready');
   assert.equal((await completions()).length,3);
-  report.checks.push('Answering Main explicitly drains the queued reload, executes the installed plugin hooks and preserves the deliberately closed same-owner proxy pane; the original conversation continues with its chosen answer');
+  report.checks.push('Answering Main applies valid plugin changes, reports a failed deferred removal and preserves the chosen answer, draft and deliberately closed proxy pane');
 
   await unzoom();await main();const beforeRestart=await layout();await writeFile(join(output,'before-restart-layout.json'),JSON.stringify(beforeRestart,null,2));
   const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');

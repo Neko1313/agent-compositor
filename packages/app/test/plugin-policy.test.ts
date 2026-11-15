@@ -213,3 +213,65 @@ it('keeps user/project versions separate when the workspace is HOME and does not
  const impostor=join(cwd,'plugins/probe');await mkdir(impostor,{recursive:true});await writeFile(join(impostor,'plugin.json'),JSON.stringify({name:'probe',version:'9.0.0',trust:'trusted'}));await writeFile(join(impostor,'hooks.js'),`import{writeFileSync}from'node:fs';writeFileSync(${JSON.stringify(join(f.root,'impostor'))},'executed');export default{};`);
  await a.reloadPlugins(core);expect(a.plugins).toEqual([]);await expect(readFile(join(f.root,'impostor'))).rejects.toMatchObject({code:'ENOENT'});
 });
+
+it('reports a failed deferred plugin operation without blocking unrelated changes or future turns',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([{text:'working',hold:true},{text:'after reload'}]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider,agentHub:false});apps.push(a);
+ const core=a.createCore(async()=>true);await core.start();
+ expect((await core.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+ const running=core.submit('Hold the agent');await expect.poll(()=>provider.requests.length).toBe(1);
+ const missing=await core.host.emit('service.extension.control',{action:'remove',name:'not-installed',scope:'project'});
+ const valid=await core.host.emit('service.extension.control',{action:'remove',name:'todos',scope:'project'});
+ expect(JSON.stringify(missing.value)).toContain('queued');expect(JSON.stringify(valid.value)).toContain('queued');
+ provider.release();await running;
+ const result=await a.reloadPlugins(core);
+ expect(result).toContain('not-installed');expect(result).toContain('Only managed extensions');
+ expect((await core.invokeTool('extension_control',{action:'list'})).output).not.toHaveProperty('installed.todos');
+ await core.submit('Continue after reload');expect(provider.requests).toHaveLength(2);
+ expect(await a.reloadPlugins(core)).toContain('Reloaded');
+});
+
+it('retains a deferred removal after the OpenTUI management action completes',async()=>{
+ const {createOpenTuiHost}=await import('../src/opentui-host.js'),{connectWindowLayout}=await import('../src/opentui-windows.js');
+ const f=await fixture(),provider=new ScriptedProvider([{text:'working',hold:true}]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider,agentHub:false,fixedConfig:{permissions:{rules:[{tool:'extension_control',decision:'allow'}]}}});apps.push(a);
+ const layout=await connectWindowLayout(a,{panes:[{id:'session',label:'Main'}],initial:['session']});layout.resize(120,40);
+ const host=createOpenTuiHost(a,layout);await host.start();const core=host.core;
+ try{
+  expect((await core.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+  expect((await core.invokeTool('extension_control',{action:'enable',name:'todos',scope:'project'})).ok).toBe(true);
+  await a.reloadPlugins(core);const directory=a.plugins.find(plugin=>plugin.manifest.name==='todos')!.dir;
+  const running=core.submit('Hold the agent');await expect.poll(()=>provider.requests.length).toBe(1);
+  await host.submit('/extensions remove todos --project');
+  await expect.poll(()=>host.surfaces.snapshot().find(source=>source.id==='plugin-extension-manager-extensions')?.snapshot().view?.lines.some(line=>line.text.includes('remove todos queued'))).toBe(true);
+  await expect.poll(()=>host.surfaces.snapshot().find(source=>source.id==='plugin-extension-manager-extensions')?.snapshot().busy).toBe(false);
+  provider.release();await running;await a.reloadPlugins(core);
+  expect(await stat(directory).catch(()=>null)).toBeNull();
+ }finally{provider.release();await host.close();layout.disconnect();}
+},15000);
+
+it('cancels deferred plugin work only for the caller that owns it',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([{text:'working',hold:true}]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider,agentHub:false});apps.push(a);
+ const core=a.createCore(async()=>true);await core.start();
+ expect((await core.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+ expect((await core.invokeTool('extension_control',{action:'enable',name:'todos',scope:'project'})).ok).toBe(true);
+ await a.reloadPlugins(core);const directory=a.plugins.find(plugin=>plugin.manifest.name==='todos')!.dir;
+ const running=core.submit('Hold the agent');await expect.poll(()=>provider.requests.length).toBe(1);
+ const first=new AbortController(),second=new AbortController();
+ expect(JSON.stringify((await core.host.emit('service.extension.control',{action:'remove',name:'todos',scope:'project',signal:first.signal})).value)).toContain('queued');
+ expect(JSON.stringify((await core.host.emit('service.extension.control',{action:'remove',name:'todos',scope:'project',signal:second.signal})).value)).toContain('queued');
+ first.abort();provider.release();await running;await a.reloadPlugins(core);expect(await stat(directory).catch(()=>null)).toBeNull();
+});
+
+it('drops an explicitly cancelled deferred plugin action before reload',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([{text:'working',hold:true}]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider,agentHub:false});apps.push(a);
+ const core=a.createCore(async()=>true);await core.start();
+ expect((await core.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+ expect((await core.invokeTool('extension_control',{action:'enable',name:'todos',scope:'project'})).ok).toBe(true);
+ await a.reloadPlugins(core);const directory=a.plugins.find(plugin=>plugin.manifest.name==='todos')!.dir;
+ const running=core.submit('Hold the agent');await expect.poll(()=>provider.requests.length).toBe(1);
+ const caller=new AbortController();await core.host.emit('service.extension.control',{action:'remove',name:'todos',scope:'project',signal:caller.signal});
+ caller.abort();provider.release();await running;await a.reloadPlugins(core);expect(await stat(directory).catch(()=>null)).toBeTruthy();
+});

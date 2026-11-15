@@ -656,7 +656,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     pluginChangeActive=true;
     pluginFilesDirty=true;
     try{
-    await extensions.applyPending();
+    const pendingErrors=await extensions.applyPending();
     await extensions.refresh();
     const next = await loadPluginsFromDisk([...new Set([...dirs,...extensions.boundDirectories()])], disabled(), extensions.enabled(), accepts);
     next.plugins = next.plugins.filter(
@@ -704,9 +704,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     }))));
     try{await hub?.reloadPlugins();}catch(error){throw Error(`Main plugins reloaded, but managed agent reload failed: ${String(error)}`);}
     pluginFilesDirty=false;
-    return `Reloaded ${plugins.length} plugins. ${next.errors
-      .map((e) => e.error)
-      .join("; ")}`;
+    const resultErrors=[...pendingErrors,...next.errors.map(e=>e.error)];
+    return `Reloaded ${plugins.length} plugins.${resultErrors.length?' Errors: '+resultErrors.join('; '):' '}`;
     }finally{hub?.endPluginReload();finishPluginChange();}
   };
   const commands = ():AppCommand[] =>
@@ -837,7 +836,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     close: signal => {
       let unbind=()=>{};
       if(signal){const source=AbortSignal.any([signal]),abort=()=>closeCancellation.abort(source.reason);source.addEventListener('abort',abort,{once:true});if(source.aborted)abort();unbind=()=>source.removeEventListener('abort',abort);}
-      closing=true;
+      closing=true;extensions.closePending();
       const work=closePromise??=Promise.resolve().then(async () => {
         humanRequests=undefined;
         await hub?.close(closeCancellation.signal);

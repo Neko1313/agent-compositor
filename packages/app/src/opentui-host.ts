@@ -1,3 +1,4 @@
+import {UI_ACTION_COMPLETED} from './ui-operation-lifetime.js';
 import {recoveryCommand,recoverySummary} from './recovered-inputs.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {randomUUID} from 'node:crypto';
@@ -647,7 +648,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     operations.set(op.id, op);
     if (source) publish(source, {...source.state, busy: true, error: undefined});
     const task = context.run(op, async () => {
-      try {await run(op);}
+      let completed=false;
+      try {await run(op);completed=true;}
       catch {if (live(op)) {
         if(kind==='change'&&source)changeFailures.set(source,(changeFailures.get(source)??0)+1);
         if (source?.active) publish(source, {...source.state, error: 'The UI action failed'});
@@ -656,7 +658,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       finally {
         op.active = false;
         operations.delete(op.id);
-        op.controller.abort();
+        op.controller.abort(completed?UI_ACTION_COMPLETED:undefined);
         navigationSignal?.removeEventListener('abort', abortNavigation);
         op.inbox?.close(); op.off?.();
         if (op.surface) remove(op.surface);

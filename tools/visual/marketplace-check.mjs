@@ -71,6 +71,7 @@ try {
     await page.waitForFunction(()=>!visual.text().includes('FULLSCREEN'));
   }
   await send('Work while I manage plugins');await wait('AGENT_BUSY');
+  await send('/extensions remove not-installed --project');await wait('remove not-installed queued');
   await clickText('[Plugins]');await wait('enabled ·');
   await clickText('Browse marketplace');await clickText('agent-compositor · bundled');await wait('Search plugins');
   await page.keyboard.type('cost');await wait('Search: cost');
@@ -82,8 +83,8 @@ try {
   await clickText('Apply plugin changes');await wait('plugins pending');
   await shot('11-reload-pending.png');
   await clickInput();await page.keyboard.press('Control+c');
-  await wait('Reloaded 2 plugins.');await shot('12-applied-after-interrupt.png');
-  report.checks.push('During a held model turn, toolbar navigation, live catalog search, scoped install and enable stay usable; reload waits until the turn stops');
+  await wait('Reloaded 2 plugins.');await wait('Only managed extensions');await shot('12-applied-after-interrupt.png');
+  report.checks.push('During a held model turn, plugin management stays usable; reload reports a failed deferred removal while applying valid changes');
   await send('Ask before continuing');await wait('AGENT_QUESTION');
   await clickText('[Plugins]');await wait('enabled ·');
   await clickText('Browse marketplace');await clickText('agent-compositor · bundled');await wait('Search plugins');

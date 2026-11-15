@@ -1,3 +1,4 @@
+import {UI_ACTION_COMPLETED} from './ui-operation-lifetime.js';
 import { execFile } from "node:child_process";
 import {randomUUID} from 'node:crypto';
 import { promisify } from "node:util";
@@ -93,6 +94,7 @@ export async function extensionManager(
   allowlist?:string[],
   blocked:string[]=[],
 ) {
+  const lifetime=new AbortController();
   const legacyProjectDirectory=join(cwd,'.agent-compositor/plugins');
   const projectDirectory=resolve(legacyProjectDirectory)===resolve(globalRoot,'plugins')?join(stateRoot,'project-plugins'):legacyProjectDirectory;
   const files = {
@@ -462,14 +464,22 @@ export async function extensionManager(
   let acquireMutation:(sessionId?:string)=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{};
   const pending=new Map<string,{args:any;signal:AbortSignal;forget:()=>void}>();
   const applyPending=async()=>{
+    lifetime.signal.throwIfAborted();
     if(runtimeBusy())throw Error('Wait for running agents before applying plugin changes');
     if(busy)throw Error('Another extension operation is in progress; retry Apply when it finishes');
-    for(const entry of pending.values()){
-      await control(entry.args,AbortSignal.any([entry.signal,AbortSignal.timeout(300000)]),userFetch);
-      entry.forget();
+    const errors:string[]=[];
+    // Apply only the requests present at the start. A later replacement remains
+    // queued for a subsequent reload and must not be removed by an older call.
+    for(const [key,entry] of [...pending.entries()]){
+      if(pending.get(key)!==entry)continue;
+      try{await control(entry.args,AbortSignal.any([entry.signal,lifetime.signal,AbortSignal.timeout(300000)]),userFetch);}
+      catch(error){errors.push(`${entry.args.action} ${entry.args.name} (${entry.args.scope}): ${String(error)}`);}
+      finally{entry.forget();}
     }
+    return errors;
   };
   const userControl = async (args:any, signal:AbortSignal) => {
+    if(lifetime.signal.aborted)return{ok:false,error:'Plugin manager is closed'};
     if(signal.aborted)return{ok:false,error:'Plugin operation cancelled'};
     const guarded=['update','rollback','remove'].includes(args.action);
     const release=guarded&&!runtimeBusy()?acquireMutation():undefined;
@@ -479,11 +489,16 @@ export async function extensionManager(
       const key=`${scope}:${name}`;
       pending.get(key)?.forget();
       const forget=()=>{
-        signal.removeEventListener('abort',forget);
+        signal.removeEventListener('abort',onAbort);
         if(pending.get(key)?.forget===forget)pending.delete(key);
       };
+      const onAbort=()=>{
+        const entry=pending.get(key);
+        if(signal.reason===UI_ACTION_COMPLETED&&entry?.forget===forget){entry.signal=lifetime.signal;signal.removeEventListener('abort',onAbort);}
+        else forget();
+      };
       pending.set(key,{args:{...args,name,scope},signal,forget});
-      signal.addEventListener('abort',forget,{once:true});
+      signal.addEventListener('abort',onAbort,{once:true});
       return {ok:true,data:{name,scope,queued:true}};
     }
     let mutated=false;
@@ -548,7 +563,8 @@ export async function extensionManager(
       },
     },
   };
-  return { tool, plugin, userControl, applyPending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch,acquire:(sessionId?:string)=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{})=>{runtimeBusy=busy;userFetch=fetcher;acquireMutation=acquire;}, disabled, enabled,activationRestriction,activationScope,selectedPath,projectDirectory,
+  const closePending=()=>{lifetime.abort(Error('Plugin manager closed'));for(const entry of pending.values())entry.forget();};
+  return { tool, plugin, userControl, applyPending, closePending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch,acquire:(sessionId?:string)=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{})=>{runtimeBusy=busy;userFetch=fetcher;acquireMutation=acquire;}, disabled, enabled,activationRestriction,activationScope,selectedPath,projectDirectory,
     boundDirectories:()=>enabled().flatMap(name=>{const path=selectedPath(name);return path?[path]:[];}),
     refresh:async()=>{states.user=await read(files.user);states.project=await read(files.project);},
     setAvailable:(read:typeof available)=>{available=read;} };

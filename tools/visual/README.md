@@ -1103,7 +1103,7 @@ plugin with `VISUAL_PLUGIN_DIR`; native proof uses bundled code only.
 ## OpenTUI agent reply recovery
 
 `VISUAL_OUTPUT=dist/visual-opentui-agent-drafts npm run visual:opentui-agent-drafts`
-uses the actual source CLI in an isolated PTY with two managed agents and one
+uses the actual CLI in an isolated PTY with two managed agents and one
 synthetic loopback provider request; no paid model is called. It types independent Reply drafts, switches windows immediately,
 waits for the private state files, restarts and verifies both values. It also
 types rapidly into a delayed plugin field that republishes each edit, switches
@@ -1112,7 +1112,8 @@ also submits a Reply with Enter and checks the exact request and response. A
 delayed submit verifies that later typing is delivered separately, including a
 nonempty replacement and a temporarily absent field that require explicit input recovery. The
 scenario exercises native surface input admission and restart, not external
-terminal compatibility or a packaged distribution.
+terminal compatibility. Set `VISUAL_EXECUTABLE` to an executable inside an
+extracted archive to exercise the packaged CLI; the report records its SHA-256.
 
 ## Ink conflicting input recovery
 

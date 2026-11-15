@@ -7,6 +7,13 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An isolated browser-backed PTY check on a locally installed Linux x64 binary
+from `c2fd409` created two managed agents, retained separate drafts across
+restart, and exercised delayed and conflicting field updates. Its loopback
+provider received one explicit reply; the report and executable hash are in
+`dist/visual-opentui-agent-drafts-native-c2fd409/`. This is not a `/btw`
+command test, a physical-terminal check, or evidence for other platforms.
+
 An extracted `btw` 2.0.0 package on the source Ink PTY host passed concurrent
 conversation and cancellation checks but once timed out after restart while
 waiting for its new reply. The input trace shows PageDown immediately after

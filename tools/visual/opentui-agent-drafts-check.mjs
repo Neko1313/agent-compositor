@@ -11,7 +11,7 @@ const report={ok:false,checks:[],screenshots:[],errors:[]};let server,serverExit
 await mkdir(output,{recursive:true});
 async function observe(read,accept,reason){let value;const end=Date.now()+timeout;while(Date.now()<end){value=await read().catch(()=>undefined);if(value!==undefined&&accept(value))return value;await delay(25);}throw Error(reason+': '+JSON.stringify(value));}
 try{
- const runtime=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR','PYTHON','LD_LIBRARY_PATH','CI'].flatMap(name=>process.env[name]===undefined?[]:[[name,process.env[name]]]));
+ const runtime=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR','PYTHON','LD_LIBRARY_PATH','CI','VISUAL_EXECUTABLE'].flatMap(name=>process.env[name]===undefined?[]:[[name,process.env[name]]]));
  server=spawn('bun',['tools/visual/server.mjs'],{cwd:root,env:{...runtime,VISUAL_OPENTUI_APP:'1',VISUAL_OPENTUI_CHILD:'1',VISUAL_OPENTUI_AGENT_DRAFTS:'1',VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
  serverExit=new Promise(done=>server.once('close',done));
  const url=await new Promise((done,fail)=>{let value='';const timer=setTimeout(()=>fail(Error('Bench startup timed out')),30000);server.once('error',fail);serverExit.then(code=>fail(Error('Bench exited '+code)));server.stdout.on('data',chunk=>{value+=chunk;const match=value.match(/VISUAL_URL=(http\S+)\s/);if(match){clearTimeout(timer);done(match[1]);}});});
@@ -23,6 +23,8 @@ try{
  const finder=createOpenTuiFinder({page,key,wait,absent});
  const json=path=>readFile(path,'utf8').then(JSON.parse);
  launch=await observe(()=>json(join(output,'opentui-app-launch.json')),value=>Boolean(value.child),'Actual child fixture');
+ report.mode=launch.mode;
+ if(process.env.VISUAL_EXECUTABLE){assert.equal(launch.executable,resolve(process.env.VISUAL_EXECUTABLE));assert.equal(createHash('sha256').update(await readFile(launch.executable)).digest('hex'),launch.sha256);report.executable={path:launch.executable,sha256:launch.sha256};}
  async function command(value){await key('Alt+0');await wait('Main · focused');await key('Alt+w');await wait('WINDOW MODE');if(!(await screen()).includes('WINDOW MODE · Zoomed'))await key('f');await wait('WINDOW MODE · Zoomed');await key('Escape');await finder.normal();await key('End');await key('Control+u');await page.keyboard.type(value);await wait(value);await key('Enter');}
  async function pick(label){await finder.pick(label);await wait(label+' · focused');}
  async function capture(name){

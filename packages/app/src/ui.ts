@@ -324,7 +324,7 @@ export class AppUI {
     if((intent.type==='submit'||intent.type==='steer')&&typeof intent.text==='string'&&intent.text.trim()) {
       const text=intent.text;this.transcript.push({kind:'user',text});
       if(this.managementCommand(text))return;
-      this.track(intent.type==='steer'?this.core.steer(text):this.core.submit(text));
+      this.dispatchEditorPrompt(text,intent.type);
     }
   }
   /** Host management does not enter the model prompt queue or borrow its tool turn. */
@@ -946,7 +946,7 @@ export class AppUI {
       if (name === "turn.failed" || name === "turn.interrupted") {
         this.status =
           name === "turn.failed"
-            ? "Failed — submit to try again"
+            ? String(input.error??"").includes("Session journal failed;") ? "Storage error — reopen session" : "Failed — submit to try again"
             : "Interrupted";
         this.transcript.push({
           kind: "notice",
@@ -1519,13 +1519,23 @@ export class AppUI {
       this.historyDraft = "";
       this.transcript.push({ kind: "user", text });
       if (this.managementCommand(text)) {this.draw();return;}
-      const task = data.key === "tab"
-          ? this.core.steer(text)
-          : this.core.submit(text);
-      this.track(task);
+      this.dispatchEditorPrompt(text,data.key === "tab"?'steer':'submit');
     }
     this.refreshReferenceFiles();
     this.draw();
+  }
+  private dispatchEditorPrompt(text:string,intent:'submit'|'steer'):void {
+    const owner=this.core,receipt=owner.dispatchInput(text,intent);
+    this.track(receipt.completion);
+    this.track(receipt.admitted.then(admission=>{
+      if(admission!==false||this.closed||this.core!==owner)return;
+      const current=this.editorSnapshot();
+      if(!current.text&&this.editor?.isDefault){
+        this.draft=text;this.cursor=text.length;this.refreshReferenceFiles();
+        this.transcript.push({kind:'notice',tone:'danger',text:'Message was not accepted; restored to the input.'});
+      } else this.transcript.push({kind:'notice',tone:'danger',text:'Message was not accepted. Its text remains above; your current draft was preserved.'});
+      this.draw();
+    }));
   }
   private refreshReferenceFiles():void {
     const reference=activeReference(this.draft,this.cursor),prefix=reference?.prefix;

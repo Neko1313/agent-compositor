@@ -26,6 +26,10 @@ modern emoji as one cell and can leave stale glyphs after valid cursor updates.
 The raw-ANSI regression checks both profiles against the same writes. This does
 not establish support for every extended emoji or grapheme-cluster sequence.
 
+`node tools/visual/queue-failure-check.mjs` runs the Ink app with an isolated
+journal denial. It verifies that an unaccepted queued message returns to the
+editor. This is a controlled storage failure, not a native crash test.
+
 `node tools/visual/recovery-check.mjs` runs the actual Ink application with an
 isolated scripted provider. It queues a user message during a held turn,
 restarts the PTY session, checks the recovery warning and list, and explicitly

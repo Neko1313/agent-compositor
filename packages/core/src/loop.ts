@@ -1839,8 +1839,17 @@ export class AgentCore {
   private queuePrompt(input:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string},admitted?:InputAdmitted):Promise<void>{
     let cancel!:()=>void;const cancelled=new Promise<void>(resolve=>{cancel=resolve;});
     const entry={...input,ready:Promise.resolve(),cancel};this.promptQueue.push(entry);
-    admitted?.('queued');
-    const write=this.emit('prompt.queued',{text:input.text,depth:this.promptQueue.length},undefined,input.recoveryId?{recoveryId:input.recoveryId}:undefined).then(()=>{});
+    const depth=this.promptQueue.length;
+    const write=(async()=>{
+      if(input.recoveryId)await this.persist('prompt.queue.intent',{text:input.text,recoveryId:input.recoveryId});
+      if(!this.promptQueue.includes(entry))return;
+      admitted?.('queued');
+      await this.emit('prompt.queued',{text:input.text,depth},undefined,input.recoveryId?{recoveryId:input.recoveryId}:undefined);
+    })().catch(error=>{
+      const index=this.promptQueue.indexOf(entry);if(index>=0)this.promptQueue.splice(index,1);
+      entry.cancel();if(input.recoveryId)this.recoveringInputs.delete(input.recoveryId);
+      throw error;
+    });
     entry.ready=Promise.race([write,cancelled]);
     void entry.ready.catch(()=>{});
     return write;

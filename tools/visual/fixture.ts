@@ -55,6 +55,17 @@ const app = await buildApp({
     { text: "Independent agent response" },
   ]),
 });
+if(process.env.VISUAL_QUEUE_WRITE_FAIL){
+ const create=app.createCore;
+ app.createCore=(...args:Parameters<typeof create>)=>{
+  const core=create(...args);
+  core.runtime.setResolver('service.session.append',async({sessionId,cwd,event,data}:any)=>{
+   if(event==='prompt.queue.intent')return {deny:'Visual fixture: journal unavailable'};
+   await app.store.create(cwd,{id:sessionId});await app.store.append(sessionId,[{type:event,...data}],cwd);return {value:true};
+  });
+  return core;
+ };
+}
 if(process.env.VISUAL_ONBOARDING){const{writeFile}=await import('node:fs/promises');const{join}=await import('node:path');await writeFile(join(process.env.VISUAL_OUTPUT!,'onboarding-identity.json'),JSON.stringify({cwd:app.storage.paths.project,state:app.storage.paths.state,home:app.storage.paths.home}));}
 const identityPlugin=process.env.VISUAL_IDENTITY_PLUGIN??process.env.VISUAL_CERT_PLUGIN;
 if(identityPlugin){

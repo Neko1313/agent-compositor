@@ -152,3 +152,17 @@ it('admits only displayed controls and valid coordinates and projects scroll and
   await expect.poll(() => f.editor.snapshot().scroll).toEqual({revision: 1, rows: 4});
   f.input({kind: 'key', key: 'f3'});await expect.poll(f.interrupts).toBe(1);
 });
+
+it('restores the editor when a real Core rejects a queued input after a journal failure', async () => {
+  const {AgentCore,ScriptedProvider}=await import('@agent-compositor/core');
+  const provider=new ScriptedProvider([{text:'Working',hold:true}]);
+  const core=new AgentCore({cwd:process.cwd(),provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.queue.intent'))throw Error('disk unavailable');
+  }}});
+  const running=core.dispatchInput('First');expect(await running.admitted).toBe('submitted');
+  await expect.poll(()=>provider.requests.length).toBe(1);
+  const f=setup(draftFactory(),{text:'Keep my draft',cursor:4},async intent=>core.dispatchInput(intent.text,intent.type).admitted);
+  f.input({kind:'key',key:'f2'});await expect.poll(()=>f.editor.snapshot().admission?.status).toBe('rejected');
+  expect(f.editor.checkpoint()).toEqual({text:'Keep my draft',cursor:4});
+  provider.release();await running.completion;await core.close();
+});

@@ -249,7 +249,7 @@ export function recoverQueuedInputs(events: SessionEvent[]): {id:string;text:str
     .map(event=>event.recoveryId).filter((id):id is string=>typeof id==='string'));
   const found=new Map<string,string>();
   for(const event of events){
-    if(event.type==='prompt.queued'&&typeof event.recoveryId==='string'&&typeof event.text==='string'
+    if((event.type==='prompt.queued'||event.type==='prompt.queue.intent')&&typeof event.recoveryId==='string'&&typeof event.text==='string'
       &&!consumed.has(event.recoveryId)&&!found.has(event.recoveryId))found.set(event.recoveryId,event.text);
   }
   return [...found].map(([id,text])=>({id,text}));

@@ -131,3 +131,30 @@ it.each(['submit', 'steer'] as const)('rejects %s on a closed Core before admiss
   expect(await receipt.admitted).toBe(false);await expect(receipt.completion).rejects.toThrow('Session is closed');
   expect(f.provider.requests).toHaveLength(0);
 });
+
+it('acknowledges queued user input only after its recovery intent is saved, without waiting for notification hooks', async () => {
+  const write=gate(),hook=gate(),journal:SessionEvent[]=[];
+  const provider=new ScriptedProvider([{text:'Working',hold:true},{text:'Completed'}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.queue.intent'))await write.wait();journal.push(...events);
+  }},plugins:[{manifest:{name:'notify',version:'1.0.0',trust:'trusted'},hooks:{'prompt.queued':()=>hook.wait()}}]});
+  const main=f.core.dispatchInput('Main');expect(await main.admitted).toBe('submitted');await expect.poll(()=>provider.requests.length).toBe(1);
+  const next=f.core.dispatchInput('Retain this');let admission:CoreInputAdmission|undefined;void next.admitted.then(value=>{admission=value;});
+  await write.entered;await Promise.resolve();expect(admission).toBeUndefined();
+  write.release();expect(await next.admitted).toBe('queued');await hook.entered;
+  const intent=journal.find(event=>event.type==='prompt.queue.intent');expect(intent).toMatchObject({text:'Retain this',recoveryId:expect.any(String)});
+  const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},structuredClone(journal));cores.push(resumed);
+  expect(resumed.getRecoveredInputs()).toEqual([{id:intent!.recoveryId,text:'Retain this'}]);
+  hook.release();await next.completion;provider.release();await main.completion;
+});
+
+it('rejects queued admission if its recovery intent cannot be saved', async () => {
+  const provider=new ScriptedProvider([{text:'Working',hold:true}]);
+  const f=fixture({provider,sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.queue.intent'))throw Error('disk unavailable');
+  }}});
+  const main=f.core.dispatchInput('Main');expect(await main.admitted).toBe('submitted');await expect.poll(()=>provider.requests.length).toBe(1);
+  const next=f.core.dispatchInput('Keep my draft');expect(await next.admitted).toBe(false);
+  await expect(next.completion).rejects.toThrow('Session journal failed');provider.release();await main.completion;
+  expect(provider.requests).toHaveLength(1);
+});

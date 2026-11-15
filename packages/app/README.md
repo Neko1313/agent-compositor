@@ -105,7 +105,8 @@ to the agent state. Resizing reflows the visible conversation.
 
 Interrupting work cancels ordinary queued messages. After reopening a session,
 `/recover` lists newer queued messages recorded in the journal without a recorded
-submission. A message whose journal write did not finish cannot be recovered. Use
+submission. Queue acceptance waits for the recovery intent write when persistent
+storage is configured. Use
 `/recover show N` to read one, `/recover retry N` to submit it explicitly, or
 `/recover discard N` to remove it from recovery. A recovered message may have
 been cancelled or may have begun processing before a crash; inspect the session

@@ -330,3 +330,26 @@ describe('local window controls', () => {
     expect(f.provider.requests).toHaveLength(0);
   });
 });
+
+it('restores an unaccepted queued message when the journal fails without overwriting later typing', async () => {
+  let failWrite!:()=>void,enteredWrite!:()=>void;
+  const held=new Promise<void>(resolve=>{failWrite=resolve;}),entered=new Promise<void>(resolve=>{enteredWrite=resolve;});
+  const f=setup([{text:'Working',hold:true}],{sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.queue.intent')){enteredWrite();await held;throw Error('disk unavailable');}
+  }}});
+  f.send('First');await expect.poll(()=>f.provider.requests.length).toBe(1);
+  f.send('Original follow-up');await entered;f.text('Later draft');failWrite();
+  await expect.poll(()=>f.screens.get('session')??'').toContain('current draft was preserved');
+  expect(f.screens.get('input')).toContain('Later draft');expect(f.screens.get('session')).toContain('Original follow-up');
+  f.provider.release();
+});
+
+it('returns an unaccepted queued message to an empty default editor', async () => {
+  const f=setup([{text:'Working',hold:true}],{sessions:{create:async()=>{},append:async(_id,events)=>{
+    if(events.some(event=>event.type==='prompt.queue.intent'))throw Error('disk unavailable');
+  }}});
+  f.send('First');await expect.poll(()=>f.provider.requests.length).toBe(1);
+  f.send('Return to editor');
+  await expect.poll(()=>f.screens.get('input')??'').toContain('Return to editor');
+  expect(f.screens.get('session')).toContain('restored to the input');f.provider.release();
+});

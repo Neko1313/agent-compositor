@@ -295,7 +295,9 @@ drafts are stored privately and survive restart after the debounced save; the
 main editor and private form drafts are not persisted. A source OpenTUI PTY
 scenario verifies fast switching and restoration of two Reply fields after
 process replacement, and sends one reply through an isolated loopback provider.
-This does not establish external model quality. Saved activity exposes persisted
+Conflicting later input is retained in-session for explicit restoration or
+discard in both frontends. This does not establish external model quality. Saved
+activity exposes persisted
 prompts, turn lifecycle/usage and tool arguments/results/errors through filtered,
 paginated expandable records read through the configured session repository.
 Linux PTY checks cover an actual read tool call, a held main stream and restored

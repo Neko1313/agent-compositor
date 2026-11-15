@@ -292,8 +292,14 @@ subsequent edits after the pending submit action. If that action replaces the
 field with an empty field, text typed while it was pending is retained for review;
 it can include text that was still visible from the submitted value. OpenTUI
 also queues the latest later edit until submission finishes. If a producer replaces
-the field with a nonempty value, neither renderer overwrites it with queued input;
-the interface reports that the queued input could not be applied.
+the field with a nonempty value, neither renderer overwrites it automatically.
+The window offers **Restore queued input** and **Discard queued input**; in Ink,
+Ctrl+R and Ctrl+D provide keyboard access. Restore explicitly replaces the
+current field and sends the retained value as `ui.change`, not as a submission.
+The pending value stays in host memory if restoration fails and is not sent to
+`ui.render` hooks. It survives hiding and reopening the same plugin view in the
+same session, but not process exit or session replacement. At 256 retained
+conflicts the host asks the user to resolve some before submitting more.
 
 ## Semantic tabs
 

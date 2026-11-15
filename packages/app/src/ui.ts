@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import { activeReference } from "./project-context.js";
 import {isCompactionEvidence} from '@agent-compositor/core';
 import { ControllerDialog } from "./controller-dialog.js";
@@ -138,6 +139,7 @@ export class AppUI {
   private viewChangeTails = new Map<string,Promise<void>>();
   private viewSubmissions = new Map<string,Promise<void>>();
   private reboundViewInputs = new WeakMap<object,{id:string;value:string}>();
+  private viewRecovery = new Map<string,{value:string;restore:string;discard:string;owner:string;core:AgentCore;pending?:boolean}>();
   private switchingSession = false;
   private visibility = new Map<string, string>();
   private composerViews = new Map<string, {plugin:string;surface:string;view:UiTextView}>();
@@ -546,6 +548,25 @@ export class AppUI {
     }));
   }
   private async press(site:string,key:string):Promise<void> {
+    const recovery=this.viewRecovery.get(site);
+    if(recovery&&recovery.core===this.core&&this.pluginWindows.get(site)?.plugin===recovery.owner&&(key===recovery.restore||key===recovery.discard)){
+      if(recovery.pending)return;
+      if(key===recovery.discard){this.viewRecovery.delete(site);this.viewCache.delete(site);this.draw();return;}
+      const view=this.panes.get(site)?.view,input=view?.input,field=this.viewInputs.get(site),core=this.core;
+      if(!input||!field||this.pluginWindows.get(site)?.plugin!==recovery.owner)throw Error('The input is no longer available');
+      recovery.pending=true;const original=field.value,originalViewValue=view.input?.value;
+      try{
+        const prior=this.viewChangeTails.get(site);if(prior)await prior;
+        if(this.closed||this.core!==core||this.viewInputs.get(site)!==field||this.viewRecovery.get(site)!==recovery)throw Error('Plugin input expired before recovery');
+        field.value=recovery.value;this.draw();
+        const result=await core.host.emit('ui.change',{site,id:field.id,value:recovery.value});
+        if(result.faults.length)throw Error('Could not restore queued input');
+        if(this.viewRecovery.get(site)===recovery){this.viewRecovery.delete(site);this.viewCache.delete(site);this.draw();}
+      }catch(error){if(this.viewInputs.get(site)===field&&this.panes.get(site)?.view?.input?.value===originalViewValue){field.value=original;this.draw();}throw error;}
+      finally{recovery.pending=false;}return;
+    }
+    if(recovery&&recovery.core===this.core&&this.pluginWindows.get(site)?.plugin===recovery.owner&&this.panes.get(site)?.view?.input?.submitAction===key){this.status='Resolve queued input first';this.draw();return;}
+    if(this.viewRecovery.size>=256&&this.panes.get(site)?.view?.input?.submitAction===key){this.status='Resolve retained input before submitting more';this.draw();return;}
     const manager=['plugin-extension-manager-extensions','plugin-marketplace-manager-marketplaces','plugin-setup-guide-setup'].includes(site);
     if(manager&&key.startsWith('navigate:')){
       const target=key.slice(9);
@@ -1306,6 +1327,10 @@ export class AppUI {
     if (this.windows.focused !== "input" && editable) {
       const site = this.windows.focused;
       const field = this.viewInputs.get(site) ?? { id: editable.id, value: editable.value };
+      const recovery=this.viewRecovery.get(site);
+      if(data.kind==='key'&&data.modifiers?.includes('ctrl')&&recovery&&recovery.core===this.core&&this.pluginWindows.get(site)?.plugin===recovery.owner&&(data.key==='r'||data.key==='d')){
+        this.track(this.press(site,data.key==='r'?recovery.restore:recovery.discard));return;
+      }
       const clear = data.kind === "key" && data.key === "u" && data.modifiers?.includes("ctrl");
       if (clear || data.kind === "text" || (data.kind === "key" && ["backspace", "delete"].includes(data.key))) {
         field.value = clear ? "" : data.kind === "text"
@@ -1320,8 +1345,14 @@ export class AppUI {
           let target=this.viewInputs.get(site);
           if(target!==field){
             const current=this.panes.get(site)?.view?.input,known=this.reboundViewInputs.get(field);
-            if(!submission||!target||!current||!owner||this.pluginWindows.get(site)?.plugin!==owner||current.submitAction!==submitAction
-              ||(known?known!==target:current.value!==''||target.value!==''))throw Error('Plugin input expired before it was applied');
+            if(!submission||!target||!current||!owner||this.pluginWindows.get(site)?.plugin!==owner||current.submitAction!==submitAction)
+              throw Error('Plugin input expired before it was applied');
+            if(known?known!==target:current.value!==''||target.value!==''){
+              const previous=this.viewRecovery.get(site);
+              if(previous)previous.value=value;
+              else this.viewRecovery.set(site,{value,restore:'recover:'+randomUUID(),discard:'discard:'+randomUUID(),owner,core});
+              this.viewCache.delete(site);this.draw();return;
+            }
             if(!known)this.reboundViewInputs.set(field,target);
             target.value=value;this.draw();
           }else target=field;
@@ -1339,8 +1370,9 @@ export class AppUI {
           if(!this.viewSubmissions.has(site)){
             const core=this.core,tail=this.viewChangeTails.get(site)??Promise.resolve(),fieldId=editable.id;
             const submission=tail.then(()=>{const current=this.panes.get(site)?.view;if(!this.closed&&this.core===core&&current?.input?.id===fieldId&&current.input.submitAction===submit)return this.press(site,submit!);});
-            this.viewSubmissions.set(site,submission);
-            void submission.then(()=>{if(this.viewSubmissions.get(site)===submission)this.viewSubmissions.delete(site);},()=>{if(this.viewSubmissions.get(site)===submission)this.viewSubmissions.delete(site);});
+            this.viewSubmissions.set(site,submission);this.viewCache.delete(site);
+            const finish=()=>{if(this.viewSubmissions.get(site)!==submission)return;const later=this.viewChangeTails.get(site);if(later){void later.then(finish,finish);return;}this.viewSubmissions.delete(site);this.viewCache.delete(site);if(!this.closed)this.draw();};
+            void submission.then(finish,finish);
             this.track(submission);
           }
         }else this.track(this.press(site,data.key));
@@ -1568,6 +1600,7 @@ export class AppUI {
         for(const approval of approvals)approval.resolve(false);
         this.core.host.controllers.disposeAll();
         this.formUnsubscribe?.();this.formUnsubscribe=undefined;
+        this.viewRecovery.clear();
         this.core = next;
         this.filePrefix=undefined;this.fileCatalog=undefined;this.fileRevision++;
         this.bindForms();
@@ -2086,7 +2119,7 @@ export class AppUI {
     };
     // Host-owned input has no ui.render override. In particular, do not stringify
     // the composer's full RGBA image into a cache key on every animation frame.
-    if(surface==='input'){send(rows);return;}
+    if(surface==='input'||this.viewSubmissions.has(surface)||(this.viewRecovery.has(surface)&&this.viewRecovery.get(surface)!.core===this.core&&this.viewRecovery.get(surface)!.owner===this.pluginWindows.get(surface)?.plugin)){send(rows);return;}
     const defaultView = uiTextViewSchema.safeParse({ raster: props.raster, table:props.table,tabs:props.tabs, lines: input.props.lines }).data;
     const key = JSON.stringify(input);
     let cached = this.viewCache.get(surface);
@@ -2320,8 +2353,11 @@ export class AppUI {
             ...rows,
           ];
       } else {
-        rows = pane?.view
-          ? viewRows(this.viewCache.get(frame.surface)?.view??pane.view, width, height)
+        const held=this.viewRecovery.get(frame.surface),recovery=held&&held.core===this.core&&this.pluginWindows.get(frame.surface)?.plugin===held.owner?held:undefined,base=this.viewCache.get(frame.surface)?.view??pane?.view;
+        const view=base&&recovery?{...base,lines:[...(base.input?[{text:'[ Restore queued input · Ctrl+r ]',action:recovery.restore,tone:'warning' as const}]:[{text:'Waiting for an input to restore',tone:'warning' as const}]),
+          {text:'[ Discard queued input · Ctrl+d ]',action:recovery.discard,tone:'muted' as const},...base.lines.slice(0,1998)]}:base;
+        rows = view
+          ? viewRows(view, width, height)
           : textRows(
               pane?.kind === "tools"
                 ? this.tools
@@ -2471,6 +2507,7 @@ export class AppUI {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.viewRecovery.clear();this.viewChangeTails.clear();this.viewSubmissions.clear();
     clearTimeout(this.pendingTextDraw);this.pendingTextDraw=undefined;
     clearTimeout(this.pendingOperationDraw);this.pendingOperationDraw=undefined;
     this.closePanel();

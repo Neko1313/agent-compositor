@@ -1009,6 +1009,14 @@ waits for the private state files, restarts and verifies both values. It also
 types rapidly into a delayed plugin field that republishes each edit, switches
 windows immediately and verifies the exact value received by the producer. It
 also submits a Reply with Enter and checks the exact request and response. A
-delayed submit verifies that later typing is delivered separately. The
+delayed submit verifies that later typing is delivered separately, including a
+nonempty replacement that requires explicit input recovery. The
 scenario exercises native surface input admission and restart, not external
 terminal compatibility or a packaged distribution.
+
+## Ink conflicting input recovery
+
+`VISUAL_OUTPUT=dist/visual-ink-input-recovery npm run visual:ink-input-recovery`
+uses a real Ink PTY and a private temporary plugin to verify that a conflicting
+producer value remains visible until Ctrl+R explicitly restores the retained
+later input. This synthetic flow makes no paid model requests.

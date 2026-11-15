@@ -157,10 +157,13 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const producerNumbers = new WeakMap<object,number>();
   let nextProducerNumber=0;
   let nextRequestNumber=0;
-  const changes = new Map<Surface, {field: string; value: string}>();
+  const changes = new Map<Surface, {field: string; value: string;recovery?:object}>();
   const submitting = new Map<Surface,object>();
   const afterSubmission = new Map<Surface,{field:string;value:string;action:string}>();
   const changeFailures = new WeakMap<Surface,number>();
+  type InputRecovery={value:string;restore:string;discard:string;rawView?:UiTextView;restoreBase?:UiTextView;pending?:boolean};
+  const inputRecovery = new Map<Surface,InputRecovery>();
+  const parkedInputRecovery = new Map<string,{owner:string;core:AgentCore;recovery:InputRecovery}>();
   let active = true, started = false, switching = false, pendingReload = false, reloading = false;
   let reloadPromise: Promise<boolean> | undefined;
   let reloadFailed: false | 'reload' | 'startup' = false;
@@ -194,7 +197,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (id !== 'status' && !layout.snapshot().frames.some(frame => frame.surface === id)) return false;
       const surface = surfaceMap.get(id);
       if (surface) {
-        if (!surface.active || !surface.semantic || !surface.state.view || privateSurface(surface.state)) return false;
+        if (!surface.active || !surface.semantic || !surface.state.view || privateSurface(surface.state) || inputRecovery.has(surface)) return false;
         layout.act({type: 'focus', id});return press(surface, action);
       } else if (id === 'status' || isMainPane(id) || auxiliary.has(id)) {
         if (id !== 'status') layout.act({type: 'focus', id});
@@ -261,7 +264,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         scrollable: true, scrollOffset: metrics.scrollOffset, fieldRows: [], hostScrollKeys: true}};
     }
     const surface = surfaceMap.get(id), state = surface?.state;
-    if (!surface?.active || !surface.semantic || !state?.view || privateSurface(state) || !core.host.hasPlugin(surface.owner)) return;
+    if (!surface?.active || !surface.semantic || !state?.view || privateSurface(state) || inputRecovery.has(surface) || !core.host.hasPlugin(surface.owner)) return;
     const view = state.view, field = view.input;
     const fieldRows = field ? [{text: clean((field.label ?? 'Search') + ': ' + (field.value || field.placeholder || '')), tone: 'accent' as const}] : [];
     return {site: 'plugin:' + surface.owner + '/' + surface.semantic, defaultView: view, props: {...props,
@@ -408,8 +411,17 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   }
   function publish(surface: Surface, value: Omit<UiSurfaceSnapshot, 'revision'>) {
     if (!active || !surface.active) return;
+    const recovery=inputRecovery.get(surface);
+    if(recovery&&value.view){
+      if(value.view!==surface.state.view)recovery.rawView=value.view;
+      const original=recovery.rawView??value.view;
+      const view=recovery.pending&&original.input?{...original,input:{...original.input,value:recovery.value}}:original;
+      value={...value,view:{...view,lines:[
+        ...(view.input?[{text:'[ Restore queued input ]',action:recovery.restore,tone:'warning' as const}]:[{text:'Waiting for an input to restore',tone:'warning' as const}]),
+        {text:'[ Discard queued input ]',action:recovery.discard,tone:'muted'},...view.lines.slice(0,1998)]}};
+    }
     surface.state = immutable({...value, revision: surface.state.revision + 1});
-    if (surface.semantic && surface.state.view && !privateSurface(surface.state)) publicRendering.register(surface.source.id, surface);
+    if (surface.semantic && surface.state.view && !privateSurface(surface.state) && !recovery) publicRendering.register(surface.source.id, surface);
     else publicRendering.remove(surface.source.id);
     publicRendering.refresh(surface.source.id);
     for (const fn of surface.listeners) fn();
@@ -421,6 +433,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     publicRendering.remove(surface.source.id);
     const controller=privateWindows.get(surface);privateWindows.delete(surface);controller?.close();
     changes.delete(surface);afterSubmission.delete(surface);
+    const recovery=inputRecovery.get(surface);inputRecovery.delete(surface);
+    if(recovery&&active){recovery.pending=false;parkedInputRecovery.set(surface.source.id,{owner:surface.owner,core,recovery});}
     // A handler may remove its own view before resuming a chat or opening a form.
     // Its already-admitted operation keeps its independent lifetime.
     for (const op of operations.values()) if (op.site === surface.source.id && op !== context.getStore()) op.controller.abort();
@@ -471,6 +485,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
           if (reloading) {if (active) notice('Plugin reload is applying. Retry this input after it finishes.'); return false;}
           if (!admitted(surface, revision) || surface.state.view?.input?.id !== field
             || typeof value !== 'string' || value.length > 4000) return false;
+          if(inputRecovery.get(surface)?.pending){notice('Queued input recovery is still being applied');return false;}
           if(submitting.has(surface)){
             const action=surface.state.view?.input?.submitAction;if(!action)return false;
             afterSubmission.set(surface,{field,value,action});return true;
@@ -483,6 +498,9 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       },
     };
     surfaceMap.set(id, surface);
+    const parked=parkedInputRecovery.get(id);
+    if(parked&&parked.core!==core)parkedInputRecovery.delete(id);
+    else if(parked&&parked.owner===owner){parkedInputRecovery.delete(id);parked.recovery.rawView=undefined;inputRecovery.set(surface,parked.recovery);}
     return surface;
   }
   function admitted(surface: Surface, revision: number): boolean {
@@ -490,6 +508,16 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       && revision === surface.state.revision && core.host.hasPlugin(surface.owner);
   }
   function press(surface: Surface, action: string):boolean {
+    const recovery=inputRecovery.get(surface);
+    if(recovery&&(action===recovery.restore||action===recovery.discard)){
+      if(submitting.has(surface)||recovery.pending)return false;
+      const view=recovery.rawView,input=view?.input;
+      if(action===recovery.restore&&(!view||!input))return false;
+      if(action===recovery.discard){inputRecovery.delete(surface);publish(surface,{...surface.state,view});return true;}
+      recovery.restoreBase=view;recovery.pending=true;changes.set(surface,{field:input!.id,value:recovery.value,recovery});
+      publish(surface,{...surface.state,view,busy:true});drainChanges();return true;
+    }
+    if(recovery&&surface.state.view?.input?.submitAction===action){notice('Resolve the queued input before submitting');return false;}
     const managers: Record<string, string> = {
       'plugin-extension-manager-extensions': 'extension-manager',
       'plugin-marketplace-manager-marketplaces': 'marketplace-manager',
@@ -512,6 +540,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     }
     const field=surface.state.view?.input;
     if(field?.submitAction===action){
+      if(inputRecovery.size+parkedInputRecovery.size>=256){notice('Resolve retained input before submitting more');return false;}
       if(submitting.has(surface))return false;
       if(surface.state.error){notice('Input must be saved before submission');return false;}
       const submission={},failure=changeFailures.get(surface)??0;let submissionFailed=false;submitting.set(surface,submission);
@@ -521,7 +550,10 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         if(!later||!active||!surface.active||surfaceMap.get(surface.source.id)!==surface)return;
         const view=surface.state.view,input=view?.input;if(!view||!input||input.submitAction!==later.action)return;
         if(input.id!==later.field){
-          if(input.value!==''){notice('Later input could not be applied to the replaced field');return;}
+          if(input.value!==''){
+            inputRecovery.set(surface,{value:later.value,restore:'recover:'+randomUUID(),discard:'discard:'+randomUUID(),rawView:view});
+            publish(surface,{...surface.state,view});notice('Later input is retained; restore or discard it in the window');return;
+          }
           publish(surface,{...surface.state,view:{...view,input:{...input,value:later.value}},busy:true});
         }
         changes.set(surface,{field:input.id,value:later.value});
@@ -570,14 +602,26 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     const result = await op.core.host.emit(event, input, op.controller.signal);
     if (result.faults.length) throw Error('UI action failed');
   }
+  function dropChange(surface:Surface){
+    const change=changes.get(surface);changes.delete(surface);
+    const recovery=inputRecovery.get(surface);
+    if(change?.recovery&&recovery===change.recovery){recovery.pending=false;publish(surface,{...surface.state,view:recovery.rawView,busy:[...operations.values()].some(op=>op.site===surface.source.id)});}
+  }
   function drainChanges() {
     if (reloading) return;
     for (const [surface, change] of changes) {
-      if (!admitted(surface, surface.state.revision) || surface.state.view?.input?.id !== change.field) {changes.delete(surface); continue;}
+      if (!admitted(surface, surface.state.revision) || surface.state.view?.input?.id !== change.field) {dropChange(surface); continue;}
       if (operations.size >= 4 || [...operations.values()].some(op => op.site === surface.source.id && op.kind === 'change')) continue;
       changes.delete(surface);
-      runOperation(surface.owner, surface.source.id,
-        op => emit(op, 'ui.change', {site: surface.source.id, id: change.field, value: change.value}), surface, 'change');
+      runOperation(surface.owner, surface.source.id,async op=>{
+        try{await emit(op, 'ui.change', {site: surface.source.id, id: change.field, value: change.value});}
+        catch(error){const failed=inputRecovery.get(surface);if(failed&&failed===change.recovery){failed.pending=false;publish(surface,{...surface.state,view:failed.rawView});}throw error;}
+        const recovery=inputRecovery.get(surface);
+        if(change.recovery&&recovery===change.recovery){
+          const base=recovery.rawView,view=base&&base===recovery.restoreBase&&base.input?{...base,input:{...base.input,value:recovery.value}}:base;
+          inputRecovery.delete(surface);publish(surface,{...surface.state,view});
+        }
+      }, surface, 'change');
     }
   }
   function runOperation(owner: string, site: string, run: (op: Operation) => Promise<unknown>, source?: Surface, kind: Operation['kind'] = 'action', open = false, navigationSignal?: AbortSignal, windowIntent = layout.windowIntentRevision): Operation | undefined {
@@ -1461,7 +1505,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (!active) return false;
       let cancelled = false;
       for (const op of operations.values()) if (op.site === surfaceId || op.surface?.source.id === surfaceId) {
-        const source = surfaceMap.get(op.site); if (source) changes.delete(source);
+        const source = surfaceMap.get(op.site); if (source) dropChange(source);
         op.controller.abort(); cancelled = true;
       }
       return cancelled;
@@ -1473,7 +1517,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       publicRendering.close();
       publicRenderDispatch.abort(Error('OpenTUI host closed'));
       navigation?.close();
-      changes.clear();afterSubmission.clear();
+      changes.clear();afterSubmission.clear();inputRecovery.clear();parkedInputRecovery.clear();
       offLayout?.();
       for (const op of operations.values()) op.controller.abort();
       unbind();

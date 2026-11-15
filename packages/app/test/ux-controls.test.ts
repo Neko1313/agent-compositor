@@ -230,15 +230,31 @@ describe("plugin action navigation", () => {
     }finally{release();ui.close();}
   });
   it('does not overwrite a nonempty replacement field with later queued edits',async()=>{
-    const {ui,text,key,renders}=setup();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='';
+    const {ui,text,key,renders}=setup();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='',failRecovery=true;const renderEvents:string[]=[];
+    ui.core.host.registerPlugin({name:'render-spy',version:'1.0.0',trust:'trusted'},{'ui.render':event=>{renderEvents.push(JSON.stringify(event));return {tree:{lines:[{text:'RENDER_OVERRIDE'}]}};}});
     ui.core.host.registerPlugin({name:'replace-protected',version:'1.0.0',trust:'trusted'},{
-      'ui.change':event=>{if(event.site==='plugin-replace-protected-main')value=event.value;},
+      'ui.change':event=>{if(event.site==='plugin-replace-protected-main'){if(event.id==='next'&&failRecovery)throw Error('temporary failure');value=event.value;}},
       'ui.press':async(event,$)=>{if(event.site==='plugin-replace-protected-main'&&event.key==='send'){started();await gate;await $.ui.view('main','Submit',{input:{id:'next',value:'SERVER_VALUE',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
     });
     try{
       await ui.core.host.emit('service.ui.view',{plugin:'replace-protected',id:'main',title:'Submit',view:{input:{id:'first',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]},placement:{site:'sidebar',size:.75,focus:true}});
       text('first');key('enter');await entered;text(' second');release();await ui.settled();
-      expect(renders.get('plugin-replace-protected-main')).toContain('SERVER_VALUE');expect(value).toBe('first');expect(renders.get('session')?.replace(/\s+/g,' ')).toContain('Plugin input expired');
+      expect(renders.get('plugin-replace-protected-main')).toContain('SERVER_VALUE');expect(value).toBe('first');expect(renders.get('plugin-replace-protected-main')).toContain('Restore queued input');expect(renderEvents.join('')).not.toContain('first second');
+      key('r',['ctrl']);await ui.settled();expect(value).toBe('first');expect(renders.get('plugin-replace-protected-main')).toContain('SERVER_VALUE');expect(renders.get('plugin-replace-protected-main')).toContain('Restore queued input');
+      failRecovery=false;key('r',['ctrl']);await ui.settled();expect(value).toBe('first second');expect(renders.get('plugin-replace-protected-main')).toContain('first second');
+      expect(renders.get('plugin-replace-protected-main')).not.toContain('Restore queued input');
+    }finally{release();ui.close();}
+  });
+  it('discards a retained conflict only after an explicit action',async()=>{
+    const {ui,text,key,renders}=setup();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='';
+    ui.core.host.registerPlugin({name:'discard-proof',version:'1.0.0',trust:'trusted'},{
+      'ui.change':event=>{if(event.site==='plugin-discard-proof-main')value=event.value;},
+      'ui.press':async(event,$)=>{if(event.site==='plugin-discard-proof-main'&&event.key==='send'){started();await gate;await $.ui.view('main','Submit',{input:{id:'next',value:'SERVER',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
+    });
+    try{
+      await ui.core.host.emit('service.ui.view',{plugin:'discard-proof',id:'main',title:'Submit',view:{input:{id:'first',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]},placement:{site:'sidebar',size:.75,focus:true}});
+      text('first');key('enter');await entered;text(' later');release();await ui.settled();expect(renders.get('plugin-discard-proof-main')).toContain('Discard queued input');
+      key('d',['ctrl']);await ui.settled();expect(renders.get('plugin-discard-proof-main')).toContain('SERVER');expect(renders.get('plugin-discard-proof-main')).not.toContain('Discard queued input');expect(value).toBe('first');
     }finally{release();ui.close();}
   });
   it('keeps the search label and literal characters visible in a narrow plugin pane',async()=>{

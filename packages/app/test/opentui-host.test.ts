@@ -930,7 +930,11 @@ it.each(['ordinary', 'background'] as const)('attributes an interceptor form to 
     },
   });
   const main = f.host.submit('Ask before continuing');
-  await expect.poll(() => f.host.session.snapshot().interaction?.kind).toBe('question');
+  // Observe the actual loopback request separately so a loaded CI runner can
+  // distinguish provider startup latency from a missing question publication.
+  await expect.poll(()=>f.requests.length,{timeout:5000}).toBe(1);
+  expect(f.requests[0].body.messages.at(-1)?.content).toBe('Ask before continuing');
+  await expect.poll(() => f.host.session.snapshot().interaction?.kind,{timeout:5000}).toBe('question');
   const mainId = f.host.session.snapshot().interaction!.id;
   await f.host.core.host.emit('service.ui.view', {plugin: 'scope-a', id: 'main', title: 'Caller A',
     view: {lines: [{text: 'Start', action: 'start'}]}});
@@ -1444,16 +1448,66 @@ it('retains later input when a submission replaces the field with an empty one',
 });
 
 it('does not overwrite a nonempty replacement after a delayed submission',async()=>{
-  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});const values:string[]=[];
+  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});const values:string[]=[];let failRecovery=true;
   f.host.core.host.registerPlugin({name:'submit-protected',version:'1.0.0',trust:'trusted'},{
-    'ui.change':event=>{if(event.site==='plugin-submit-protected-main')values.push(event.value);},
+    'ui.change':event=>{if(event.site==='plugin-submit-protected-main'){if(event.id==='next'&&failRecovery)throw Error('temporary failure');values.push(event.value);}},
     'ui.press':async(event,$)=>{if(event.site==='plugin-submit-protected-main'&&event.key==='send'){started();await gate;await $.ui.view('main','Submit',{input:{id:'next',value:'SERVER',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
   });
   await f.host.core.host.emit('service.ui.view',{plugin:'submit-protected',id:'main',title:'Submit',view:{input:{id:'first',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
-  const source=f.find('plugin-submit-protected-main')!;
+  let source=f.find('plugin-submit-protected-main')!;
   try{source.change('first','before',source.snapshot().revision);await expect.poll(()=>values.length).toBe(1);await expect.poll(()=>source.snapshot().busy).toBe(false);
     expect(source.press('send',source.snapshot().revision)).not.toBe(false);await entered;expect(source.change('first','before later',source.snapshot().revision)).not.toBe(false);release();
-    await expect.poll(()=>f.host.session.snapshot().notice).toContain('Later input could not be applied');expect(values).toEqual(['before']);expect(source.snapshot().view?.input?.value).toBe('SERVER');
+    await expect.poll(()=>f.host.session.snapshot().notice).toContain('Later input is retained');expect(values).toEqual(['before']);expect(source.snapshot().view?.input?.value).toBe('SERVER');
+    expect(f.host.publicRender.slot(source.id)).toBeUndefined();
+    await f.host.core.host.emit('service.ui.view',{plugin:'submit-protected',id:'main',title:'Updated',view:{input:{id:'next',value:'SERVER2',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+    expect(source.snapshot().view?.input?.value).toBe('SERVER2');expect(source.snapshot().view!.lines.some(line=>line.text==='[ Restore queued input ]')).toBe(true);
+    await f.host.core.host.emit('service.ui.remove',{plugin:'submit-protected',id:'main'});await expect.poll(()=>f.find('plugin-submit-protected-main')).toBeUndefined();
+    await f.host.core.host.emit('service.ui.view',{plugin:'submit-protected',id:'main',title:'Submit',view:{input:{id:'next',value:'SERVER',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+    source=f.find('plugin-submit-protected-main')!;
+    const recovery=source.snapshot().view!.lines.find(line=>line.text==='[ Restore queued input ]')!.action!;
+    expect(source.press('send',source.snapshot().revision)).toBe(false);expect(source.press(recovery,source.snapshot().revision)).not.toBe(false);expect(source.press(recovery,source.snapshot().revision)).toBe(false);
+    await expect.poll(()=>source.snapshot().error).toBe('The UI action failed');expect(values).toEqual(['before']);expect(source.snapshot().view?.input?.value).toBe('SERVER');
+    expect(source.snapshot().view!.lines.some(line=>line.text==='[ Restore queued input ]')).toBe(true);
+    failRecovery=false;await expect.poll(()=>source.snapshot().busy).toBe(false);expect(source.press(recovery,source.snapshot().revision)).not.toBe(false);
+    await expect.poll(()=>values).toEqual(['before','before later']);expect(source.snapshot().view?.input?.value).toBe('before later');
+    await expect.poll(()=>source.snapshot().view!.lines.some(line=>line.text==='[ Restore queued input ]')).toBe(false);
+  }finally{release();}
+});
+
+it('retains recovery when a queued restore targets a replaced field',async()=>{
+  const f=await fixture();let releaseSend!:()=>void,releaseHold!:()=>void,sendStarted!:()=>void,holdStarted!:()=>void;
+  const sendGate=new Promise<void>(resolve=>{releaseSend=resolve;}),holdGate=new Promise<void>(resolve=>{releaseHold=resolve;}),sendEntered=new Promise<void>(resolve=>{sendStarted=resolve;}),holdEntered=new Promise<void>(resolve=>{holdStarted=resolve;});const values:{id:string;value:string}[]=[];
+  f.host.core.host.registerPlugin({name:'recovery-replaced',version:'1.0.0',trust:'trusted'},{
+    'ui.change':async event=>{if(event.site!=='plugin-recovery-replaced-main')return;values.push({id:event.id,value:event.value});if(event.value==='HOLD'){holdStarted();await holdGate;}},
+    'ui.press':async(event,$)=>{if(event.site==='plugin-recovery-replaced-main'&&event.key==='send'){sendStarted();await sendGate;await $.ui.view('main','Submit',{input:{id:'next',value:'SERVER',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
+  });
+  const view=(id:string,value:string)=>({input:{id,value,submitAction:'send'},lines:[{text:'Send',action:'send'}]});
+  await f.host.core.host.emit('service.ui.view',{plugin:'recovery-replaced',id:'main',title:'Submit',view:view('first','')});const source=f.find('plugin-recovery-replaced-main')!;
+  try{source.change('first','before',source.snapshot().revision);await expect.poll(()=>values.length).toBe(1);await expect.poll(()=>source.snapshot().busy).toBe(false);
+    expect(source.press('send',source.snapshot().revision)).not.toBe(false);await sendEntered;source.change('first','before later',source.snapshot().revision);releaseSend();
+    await expect.poll(()=>source.snapshot().view?.lines.some(line=>line.text==='[ Restore queued input ]')).toBe(true);
+    source.change('next','HOLD',source.snapshot().revision);await holdEntered;
+    const restore=source.snapshot().view!.lines.find(line=>line.text==='[ Restore queued input ]')!.action!;expect(source.press(restore,source.snapshot().revision)).not.toBe(false);
+    await f.host.core.host.emit('service.ui.view',{plugin:'recovery-replaced',id:'main',title:'Submit',view:view('third','SERVER3')});releaseHold();
+    await expect.poll(()=>source.snapshot().busy).toBe(false);expect(source.snapshot().view?.input?.value).toBe('SERVER3');
+    expect(source.snapshot().view!.lines.some(line=>line.text==='[ Restore queued input ]')).toBe(true);
+    expect(source.press(restore,source.snapshot().revision)).not.toBe(false);await expect.poll(()=>values.at(-1)).toEqual({id:'third',value:'before later'});
+  }finally{releaseSend();releaseHold();}
+});
+
+it('discards a retained conflicting input only by explicit action',async()=>{
+  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});const values:string[]=[];
+  f.host.core.host.registerPlugin({name:'discard-recovery',version:'1.0.0',trust:'trusted'},{
+    'ui.change':event=>{if(event.site==='plugin-discard-recovery-main')values.push(event.value);},
+    'ui.press':async(event,$)=>{if(event.site==='plugin-discard-recovery-main'&&event.key==='send'){started();await gate;await $.ui.view('main','Submit',{input:{id:'next',value:'SERVER',submitAction:'send'},lines:[{text:'Send',action:'send'}]});}},
+  });
+  await f.host.core.host.emit('service.ui.view',{plugin:'discard-recovery',id:'main',title:'Submit',view:{input:{id:'first',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+  const source=f.find('plugin-discard-recovery-main')!;
+  try{source.change('first','before',source.snapshot().revision);await expect.poll(()=>values).toEqual(['before']);await expect.poll(()=>source.snapshot().busy).toBe(false);
+    expect(source.press('send',source.snapshot().revision)).not.toBe(false);await entered;expect(source.change('first','before later',source.snapshot().revision)).not.toBe(false);release();
+    await expect.poll(()=>source.snapshot().view?.lines.some(line=>line.text==='[ Discard queued input ]')).toBe(true);
+    const discard=source.snapshot().view!.lines.find(line=>line.text==='[ Discard queued input ]')!.action!;expect(source.press(discard,source.snapshot().revision)).not.toBe(false);
+    expect(source.snapshot().view?.input?.value).toBe('SERVER');expect(values).toEqual(['before']);expect(source.snapshot().view?.lines.some(line=>line.text==='[ Discard queued input ]')).toBe(false);
   }finally{release();}
 });
 

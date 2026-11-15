@@ -482,6 +482,9 @@ for both modes; the report identifies source/binary mode and hashes the selected
 binary. Keep the complete archive contents beside that executable.
 Set `VISUAL_ONBOARDING_OPENTUI=1` to run the same flow with OpenTUI; without it
 the scenario uses Ink. Both source and extracted-binary modes support the flag.
+The recommendations step selects the resource monitor and side conversation,
+checks that the focused side-conversation dependency hint is visible, and
+verifies installation and activation before the first model request.
 `VISUAL_OUTPUT=dist/setup-cancellation node tools/visual/setup-cancellation-check.mjs`
 uses a held local archive response and selects two plugins through the real setup
 window. Ink closes the panel; OpenTUI uses Ctrl+C, then closes the panel. The

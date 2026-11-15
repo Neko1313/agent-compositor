@@ -79,6 +79,13 @@ describe('native forms',()=>{
   d.handle({kind:'mouse',row:hintRow,col:1,button:'left',action:'press'});
   expect(d.focus).toBe(0);
  });
+ it('reveals the focused field hint when it fits and keeps the control visible for long hints',()=>{
+  const d=new FormDialog({title:'Tools',fields:[{id:'first',label:'First',type:'toggle'}, {id:'second',label:'Second',type:'toggle',hint:'Requires agent-hub.'}],actions:[{id:'save',label:'Save'}]});
+  d.visible(30,5);d.handle(key('tab'));
+  let rows=d.visible(30,5);expect(rows.map(row=>row.text).join(' ')).toContain('Requires agent-hub.');expect(rows.some(row=>row.selected)).toBe(true);
+  const long=new FormDialog({title:'Tools',fields:[{id:'first',label:'First',type:'toggle'},{id:'second',label:'Second',type:'toggle',hint:'A very long explanation '.repeat(20)}],actions:[{id:'save',label:'Save'}]});
+  long.visible(20,5);long.handle(key('tab'));rows=long.visible(20,5);expect(rows.some(row=>row.selected)).toBe(true);expect(rows.some(row=>row.text==='Second')).toBe(true);
+ });
  it('routes a plugin form through AppUI without placing passwords in wire output or chat',async()=>{
   const root=await temp();const app=await buildApp({cwd:root,env:{HOME:root},provider:new ScriptedProvider([])});
   const ui=new AppUI(app.createCore);const wire:WireMessage[]=[];ui.connect(m=>wire.push(m));

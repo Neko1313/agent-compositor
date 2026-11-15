@@ -140,7 +140,11 @@ export function Interaction({interaction, session, editing, focused, width, heig
     valuesRef.current = {};
   }, []);
   useLayoutEffect(() => {
-    if (editing && focused) scroller.current?.scrollChildIntoView('interaction-field-' + target);
+    if (editing && focused) {
+      scroller.current?.scrollChildIntoView('interaction-field-' + target);
+      // Very long hints may exceed the viewport; keep the control reachable.
+      if (interaction.kind === 'form' && field) scroller.current?.scrollChildIntoView('interaction-control-' + target);
+    }
   }, [editing, focused, target, page, width, height, interaction.error]);
 
   function choose(index: number) {
@@ -268,16 +272,16 @@ export function Interaction({interaction, session, editing, focused, width, heig
         </>}
         {interaction.kind === 'form' && <>
           {interaction.request.description && <text fg={color.muted} wrapMode="word">{display(interaction.request.description)}</text>}
-          {interaction.request.fields.map((item, index) => <box key={item.id} flexDirection="column" flexShrink={0}>
+          {interaction.request.fields.map((item, index) => <box key={item.id} id={'interaction-field-' + index} flexDirection="column" flexShrink={0}>
             <text fg={target === index ? color.actionText : color.text} attributes={TextAttributes.BOLD} wrapMode="word">
               {display(item.label) + (item.required ? ' *' : '')}
             </text>
             {['text', 'url', 'password'].includes(item.type)
-              ? <TextField id={'interaction-field-' + index} value={item.type === 'password' ? '' : String(values[item.id] ?? '')}
+              ? <TextField id={'interaction-control-' + index} value={item.type === 'password' ? '' : String(values[item.id] ?? '')}
                   focused={focused && editing && target === index} active={active} secret={item.type === 'password'}
                   placeholder={item.type === 'password' ? 'Password…' : item.type === 'url' ? 'https://…' : 'Text…'}
                   onFocus={() => {setEditing(true); flushSync(() => setTarget(index));}} onChange={value => formValue(item.id, value)} />
-              : <box id={'interaction-field-' + index} height={1} backgroundColor={target === index ? color.actionBackground : color.panel}
+              : <box id={'interaction-control-' + index} height={1} backgroundColor={target === index ? color.actionBackground : color.panel}
                   onMouseDown={event => {
                     if (event.button !== MouseButton.LEFT || !current()) return;
                     setEditing(true); setTarget(index);

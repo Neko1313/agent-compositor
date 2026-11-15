@@ -57,9 +57,11 @@ export class FormDialog {
       :[{text:Array.from(help).slice(0,columns).join(''),tone:'muted'}];
     const available=Math.max(1,height-feedback.length);
     const position=markers[this.focus];
-    const end=field?Math.min(rows.length,position+textRows(field.label+(field.required?' (required)':''),columns).length+1):position+1;
+    // Include the focused field's hint when it fits, but keep its label and
+    // control reachable when a long hint exceeds the available viewport.
+    const end=field?Math.min(markers[this.focus+1]-1,position+available):position+1;
     if(position<this.scroll)this.scroll=position;
-    if(end>=this.scroll+available)this.scroll=Math.max(0,Math.min(position,end-available));
+    if(end>this.scroll+available)this.scroll=Math.max(0,Math.min(position,end-available));
     this.scroll=Math.min(this.scroll,Math.max(0,rows.length-available));
     this.hits=markers.map((row,index)=>({row:row-this.scroll,end:Math.min(available-1,(markers[index+1]??rows.length)-this.scroll-1),index})).filter(hit=>hit.end>=0&&hit.row<available);
     return [...rows.slice(this.scroll,this.scroll+available),...feedback].slice(0,height);

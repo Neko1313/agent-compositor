@@ -119,6 +119,8 @@ it('wakes the originating agent on workflow completion without parent polling an
 it('supports notification-only and silent workflow completion and drains detached workers on close',async()=>{
  for(const completion of ['notify','none'] as const){const f=await setup(),notices:string[]=[];f.core.subscribe(e=>{if(e.kind==='catalog'&&e.event==='ui.notification')notices.push(e.input.message as string);});
   const r=await f.core.invokeTool('workflow_run',{action:'start',completion,stages:[{id:'a',prompt:'WORKER'}]});f.release();await poll(async()=>{const s=await f.core.invokeTool('workflow_run',{action:'status',id:(r.output as any).id});return(s.output as any).status==='completed';});
+  if(completion==='notify')await poll(()=>notices.some(n=>n.includes('Workflow ')));
+  else{await f.app.close();apps.splice(apps.indexOf(f.app),1);}
   expect(f.calls.wakes).toBe(0);expect(notices.some(n=>n.includes('Workflow '))).toBe(completion==='notify');
  }
  const f=await setup();const started=await f.core.invokeTool('workflow_run',{action:'start',stages:[{id:'a',prompt:'WORKER'}]});await poll(()=>f.calls.workers===1);await f.app.close();apps.splice(apps.indexOf(f.app),1);expect(f.calls.wakes).toBe(0);

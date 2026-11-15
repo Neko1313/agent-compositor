@@ -74,6 +74,11 @@ research, a resource monitor and side conversations. Coding initially suggests
 project checks; research suggests web access. The resource monitor and side
 conversation are unchecked until you select them. The monitor does not call a
 model; side conversations require agent-hub and use the configured model.
+If agent-hub is unavailable, the guide warns before and after selection. Check
+`disabledPlugins` and any `enabledPlugins` allowlist in `agent-compositor.json`,
+enable agent-hub there, and restart the app; `/btw --once` remains available for
+an independent one-shot answer without a side-conversation window. The one-shot
+answer also uses the configured model.
 Only checked additions are installed if needed and enabled for the project.
 Downloads may be needed, and existing installations, versions and active plugins
 are retained. The guide does not change explicit plugin restrictions or tool

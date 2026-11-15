@@ -426,6 +426,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     model:setupModel,
     configure:async $=>{if(!hostEnabled(controls.manifest.name))throw Error('Model settings are disabled by this project configuration');const status=await setupModel();await controls.configureSetup($,Object.keys(router.profiles).filter(name=>name!=='default'||status.configured));},
     enabled:()=>extensions.enabled(),loaded:()=>plugins.map(plugin=>plugin.manifest.name),
+    sideConversationAvailable:()=>!!hub&&hostEnabled('agent-hub'),
     control:async(args,signal)=>hostEnabled(extensions.plugin.manifest.name)?extensions.userControl(args,signal):{ok:false,error:'Plugin management is disabled by this project configuration'},
   });
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();

@@ -119,7 +119,7 @@ let active;
 let marketplaceRequests=0;
 let onboardingRequests=0;
 if(process.env.VISUAL_ONBOARDING){
- await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false}}));
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false,skills:false,verifyCompletion:false},compaction:{enabled:false},...(process.env.VISUAL_ONBOARDING_NO_HUB?{disabledPlugins:['agent-hub']}:{})}));
  const paths=storagePaths(cwd,{...process.env,HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
  await writeFile(join(output,'onboarding-identity.json'),JSON.stringify({cwd:paths.project,home:paths.home,state:paths.state}));
  await writeFile(join(output,'onboarding-transport.json'),JSON.stringify({requests:0}));

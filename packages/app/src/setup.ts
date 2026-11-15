@@ -18,6 +18,7 @@ type Dependencies={
  configure:($:HooksApi)=>Promise<void>;
  enabled:()=>string[];
  loaded:()=>string[];
+ sideConversationAvailable:()=>boolean;
  control:(args:unknown,signal:AbortSignal)=>Promise<{ok:boolean;data?:any;error?:string}>;
 };
 
@@ -39,9 +40,9 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
    {text:`Tools: ${deps.loaded().filter(name=>suggestions.some(item=>item.name===name)).length} suggested plugins active`},
    {text:'[ Choose recommended tools ]',action:'tools'},
    ...(waiting.length?[{text:`Apply pending tools: ${waiting.join(', ')}`,tone:'warning' as const},{text:'[ Apply plugin changes ]',action:'navigate:reload'}]:[]),
-   ...current.notes.map(text=>({text:current.changed.some(name=>!enabled.includes(name)&&text===`${name}: selected for this project`)?text.replace(': selected for this project',': no longer enabled'):text,tone:'muted' as const})),
    {text:'[ Start chatting ]',action:'finish',tone:'accent'},
    {text:'[ Skip for now ]',action:'skip'},
+   ...current.notes.map(text=>({text:current.changed.some(name=>!enabled.includes(name)&&text===`${name}: selected for this project`)?text.replace(': selected for this project',': no longer enabled'):text,tone:'muted' as const})),
    {text:'[ Models & providers ]',action:'navigate:settings'},
    {text:'[ All plugins and marketplace ]',action:'navigate:extensions'},
    {text:'You can reopen this guide with /setup. No connection is tested until you request it.',tone:'muted'},
@@ -54,7 +55,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
   if(!goal)return;
   const options=suggestions.filter(item=>!deps.enabled().includes(item.name));
   if(!options.length){current.notes=['All suggested tools are already enabled. Existing installations were kept.'];return;}
-  const selected=await $.ui.form({title:'Choose optional tools',description:'Checked plugins will be installed if needed and enabled for this project. Downloads may be required. Existing active plugins are kept; manage them in All plugins.',fields:options.map(item=>({id:item.name,label:`${item.label} · ${item.name}`,type:'toggle' as const,value:(goal.values.work==='coding'&&item.coding===true)||(goal.values.work==='research'&&item.research===true),hint:item.reason})),actions:[{id:'apply',label:'Install and enable selected'},{id:'cancel',label:'Cancel'}]});
+  const selected=await $.ui.form({title:'Choose optional tools',description:'Checked plugins will be installed if needed and enabled for this project. Downloads may be required. Existing active plugins are kept; manage them in All plugins.',fields:options.map(item=>({id:item.name,label:`${item.label} · ${item.name}`,type:'toggle' as const,value:(goal.values.work==='coding'&&item.coding===true)||(goal.values.work==='research'&&item.research===true),hint:item.name==='btw'&&!deps.sideConversationAvailable()?'agent-hub is unavailable. Enable it in project configuration and restart; /btw --once still works.':item.reason})),actions:[{id:'apply',label:'Install and enable selected'},{id:'cancel',label:'Cancel'}]});
   $.signal.throwIfAborted();
   if(!selected)return;
   const names=options.filter(item=>selected.values[item.name]===true).map(item=>item.name);if(!names.length){current.notes=['No optional tools selected. You can add them later.'];return;}
@@ -68,6 +69,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
     if(!inventory.data?.installed?.[name]&&!local){const installed=await deps.control({action:'install',name:name+'@agent-compositor',scope:'project'},$.signal);if(!installed.ok)throw Error(installed.error??'Installation failed');if($.signal.aborted){current.notes.push(`${name}: installed; activation cancelled`);$.signal.throwIfAborted();}}
     const enabled=await deps.control({action:'enable',name,scope:'project'},$.signal);if(!enabled.ok)throw Error(enabled.error??'Activation failed');
     current.changed=[...new Set([...current.changed,name])];current.notes.push(`${name}: selected for this project`);
+    if(name==='btw'&&!deps.sideConversationAvailable())current.notes.push('btw: side conversations need agent-hub enabled in project configuration and an app restart; /btw --once remains available');
     $.signal.throwIfAborted();
    }catch(error){$.signal.throwIfAborted();current.notes.push(`${name}: ${error instanceof Error?error.message:String(error)}`);}
   }

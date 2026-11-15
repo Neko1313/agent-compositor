@@ -1,4 +1,4 @@
-import { open, unlink, readFile, readdir } from 'node:fs/promises';
+import { open, unlink, readFile, readdir, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { atomicJson } from '@agent-compositor/config';
@@ -197,10 +197,25 @@ export class WorkflowEngine {
         const now = new Date().toISOString(), run: Run = { id: randomUUID(), title: (input.title ?? 'Workflow').slice(0, 120), status: 'running', stages, concurrency, maxStages, maxTokensPerStage, maxTokensTotal, tokensCharged:0, stageTimeoutMs, createdAt: now, updatedAt: now };
         this.runs.set(run.id, run);
         run.completion=input.completion??'wake';run.ownerSessionId=context.sessionId;this.contexts.set(run.id,context);
-        await this.persist(run);
-        await this.lease(run.id);
-        this.launch(run);
-        return structuredClone(run);
+        let finishAdmission!:()=>void;
+        const admission=new Promise<void>(resolve=>{finishAdmission=resolve;});this.admissions.add(admission);
+        let owned=false,persisted=false;
+        try {
+            await mkdir(this.root(),{recursive:true,mode:0o700});
+            await this.lease(run.id);owned=true;
+            if(this.closed)throw Error('Workflow engine closed');
+            await this.persist(run);persisted=true;
+            if(this.closed)throw Error('Workflow engine closed');
+            this.launch(run);
+            return structuredClone(run);
+        } catch(error) {
+            this.runs.delete(run.id);this.contexts.delete(run.id);this.writes.delete(run.id);
+            const failures:unknown[]=[];
+            if(persisted)try{await unlink(join(this.root(),run.id+'.json'));}catch(cause:any){if(cause.code!=='ENOENT')failures.push(cause);}
+            if(owned)try{await this.release(run.id);}catch(cause){failures.push(cause);}
+            if(failures.length)throw new AggregateError([error,...failures],'Workflow start failed and cleanup was incomplete');
+            throw error;
+        } finally {this.admissions.delete(admission);finishAdmission();}
     }
     private launch(run: Run) { if (this.active.has(run.id) || this.closed)
         return;const context=this.contexts.get(run.id)??this.ctx;

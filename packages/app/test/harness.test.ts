@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkflowEngine } from '../../../plugins/workflows/engine.js';
@@ -146,6 +146,25 @@ describe('dynamic workflow scheduler', () => {
             expect(JSON.parse(await readFile(join(root,run.id+'.json'),'utf8'))).toEqual(before);
             await expect(readFile(join(root,run.id+'.lock'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
         }finally{release();await engine.close();}
+    });
+    it('drains a new workflow admission during shutdown without leaving an orphan', async () => {
+        const cwd=await temp();let requests=0,entered!:()=>void,release!:()=>void;
+        const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+        const engine=new WorkflowEngine({cwd,request:async()=>{requests++;return {output:'unexpected'} as any;}});
+        try{
+            let held=false;const unsubscribe=engine.onChange(()=>{if(!held){held=true;entered();return gate;}});
+            const start=engine.start({completion:'none',stages:[{id:'a',prompt:'work'}]}).then(()=>null,error=>error);await started;
+            let closed=false;const closing=engine.close().then(()=>{closed=true;});
+            await new Promise<void>(resolve=>setImmediate(resolve));expect(closed).toBe(false);
+            release();const result=await start;await closing;unsubscribe();
+            expect(result).toBeInstanceOf(Error);expect(result.message).toContain('closed');expect(requests).toBe(0);expect(engine.runs.size).toBe(0);
+            expect(await readdir(join(cwd,'.agent-compositor','workflows','runs'))).toEqual([]);
+        }finally{release();await engine.close();}
+    });
+    it('does not retain a new workflow when its journal directory cannot be created', async () => {
+        const cwd=await temp(),root=join(cwd,'.agent-compositor','workflows');await mkdir(root,{recursive:true});await writeFile(join(root,'runs'),'not a directory');
+        const engine=new WorkflowEngine({cwd,request:async()=>{throw Error('must not launch');}});
+        try{await expect(engine.start({completion:'none',stages:[{id:'a',prompt:'work'}]})).rejects.toThrow();expect(engine.runs.size).toBe(0);}finally{await engine.close();}
     });
     it('pauses scheduling, stops active work and recovers interrupted stages conservatively', async () => {
         const cwd = await temp();

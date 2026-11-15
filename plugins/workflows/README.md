@@ -95,6 +95,9 @@ before trying again.
 Shutdown waits for retry/resume admission already in progress; if the worker has
 not launched, it restores the prior journal when storage permits and releases
 the ownership lock. A journal restoration error is reported to the caller.
+Shutdown also waits for a new workflow being admitted. If it has not launched,
+its unacknowledged journal and ownership lock are removed when storage permits;
+cleanup failures are reported rather than claiming that startup succeeded.
 
 Defaults: concurrency 2 (maximum 8), 100 stages (maximum 500), 60000 tokens and
 10 minutes per stage, at most 32 model steps per stage, four active workflows per

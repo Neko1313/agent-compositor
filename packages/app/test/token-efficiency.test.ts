@@ -208,12 +208,12 @@ it('uses the selected stage model on the actual provider wire, without the paren
     expect(router.model).toBe('expensive-parent');
     expect(core.getBudget().spentTokens).toBe(22);
 });
-it('audits read-only workflow inspection without a reviewer call or profile', async () => {
+it('falls back to manual approval for workflow inspection without a reviewer', async () => {
     const state = new Map<string, any>([['enabled', true]]);
     let writes = 0;
     const $: any = { state: { get: (k: string) => state.get(k), set: (k: string, v: any) => state.set(k, v) }, session: { id: 'auto', cwd: await temp() }, signal: new AbortController().signal, storage: { config: async () => { throw Error('No model configuration should be read'); } }, fs: { write: async () => { writes++; } }, model: { complete: async () => { throw Error('No model call'); } }, ui: { view: async () => { } } };
     const result = await autoReview['service.permission.review']({ tool: 'workflow_run', callId: 'inspect', input: { action: 'status', id: 'known-run' } }, $);
-    expect(result).toMatchObject({ value: { decision: 'allow', risk: 'low' } });
+    expect(result).toMatchObject({ value: { decision: 'ask', risk: 'unknown' } });
     expect(writes).toBe(1);
     expect(state.get('reviews')).toBeUndefined();
 });

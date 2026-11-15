@@ -22,7 +22,10 @@ use one. An invalid explicit profile returns to manual approval rather than
 silently selecting another provider. Review limits, exact-call context and
 failure behavior are described in the [auto review guide](../../docs/agent-features.md#auto-review).
 Concurrent requests share the review limit, and their audit updates are serialized
-within the session.
+within the session. When rules require review, workflow inspection uses the same
+review: tool and action names alone do not establish the effects of a replaceable
+implementation. Explicit allow rules bypass review; the application currently
+allows `workflow_run` by default unless a stricter matching rule applies.
 
 The reviewer returns exactly three fields: `approved` (`true`, `false` or `null`),
 `risk` (`low`, `medium`, `high` or `unknown`) and a nonblank `reason`. `true` needs task context and

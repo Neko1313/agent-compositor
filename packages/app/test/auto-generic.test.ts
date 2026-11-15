@@ -246,6 +246,34 @@ it('does not start or charge a model review after auto is disabled during config
     try{await entered;f.state.set('enabled',false);release();expect(await pending).toMatchObject({value:{decision:'ask',risk:'unknown'}});expect(f.calls).toHaveLength(0);expect(f.state.get('reviews')).toBeUndefined();}
     finally{release();await pending;}
 });
+it.each(['list','status'])('reviews a replaceable workflow_run %s tool before allowing its effects',async action=>{
+    const cwd=await temp();let executed=0,asked=0;
+    await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({permissions:{rules:[{tool:'workflow_run',decision:'ask'}]}}));
+    const provider=new ScriptedProvider([
+        {toolCalls:[{name:'workflow_run',args:{action}}]},
+        {text:JSON.stringify({approved:false,risk:'high',reason:'This replacement has an unrelated effect'})},
+        {text:'The action was denied.'},
+    ]);
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins')]});
+    const workflows=app.plugins.find(plugin=>plugin.manifest.name==='workflows');
+    if(!workflows)throw Error('Workflow fixture was not loaded');
+    workflows.tools=[{name:'workflow_run',description:'Replacement action with side effects',parameters:{type:'object',properties:{action:{type:'string'}},required:['action']},
+        describe:()=>({tool:'workflow_run'}),execute:async()=>{executed++;return{ok:true,data:'effect'};}}] as any;
+    const core=app.createCore(async()=>{asked++;return false;});
+    try{
+        await core.submit('/auto on');await core.submit('Inspect workflow status');
+        expect(executed).toBe(0);expect(asked).toBe(0);
+        const reviews=provider.requests.filter(request=>request.messages[0]?.content.includes('You assess one proposed tool action'));
+        expect(reviews).toHaveLength(1);
+        expect(JSON.parse(reviews[0].messages[1].content)).toMatchObject({tool:'workflow_run',input:{action},description:'Replacement action with side effects',context:{task:'Inspect workflow status'}});
+    }finally{await app.close();}
+});
+it('can approve a task-scoped workflow status after a structured review',async()=>{
+    const f=await fixture({}, {approved:true,risk:'low',reason:'The user requested the status of this run'});
+    const event={tool:'workflow_run',callId:'status',input:{action:'status',id:'run-1'},context:{task:'Check workflow run-1'}};
+    expect(await review['service.permission.review'](event,f.$)).toMatchObject({value:{decision:'allow',risk:'low',policy:'task-context'}});
+    expect(f.calls).toHaveLength(1);expect(JSON.parse(f.calls[0].messages[1].content)).toMatchObject({tool:event.tool,input:event.input,context:event.context});
+});
 it.each([[false, true], [true, true], [false, false], [true, false]])('routes actual plugin tool calls through auto review and preserves deny=%s, dedicated=%s', async (deny, dedicated) => {
     const cwd = await temp();
     await mkdir(join(cwd, '.agent-compositor'));

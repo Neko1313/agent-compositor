@@ -676,8 +676,12 @@ fields, invalid JSON and dependency failures return to manual approval. Explicit
 permission-rule denies skip the reviewer and cannot be overridden.
 Unknown tool semantics require a cautious assessment; tool names are not an eligibility whitelist. Write/edit policy checks canonical paths rather than scanning
 code for words such as `token` or documentation URLs. Sensitive/external paths
-remain guarded; command effects are assessed by the reviewer regardless of executable name. Read-only
-`workflow_run list/status` can be audited automatically without a paid reviewer.
+remain guarded; command effects are assessed by the reviewer regardless of executable name.
+When permission rules require review, workflow inspection also uses the
+reviewer: a tool name and action alone do not establish that a replaceable
+implementation is read-only. Explicit allow rules bypass auto review as usual;
+the application currently allows `workflow_run` by default unless a stricter
+matching rule applies.
 Manual dialogs include the concrete review fallback reason. `/auto status`
 reports the mode/count without opening a pane; `/auto history` shows decisions.
 An omitted reviewer profile uses the active model, while an invalid explicit

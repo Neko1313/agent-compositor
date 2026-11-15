@@ -55,7 +55,12 @@ versions or platforms.
 Set `VISUAL_OPENTUI_PROCESS_KILL=1`
 to kill the CLI with SIGKILL after its input is persisted and verify explicit
 recovery after a fresh start; the report retains the observed exit code. The
-queued-input variant runs in Node 26 CI. Set
+mixed-order scenario can combine this option with `VISUAL_OPENTUI_QUEUE=1` and
+`VISUAL_OPENTUI_RECOVERY_ORDER=1` to kill the active process after both intents
+are journaled and verify their order without an implicit model request. The
+same check retries the first message explicitly and verifies that the other
+remains available. It runs in Node 26 CI and against each native release archive.
+The queued-input variant runs in Node 26 CI. Set
 `VISUAL_OPENTUI_RECOVERY_INTERRUPT=1`
 to hold the retry journal write and verify that Ctrl+C reports the unaccepted retry
 without sending a model request. This interrupted-retry variant also runs in

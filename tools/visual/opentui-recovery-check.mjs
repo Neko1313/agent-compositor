@@ -7,6 +7,7 @@ const output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-recovery');
 const report={ok:false,mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[]};let server,browser,page,gate,legacySession;
 try{
  if(process.env.VISUAL_RESTART_EXECUTABLE&&(!process.env.VISUAL_EXECUTABLE||!process.env.VISUAL_OPENTUI_RECOVERY_ORDER))throw Error('Cross-version recovery requires two native executables and the mixed-order scenario');
+ if(process.env.VISUAL_RESTART_EXECUTABLE&&process.env.VISUAL_OPENTUI_PROCESS_KILL)throw Error('Cross-version recovery and mixed SIGKILL are separate scenarios');
  const env=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR','PYTHON','LD_LIBRARY_PATH','CI'].flatMap(name=>process.env[name]===undefined?[]:[[name,process.env[name]]]));
  server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_OPENTUI_APP:'1',...(process.env.VISUAL_EXECUTABLE?{VISUAL_EXECUTABLE:resolve(process.env.VISUAL_EXECUTABLE)}:{}),...(process.env.VISUAL_RESTART_EXECUTABLE?{VISUAL_RESTART_EXECUTABLE:resolve(process.env.VISUAL_RESTART_EXECUTABLE)}:{}),...(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT?{VISUAL_OPENTUI_RECOVERY_INTERRUPT:'1'}:{}),...(process.env.VISUAL_OPENTUI_PROCESS_KILL?{VISUAL_OPENTUI_PROCESS_KILL:'1'}:{}),VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
  const url=await new Promise((done,fail)=>{let text='';const timer=setTimeout(()=>fail(Error('Server timeout')),20000);server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);done(match[1]);}});server.once('exit',code=>fail(Error('Server exit '+code)));});
@@ -33,8 +34,16 @@ try{
  const receipts=()=>readFile(join(output,'app-http.jsonl'),'utf8').then(text=>text.trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)));
  if(process.env.VISUAL_OPENTUI_RECOVERY_ORDER){
   if(!process.env.VISUAL_OPENTUI_QUEUE)throw Error('Mixed recovery order requires a queued message');
-  await main();await page.keyboard.press('Control+c');await wait('Steering may not have been applied');
-  await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await shot('01-current-order.png');
+  if(!process.env.VISUAL_OPENTUI_PROCESS_KILL){
+   await main();await page.keyboard.press('Control+c');await wait('Steering may not have been applied');
+   await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await shot('01-current-order.png');
+  }else{
+   const names=(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));
+   if(names.length!==1)throw Error('Expected one active session journal');
+   const rows=(await readFile(join(launch.state,'sessions',names[0]),'utf8')).split('\n').filter(Boolean).map(line=>JSON.parse(line));
+   for(const [type,text] of [['prompt.steer.intent','APP_STEER_FIRST'],['prompt.queue.intent','APP_RESTORED']])
+    if(!rows.some(row=>row.type===type&&row.text===text))throw Error('Missing durable intent before SIGKILL: '+text);
+  }
   if((await receipts()).filter(item=>item.kind==='completion').length!==1)throw Error('Recovery invoked the model without a retry');
   if(process.env.VISUAL_RESTART_EXECUTABLE){
    const names=(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));if(names.length!==1)throw Error('Expected one legacy session journal');legacySession=names[0].slice(0,-6);
@@ -43,8 +52,11 @@ try{
     const event=rows.find(row=>row.type===type&&row.text===text);if(!event||Object.hasOwn(event,'recoveryOrder'))throw Error('Expected a legacy intent without recovery ordering metadata');
    }
   }
-  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();
+  const generation=await page.evaluate(()=>visual.generation);
+  if(process.env.VISUAL_OPENTUI_PROCESS_KILL)await page.evaluate(()=>visual.crashRestart());
+  else await page.getByRole('button',{name:'Restart session'}).click();
   await page.waitForFunction(g=>visual.generation>g,generation);await wait('recovered message');
+  if(process.env.VISUAL_OPENTUI_PROCESS_KILL){const crash=JSON.parse(await readFile(join(output,'crash-receipt.json'),'utf8'));if(crash.signal!=='SIGKILL'||crash.bridgeExitCode!==137)throw Error('Expected actual SIGKILL');report.checks.push('The held CLI was killed with SIGKILL after both mixed input intents were persisted');}
   if(process.env.VISUAL_RESTART_EXECUTABLE){
    const restarted=JSON.parse(await readFile(join(output,'opentui-app-launch.json'),'utf8')),path=resolve(process.env.VISUAL_RESTART_EXECUTABLE);
    const command=restarted.launches[1]?.command,resume=command?.indexOf('--resume');
@@ -54,6 +66,14 @@ try{
   }
   await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await shot('02-restored-order.png');
   if((await receipts()).filter(item=>item.kind==='completion').length!==1)throw Error('Restart invoked the model without a retry');
+  if(process.env.VISUAL_OPENTUI_PROCESS_KILL){
+   await send('/recover retry 1');await wait('APP_STEER_FIRST:');
+   const requests=(await receipts()).filter(item=>item.kind==='completion');
+   if(requests.length!==2||requests[1].body.messages.filter(message=>message.role==='user').at(-1)?.content!=='APP_STEER_FIRST')throw Error('The selected steering retry did not reach the model exactly once');
+   await send('/recover');await wait('1. APP_RESTORED');await shot('03-remaining-after-retry.png');
+   if((await receipts()).filter(item=>item.kind==='completion').length!==2)throw Error('Reviewing the remaining queue invoked the model');
+   report.checks.push('Explicitly retrying the recovered steering invokes the model once and leaves the queued input reviewable');
+  }
   if(process.env.VISUAL_RESTART_EXECUTABLE){
    await main();await page.keyboard.type('APP_HOLD');
    await page.waitForFunction(()=>visual.text().split('\n').slice(-10).some(line=>line.includes('APP_HOLD')));await page.keyboard.press('Enter');
@@ -69,7 +89,7 @@ try{
    if((await receipts()).filter(item=>item.kind==='completion').length!==2)throw Error('Mixed recovery unexpectedly invoked the model');
    report.checks.push('Legacy and newly ordered messages remain distinct and ordered across two restarts');
   }
-  report.checks.push('Steering and queued input retain their order before and after restart without recovery-triggered model requests');report.ok=!report.errors.length;
+  report.checks.push(process.env.VISUAL_OPENTUI_PROCESS_KILL?'Steering and queued input retain their order after SIGKILL without recovery-triggered model requests':'Steering and queued input retain their order before and after restart without recovery-triggered model requests');report.ok=!report.errors.length;
  }else if(process.env.VISUAL_OPENTUI_RECOVERY_CURRENT){
   if(!process.env.VISUAL_OPENTUI_QUEUE)throw Error('Current-session recovery requires a queued message');
   await main();await page.keyboard.press('Control+c');await wait('Accepted messages are available');

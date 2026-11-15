@@ -285,7 +285,7 @@ const server = Bun.serve({
         if(appRequests>16||credential==='unexpected')return new Response('Unexpected isolated editor request',{status:400});
         return await editorModelResponse(prompt,body,request,appLaunch.editor,appReceipt);
       }
-      const allowed=['APP_QUESTION','APP_HOLD','APP_RESTORED',...(process.env.VISUAL_OPENTUI_NAVIGATION?['APP_APPROVAL']:[]),...(process.env.VISUAL_OPENTUI_CONTROLLERS?['APP_MAIN_FORM_PROBE']:[]),
+      const allowed=['APP_QUESTION','APP_HOLD','APP_RESTORED',...(process.env.VISUAL_OPENTUI_PROCESS_KILL?['APP_STEER_FIRST']:[]),...(process.env.VISUAL_OPENTUI_NAVIGATION?['APP_APPROVAL']:[]),...(process.env.VISUAL_OPENTUI_CONTROLLERS?['APP_MAIN_FORM_PROBE']:[]),
         ...(process.env.VISUAL_OPENTUI_WORKSPACE_CONTROLLERS?['APP_WORKSPACE_RESUMED','APP_WORKSPACE_RESTORED']:[])];
       if(appRequests>12||credential==='unexpected'||!allowed.includes(prompt))return new Response('Unexpected isolated app request',{status:400});
       if(prompt==='APP_HOLD'){
@@ -301,6 +301,7 @@ const server = Bun.serve({
         :{tool_calls:[{index:0,id:'app-navigation-write',type:'function',function:{name:'write',arguments:JSON.stringify({path:'navigation-approval.txt',content:'MUST_REQUIRE_EXPLICIT_APPROVAL\n'})}}]})
         :prompt==='APP_MAIN_FORM_PROBE'?{content:'APP_MAIN_FORM_PROBE_DONE'}
         :prompt.startsWith('APP_WORKSPACE_')?{content:prompt.slice(4)+': '+(body.messages.some(message=>message.role==='user'&&message.content==='WORKSPACE_SEED_CONTEXT_47')?'seed context retained':'missing seed context')}
+        :prompt==='APP_STEER_FIRST'?{content:'APP_STEER_FIRST: recovered explicitly'}
         :prompt==='APP_RESTORED'?{content:'APP_RESTORED: '+(answer?.includes('Production')?'Production retained':'missing answer')}
         :answer?{content:'APP_ANSWER_RECEIVED: '+(answer.includes('Production')?'Production':'unexpected')+'; model='+body.model}
         :{tool_calls:[{index:0,id:'app-main-question',type:'function',function:{name:'ask_user',arguments:JSON.stringify({question:'MAIN_QUESTION: choose deployment',options:['Preview','Production'],allowOther:false})}}]};

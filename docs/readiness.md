@@ -203,6 +203,17 @@ each input appeared for explicit review; no new model request occurred until
 and do not establish multi-hour behavior, native-terminal compatibility or
 recovery at arbitrary effect boundaries.
 
+A separate mixed-input probe killed the held process after both a steering
+intent and a queued intent were present in its journal. The resumed session
+listed them in that order without a new model request; explicitly retrying the
+first sent exactly one request and left the second available. The source and
+previously built local Linux x64 archive passed with a scripted loopback provider;
+reports are in `dist/visual-mixed-sigkill-retry-source-fixed/` and
+`dist/visual-mixed-sigkill-retry-native-fixed/`. This tests one controlled crash
+point and does not establish durability for arbitrary power loss, journal
+backends, other platforms or multi-hour sessions. CI and the native release
+matrix now include the scenario, but their results must be checked separately.
+
 
 Build-only [run `43749137231` for `8c789e6`](https://github.com/Neko1313/agent-compositor/actions/runs/43749137231)
 failed its Linux x64 installed OpenTUI plugin placement check. The retained form

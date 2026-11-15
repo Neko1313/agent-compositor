@@ -93,6 +93,15 @@ jobs:
           VISUAL_OPENTUI_PROCESS_KILL: '1'
           VISUAL_OUTPUT: dist/visual-opentui-recovery-sigkill
         run: node tools/visual/opentui-recovery-check.mjs
+      - name: Check mixed input recovery after process death
+        if: matrix.node == '26'
+        timeout-minutes: 3
+        env:
+          VISUAL_OPENTUI_QUEUE: '1'
+          VISUAL_OPENTUI_RECOVERY_ORDER: '1'
+          VISUAL_OPENTUI_PROCESS_KILL: '1'
+          VISUAL_OUTPUT: dist/visual-opentui-recovery-mixed-sigkill
+        run: node tools/visual/opentui-recovery-check.mjs
       - name: Check actual OpenTUI plugin management and placement
         if: matrix.node == '26'
         timeout-minutes: 7
@@ -194,6 +203,7 @@ jobs:
             dist/visual-ink-recovery-current/
             dist/visual-opentui-recovery-order/
             dist/visual-opentui-recovery-sigkill/
+            dist/visual-opentui-recovery-mixed-sigkill/
             dist/visual-opentui-managers/
             dist/visual-opentui-navigation/
             dist/visual-opentui-cancellation/

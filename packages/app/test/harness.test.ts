@@ -263,6 +263,8 @@ describe('harness failure boundaries',()=>{
    const file=join(cwd,'.agent-compositor','workflows','runs',run.id+'.json');
    await vi.waitFor(async()=>expect(JSON.parse(await readFile(file,'utf8')).stages[0].status).toBe('running'));
    await observer.load();const before=structuredClone(observer.runs.get(run.id)),disk=await readFile(file,'utf8');
+   expect(before?.status).toBe('running');expect(before?.stages[0].status).toBe('running');expect(before?.error??'').not.toContain('Recovered');
+   await expect(observer.control(run.id,'pause')).rejects.toThrow('owned by a running process');
    await expect(observer.control(run.id,'stop')).rejects.toThrow('owned by a running process');
    expect(observer.runs.get(run.id)).toEqual(before);expect(await readFile(file,'utf8')).toBe(disk);
    release();expect((await owner.wait(run.id))?.status).toBe('completed');
@@ -272,6 +274,18 @@ describe('harness failure boundaries',()=>{
    expect(observer.runs.get(run.id)).toEqual(before);expect(await readFile(file,'utf8')).toBe(completed);
    await observer.refresh();expect(observer.runs.get(run.id)?.status).toBe('completed');
   }finally{release();await owner.close();await observer.close();}
+ });
+ it('does not claim crash recovery while a workflow lock is unreadable',async()=>{
+  const cwd=await temp();const owner=new WorkflowEngine({cwd,request:async()=>({output:'done',tokens:1} as any)});
+  const observer=new WorkflowEngine({cwd,request:async()=>{throw Error('must not run');}});
+  try{
+   const run=await owner.start({completion:'none',stages:[{id:'a',prompt:'work'}]});await owner.wait(run.id);
+   const root=join(cwd,'.agent-compositor','workflows','runs'),file=join(root,run.id+'.json'),lock=join(root,run.id+'.lock');
+   const saved=JSON.parse(await readFile(file,'utf8'));saved.status='running';saved.stages[0].status='running';await writeFile(file,JSON.stringify(saved));await writeFile(lock,'{');
+   await observer.load();expect(observer.runs.get(run.id)?.status).toBe('running');expect(observer.runs.get(run.id)?.tokensCharged).toBe(saved.tokensCharged);
+   await expect(observer.control(run.id,'stop')).rejects.toThrow('lock is unreadable');
+   await rm(lock);await observer.refresh();expect(observer.runs.get(run.id)?.status).toBe('paused');
+  }finally{await owner.close();await observer.close();}
  });
 });
 

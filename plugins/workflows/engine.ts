@@ -79,6 +79,14 @@ export class WorkflowEngine {
     private closed = false;
     constructor(private ctx: EngineContext) { }
     private root() { return join(key(this.ctx), 'workflows', 'runs'); }
+    private async lockBlocksRecovery(id:string){
+        let raw:string;
+        try{raw=await readFile(join(this.root(),id+'.lock'),'utf8');}
+        catch(error:any){return error.code!=='ENOENT';}
+        let owner:any;try{owner=JSON.parse(raw);}catch{return true;}
+        if(!Number.isInteger(owner?.pid)||owner.pid<=0)return true;
+        try{process.kill(owner.pid,0);return true;}catch(error:any){return error.code!=='ESRCH';}
+    }
     async load() { return this.ready ??= (async () => { for (const name of await readdir(this.root()).catch(() => [])) {
         if (!/^[a-f0-9-]{36}\.json$/.test(name))
             continue;
@@ -93,7 +101,7 @@ export class WorkflowEngine {
                 continue;
             if (run.id !== name.slice(0, -5))
                 continue;
-            if (run.status === 'running' || (run.status === 'paused' && run.stages.some(s => s.status === 'running'))) {
+            if ((run.status === 'running' || (run.status === 'paused' && run.stages.some(s => s.status === 'running'))) && !await this.lockBlocksRecovery(run.id)) {
                 run.status = 'paused';
                 for (const s of run.stages)
                     if (s.status === 'running') {
@@ -338,6 +346,7 @@ export class WorkflowEngine {
         if (action === 'pause') {
             if (run.status !== 'running')
                 return structuredClone(run);
+            if(!this.active.has(id))throw Error('Workflow is owned by a running process or changed in another process; refresh before controlling it');
             run.status = 'paused';
             await this.persist(run);
             return structuredClone(run);
@@ -360,6 +369,8 @@ export class WorkflowEngine {
                 }finally{await this.release(id);}
             }finally{this.admissions.delete(admission);finish();}
         }
+        if (run.status === 'running' && !this.active.has(id))
+            throw Error('Workflow is owned by a running process or changed in another process; refresh before controlling it');
         if (run.status === 'running')
             return structuredClone(run);
         await this.active.get(id)?.promise;

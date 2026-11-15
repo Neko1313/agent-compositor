@@ -7,6 +7,17 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+On 2026-11-16, `npm audit --omit=dev` at `447e6fd` reported five low-severity
+dependency findings, all in one chain from the documentation workspace through
+Docusaurus and SVGR to `deepmerge` 4.3.1. The
+[upstream advisory](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) lists
+no patched version. The installed SVGR plugin's distributed entry does not
+import `deepmerge`; this observation is limited to that entry and is not a
+general proof that no other build path can load it. The production audit covers
+the documentation workspace as well as the application; it is not a scan of
+the contents or execution paths of each native archive. Do not treat npm's
+suggested Docusaurus downgrade as a verified fix. The finding remains open.
+
 GitHub reports that the earlier build-only [run `43759318216` for `c2fd409`](https://github.com/Neko1313/agent-compositor/actions/runs/43759318216)
 completed verification and all four native build jobs successfully; publication
 was skipped. This predates the `/btw` recovery gate and the later fixes. The

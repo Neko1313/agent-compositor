@@ -1,5 +1,15 @@
 # Project memory
 
+## Dependency advisory — 2026-11-16
+
+`npm audit --omit=dev` on 447e6fd reported five low findings in one
+documentation-workspace Docusaurus -> SVGR -> deepmerge 4.3.1 dependency chain.
+GHSA-gcqx-w48m-w2h4 lists no patched version; npm's proposed Docusaurus
+downgrade was not verified and should not be applied as a fix without review.
+The installed @svgr/plugin-svgo entry does not import deepmerge, but this
+limited inspection does not prove all paths or archive contents safe. The
+audit output is /tmp/agent-compositor-audit-447e6fd.json while available.
+
 ## Setup cancellation and candidate verification — 2026-11-16
 
 Build-only run 43766867589 for c119f4e passed all four native jobs; its four

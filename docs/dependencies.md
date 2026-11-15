@@ -6,6 +6,10 @@ listed below; internal workspace package versions are unchanged. Root and
 standalone Monty/mascot lockfiles were refreshed, including compatible
 transitive updates. `npm outdated --json` is empty after the refresh.
 
+The audit result from that refresh is historical. A later production-dependency
+audit found a low-severity documentation dependency advisory with no upstream
+patch; see the [current readiness checkpoint](readiness.md#current-development-checkpoint--2026-11-15).
+
 | Dependency | Before (installed) | Current | Purpose |
 |---|---|---|---|
 | @types/node | 24.19.2 | 26.6.6 | Node development types |

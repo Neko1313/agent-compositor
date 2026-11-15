@@ -18,7 +18,10 @@ index name and agent ignores. The prior binary fails and a locally rebuilt
 binary passes the same installed discovery probe; reports are
 `dist/ignored-parent-native-before-fix-20261116.json` and
 `dist/ignored-parent-native-20261116.json`. This does not establish behavior on
-other platforms or a public release.
+other platforms or a public release. A follow-up installed semantic query in
+the same ignored-parent fixture finds `visible_probe` while excluding an
+`.agentignore` symbol; the prior binary fails both glob and semantic checks,
+as recorded in `dist/ignored-parent-native-before-semantic-20261116.json`.
 
 
 A locally built Linux x64 installed CLI was killed after a controlled plugin

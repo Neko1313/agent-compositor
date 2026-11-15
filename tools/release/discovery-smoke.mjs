@@ -12,16 +12,17 @@ import {readModelResult} from './model-read.mjs';
 /** Probe the installed tool schemas and real discovery/read services without source injection. */
 export async function smokeDiscovery(binary,output,options={}){
  const root=await realpath(await mkdtemp(join(tmpdir(),'compositor-discovery-smoke-'))),cwd=join(root,...(options.ignoredParent?['hidden','project']:['project'])),home=join(root,'home'),errors=[];
- let server,requests=0,execution,readRejected=false,emptyHint=false,discovered=false,readCorrect=false,noOpRejected=false,editSchema=false,editTarget;
+ let server,requests=0,execution,readRejected=false,emptyHint=false,discovered=false,readCorrect=false,noOpRejected=false,editSchema=false,editTarget,semanticResult,semanticCorrect=!options.ignoredParent;
  const original='export const amount = 18;\n';
  try{
   await mkdir(cwd,{recursive:true});await mkdir(home);
   if(options.ignoredParent){await promisify(execFile)('git',['init','-q',root],{env:{...process.env,HOME:home,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}});await writeFile(join(root,'.gitignore'),'hidden/\n');}
   await writeFile(join(cwd,'actual.mjs'),original);await writeFile(join(cwd,'user-draft.txt'),'PRESERVED');
-  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['callix'],agent:{tools:['read','edit','glob','grep'],builtinTools:['read','edit'],controlTools:[],skills:false,projectContext:false,fileReferences:false},compaction:{enabled:false},permissions:{rules:[{tool:'edit',path:cwd+'/**',decision:'allow'}]}}));
+  if(options.ignoredParent){await mkdir(join(cwd,'.agent-compositor'),{recursive:true});await writeFile(join(cwd,'.agent-compositor/callix.json'),JSON.stringify({background:false}));await writeFile(join(cwd,'.agentignore'),'secret.ts\n');await writeFile(join(cwd,'probe.ts'),'export function visible_probe(): number { return 42; }\n');await writeFile(join(cwd,'secret.ts'),'export function hidden_probe(): number { return 0; }\n');}
+  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['callix'],agent:{tools:['read','edit','glob','grep',...(options.ignoredParent?['code_query']:[])],builtinTools:['read','edit'],controlTools:[],skills:false,projectContext:false,fileReferences:false},compaction:{enabled:false},permissions:{rules:[{tool:'edit',path:cwd+'/**',decision:'allow'}]}}));
   server=createServer(async(req,res)=>{try{
    if(req.url==='/v1/models'){res.setHeader('content-type','application/json');res.end(JSON.stringify({data:[{id:'packed-discovery-probe',context_window:16384}]}));return;}
-   assert.equal(req.url,'/v1/chat/completions');assert.ok(++requests<=6,'Bounded discovery requests');let raw='';for await(const chunk of req){raw+=chunk;assert.ok(raw.length<=200000);}
+   assert.equal(req.url,'/v1/chat/completions');assert.ok(++requests<=(options.ignoredParent?7:6),'Bounded discovery requests');let raw='';for await(const chunk of req){raw+=chunk;assert.ok(raw.length<=200000);}
    const body=JSON.parse(raw);assert.equal(body.model,'packed-discovery-probe');
    const read=body.tools.find(tool=>tool.function.name==='read')?.function.parameters.properties;
    if(read?.offset.type!=='integer'||read.offset.minimum!==1||read.limit.maximum!==10000)errors.push('Read pagination schema does not match the runtime limits');
@@ -45,10 +46,11 @@ export async function smokeDiscovery(binary,output,options={}){
     if(!readCorrect)errors.push('Valid ranged read lost exact content or untruncated metadata');
    }
    if(requests===6){noOpRejected=last.includes('edit.newText is identical to edit.oldText')&&last.includes('unchanged')&&last.includes('No file was read or changed.');if(!noOpRejected)errors.push('Edit that leaves the actual file unchanged was accepted');}
+   if(requests===7){const result=JSON.parse(last);semanticResult=result;semanticCorrect=Array.isArray(result.symbols)&&result.symbols.some(symbol=>symbol.name==='visible_probe')&&!result.symbols.some(symbol=>symbol.name==='hidden_probe');if(!semanticCorrect)errors.push('Semantic search failed to find the visible symbol or included the ignored one');}
    res.writeHead(200,{'content-type':'text/event-stream'});
    const frame=(delta,finish_reason='stop')=>'data: '+JSON.stringify({choices:[{delta,finish_reason}]})+'\n\n';
    const call=(name,args)=>frame({tool_calls:[{index:0,id:'discovery-'+requests,type:'function',function:{name,arguments:JSON.stringify(args)}}]},'tool_calls');
-   res.end((requests===1?call('grep',{pattern:'nonexistent description phrase',maxTokens:256}):requests===2?call('glob',{pattern:'**/*',maxTokens:512}):requests===3?call('read',{path:'actual.mjs',offset:0}):requests===4?call('read',{path:'actual.mjs',offset:1,limit:10}):requests===5?call('edit',{target:editTarget,oldText:original,newText:original}):frame({content:'DISCOVERY_RECOVERY_OK'}))+'data: [DONE]\n\n');
+   res.end((requests===1?call('grep',{pattern:'nonexistent description phrase',maxTokens:256}):requests===2?call('glob',{pattern:'**/*',maxTokens:512}):requests===3?call('read',{path:'actual.mjs',offset:0}):requests===4?call('read',{path:'actual.mjs',offset:1,limit:10}):requests===5?call('edit',{target:editTarget,oldText:original,newText:original}):requests===6&&options.ignoredParent?call('code_query',{action:'symbols',pattern:'_probe'}):frame({content:'DISCOVERY_RECOVERY_OK'}))+'data: [DONE]\n\n');
   }catch(error){errors.push(String(error));res.destroy(error);}});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));
   const env={HOME:home,USERPROFILE:home,AGENT_HOME:join(home,'.agent-compositor'),XDG_CONFIG_HOME:join(home,'.config'),TMPDIR:root,TMP:root,TEMP:root,AGENT_BASE_URL:`http://127.0.0.1:${server.address().port}/v1`,AGENT_MODEL:'packed-discovery-probe',AGENT_API_KEY:''};
@@ -58,7 +60,7 @@ export async function smokeDiscovery(binary,output,options={}){
   let result;try{result=JSON.parse(execution.stdout);}catch{errors.push('Native discovery output was not JSON');}
   const preserved=(await readFile(join(cwd,'actual.mjs'),'utf8'))===original&&(await readFile(join(cwd,'user-draft.txt'),'utf8'))==='PRESERVED';
   const executable={path:resolve(binary),sha256:createHash('sha256').update(await readFile(binary)).digest('hex')};
-  const report={executable,ignoredParent:Boolean(options.ignoredParent),ok:errors.length===0&&requests===6&&execution.code===0&&execution.stderr===''&&!result?.error&&result?.response==='DISCOVERY_RECOVERY_OK'&&preserved&&emptyHint&&discovered&&readRejected&&readCorrect&&noOpRejected&&editSchema,requests,emptyHint,discovered,readRejected,readCorrect,noOpRejected,editSchema,preserved,errors,execution,paidRequests:0};
+  const report={executable,ignoredParent:Boolean(options.ignoredParent),ok:errors.length===0&&requests===(options.ignoredParent?7:6)&&semanticCorrect&&execution.code===0&&execution.stderr===''&&!result?.error&&result?.response==='DISCOVERY_RECOVERY_OK'&&preserved&&emptyHint&&discovered&&readRejected&&readCorrect&&noOpRejected&&editSchema,requests,semanticCorrect,semanticResult,emptyHint,discovered,readRejected,readCorrect,noOpRejected,editSchema,preserved,errors,execution,paidRequests:0};
   if(output)await writeFile(output,JSON.stringify(report,null,2)+'\n');assert.ok(report.ok,'Installed discovery probe failed: '+JSON.stringify(report));return report;
  }finally{if(server){server.closeAllConnections();await new Promise(done=>server.close(()=>done()));}await rm(root,{recursive:true,force:true});}
 }

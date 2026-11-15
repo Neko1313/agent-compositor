@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm, realpath, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import {execFileSync} from 'node:child_process';
 import { indexProject, parseGraph, queryGraph, runBinary, type Graph } from '../../../plugins/callix/adapter.js';
 import {buildAppWithPlugins as buildApp} from './plugin-fixture.js';
 import { ScriptedProvider } from '@agent-compositor/core';
@@ -20,6 +21,18 @@ afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { rec
 async function temp() { const root = await mkdtemp(join(tmpdir(), 'callix adapter ')); roots.push(root); return root; }
 
 describe('native Callix adapter', () => {
+  it.skipIf(!process.env.CALLIX_TEST_BIN)('indexes an explicitly selected project inside an ignored Git parent', async () => {
+    const outer=await temp(),root=join(outer,'hidden','project');await mkdir(join(root,'.agent-compositor'),{recursive:true});
+    execFileSync('git',['init','-q',outer]);await writeFile(join(outer,'.gitignore'),'hidden/\n');
+    await writeFile(join(root,'.agent-compositor/callix.json'),JSON.stringify({executable:process.env.CALLIX_TEST_BIN}));
+    await writeFile(join(root,'.agentignore'),'secret.ts\n');
+    await writeFile(join(root,'probe.ts'),'export function visible_probe(): number { return 42; }\n');
+    await writeFile(join(root,'secret.ts'),'export function hidden_probe(): number { return 0; }\n');
+    const entry=await indexProject(root,true);
+    expect(entry.graph.nodes.some(node=>node.name==='visible_probe')).toBe(true);
+    expect(entry.graph.nodes.some(node=>node.name==='hidden_probe')).toBe(false);
+  },120000);
+
   it.skipIf(!process.env.CALLIX_TEST_BIN)('resolves a cross-file call using the real native binary', async () => {
     const root = await temp(); await mkdir(join(root, '.agent-compositor'));
     await writeFile(join(root, '.agent-compositor/callix.json'), JSON.stringify({ executable: process.env.CALLIX_TEST_BIN }));

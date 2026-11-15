@@ -183,12 +183,14 @@ its configured home. The installer does not edit shell profiles or use sudo.
 probe: real empty text search, broad glob, rejected zero-based read pagination,
 valid ranged read and its guarded edit anchor, and rejection of an edit that
 leaves the actual file unchanged. It checks the actual model-facing schema and
-response guidance, preserves project/user files, and uses six bounded
-loopback completions. Each native job runs it both normally and with the
-explicitly selected project inside a parent repository's ignored directory;
-the latter report is `dist/release/discovery-ignored-smoke-PLATFORM.json`.
-Both reports identify the executable by SHA-256. The probes establish packaged
-tool behavior, not live model coding quality.
+response guidance and preserves project/user files. Each native job runs it
+both normally and with the explicitly selected project inside a parent
+repository's ignored directory. The latter adds a semantic query that must find
+a visible symbol and exclude an `.agentignore` symbol, using seven bounded
+loopback completions instead of six. Its report is
+`dist/release/discovery-ignored-smoke-PLATFORM.json`. Both reports identify the
+executable by SHA-256. The probes establish packaged tool behavior, not live
+model coding quality.
 
 `dist/release/query-smoke-PLATFORM.json` records installed query-loop recovery.
 Actual built-in reads and Callix searches must each receive a recovery reminder

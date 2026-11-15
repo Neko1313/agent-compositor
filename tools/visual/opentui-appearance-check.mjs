@@ -4,6 +4,7 @@ import {createHash} from 'node:crypto';
 import {copyFile,mkdir,readFile,readdir,realpath,writeFile} from 'node:fs/promises';
 import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {isDeepStrictEqual} from 'node:util';
 import {chromium} from 'playwright';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-appearance');
@@ -168,7 +169,12 @@ for(const composition of ['native','selected']){
       await focus('session');await wait(finalNotice);selection=nextSelection;
       const finished=await layout();for(const space of before.windows.spaces)assert.deepEqual(finished.windows.spaces.find(value=>value.id===space.id)?.tree,space.tree);
       assert.deepEqual(finished.views,before.views);await plugins();await zoom(before.windows.fullscreen);
-      await normal();assert.deepEqual((await layout()).windows,before.windows);assert.deepEqual((await layout()).views,before.views);
+      await normal();
+      // Focus is visible before the asynchronous layout write reaches disk.
+      // Require the entire persisted snapshot, including focus, rather than
+      // sampling the previous file while the terminal says Saving layout.
+      const restored=await observe(layout,value=>isDeepStrictEqual(value.windows,before.windows)&&isDeepStrictEqual(value.views,before.views),'Reload must persist the exact restored windows, focus and views');
+      assert.deepEqual(restored.windows,before.windows);assert.deepEqual(restored.views,before.views);
       (result.reloads??=[]).push({previousNotices,finalNotice,plugins:receipt.plugins,exactWindowsRestored:true});return receipt;}
     async function restart(){const generation=await page.evaluate(()=>visual.generation);ptyExit=undefined;await page.locator('#restart').click();await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0,generation);launch=await json(join(directory,'opentui-app-launch.json'));await normal();}
 

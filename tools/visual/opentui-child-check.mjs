@@ -6,6 +6,7 @@ import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
 import {createOpenTuiFinder} from './opentui-finder.mjs';
+import {completeJsonLines} from './jsonl.mjs';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-child'),timeout=20_000;
 const draft='CHILD_MAIN_DRAFT_😀窗_47',secret='SYNTHETIC_CHILD_TOKEN_47',note='PRIVATE_CHILD_NOTE_47',hash=value=>createHash('sha256').update(value).digest('hex');
@@ -24,7 +25,7 @@ const selectedCases=[
  'Managed selected requests retain their exact lease across Main resume, later forms/nested children use committed channels, and manager/application close cancels remaining private forms',
 ];
 const report={ok:false,mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[],compositions:{},grading:{native:6,selected:4,total:10}};
-const json=path=>readFile(path,'utf8').then(JSON.parse),records=path=>readFile(path,'utf8').then(text=>text.trim().split('\n').filter(Boolean).map(JSON.parse));
+const json=path=>readFile(path,'utf8').then(JSON.parse),records=path=>readFile(path,'utf8').then(completeJsonLines);
 async function observe(read,predicate,reason){const end=Date.now()+timeout;let value;while(Date.now()<end){value=await read().catch(error=>{if(error.code!=='ENOENT')throw error;});if(value!==undefined&&predicate(value))return value;await delay(25);}throw Error(reason+'; latest='+JSON.stringify(value));}
 function focusedPane(){
  const terminal=visual.terminal,buffer=terminal.buffer.active;if(terminal.modes?.synchronizedOutputMode)return;

@@ -91,6 +91,9 @@ run the same CLI scenario against their actual runtime and retain its reports,
 private synthetic receipts, terminal input/output and screenshots on failure.
 It verifies source separation, exact decisions, Main draft ownership, selected
 producer registries and managed input across Main resume and shutdown.
+`npm run visual:opentui-btw` checks the side conversation while Main is running,
+including separate drafts, window reopening and restart. Node 26 CI and all
+four native jobs run this scenario and retain its screenshots and report.
 The additional `npm run visual:opentui-editor` gate selects a custom editor in
 two isolated compositions, covering F2/window ownership, real admission and
 recovery, Unicode checkpoints, canonical reload/resume and expired capabilities.

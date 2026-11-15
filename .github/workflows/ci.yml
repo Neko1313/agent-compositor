@@ -94,6 +94,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-child
+      - name: Check OpenTUI side conversation and draft recovery
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        run: npm run visual:opentui-btw
       - name: Check selected OpenTUI editor ownership and lifecycle
         if: matrix.node == '26'
         timeout-minutes: 7
@@ -166,6 +170,7 @@ jobs:
             dist/visual-opentui-requests/
             dist/visual-opentui-controllers/
             dist/visual-opentui-child/
+            dist/visual-opentui-btw/
             dist/visual-opentui-editor/
             dist/visual-opentui-workspace-controllers/
             dist/visual-opentui-conversation-copies/

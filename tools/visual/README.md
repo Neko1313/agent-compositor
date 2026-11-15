@@ -586,7 +586,7 @@ agent running, releases the response, waits for it to become idle, then scrolls
 to the new reply. The gate controls only the fixture provider and is reset for
 each run.
 
-`VISUAL_OUTPUT=dist/opentui-btw node tools/visual/opentui-btw-check.mjs` uses
+`VISUAL_OUTPUT=dist/opentui-btw npm run visual:opentui-btw` uses
 the actual OpenTUI CLI and a loopback provider to hold Main while `/btw` opens,
 replies and retains an independent draft. It closes and reopens the side window,
 then restarts the CLI and checks the same history and draft. Set

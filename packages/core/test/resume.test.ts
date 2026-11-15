@@ -229,3 +229,36 @@ describe('queued user input recovery evidence', () => {
     await core.close();
   });
 });
+
+it('retries a recovered message only on explicit request and records its original identity', async () => {
+  const journal:SessionEvent[]=[{type:'prompt.queued',text:'retry this',depth:1,recoveryId:'retry-id'}];
+  const sessions={create:async()=>{},append:async(_id:string,events:SessionEvent[])=>{journal.push(...events);}};
+  const provider=new ScriptedProvider([{text:'done'}]);
+  const core=AgentCore.resume({cwd:process.cwd(),provider,sessions},structuredClone(journal));
+  expect(provider.requests).toHaveLength(0);
+  await core.retryRecoveredInput('retry-id');
+  expect(provider.requests).toHaveLength(1);
+  expect(provider.requests[0].messages.at(-1)?.content).toBe('retry this');
+  expect(journal.some(event=>event.type==='prompt.submit'&&event.recoveryId==='retry-id')).toBe(true);
+  expect(core.getRecoveredInputs()).toEqual([]);
+  const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([]),sessions},journal);
+  expect(resumed.getRecoveredInputs()).toEqual([]);
+  await core.close();await resumed.close();
+});
+
+it('persists explicit discard, and keeps a queued retry reviewable when interrupted', async () => {
+  const journal:SessionEvent[]=[{type:'prompt.queued',text:'discard',depth:1,recoveryId:'discard-id'},
+    {type:'prompt.queued',text:'keep',depth:2,recoveryId:'keep-id'}];
+  const sessions={create:async()=>{},append:async(_id:string,events:SessionEvent[])=>{journal.push(...events);}};
+  const provider=new ScriptedProvider([]);
+  const core=AgentCore.resume({cwd:process.cwd(),provider,sessions,isWorkBlocked:()=>true},structuredClone(journal));
+  await core.discardRecoveredInput('discard-id');
+  await core.retryRecoveredInput('keep-id');
+  expect(core.getRecoveredInputs()).toEqual([]);
+  core.interrupt();
+  expect(core.getRecoveredInputs()).toEqual([{id:'keep-id',text:'keep'}]);
+  expect(provider.requests).toHaveLength(0);
+  const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([]),sessions},journal);
+  expect(resumed.getRecoveredInputs()).toEqual([{id:'keep-id',text:'keep'}]);
+  await core.close();await resumed.close();
+});

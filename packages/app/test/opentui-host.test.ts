@@ -2318,3 +2318,20 @@ it('keeps window inventory snapshots stable through background view content upda
   nav.select('plugin-frame-proof-main', nav.snapshot().revision);
   expect(nav.snapshot().selectionRevision).toBeGreaterThan(before.selectionRevision!);
 });
+
+it('offers recovered queued input for explicit review and retry after resuming a chat', async () => {
+  const f=await fixture();
+  const target=await f.app.store.create(f.cwd,{name:'Recovery test'});
+  await f.app.store.append(target.id,[{type:'prompt.queued',text:'RECOVER_OPEN_TUI',depth:1,recoveryId:'recovery-test'}],f.cwd);
+  await f.host.core.host.emit('service.session.control',{action:'resume',id:target.id});
+  expect(f.host.session.snapshot().notice).toContain('/recover');
+  expect(f.requests).toHaveLength(0);
+  await f.host.submit('/recover');
+  expect(f.host.session.snapshot().notice).toContain('RECOVER_OPEN_TUI');
+  expect(f.host.session.snapshot().notice).toContain('may have run or been cancelled');
+  expect(f.requests).toHaveLength(0);
+  await f.host.submit('/recover retry 1');
+  expect(f.requests).toHaveLength(1);
+  expect(f.requests[0].body.messages.at(-1).content).toBe('RECOVER_OPEN_TUI');
+  expect(f.host.core.getRecoveredInputs()).toEqual([]);
+});

@@ -103,9 +103,14 @@ to the agent state. Resizing reflows the visible conversation.
 - Ctrl+C interrupts work; when idle it exits.
 - `/reload` reloads disk plugins between turns, resetting plugin state.
 
-Queued messages are held in the running process. Interrupting work cancels ordinary
-queued messages, and reopening a session after the process exits does not restore
-them. Keep a copy of important follow-ups until they start.
+Interrupting work cancels ordinary queued messages. After reopening a session,
+`/recover` lists newer queued messages recorded in the journal without a recorded
+submission. A message whose journal write did not finish cannot be recovered. Use
+`/recover show N` to read one, `/recover retry N` to submit it explicitly, or
+`/recover discard N` to remove it from recovery. A recovered message may have
+been cancelled or may have begun processing before a crash; inspect the session
+and any external effects before retrying. Recovery never runs a message on its
+own. Older queue records without an identifier cannot be reconstructed.
 
 Settings → Models & providers (`/model`) includes a Reasoning action per profile.
 Choose the model's supported effort and save it for this project or all projects;

@@ -245,7 +245,7 @@ function safeStringify(output: unknown): string {
  * @internal
  */
 export function recoverQueuedInputs(events: SessionEvent[]): {id:string;text:string}[] {
-  const consumed=new Set(events.filter(event=>event.type==='prompt.submit'||event.type==='prompt.dropped')
+  const consumed=new Set(events.filter(event=>event.type==='prompt.submit'||event.type==='prompt.dropped'||event.type==='prompt.recovery.discarded')
     .map(event=>event.recoveryId).filter((id):id is string=>typeof id==='string'));
   const found=new Map<string,string>();
   for(const event of events){

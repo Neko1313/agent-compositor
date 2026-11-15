@@ -26,6 +26,12 @@ modern emoji as one cell and can leave stale glyphs after valid cursor updates.
 The raw-ANSI regression checks both profiles against the same writes. This does
 not establish support for every extended emoji or grapheme-cluster sequence.
 
+`node tools/visual/recovery-check.mjs` runs the actual Ink application with an
+isolated scripted provider. It queues a user message during a held turn,
+restarts the PTY session, checks the recovery warning and list, and explicitly
+retries the message. The report and screenshots do not prove process-kill or
+native-terminal behavior; older journal entries without IDs remain ambiguous.
+
 The standard `visual:check` smoke uses its source ScriptedProvider and rejects
 `VISUAL_EXECUTABLE`. For native Ink window verification use `visual:windows`,
 which configures its isolated loopback approval/question fixtures. Actual-app

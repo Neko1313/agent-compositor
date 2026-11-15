@@ -220,6 +220,7 @@ export class AgentCore {
   private contextWindow = 32768;
   private outputLimit?:number;
   private recoveredInputs:{id:string;text:string}[]=[];
+  private recoveringInputs=new Set<string>();
   private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string}[]=[];
   private backgroundReceipts=new Set<string>();
   private queueTimer?:ReturnType<typeof setTimeout>;
@@ -1190,14 +1191,14 @@ export class AgentCore {
   async submit(text: string,source:"user"|"agent"="user"): Promise<void> {
     return this.submitInput(text,source);
   }
-  private async submitInput(text:string,source:"user"|"agent",admitted?:InputAdmitted):Promise<void>{
+  private async submitInput(text:string,source:"user"|"agent",admitted?:InputAdmitted,recoveredId?:string):Promise<void>{
     const cancellation=this.promptCancellation;
     if(this.resettingBackground)await this.resetBackground;
     if(this.closed)throw Error('Session is closed');
     if(cancellation!==this.promptCancellation)return;
-    if(source==='user'&&this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
+    if(source==='user'&&!recoveredId&&this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
     if(this.options.isWorkBlocked?.()){
-      const recoveryId=source==='user'?randomUUID():undefined;
+      const recoveryId=source==='user'?(recoveredId??randomUUID()):undefined;
       this.promptQueue.push({text,source,recoveryId});admitted?.('queued');
       await this.emit('prompt.queued',{text,depth:this.promptQueue.length},undefined,recoveryId?{recoveryId}:undefined);
       this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'extension-manager',message:'Message queued while plugins change. Apply /reload if the change requires it.',level:'info'}});
@@ -1209,10 +1210,10 @@ export class AgentCore {
       await this.activeTurn;
       if(this.closed)throw Error('Session is closed');
       if(cancellation!==this.promptCancellation)return;
-      return this.submitInput(text,source,admitted);
+      return this.submitInput(text,source,admitted,recoveredId);
     }
     if (this.state === "running") {
-      const recoveryId=source==='user'?randomUUID():undefined;
+      const recoveryId=source==='user'?(recoveredId??randomUUID()):undefined;
       this.promptQueue.push({text,source,recoveryId});
       admitted?.('queued');
       await this.emit("prompt.queued", {
@@ -1221,7 +1222,7 @@ export class AgentCore {
       },undefined,recoveryId?{recoveryId}:undefined);
       return;
     }
-    await this.runTurn(text,source,undefined,admitted);
+    await this.runTurn(text,source,undefined,admitted,recoveredId);
     await this.drainQueue();
   }
 
@@ -1246,6 +1247,7 @@ export class AgentCore {
   interrupt(): void {
     this.promptCancellation++;
     // Ordinary queued prompts are cancelled; accepted plugin wakes stay paused.
+    for(const entry of this.promptQueue)if(entry.recoveryId)this.recoveringInputs.delete(entry.recoveryId);
     this.promptQueue = this.promptQueue.filter(entry => entry.owner);
     this.steerQueue = [];
     clearTimeout(this.queueTimer);this.queueTimer=undefined;
@@ -1683,7 +1685,7 @@ export class AgentCore {
   clear(): void {
     if(this.userOperation.getStore())throw Error("A concurrent operation cannot clear the agent conversation");
     this.promptCancellation++;
-    this.promptQueue=[];clearTimeout(this.queueTimer);this.queueTimer=undefined;
+    this.promptQueue=[];this.recoveringInputs.clear();clearTimeout(this.queueTimer);this.queueTimer=undefined;
     this.resettingBackground=true;
     this.cancelOperations();
     this.resetBackground=Promise.allSettled(this.activeOperations().map(op=>op.promise)).then(()=>this.host.emit('session.end',{reason:'clear'})).then(async()=>{
@@ -1856,7 +1858,26 @@ export class AgentCore {
   }
 
   /** @internal Inputs needing explicit review after session recovery; never run automatically. */
-  getRecoveredInputs():readonly {id:string;text:string}[]{return this.recoveredInputs.map(input=>({...input}));}
+  getRecoveredInputs():readonly {id:string;text:string}[]{return this.recoveredInputs.filter(input=>!this.recoveringInputs.has(input.id)).map(input=>({...input}));}
+
+  /** @internal User-initiated retry; a committed submit resolves the original record. */
+  async retryRecoveredInput(id:string):Promise<void>{
+    if(this.closed)throw Error('Session is closed');
+    const input=this.recoveredInputs.find(item=>item.id===id);
+    if(!input||this.recoveringInputs.has(id))throw Error('Recovered message is unavailable');
+    this.recoveringInputs.add(id);
+    try {await this.submitInput(input.text,'user',undefined,id);}
+    finally {if(!this.promptQueue.some(entry=>entry.recoveryId===id))this.recoveringInputs.delete(id);}
+  }
+
+  /** @internal Persist an explicit decision without executing the message. */
+  async discardRecoveredInput(id:string):Promise<void>{
+    if(this.closed)throw Error('Session is closed');
+    if(!this.recoveredInputs.some(input=>input.id===id)||this.recoveringInputs.has(id))throw Error('Recovered message is unavailable');
+    this.recoveringInputs.add(id);
+    try {await this.persist('prompt.recovery.discarded',{recoveryId:id});this.recoveredInputs=this.recoveredInputs.filter(input=>input.id!==id);}
+    finally {this.recoveringInputs.delete(id);}
+  }
 
   /** @internal Retry accepted background work after a host lifecycle barrier. */
   resumePendingWork():void{this.scheduleQueue();}
@@ -2366,6 +2387,7 @@ export class AgentCore {
     // Handled UI commands are audit records, not user messages on replay.
     const dropped=event==='prompt.submit'&&value&&typeof value==='object'&&'drop' in value;
     await this.persist(dropped?'prompt.dropped':event,journalMeta?{...input,...journalMeta}:input);
+    if(event==='prompt.submit'&&journalMeta?.recoveryId){this.recoveredInputs=this.recoveredInputs.filter(item=>item.id!==journalMeta.recoveryId);this.recoveringInputs.delete(journalMeta.recoveryId);}
     this.broadcast({ kind: "catalog", event, input });
     return value;
   }

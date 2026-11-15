@@ -1,3 +1,4 @@
+import {recoveryCommand,recoverySummary} from './recovered-inputs.js';
 import {randomUUID} from 'node:crypto';
 import { activeReference } from "./project-context.js";
 import {isCompactionEvidence} from '@agent-compositor/core';
@@ -237,6 +238,7 @@ export class AppUI {
       }));
     for (const notice of notices)
       this.transcript.push({ kind: "notice", text: notice });
+    const recovered=recoverySummary(this.core);if(recovered)this.transcript.push({kind:"notice",text:recovered});
     this.windows.focused = "tools";
     this.windows.close();
     this.windows.focused = "input";
@@ -338,6 +340,7 @@ export class AppUI {
       if(this.core.getState()==='running')this.transcript.push({kind:'notice',text:'Plugin changes queued. They will apply when the agent and queued prompts finish.'});
       this.applyPendingReload();return true;
     }
+    if(command==='/recover'){const owner=this.core;this.track(recoveryCommand(owner,text).then(result=>{if(this.core===owner&&!this.closed){this.transcript.push({kind:'notice',text:result});this.draw();}},error=>{if(this.core===owner&&!this.closed){this.transcript.push({kind:'notice',text:String(error),tone:'danger'});this.draw();}}));return true;}
     if(command==='/placement'){this.openPanel();return true;}
     if(command==='/chat'){
       if(text.trim()!==command){this.transcript.push({kind:'notice',text:'Usage: /chat'});this.draw();return true;}
@@ -1642,6 +1645,7 @@ export class AppUI {
             kind: m.role === "user" ? "user" : "assistant",
             text: m.content,
           }));
+        const recovered=recoverySummary(next);if(recovered)this.transcript.push({kind:'notice',text:recovered});
         this.appearances.clear();
         this.theme = appearanceFrom([],this.lightTerminal,this.terminalBackground);
         this.viewCache.clear();

@@ -1,3 +1,4 @@
+import {recoveryCommand,recoverySummary} from './recovered-inputs.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {randomUUID} from 'node:crypto';
 import type {AgentCore, AgentCoreOptions, CoreHumanRequestContext, LoopEvent} from '@agent-compositor/core';
@@ -1185,6 +1186,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     offForm = next.setHumanFormHandler(formHandler);
     offHumanRequests = app.bindHumanRequests({approve:nextChannels.approve,ask:nextChannels.ask,form:formHandler});
     conversation = connectConversation(next, 'Main', inbox, submit);
+    localNotice=recoverySummary(next);
     sessionState = conversation.snapshot();
     if (bindGeneration) {toolsText = '';updateTools();}
     mainBinding = {owner: next, channels: nextChannels, generation: ++bindGeneration, conversation, state: sessionState};
@@ -1402,6 +1404,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (windowIntent === layout.windowIntentRevision) selectMain(mainTarget(), true);
       return 'command' as const;
     }
+    if (name === '/recover') {track(recoveryCommand(owner,text).then(result=>{if(active&&core===owner)notice(result);},error=>{if(active&&core===owner)notice(String(error));}));return 'command' as const;}
     if (name === '/windows') {
       if (windowIntent === layout.windowIntentRevision) navigation?.openFinder();
       return 'command' as const;
@@ -1453,6 +1456,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       if (text.trim() !== '/chat') notice('Usage: /chat');else selectMain(mainTarget());
       return;
     }
+    if (name === '/recover') {const owner=core;try{const result=await recoveryCommand(owner,text);if(active&&core===owner)notice(result);}catch(error){if(active&&core===owner)notice(String(error));}return;}
     if (name === '/windows') {navigation?.openFinder(); return;}
     if (name === '/placement') {const command=route(text);if(command)dispatch(command);else {layout.markWindowIntent();runOperation('@host', 'host:placement', arrange);}return;}
     if (name === '/reload') {pendingReload = true; reloadFailed = false; notice('Plugin reload queued until current operations finish'); await reloadIfReady(); return;}

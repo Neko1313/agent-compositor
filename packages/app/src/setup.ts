@@ -18,6 +18,7 @@ type Dependencies={
  configure:($:HooksApi)=>Promise<void>;
  enabled:()=>string[];
  loaded:()=>string[];
+ activationRestriction:(name:string)=>string|undefined;
  sideConversationAvailable:()=>boolean;
  control:(args:unknown,signal:AbortSignal)=>Promise<{ok:boolean;data?:any;error?:string}>;
 };
@@ -55,13 +56,15 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
   if(!goal)return;
   const options=suggestions.filter(item=>!deps.enabled().includes(item.name));
   if(!options.length){current.notes=['All suggested tools are already enabled. Existing installations were kept.'];return;}
-  const selected=await $.ui.form({title:'Choose optional tools',description:'Checked plugins will be installed if needed and enabled for this project. Downloads may be required. Existing active plugins are kept; manage them in All plugins.',fields:options.map(item=>({id:item.name,label:`${item.label} · ${item.name}`,type:'toggle' as const,value:(goal.values.work==='coding'&&item.coding===true)||(goal.values.work==='research'&&item.research===true),hint:item.name==='btw'&&!deps.sideConversationAvailable()?'agent-hub is unavailable. Enable it in project configuration and restart; /btw --once still works.':item.reason})),actions:[{id:'apply',label:'Install and enable selected'},{id:'cancel',label:'Cancel'}]});
+  const selected=await $.ui.form({title:'Choose optional tools',description:'Checked plugins will be installed if needed and enabled for this project. Downloads may be required. Existing active plugins are kept; manage them in All plugins.',fields:options.map(item=>({id:item.name,label:`${item.label} · ${item.name}`,type:'toggle' as const,value:!deps.activationRestriction(item.name)&&((goal.values.work==='coding'&&item.coding===true)||(goal.values.work==='research'&&item.research===true)),hint:deps.activationRestriction(item.name)??(item.name==='btw'&&!deps.sideConversationAvailable()?'agent-hub is unavailable. Enable it in project configuration and restart; /btw --once still works.':item.reason)})),actions:[{id:'apply',label:'Install and enable selected'},{id:'cancel',label:'Cancel'}]});
   $.signal.throwIfAborted();
   if(!selected)return;
   const names=options.filter(item=>selected.values[item.name]===true).map(item=>item.name);if(!names.length){current.notes=['No optional tools selected. You can add them later.'];return;}
-  const inventory=await deps.control({action:'list'},$.signal);$.signal.throwIfAborted();if(!inventory.ok)throw Error(inventory.error??'Could not list available plugins');
   current.notes=[];
-  for(const name of names){
+  const allowed=names.filter(name=>{const restriction=deps.activationRestriction(name);if(restriction)current.notes.push(`${name}: ${restriction}`);return !restriction;});
+  if(!allowed.length)return;
+  const inventory=await deps.control({action:'list'},$.signal);$.signal.throwIfAborted();if(!inventory.ok)throw Error(inventory.error??'Could not list available plugins');
+  for(const name of allowed){
    $.signal.throwIfAborted();
    if(deps.enabled().includes(name)){current.notes.push(`${name}: already enabled; installation kept`);continue;}
    try{

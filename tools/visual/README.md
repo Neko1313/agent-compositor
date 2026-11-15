@@ -487,6 +487,10 @@ checks that the focused side-conversation dependency hint is visible, and
 verifies installation and activation before the first model request.
 Set `VISUAL_ONBOARDING_NO_HUB=1` to start the isolated project with agent-hub
 disabled and verify that the recommendation exposes the unavailable capability.
+`VISUAL_OUTPUT=dist/setup-restrictions node tools/visual/setup-restrictions-check.mjs`
+uses an explicitly blocked project-checks plugin. It checks the visible unchecked
+recommendation, selecting it, and the absence of installation or activation;
+set `VISUAL_ONBOARDING_OPENTUI=1` for OpenTUI.
 `VISUAL_OUTPUT=dist/setup-cancellation node tools/visual/setup-cancellation-check.mjs`
 uses a held local archive response and selects two plugins through the real setup
 window. Ink closes the panel; OpenTUI uses Ctrl+C, then closes the panel. The

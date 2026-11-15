@@ -10,13 +10,13 @@ import {buildApp} from '../src/build.js';
 
 async function fixture(failInstall=false){
  const root=await mkdtemp(join(tmpdir(),'setup-guide-')),storage=new ProjectStorage(root,{HOME:root});await storage.init();
- let configured=false,sideAvailable=true,loaded:string[]=[],enabled:string[]=[],forms:any[]=[],answers:any[]=[],operations:any[]=[],views:any[]=[],notices:any[]=[];
+ let configured=false,sideAvailable=true,restrictions:Record<string,string>={},loaded:string[]=[],enabled:string[]=[],forms:any[]=[],answers:any[]=[],operations:any[]=[],views:any[]=[],notices:any[]=[];
  const guide=setupGuide(storage,{model:async()=>({configured,profile:'fixture',model:'fixture-model'}),configure:async()=>{configured=true;},loaded:()=>loaded,enabled:()=>enabled,
-  sideConversationAvailable:()=>sideAvailable,
+  sideConversationAvailable:()=>sideAvailable,activationRestriction:name=>restrictions[name],
   control:async(args:any)=>{operations.push(args);if(args.action==='list')return{ok:true,data:{installed:{'project-checks':{version:'99.0.0'}},available:[]}};if(args.action==='install')return failInstall?{ok:false,error:'Download unavailable'}:{ok:true};enabled.push(args.name);return{ok:true};}});
  const api:any={session:{id:'fixture',cwd:root},signal:new AbortController().signal,ui:{view:async(_id:string,_title:string,view:any,placement:any)=>{views.push({...view,placement});},notify:async(message:string,level:string)=>{notices.push({message,level});},remove:async()=>{},form:async(form:any)=>{forms.push(form);return answers.shift()??null;}}};
  const press=(key:string)=>(guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key},api);
- return{root,storage,guide,api,press,forms,answers,operations,views,notices,setConfigured:(value:boolean)=>{configured=value;},setSideAvailable:(value:boolean)=>{sideAvailable=value;},setLoaded:(value:string[])=>{loaded=value;},setEnabled:(value:string[])=>{enabled=value;},close:()=>rm(root,{recursive:true,force:true})};
+ return{root,storage,guide,api,press,forms,answers,operations,views,notices,setConfigured:(value:boolean)=>{configured=value;},setSideAvailable:(value:boolean)=>{sideAvailable=value;},setRestrictions:(value:Record<string,string>)=>{restrictions=value;},setLoaded:(value:string[])=>{loaded=value;},setEnabled:(value:string[])=>{enabled=value;},close:()=>rm(root,{recursive:true,force:true})};
 }
 
 it('shows a local guide without mutations, supports skipping and keeps manual setup available',async()=>{
@@ -36,6 +36,23 @@ it('warns when side-conversation support is unavailable without changing its con
   expect(f.forms[1].fields.find((field:any)=>field.id==='btw').hint).toContain('agent-hub is unavailable');
   expect(f.operations).toEqual([{action:'list'},{action:'install',name:'btw@agent-compositor',scope:'project'},{action:'enable',name:'btw',scope:'project'}]);
   expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('app restart')&&line.text.includes('/btw --once'))).toBe(true);
+ }finally{await f.close();}
+});
+
+it('never installs restricted selections and continues with allowed selections',async()=>{
+ const f=await fixture();try{
+  f.setRestrictions({'project-checks':'Blocked by disabledPlugins'});
+  f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true,resources:true}});await f.press('tools');
+  expect(f.forms[1].fields.find((field:any)=>field.id==='project-checks')).toMatchObject({value:false,hint:'Blocked by disabledPlugins'});
+  expect(f.operations).toEqual([{action:'list'},{action:'install',name:'resources@agent-compositor',scope:'project'},{action:'enable',name:'resources',scope:'project'}]);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('project-checks: Blocked by disabledPlugins'))).toBe(true);
+ }finally{await f.close();}
+});
+
+it('does not contact plugin management when every selected plugin is restricted',async()=>{
+ const f=await fixture();try{
+  f.setRestrictions({web:'Excluded by enabledPlugins'});f.answers.push({action:'next',values:{work:'research'}},{action:'apply',values:{web:true}});await f.press('tools');
+  expect(f.operations).toEqual([]);expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('Excluded by enabledPlugins'))).toBe(true);
  }finally{await f.close();}
 });
 
@@ -100,7 +117,7 @@ it('does not open the guide in a different session during plugin management',asy
 it('does not reopen a guide closed while its model status is loading',async()=>{
  const f=await fixture();try{
   let release!:()=>void;const blocked=new Promise<void>(resolve=>{release=resolve;});
-  const guide=setupGuide(f.storage,{model:async()=>{await blocked;return{configured:true,profile:'fixture',model:'fixture'};},configure:async()=>{},enabled:()=>[],loaded:()=>[],sideConversationAvailable:()=>true,control:async()=>({ok:true})});
+  const guide=setupGuide(f.storage,{model:async()=>{await blocked;return{configured:true,profile:'fixture',model:'fixture'};},configure:async()=>{},enabled:()=>[],loaded:()=>[],activationRestriction:()=>undefined,sideConversationAvailable:()=>true,control:async()=>({ok:true})});
   const showing=(guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);
   await (guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key:'close'},f.api);release();await showing;
   expect(f.views).toHaveLength(0);
@@ -125,7 +142,7 @@ it('does not inspect or install plugins if their selection form is cancelled',as
 it.each(['install','enable'])('stops selecting further plugins when %s completes after cancellation',async stage=>{
  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});
  const controller=new AbortController(),calls:string[]=[];let enabled:string[]=[];
- const guide=setupGuide(f.storage,{model:async()=>({configured:false,profile:'',model:''}),configure:async()=>{},loaded:()=>[],enabled:()=>enabled,sideConversationAvailable:()=>true,
+ const guide=setupGuide(f.storage,{model:async()=>({configured:false,profile:'',model:''}),configure:async()=>{},loaded:()=>[],enabled:()=>enabled,activationRestriction:()=>undefined,sideConversationAvailable:()=>true,
   control:async(args:any)=>{calls.push(`${args.action}:${args.name??''}`);if(args.action==='list')return {ok:true,data:{installed:stage==='enable'?{'project-checks':{},'test-reports':{}}:{},available:[]}};
    if(args.action===stage&&args.name?.startsWith('project-checks')){started();await gate;}if(args.action==='enable')enabled=[...enabled,args.name];return {ok:true};}});
  const api={...f.api,signal:controller.signal};f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true,'test-reports':true}});
@@ -140,7 +157,7 @@ it.each(['install','enable'])('stops selecting further plugins when %s completes
 
 it('does not complete setup if model status returns after cancellation',async()=>{
  const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});
- const guide=setupGuide(f.storage,{model:async()=>{started();await gate;return {configured:true,profile:'fixture',model:'fixture'};},configure:async()=>{},loaded:()=>[],enabled:()=>[],sideConversationAvailable:()=>true,control:async()=>({ok:true})});
+ const guide=setupGuide(f.storage,{model:async()=>{started();await gate;return {configured:true,profile:'fixture',model:'fixture'};},configure:async()=>{},loaded:()=>[],enabled:()=>[],activationRestriction:()=>undefined,sideConversationAvailable:()=>true,control:async()=>({ok:true})});
  const controller=new AbortController(),api={...f.api,signal:controller.signal};
  try{const finishing=(guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key:'finish'},api);await entered;controller.abort();release();await expect(finishing).rejects.toThrow();await expect(readFile(join(f.storage.paths.home,'setup.json'),'utf8')).rejects.toMatchObject({code:'ENOENT'});}
  finally{release();await f.close();}
@@ -203,9 +220,9 @@ it('does not use the guide to bypass a disabled model-settings component',async(
 });
 
 it.each([
- ['disabled list',{disabledPlugins:['agent-hub']}],
- ['allowlist',{enabledPlugins:['setup-guide','extension-manager','marketplace-manager']}],
-])('detects unavailable agent-hub from the actual %s',async(_label,config)=>{
+ ['disabled list',{disabledPlugins:['agent-hub']},'agent-hub is unavailable'],
+ ['allowlist',{enabledPlugins:['setup-guide','extension-manager','marketplace-manager']},'excluded by enabledPlugins'],
+])('reports unavailable recommendations from the actual %s',async(_label,config,expected)=>{
  const root=await mkdtemp(join(tmpdir(),'setup-no-hub-')),file=join(root,'agent-compositor.json');
  const original=JSON.stringify(config);await writeFile(file,original);
  const app=await buildApp({cwd:root,env:{HOME:root},pluginDirs:[]});
@@ -213,7 +230,24 @@ it.each([
   const core=app.createCore(async()=>false),forms:any[]=[];await core.start();
   core.host.setFormHandler(async(_plugin,form)=>{forms.push(form);return forms.length===1?{action:'next',values:{work:'chat'}}:null;});
   const result=await core.host.emit('ui.press',{site:'plugin-setup-guide-setup',key:'tools'});
-  expect(result.faults).toEqual([]);expect(forms[1].fields.find((field:any)=>field.id==='btw').hint).toContain('agent-hub is unavailable');
+  expect(result.faults).toEqual([]);expect(forms[1].fields.find((field:any)=>field.id==='btw').hint).toContain(expected);
   expect(await readFile(file,'utf8')).toBe(original);
+ }finally{await app.close();await rm(root,{recursive:true,force:true});}
+});
+
+it.each([
+ ['disabled list',{disabledPlugins:['project-checks']},'disabledPlugins'],
+ ['allowlist',{enabledPlugins:['setup-guide','extension-manager','marketplace-manager']},'enabledPlugins'],
+])('avoids installation for a selected recommendation blocked by the actual %s',async(_label,config,restriction)=>{
+ const root=await mkdtemp(join(tmpdir(),'setup-blocked-recommendation-')),file=join(root,'agent-compositor.json');
+ const original=JSON.stringify(config);await writeFile(file,original);const app=await buildApp({cwd:root,env:{HOME:root},pluginDirs:[]});
+ try{
+  const core=app.createCore(async()=>false),forms:any[]=[],views:any[]=[];
+  core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface')views.push(event.input);});await core.start();
+  core.host.setFormHandler(async(_plugin,form)=>{forms.push(form);return{action:forms.length===1?'next':'apply',values:{work:'coding','project-checks':true}};});
+  const result=await core.host.emit('ui.press',{site:'plugin-setup-guide-setup',key:'tools'});
+  expect(result.faults).toEqual([]);expect(forms[1].fields.find((field:any)=>field.id==='project-checks')).toMatchObject({value:false,hint:expect.stringContaining(restriction)});
+  expect(views.at(-1).view.lines.some((line:any)=>line.text.includes(restriction))).toBe(true);
+  expect(await readFile(file,'utf8')).toBe(original);await expect(readFile(join(app.storage.paths.state,'extensions-state.json'))).rejects.toMatchObject({code:'ENOENT'});
  }finally{await app.close();await rm(root,{recursive:true,force:true});}
 });

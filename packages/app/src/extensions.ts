@@ -134,6 +134,7 @@ export async function extensionManager(
     ...states.project.installed,
   });
   const enabled = () => pluginSelection(states.user,states.project,allowlist).filter(name=>!blocked.includes(name));
+  const activationRestriction=(name:string)=>allowlist&&!allowlist.includes(name)?'Plugin is excluded by enabledPlugins; add it to that explicit allowlist first':blocked.includes(name)?'Plugin is blocked by disabledPlugins; remove that explicit restriction first':undefined;
   const disabled = () => [...new Set([...states.user.disabled,...states.project.disabled])].filter(name=>!enabled().includes(name));
   let available:()=>Promise<{name:string;version:string;kind?:string;shared?:boolean;bundled?:boolean;directory?:string}[]> = async()=>[];
   const activationScope=(name:string)=>states.project.enabled?.includes(name)?'project':states.user.enabled?.includes(name)?'user':'configured';
@@ -217,8 +218,8 @@ export async function extensionManager(
       const destination=join(dir,name);
       if (["enable", "disable"].includes(args.action)) {
         const old=structuredClone(state);
-        if(args.action==='enable' && allowlist && !allowlist.includes(name))throw Error('Plugin is excluded by enabledPlugins; add it to that explicit allowlist first');
-        if(args.action==='enable' && blocked.includes(name))throw Error('Plugin is blocked by disabledPlugins; remove that explicit restriction first');
+        const restriction=args.action==='enable'?activationRestriction(name):undefined;
+        if(restriction)throw Error(restriction);
         if(args.action==='enable' && !(await available()).some(plugin=>plugin.name===name))throw Error('Plugin is not installed or available locally; install it first');
         if(args.action==='enable' && scope==='user' && !(await available()).some(plugin=>plugin.name===name&&plugin.shared))throw Error('A project-local plugin requires project scope or a user-scoped installation');
         if(args.action==='enable'){
@@ -535,7 +536,7 @@ export async function extensionManager(
       },
     },
   };
-  return { tool, plugin, userControl, applyPending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch)=>{runtimeBusy=busy;userFetch=fetcher;}, disabled, enabled,activationScope,selectedPath,projectDirectory,
+  return { tool, plugin, userControl, applyPending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch)=>{runtimeBusy=busy;userFetch=fetcher;}, disabled, enabled,activationRestriction,activationScope,selectedPath,projectDirectory,
     boundDirectories:()=>enabled().flatMap(name=>{const path=selectedPath(name);return path?[path]:[];}),
     refresh:async()=>{states.user=await read(files.user);states.project=await read(files.project);},
     setAvailable:(read:typeof available)=>{available=read;} };

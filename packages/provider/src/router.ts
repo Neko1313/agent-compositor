@@ -62,17 +62,29 @@ export class ProviderRouter implements ModelProvider {
   private capabilityCache = new Map<string, {at:number; value:import("@agent-compositor/core").ModelCapabilities}>();
   private capabilityFetchIds = new WeakMap<typeof fetch,number>();
   private nextCapabilityFetchId=0;
-  async capabilities(signal:AbortSignal, profile?:string) {
-    signal.throwIfAborted();
-    const selected=profile ? Object.hasOwn(this.profiles,profile)?this.profiles[profile]:undefined : this.selected;
-    if(!selected)throw Error("Unknown model profile");
+  private capabilityKey(selected:ProviderProfile,identity:string){
     const fetcher=selected.fetch??fetch;
     let fetchId=this.capabilityFetchIds.get(fetcher);
     if(fetchId===undefined){fetchId=this.nextCapabilityFetchId++;this.capabilityFetchIds.set(fetcher,fetchId);}
     const credentialHash=createHash('sha256').update(JSON.stringify([selected.apiKey,selected.headers])).digest('hex');
-    const key=JSON.stringify([profile??this.profileName,selected.type,selected.model,selected.baseUrl,selected.contextWindow,selected.maxOutputTokens,selected.metadataProvider,selected.metadataUrl,fetchId,credentialHash]);
-    const cached=this.capabilityCache.get(key);if(cached&&Date.now()-cached.at<60000)return cached.value;
-    const value=await discoverCapabilities(selected,signal);this.capabilityCache.set(key,{at:Date.now(),value});return value;
+    return JSON.stringify([identity,selected.type,selected.model,selected.baseUrl,selected.contextWindow,selected.maxOutputTokens,selected.metadataProvider,selected.metadataUrl,fetchId,credentialHash]);
+  }
+  async capabilities(signal:AbortSignal, profile?:string) {
+    for(let attempt=0;attempt<3;attempt++){
+      signal.throwIfAborted();
+      const selected=profile ? Object.hasOwn(this.profiles,profile)?this.profiles[profile]:undefined : this.selected;
+      if(!selected)throw Error("Unknown model profile");
+      const identity=profile??this.profileName,key=this.capabilityKey(selected,identity);
+      const cached=this.capabilityCache.get(key);if(cached&&Date.now()-cached.at<60000)return cached.value;
+      const snapshot={...selected,headers:selected.headers?{...selected.headers}:undefined};
+      const value=await discoverCapabilities(snapshot,signal);signal.throwIfAborted();
+      const current=profile ? Object.hasOwn(this.profiles,profile)?this.profiles[profile]:undefined : this.selected;
+      if(!current||this.capabilityKey(current,profile??this.profileName)!==key)continue;
+      this.capabilityCache.delete(key);this.capabilityCache.set(key,{at:Date.now(),value});
+      if(this.capabilityCache.size>128)this.capabilityCache.delete(this.capabilityCache.keys().next().value!);
+      return value;
+    }
+    throw Error('Model configuration changed repeatedly during capability discovery');
   }
   complete(request: CompletionRequest): AsyncIterable<ProviderEvent> {
     if (!request.profile) return this.provider.complete(request);

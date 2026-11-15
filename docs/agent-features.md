@@ -474,7 +474,9 @@ an origin-confined `metadataUrl` returning `context_window`, `context_length` or
 `max_input_tokens`. Limits are cached for 60 seconds per profile, protocol,
 endpoint, model, metadata settings, transport and credential/header state.
 Changing those settings causes a fresh lookup; API keys and custom headers are
-represented by a digest in cache keys.
+represented by a digest in cache keys. A lookup that overlaps a configuration
+change retries against the current settings, up to three attempts. The cache
+retains at most 128 entries.
 A private/global `model-catalog.json` can supply exact model entries:
 
 ```json

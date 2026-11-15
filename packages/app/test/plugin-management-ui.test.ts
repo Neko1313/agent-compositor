@@ -15,13 +15,14 @@ it('manages plugins while the model streams, leaves its prompt and turn intact, 
  const root=await mkdtemp(join(tmpdir(),'plugin-ui-'));roots.push(root);
  const provider=new ScriptedProvider([{text:'Agent working',hold:true},{text:'Agent working again',hold:true}]);
  const app=await buildApp({cwd:root,env:{HOME:join(root,'home')},provider,agentHub:false});apps.push(app);
- const ui=new AppUI(app.createCore,app.reloadPlugins);uis.push(ui);
+ const ui=new AppUI(app.createCore,app.reloadPlugins,[],app.commands);uis.push(ui);
  const messages:WireMessage[]=[];ui.connect(message=>messages.push(message));
  ui.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:['Text','Layout'],encodings:['jsonl']}));
  await ui.core.start();
  const send=(text:string)=>{ui.windows.focused='input';ui.receive({type:'input',surface:'input',data:{kind:'text',text}});ui.receive({type:'input',surface:'input',data:{kind:'key',key:'enter'}});};
  const views:any[]=[];ui.core.subscribe(e=>{if(e.kind==='catalog'&&e.event==='ui.surface')views.push(e.input);});
  send('Work on my task');await wait(()=>provider.requests.length===1);
+ send('/setup');await wait(()=>views.some(v=>JSON.stringify(v).includes('Connect a model, choose tools, then start a task.')));
  send('/plugins');await wait(()=>views.some(v=>JSON.stringify(v).includes('Browse marketplace')));
  expect(ui.core.getState()).toBe('running');expect(provider.requests).toHaveLength(1);
  send('/marketplace');await wait(()=>views.some(v=>JSON.stringify(v).includes('Plugin marketplaces')));
@@ -39,7 +40,10 @@ it('manages plugins while the model streams, leaves its prompt and turn intact, 
  ui.core.host.setFormHandler(async(_plugin,form)=>({action:form.title.startsWith('Install')?'install':'apply',values:{scope:'project',...(form.title.startsWith('Install')?{}:{action:'enable'})}}));
  await press(market,'install:todos@agent-compositor');
  expect(JSON.stringify(views.at(-1))).toContain('Installed todos');
+ const setupViews=views.filter(view=>view.title==='Get started').length;
  await press(extensions,'manage:todos');expect(JSON.stringify(views.at(-1))).toContain('Enabled todos');
+ expect(views.filter(view=>view.title==='Get started')).toHaveLength(setupViews+1);
+ expect(views.filter(view=>view.title==='Get started').at(-1).placement.focus).toBe(false);
  expect(app.plugins).toHaveLength(0);expect(ui.core.getState()).toBe('running');
  expect(ui.core.getMessages().filter(m=>m.role==='user').map(m=>m.content)).toEqual(['Work on my task']);
  send('/reload');expect(app.plugins).toHaveLength(0);

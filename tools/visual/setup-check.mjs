@@ -39,8 +39,7 @@ try{
  const installed=JSON.parse(await readFile(join(selection.bindings['project-checks'],'plugin.json'),'utf8'));assert.equal(installed.name,'project-checks');
  // A user can change the selection through Extensions before applying it.
  await focusInput();for(const _ of 'UNSENT_SETUP_DRAFT')await page.keyboard.press('Backspace');await wait(native?'Message Main':'Describe your task');await page.keyboard.type('/extensions disable project-checks --project');if(native)await mainText('--project');else await mainText('/extensions disable project-checks --project');await page.keyboard.press('Enter');await wait('Disabled project-checks');
- await focusInput();await page.keyboard.type('/setup');await mainText('/setup');await page.keyboard.press('Enter');await wait('Get started');
- await wait('longer enabled');await shot('02a-disabled-elsewhere');await click('Start chatting');await page.waitForFunction(()=>!visual.text().includes('Get started'));report.checks.push('setup.disabled-elsewhere');
+ await wait('longer enabled');if(native)await wait('Extensions · focused');await shot('02a-disabled-elsewhere');await click('Start chatting');await page.waitForFunction(()=>!visual.text().includes('Get started'));report.checks.push('setup.disabled-elsewhere');
  // Reopen the guide and select the plugin again for the ordinary install flow.
  await focusInput();await page.keyboard.type('/setup');await mainText('/setup');await page.keyboard.press('Enter');await wait('Get started');
  await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');await click(native?'Install and enable':'Install and enable selected');await wait('Apply pending tools: project-checks');

@@ -13,7 +13,7 @@ async function fixture(failInstall=false){
  let configured=false,loaded:string[]=[],enabled:string[]=[],forms:any[]=[],answers:any[]=[],operations:any[]=[],views:any[]=[],notices:any[]=[];
  const guide=setupGuide(storage,{model:async()=>({configured,profile:'fixture',model:'fixture-model'}),configure:async()=>{configured=true;},loaded:()=>loaded,enabled:()=>enabled,
   control:async(args:any)=>{operations.push(args);if(args.action==='list')return{ok:true,data:{installed:{'project-checks':{version:'99.0.0'}},available:[]}};if(args.action==='install')return failInstall?{ok:false,error:'Download unavailable'}:{ok:true};enabled.push(args.name);return{ok:true};}});
- const api:any={signal:new AbortController().signal,ui:{view:async(_id:string,_title:string,view:any)=>{views.push(view);},notify:async(message:string,level:string)=>{notices.push({message,level});},remove:async()=>{},form:async(form:any)=>{forms.push(form);return answers.shift()??null;}}};
+ const api:any={session:{id:'fixture',cwd:root},signal:new AbortController().signal,ui:{view:async(_id:string,_title:string,view:any,placement:any)=>{views.push({...view,placement});},notify:async(message:string,level:string)=>{notices.push({message,level});},remove:async()=>{},form:async(form:any)=>{forms.push(form);return answers.shift()??null;}}};
  const press=(key:string)=>(guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key},api);
  return{root,storage,guide,api,press,forms,answers,operations,views,notices,setConfigured:(value:boolean)=>{configured=value;},setLoaded:(value:string[])=>{loaded=value;},setEnabled:(value:string[])=>{enabled=value;},close:()=>rm(root,{recursive:true,force:true})};
 }
@@ -50,6 +50,52 @@ it('lets setup finish when a selected plugin is disabled elsewhere before reload
   await f.press('finish');expect(JSON.parse(await readFile(join(f.storage.paths.home,'setup.json'),'utf8')).status).toBe('complete');
  }finally{await f.close();}
 });
+
+it('refreshes a visible guide after a successful external selection change without taking focus',async()=>{
+ const f=await fixture();try{
+  f.setConfigured(true);f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true}});
+  await f.press('tools');const result={value:{changed:'project-checks',enabled:false}};
+  f.api.next=async()=>{f.setEnabled([]);return result;};
+  const actual=await (f.guide.plugin.hooks['service.extension.control'] as any)({action:'disable'},f.api);
+  expect(actual).toBe(result);expect(f.views.at(-1).placement.focus).toBe(false);
+  expect(f.views.at(-1).lines.some((line:any)=>line.action==='navigate:reload')).toBe(false);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text==='project-checks: no longer enabled')).toBe(true);
+  const count=f.views.length;f.api.next=async()=>({deny:'Not allowed'});
+  await (f.guide.plugin.hooks['service.extension.control'] as any)({action:'disable'},f.api);expect(f.views).toHaveLength(count);
+  f.api.next=async()=>result;f.api.ui.view=async()=>{throw Error('View unavailable');};
+  expect(await (f.guide.plugin.hooks['service.extension.control'] as any)({action:'disable'},f.api)).toBe(result);
+ }finally{await f.close();}
+});
+
+it('does not open the guide in a different session during plugin management',async()=>{
+ const f=await fixture();try{
+  await (f.guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);
+  const count=f.views.length,other={...f.api,session:{...f.api.session,id:'other'},next:async()=>({value:{changed:'project-checks'}})};
+  await (f.guide.plugin.hooks['service.extension.control'] as any)({action:'disable'},other);
+  expect(f.views).toHaveLength(count);
+ }finally{await f.close();}
+});
+
+it('does not reopen a guide closed while its model status is loading',async()=>{
+ const f=await fixture();try{
+  let release!:()=>void;const blocked=new Promise<void>(resolve=>{release=resolve;});
+  const guide=setupGuide(f.storage,{model:async()=>{await blocked;return{configured:true,profile:'fixture',model:'fixture'};},configure:async()=>{},enabled:()=>[],loaded:()=>[],control:async()=>({ok:true})});
+  const showing=(guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);
+  await (guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key:'close'},f.api);release();await showing;
+  expect(f.views).toHaveLength(0);
+ }finally{await f.close();}
+});
+
+it('does not time out a slow extension operation while the setup hook is installed',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'setup-slow-extension-'));
+ const app=await buildApp({cwd:root,env:{HOME:root},pluginDirs:[]});
+ try{
+  const core=app.createCore(async()=>false);await core.start();
+  core.runtime.setResolver('service.extension.control',async()=>{await new Promise(resolve=>setTimeout(resolve,2200));return{value:{changed:'fixture'}};});
+  const result=await core.host.emit('service.extension.control',{action:'disable',name:'fixture'});
+  expect(result.faults).toEqual([]);expect(result.value).toEqual({value:{changed:'fixture'}});
+ }finally{await app.close();await rm(root,{recursive:true,force:true});}
+},10000);
 
 it('does not inspect or install plugins if their selection form is cancelled',async()=>{
  const f=await fixture();try{f.answers.push({action:'next',values:{work:'coding'}},null);await f.press('tools');expect(f.operations).toEqual([]);}finally{await f.close();}

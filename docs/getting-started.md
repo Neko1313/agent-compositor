@@ -75,8 +75,9 @@ Only checked additions are installed if needed and enabled for the project.
 Downloads may be needed, and existing installations, versions and active plugins
 are retained. The guide does not change explicit plugin restrictions or tool
 permissions. Use **Apply plugin changes** before **Start chatting**; reload waits
-for an active agent when necessary. If you disable a selected plugin elsewhere
-before applying changes, the guide no longer waits for that plugin to load.
+for an active agent when necessary. If you disable a selected plugin through
+Extensions before applying changes, the open guide in that session updates
+without taking focus and no longer waits for that plugin to load.
 Failures remain visible so you can retry or
 continue without optional tools. No model is invoked by these setup steps.
 

@@ -767,6 +767,14 @@ not occur, so this run does not demonstrate that the new guard changed model
 behavior. The owned CPU server exited; evidence is in
 `dist/local-cpu-navigation-query-recovery/`.
 
+Another navigation run at `8ef96c6`, with the repeated failed-check reminder,
+also failed at the 12-request ceiling. The model repeated searches and invalid
+or missing-file reads but did not execute a project check, so the new reminder
+was not exercised. Protected package and check files remained unchanged; the
+independent grader failed and the owned CPU server exited. Its evidence is in
+`dist/local-cpu-repeated-check-reminder/`. This does not establish a change in
+model quality or response to the reminder.
+
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory
 listing and ordinary project-instruction expansion available to the user. These

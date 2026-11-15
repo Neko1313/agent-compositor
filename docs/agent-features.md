@@ -439,7 +439,8 @@ it). Six consecutive failed tool calls stop the turn with preserved progress;
 a recovery reminder appears after three. Configure
 `agent.maxConsecutiveToolFailures` to change that bound. Existing token budgets,
 permission denials and manual interruption remain binding. A stopped turn does
-not claim successful completion; `/continue` starts another bounded turn.
+not assume the failures came from permissions or claim successful completion;
+inspect the tool errors to identify the cause. `/continue` starts another bounded turn.
 
 Repeated successful queries have a separate guard. Built-in `read` and Callix
 `glob`/`grep` opt in through optional `ToolSpec.loopGuard: "query"` metadata.

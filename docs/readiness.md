@@ -7,6 +7,16 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An isolated CPU run of the known `recover-and-preserve-contract` task at
+`08db772` failed after seven local requests: Qwen3 1.7B invented a source path,
+repeated searches in that missing path, and made no repair. The independent
+original checks and behavioral grader both failed; the protected package file
+survived. The owned local server exited and reported zero VRAM. This is one
+known-case diagnostic, not a representative model-family score. The repeated
+failure guard stopped the loop, but incorrectly attributed the errors to
+permissions or configuration; the guard now directs users to the actual tool
+errors without assuming their cause. The full development gate remains open.
+
 An exploratory serverless CPU onboarding diagnostic now runs a pinned local
 `llama-completion` executable directly, with no model server or product actions.
 On twelve known intent cases, the 0.6B model matched five and the cached 1.7B

@@ -157,6 +157,12 @@ describe('harness failure boundaries',()=>{
   const provider=new ScriptedProvider(Array.from({length:20},()=>({toolCalls:[{name:'missing_tool',args:{}}]})));
   const core=new AgentCore({cwd:await temp(),provider,tools:[]});await core.submit('do work');expect(provider.requests).toHaveLength(6);expect(core.failure).toContain('Repeated tool failures');expect(core.getMessages().some(m=>m.content.includes('Harness recovery'))).toBe(true);
  });
+ it('does not misattribute repeated missing-file errors to permissions',async()=>{
+  const cwd=await temp(),provider=new ScriptedProvider(Array.from({length:8},()=>({toolCalls:[{name:'read',args:{path:'does-not-exist.js'}}]})));
+  const app=await buildApp({cwd,env:{HOME:cwd},provider});
+  try{const core=app.createCore(async()=>false),errors:string[]=[];core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='tool.result'&&typeof event.input.error==='string')errors.push(event.input.error);});await core.submit('Find the file');expect(provider.requests).toHaveLength(6);expect(errors.some(error=>error.includes('ENOENT'))).toBe(true);expect(core.failure).toContain('Inspect the recent tool errors');expect(core.failure).not.toContain('permission/configuration');}
+  finally{await app.close();}
+ });
  it('hard pressure bypasses cooldown and provider plugins replace limits and instructions',async()=>{
   const provider=new ScriptedProvider([{text:'continued'}]);const core=new AgentCore({cwd:await temp(),provider,tools:[],compaction:{budget:new TokenBudget({contextWindow:32768}),cooldownMessages:999,summarize:async()=> 'Preserved goal and next action'}});
   core.host.registerPlugin({name:'custom-harness',version:'1.0.0',trust:'trusted'},{'service.model.capabilities':()=>({value:{contextWindow:4096,source:'provider'}}),'service.agent.instructions':()=>({value:'Custom agent behavior'})});

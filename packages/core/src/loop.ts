@@ -1508,7 +1508,7 @@ export class AgentCore {
         const recordStart=this.turnToolRecords.length;
         await this.runToolBatch(turnId, batch);
         let failures=0;for(const r of [...this.turnToolRecords].reverse()){if(r.ok)break;failures++;}
-        if(failures>=(this.options.maxConsecutiveToolFailures??6)){failed="Repeated tool failures without progress. Resolve the reported permission/configuration error before continuing; progress is saved.";break;}
+        if(failures>=(this.options.maxConsecutiveToolFailures??6)){failed="Repeated tool failures without progress. Inspect the recent tool errors and resolve their cause before continuing; progress is saved.";break;}
         if(failures>=3)this.messages.push({role:"user",origin:"harness",content:"Harness recovery: repeated tool failures produced no progress. Inspect the errors and available tool schemas. Do not repeat denied actions or bypass policy. Use permitted read-only tools for authorized investigation, or report a concrete blocker."});
         if(this.steerQueue.length||this.messages!==queryContext){queryProgress.reset();queryContext=this.messages;}
         else {

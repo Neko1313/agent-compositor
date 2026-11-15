@@ -45,6 +45,13 @@ Set `VISUAL_OPENTUI_QUEUE=1` with `VISUAL_OPENTUI_RECOVERY_ORDER=1` to verify
 the displayed order of a steering message and a queued message before and after
 restart without issuing a second model request. This also runs in CI and on
 each native release archive.
+With that mixed-order scenario, set `VISUAL_EXECUTABLE` to an older native
+archive executable and `VISUAL_RESTART_EXECUTABLE` to the newer executable to
+exercise a legacy journal through an upgrade. The check requires old intents
+without ordering metadata, verifies the replacement executable, then checks old
+and new messages across a second restart. Both executables must be complete,
+relocated archives. The report records their hashes; it does not certify other
+versions or platforms.
 Set `VISUAL_OPENTUI_PROCESS_KILL=1`
 to kill the CLI with SIGKILL after its input is persisted and verify explicit
 recovery after a fresh start; the report retains the observed exit code. The

@@ -1,5 +1,16 @@
 # Project memory
 
+## Legacy recovery upgrade probe — 2026-11-16
+
+An isolated Linux x64 PTY ran two locally built development archives in the
+same session: the earlier executable produced steering and queue intents without
+recovery ordering metadata, then the replacement opened that journal, retained
+both messages, added an ordered message and restored all three after another
+restart. The loopback ledger recorded only the two explicit held tasks; recovery
+did not start a model request. The report, executable hashes and screenshots are
+in dist/visual-recovery-upgrade-mixed-verified-20261116/. This is not a public
+release upgrade, process-death check, other platform or physical-terminal proof.
+
 ## Recovery order in concurrent journals — 2026-11-16
 
 A custom journal fixture delayed one steering intent while accepting a later

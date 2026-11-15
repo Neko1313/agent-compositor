@@ -194,7 +194,8 @@ async function start(ws) {
       if(typeof selected.id!=='string'||!sessions.includes(selected.id+'.jsonl'))throw Error('Expected the selected actual history session to exist');
       resumeId=selected.id;
     }else if(appStarts&&sessions.length!==1)throw Error('Expected one actual app session to resume');
-    command=[...(process.env.VISUAL_EXECUTABLE?[resolve(process.env.VISUAL_EXECUTABLE)]:['bun',join(root,'packages/app/src/bin.ts')]),
+    const executable=appStarts&&process.env.VISUAL_RESTART_EXECUTABLE?process.env.VISUAL_RESTART_EXECUTABLE:process.env.VISUAL_EXECUTABLE;
+    command=[...(executable?[resolve(executable)]:['bun',join(root,'packages/app/src/bin.ts')]),
       '--renderer',process.env.VISUAL_OPENTUI_CONVERSATION_COPIES&&appStarts===0?'ink':'opentui','--cwd',cwd,...(sessions.length?['--resume',resumeId]:[])];
     appStarts++;
     appLaunch.launches.push({command});

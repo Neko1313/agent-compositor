@@ -4,10 +4,11 @@ import {createHash} from 'node:crypto';
 import {mkdir,readFile,readdir,writeFile,rm,access} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-recovery');await mkdir(output,{recursive:true});
-const report={ok:false,mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[]};let server,browser,page,gate;
+const report={ok:false,mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[]};let server,browser,page,gate,legacySession;
 try{
+ if(process.env.VISUAL_RESTART_EXECUTABLE&&(!process.env.VISUAL_EXECUTABLE||!process.env.VISUAL_OPENTUI_RECOVERY_ORDER))throw Error('Cross-version recovery requires two native executables and the mixed-order scenario');
  const env=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR','PYTHON','LD_LIBRARY_PATH','CI'].flatMap(name=>process.env[name]===undefined?[]:[[name,process.env[name]]]));
- server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_OPENTUI_APP:'1',...(process.env.VISUAL_EXECUTABLE?{VISUAL_EXECUTABLE:resolve(process.env.VISUAL_EXECUTABLE)}:{}),...(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT?{VISUAL_OPENTUI_RECOVERY_INTERRUPT:'1'}:{}),...(process.env.VISUAL_OPENTUI_PROCESS_KILL?{VISUAL_OPENTUI_PROCESS_KILL:'1'}:{}),VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
+ server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_OPENTUI_APP:'1',...(process.env.VISUAL_EXECUTABLE?{VISUAL_EXECUTABLE:resolve(process.env.VISUAL_EXECUTABLE)}:{}),...(process.env.VISUAL_RESTART_EXECUTABLE?{VISUAL_RESTART_EXECUTABLE:resolve(process.env.VISUAL_RESTART_EXECUTABLE)}:{}),...(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT?{VISUAL_OPENTUI_RECOVERY_INTERRUPT:'1'}:{}),...(process.env.VISUAL_OPENTUI_PROCESS_KILL?{VISUAL_OPENTUI_PROCESS_KILL:'1'}:{}),VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
  const url=await new Promise((done,fail)=>{let text='';const timer=setTimeout(()=>fail(Error('Server timeout')),20000);server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);done(match[1]);}});server.once('exit',code=>fail(Error('Server exit '+code)));});
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
  page=await browser.newPage({viewport:{width:1600,height:1100}});page.on('pageerror',error=>report.errors.push(error.message));await page.goto(url);
@@ -35,11 +36,40 @@ try{
   await main();await page.keyboard.press('Control+c');await wait('Steering may not have been applied');
   await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await shot('01-current-order.png');
   if((await receipts()).filter(item=>item.kind==='completion').length!==1)throw Error('Recovery invoked the model without a retry');
+  if(process.env.VISUAL_RESTART_EXECUTABLE){
+   const names=(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));if(names.length!==1)throw Error('Expected one legacy session journal');legacySession=names[0].slice(0,-6);
+   const rows=(await readFile(join(launch.state,'sessions',names[0]),'utf8')).split('\n').filter(Boolean).map(line=>JSON.parse(line));
+   for(const [type,text] of [['prompt.steer.intent','APP_STEER_FIRST'],['prompt.queue.intent','APP_RESTORED']]){
+    const event=rows.find(row=>row.type===type&&row.text===text);if(!event||Object.hasOwn(event,'recoveryOrder'))throw Error('Expected a legacy intent without recovery ordering metadata');
+   }
+  }
   const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();
   await page.waitForFunction(g=>visual.generation>g,generation);await wait('recovered message');
+  if(process.env.VISUAL_RESTART_EXECUTABLE){
+   const restarted=JSON.parse(await readFile(join(output,'opentui-app-launch.json'),'utf8')),path=resolve(process.env.VISUAL_RESTART_EXECUTABLE);
+   const command=restarted.launches[1]?.command,resume=command?.indexOf('--resume');
+   if(restarted.launches.length!==2||command?.[0]!==path||resume<0||command[resume+1]!==legacySession)throw Error('The requested replacement did not resume the legacy session');
+   report.replacement={path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')};
+   if(report.replacement.sha256===report.executable?.sha256)throw Error('Expected distinct native executables');
+  }
   await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await shot('02-restored-order.png');
   if((await receipts()).filter(item=>item.kind==='completion').length!==1)throw Error('Restart invoked the model without a retry');
-  report.checks.push('Steering and queued input retain their order before and after restart without model requests');report.ok=!report.errors.length;
+  if(process.env.VISUAL_RESTART_EXECUTABLE){
+   await main();await page.keyboard.type('APP_HOLD');
+   await page.waitForFunction(()=>visual.text().split('\n').slice(-10).some(line=>line.includes('APP_HOLD')));await page.keyboard.press('Enter');
+   const until=Date.now()+20000;while((await receipts()).filter(item=>item.kind==='completion').length<2&&Date.now()<until)await new Promise(done=>setTimeout(done,25));
+   if((await receipts()).filter(item=>item.kind==='completion').length!==2)throw Error('The post-upgrade held turn did not start');
+   await send('AFTER_UPGRADE');await wait('Queued: AFTER_UPGRADE');await main();await page.keyboard.press('Control+c');await wait('Accepted messages are available');
+   await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await wait('3. AFTER_UPGRADE');await shot('03-mixed-legacy-and-new.png');
+   const names=(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));if(names.length!==1)throw Error('Expected one upgraded session journal');
+   const rows=(await readFile(join(launch.state,'sessions',names[0]),'utf8')).split('\n').filter(Boolean).map(line=>JSON.parse(line));
+   const fresh=rows.find(row=>row.type==='prompt.queue.intent'&&row.text==='AFTER_UPGRADE');if(!fresh||!Number.isSafeInteger(fresh.recoveryOrder)||fresh.recoveryOrder<0)throw Error('Expected new recovery ordering metadata');
+   const again=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(g=>visual.generation>g,again);await wait('recovered message');
+   await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await wait('3. AFTER_UPGRADE');await shot('04-mixed-order-after-restart.png');
+   if((await receipts()).filter(item=>item.kind==='completion').length!==2)throw Error('Mixed recovery unexpectedly invoked the model');
+   report.checks.push('Legacy and newly ordered messages remain distinct and ordered across two restarts');
+  }
+  report.checks.push('Steering and queued input retain their order before and after restart without recovery-triggered model requests');report.ok=!report.errors.length;
  }else if(process.env.VISUAL_OPENTUI_RECOVERY_CURRENT){
   if(!process.env.VISUAL_OPENTUI_QUEUE)throw Error('Current-session recovery requires a queued message');
   await main();await page.keyboard.press('Control+c');await wait('Accepted messages are available');

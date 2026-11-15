@@ -809,6 +809,14 @@ preflight oracle passed. Evidence is in `dist/local-cpu-step-budget-warning/`.
 This single known case demonstrates delivery, not improved model quality or
 causation, and differs from earlier diagnostics in its step limit.
 
+At `247fce7`, a further run of the same known case confirmed request-only
+step-budget labels in serialized requests 11 and 12. The model edited a file
+and ran commands, but did not successfully verify the project; the independent
+behavioral grader also failed. Both protected fixtures survived, the preflight
+oracle passed, and the owned CPU server exited. Evidence is in
+`dist/local-cpu-transient-step-budget/`. Delivery is not proof that the model
+used the reminder or that this change improves general task performance.
+
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory
 listing and ordinary project-instruction expansion available to the user. These

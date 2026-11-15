@@ -50,6 +50,8 @@ export interface ProviderSettings {
 }
 
 export interface BuildAppOptions {
+  /** @internal Coordinates shared plugin files with the owning agent manager. */
+  managedPluginMutation?:()=>((unchanged?:boolean)=>void)|undefined;
   /** Host-owned managed-agent label, independent of model/tool arguments. */
   agentId?:string;
   inheritedConfig?: LoadedConfig;
@@ -342,7 +344,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       ...plugins.flatMap(plugin=>plugin.dir?[{name:`plugin:${plugin.manifest.name}`,dir:path.join(plugin.dir,"skills")}]:[]),
     ],
   });
-  const hub =
+  let hub:Awaited<ReturnType<typeof agentManager>>|undefined;
+  hub =
     options.agentHub === false || config.config.disabledPlugins?.includes("agent-hub") || (config.config.enabledPlugins && !config.config.enabledPlugins.includes("agent-hub"))
       ? undefined
       : await agentManager(
@@ -356,6 +359,10 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               inheritedSettings: (name) => storage.config(name),
               env: { ...env, AGENT_MODEL: router.active },
               agentHub: false,
+              managedPluginMutation:()=>{
+                if(!hub?.beginPluginReload())return;
+                return(unchanged?:boolean)=>hub?.endPluginReload(unchanged);
+              },
               cwd: record.cwd,
               sessionId: record.sessionId,
               agentId:record.name,
@@ -438,6 +445,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
   const cores=new Set<AgentCore>();
   extensions.setUserRuntime(()=>Boolean(hub?.isBusy())||[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"),()=>{
+    if(options.managedPluginMutation)return options.managedPluginMutation();
     if(!hub)return()=>{};
     if(!hub.beginPluginReload())return;
     return(unchanged?:boolean)=>hub.endPluginReload(unchanged);

@@ -66,6 +66,25 @@ it('defers removal of an installed plugin until a managed agent finishes',async(
  await expect.poll(async()=>{const list=await main.invokeTool('agent_control',{action:'list'});return (list.output as any[]).find(row=>row.id===id)?.state;}).toBe('idle');
  await a.reloadPlugins(main);expect(await stat(directory).catch(()=>null)).toBeNull();
 });
+it('does not let a running managed agent remove a shared installed plugin',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([
+  {toolCalls:[{name:'extension_control',args:{action:'remove',name:'todos',scope:'project'}}]},
+  {text:'Could not remove the plugin'},
+ ]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider});apps.push(a);
+ const main=a.createCore(async()=>true);await main.start();
+ expect((await main.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+ expect((await main.invokeTool('extension_control',{action:'enable',name:'todos',scope:'project'})).ok).toBe(true);await a.reloadPlugins(main);
+ const directory=a.plugins.find(plugin=>plugin.manifest.name==='todos')!.dir;
+ const created=await main.invokeTool('agent_control',{action:'create',name:'worker',worktree:false});expect(created.ok).toBe(true);const id=(created.output as {id:string}).id;
+ expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Remove the plugin'})).ok).toBe(true);
+ await expect.poll(()=>provider.requests.length).toBe(2);
+ await expect.poll(async()=>{const list=await main.invokeTool('agent_control',{action:'list'});return (list.output as any[]).find(row=>row.id===id)?.state;}).toBe('idle');
+ expect(provider.requests[1].messages.filter(message=>message.role==='tool').map(message=>String(message.content)).join('\n')).toContain('use the main session after they finish');
+ expect(await stat(directory)).toBeTruthy();
+ expect((await main.invokeTool('extension_control',{action:'remove',name:'todos',scope:'project'})).ok).toBe(true);
+ expect(await stat(directory).catch(()=>null)).toBeNull();
+});
 it('refreshes plugin tools in an already loaded idle managed agent',async()=>{
  const f=await fixture(),provider=new ScriptedProvider([{text:'done'},{text:'done again'}]);
  await writeFile(join(f.cwd,'plugins/probe/tools.ts'),`export default[{name:'probe_value',description:'Probe',parameters:{type:'object'},describe:()=>({tool:'probe_value',readOnly:true}),execute:async()=>({ok:true,data:'available'})}];`);

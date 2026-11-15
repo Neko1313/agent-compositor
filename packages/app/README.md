@@ -576,6 +576,8 @@ requested during that reload or an update, rollback or removal already in progre
 After an actual file change or a failed file operation whose effects are
 uncertain, apply the plugin changes before sending more work. An update that
 leaves the installed version unchanged needs no reload.
+Managed agents cannot update, roll back or remove shared plugin files during
+their own turns; perform those actions from the main session after they finish.
 If an agent's refresh fails, retry `/reload` before sending it more work.
 Closing the app discards unapplied deferred file operations. Saved installation
 and activation choices survive restart. A cancelled management caller also

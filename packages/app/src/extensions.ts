@@ -445,7 +445,7 @@ export async function extensionManager(
     execute: async (ctx, args) => {
       const guarded=['update','rollback','remove'].includes((args as any)?.action);
       const release=guarded?acquireMutation():()=>{};
-      if(!release)return {ok:false,error:'Wait for managed agents or plugin changes to finish'};
+      if(!release)return {ok:false,error:'Plugin changes are unavailable while managed agents are active; use the main session after they finish'};
       let unchanged=false;
       try {
         const data=await control(args, ctx.signal,ctx.fetch);unchanged=data?.unchanged===true;

@@ -95,6 +95,20 @@ if(!process.env.VISUAL_MARKETPLACE&&!process.env.VISUAL_ONBOARDING){
 }else{
   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},permissions:{rules:[{tool:'extension_control',decision:'allow'}]}}));
 }
+if(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT){
+ const directory=join(cwd,'plugins/recovery-journal-gate');await mkdir(directory,{recursive:true});
+ await writeFile(join(directory,'plugin.json'),JSON.stringify({name:'recovery-journal-gate',version:'1.0.0',trust:'trusted',main:'hooks.js',hookTimeouts:{'service.session.append':30000}}));
+ await writeFile(join(directory,'hooks.js'),`import {access,writeFile} from 'node:fs/promises';import {join} from 'node:path';
+ const exists=path=>access(path).then(()=>true,()=>false);
+ export default {'service.session.append':async(event,$)=>{
+  const root=$.session.cwd,gate=join(root,'.hold-recovery-write');
+  if(event.event==='prompt.queue.intent'&&await exists(gate)){
+   await writeFile(join(root,'.recovery-write-entered'),'entered');
+   while(await exists(gate))await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  return $.next();
+ }};`);
+}
 if(process.env.VISUAL_CERT_PLUGIN){
  const name=process.env.VISUAL_CERT_PLUGIN;
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},enabledPlugins:[name,...(name==='btw'?['agent-hub']:[]),'extension-manager','marketplace-manager','session-manager',...(process.env.VISUAL_GIT_FIXTURE?['git-review-delay']:[]),...(name==='test-reports'?['test-report-delay']:[])],compaction:{enabled:false},...(['git-review','project-checks','ci-review','test-reports'].includes(name)?{permissions:{rules:[{tool:name==='git-review'?'git_review':name==='ci-review'?'ci_review':name==='test-reports'?'test_report':'project_check',decision:'allow'}]}}:{})}));
@@ -412,6 +426,7 @@ if(process.env.VISUAL_OPENTUI_APP){
  const child=process.env.VISUAL_OPENTUI_CHILD?await seedOpenTuiChildFixture(cwd,paths):undefined;
  await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['network-proxy','todos','slash-commands','model-selector','provider-auth','session-manager',
   ...(process.env.VISUAL_OPENTUI_MANAGERS?['extension-manager','marketplace-manager','local-flow-probe']:[]),
+  ...(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT?['recovery-journal-gate']:[]),
   ...(process.env.VISUAL_OPENTUI_NAVIGATION?['navigation-probe']:[]),...(cancellation?['cancellation-probe']:[]),...(requests?['request-probe']:[]),
   ...(controllers?[controllers.provider,controllers.requester,'extension-manager']:[]),
   ...(editor?[editor.provider,editor.requester,'extension-manager',...(editor.selectedProvider?[editor.selectedProvider]:[])]:[]),

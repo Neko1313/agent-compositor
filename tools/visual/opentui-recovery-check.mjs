@@ -1,12 +1,12 @@
 import {chromium} from 'playwright';
 import {spawn} from 'node:child_process';
-import {mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,readdir,writeFile,rm,access} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-recovery');await mkdir(output,{recursive:true});
-const report={ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page;
+const report={ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page,gate;
 try{
  const env=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR','PYTHON','LD_LIBRARY_PATH','CI'].flatMap(name=>process.env[name]===undefined?[]:[[name,process.env[name]]]));
- server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_OPENTUI_APP:'1',VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
+ server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_OPENTUI_APP:'1',...(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT?{VISUAL_OPENTUI_RECOVERY_INTERRUPT:'1'}:{}),VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
  const url=await new Promise((done,fail)=>{let text='';const timer=setTimeout(()=>fail(Error('Server timeout')),20000);server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);done(match[1]);}});server.once('exit',code=>fail(Error('Server exit '+code)));});
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
  page=await browser.newPage({viewport:{width:1600,height:1100}});page.on('pageerror',error=>report.errors.push(error.message));await page.goto(url);
@@ -26,9 +26,23 @@ try{
  const receipts=()=>readFile(join(output,'app-http.jsonl'),'utf8').then(text=>text.trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)));
  if((await receipts()).filter(item=>item.kind==='completion').length!==1)throw Error('Recovery sent an unexpected model request');
  await send('/recover');await wait('APP_RESTORED');await shot('02-recovery-list.png');
+ if(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT){
+  await send('APP_HOLD');
+  const until=Date.now()+20000;while((await receipts()).filter(item=>item.kind==='completion').length<2&&Date.now()<until)await new Promise(done=>setTimeout(done,25));
+  if((await receipts()).filter(item=>item.kind==='completion').length!==2)throw Error('The second held turn did not start');
+  gate=join(launch.cwd,'.hold-recovery-write');await writeFile(gate,'hold');await send('/recover retry 1');
+  const entered=join(launch.cwd,'.recovery-write-entered'),deadline=Date.now()+20000;
+  while(!await access(entered).then(()=>true,()=>false)&&Date.now()<deadline)await new Promise(done=>setTimeout(done,25));
+  if(!await access(entered).then(()=>true,()=>false))throw Error('The retry journal gate was not entered');
+  await main();await page.keyboard.press('Control+c');await wait('Recovered message was not submitted.');await shot('03-interrupted-retry.png');
+  if((await receipts()).filter(item=>item.kind==='completion').length!==2)throw Error('Interrupted retry unexpectedly invoked the model');
+  await rm(gate);gate=undefined;await send('/recover');await wait('Recovered messages may have run');await wait('1. APP_RESTORED');
+  report.checks.push('Interrupted recovered retry remains reviewable and is not reported as submitted');report.ok=!report.errors.length;
+ }else{
  await send('/recover retry 1');await wait('APP_RESTORED:');await shot('03-retried.png');
  const requests=(await receipts()).filter(item=>item.kind==='completion');
  if(requests.length!==2||requests[1].body.messages.filter(message=>message.role==='user').at(-1)?.content!=='APP_RESTORED')throw Error('The selected recovery was not the second model request');
  report.checks.push(`Actual OpenTUI resumes ${process.env.VISUAL_OPENTUI_QUEUE?'a queued message':'unapplied steering'} without a model request, then retries only after explicit user input`);report.ok=!report.errors.length;
+ }
 }catch(error){report.errors.push(String(error));await page?.screenshot({path:resolve(output,'failure.png')}).catch(()=>{});}
-finally{await browser?.close();if(server&&server.exitCode===null){const end=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await end;}await writeFile(resolve(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));if(!report.ok)process.exitCode=1;}
+finally{if(gate)await rm(gate,{force:true});await browser?.close();if(server&&server.exitCode===null){const end=new Promise(done=>server.once('exit',done));server.kill('SIGTERM');await end;}await writeFile(resolve(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));if(!report.ok)process.exitCode=1;}

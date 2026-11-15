@@ -34,8 +34,10 @@ and subsequent queued turn. It does not exercise a paid model or native terminal
 `node tools/visual/opentui-recovery-check.mjs` runs the actual OpenTUI CLI
 against an isolated loopback provider, verifies that unapplied steering survives
 restart and retries only after a user command. Set `VISUAL_OPENTUI_QUEUE=1` to
-check the Enter-to-queue path instead. The scenarios use a controlled provider,
-not a native terminal or paid model.
+check the Enter-to-queue path instead. Set `VISUAL_OPENTUI_RECOVERY_INTERRUPT=1`
+to hold the retry journal write and verify that Ctrl+C reports the unaccepted retry
+without sending a model request. The scenarios use a controlled provider and
+local test plugin, not a native terminal or paid model.
 
 `node tools/visual/queue-failure-check.mjs` runs the Ink app with an isolated
 journal denial. It verifies that an unaccepted queued message returns to the

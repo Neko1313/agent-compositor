@@ -17,6 +17,14 @@ fixture's test script wrote a marker. This is two known cases, not evidence that
 the model reliably infers arbitrary script effects or is safe for unattended
 review. The diagnostic used no paid calls and no OS network sandbox; its script,
 responses, executable/model pins and report are in `dist/local-auto-ci-5af22af/`.
+An isolated copy of that installed plugin was then given an explicit instruction
+not to infer script effects from `npm test`. On the same two cases, the model
+again allowed the requested command and denied the prohibited one, but still
+asserted that the requested command was non-destructive without inspecting its
+script. The modified plugin SHA-256 was
+`669b64b0a618490f1b6ce2a0730cff20969c9354b48942b764bd8e82c93d057a`;
+its local report is `dist/local-auto-ci-variant-24a0a80/report.json`. This
+single-model prompt experiment did not establish a repair and was not shipped.
 
 In a local serverless onboarding experiment at `af30f14`, a small model received
 a synthetic, authoritative plugin-state snapshot but incorrectly said disabled

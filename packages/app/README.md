@@ -362,7 +362,8 @@ request. PageUp/PageDown scroll; Open conversation returns to the agent's Reply.
 With the `resources` plugin enabled, `/resources` opens process CPU and memory
 charts without involving the agent. The window updates while the main model
 works; CPU/Memory tabs, Pause/Resume, Sample now and Clear history are local UI
-controls. Sampling stops when hidden or closed. CPU 100% means one core; RSS/heap
+controls. Graphics optionally adds an image plot; PageUp reveals it in a small
+window and the text chart remains available. Sampling stops when hidden or closed. CPU 100% means one core; RSS/heap
 cover this process, including in-process agents, and exclude child shell processes.
 History is bounded and starts fresh after restart. See the
 [plugin guide](../../plugins/resources/README.md) for limits.

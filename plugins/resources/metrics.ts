@@ -32,3 +32,21 @@ export function chart(values:(number|undefined)[],columns:number,unit:string,flo
   const scale=(value:number)=>(value>=1000?value.toFixed(0):value.toFixed(1)).padStart(7);
   return cells.map((row,index)=>`${scale(top*(height-1-index)/(height-1))} |${row.join('')}`).concat(`        +${'-'.repeat(width)}`,`          Older -> newer (${unit})`);
 }
+
+/** Optional RGBA plot: missing samples remain gaps, and CPU may exceed one core. */
+export function chartRaster(values:(number|undefined)[],columns:number,floor=0):{width:number;height:number;rgba:string}{
+  const width=120,height=48,slots=Math.max(4,Math.min(60,Math.floor(columns)-10));
+  const recent=values.slice(-slots),top=Math.max(floor,...recent.map(value=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:0),1);
+  const pixels=new Uint8Array(width*height*4);
+  const pixel=(x:number,y:number,color:readonly number[])=>{const offset=(y*width+x)*4;pixels.set(color,offset);};
+  const grid=[90,110,125,100],point=[64,210,190,255];
+  for(let row=0;row<5;row++){const y=Math.round(row*(height-1)/4);for(let x=0;x<width;x++)pixel(x,y,grid);}
+  let previous:{x:number;y:number}|undefined;
+  recent.forEach((value,index)=>{
+    if(value===undefined||!Number.isFinite(value)||value<0){previous=undefined;return;}
+    const x=Math.round((slots-recent.length+index)*(width-1)/(slots-1)),y=height-1-Math.min(height-1,Math.round(value/top*(height-1)));
+    if(previous){const steps=Math.max(Math.abs(x-previous.x),Math.abs(y-previous.y));for(let i=0;i<=steps;i++)pixel(Math.round(previous.x+(x-previous.x)*i/steps),Math.round(previous.y+(y-previous.y)*i/steps),point);}
+    pixel(x,y,point);previous={x,y};
+  });
+  return{width,height,rgba:Buffer.from(pixels).toString('base64')};
+}

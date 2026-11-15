@@ -850,7 +850,9 @@ search and mutations still use `service.session.control`/`service.session.store`
 
 Enable the `resources` plugin and run `/resources` to open a live window while an
 agent works. CPU/Memory tabs plot real process samples with labeled scales and
-current RSS/heap values. The plugin adds no model tool and sends no model request.
+current RSS/heap values. The optional Graphics control adds a raster plot while
+keeping the numeric text chart; PageUp reveals it in a small window. The plugin
+adds no model tool; opening, sampling and switching charts send no model request.
 Pause/Resume, Sample now and Clear history work independently of agent execution.
 Closing or hiding the window stops sampling; reopening retains this process's
 bounded history, while restart/reload starts fresh. See the

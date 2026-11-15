@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {Sampler,chart,type Sample} from './metrics.js';
+import {Sampler,chart,chartRaster,type Sample} from './metrics.js';
 import {ChildrenCpu,snapshotChildren,type ChildrenSnapshot} from './children.js';
 
 export class Monitor {
@@ -9,6 +9,7 @@ export class Monitor {
   private paused=false;
   private columns=60;
   private metric:'cpu'|'memory'|'children'='cpu';
+  private graphics=false;
   private error?:string;
   private revision=0;
   private timer?:ReturnType<typeof setTimeout>;
@@ -50,9 +51,12 @@ export class Monitor {
   private async paint(focus=false){
     if(!this.open||!this.visible)return;
     const latest=this.samples.at(-1),mib=(bytes:number)=>(bytes/1048576).toFixed(1),tabs=this.$.ui.supports?.('tabs')===true;
+    const values=this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576);
+    const unit=this.metric==='memory'?'MiB':'%',floor=this.metric==='memory'?0:100;
     await this.$.ui.view('resources','Resources',{
+      ...(this.graphics?{raster:{...chartRaster(values,this.columns,floor),alt:'Graphic unavailable; the text chart below shows the same samples.'}}:{}),
       ...(tabs?{tabs:[{id:'cpu',label:'CPU',action:'cpu',selected:this.metric==='cpu'},{id:'memory',label:'Memory',action:'memory',selected:this.metric==='memory'},{id:'children',label:'Child CPU',action:'child-cpu',selected:this.metric==='children'}]}:{}),
-      scrollKeys:'host',hint:'Process metrics only · PgUp/PgDn scroll · Pause freezes samples',
+      scrollKeys:'host',hint:this.graphics?'Process metrics only · PgUp shows graph · Pause freezes samples':'Process metrics only · PgUp/PgDn scroll · Pause freezes samples',
       lines:[
         {text:`Compositor process · PID ${process.pid}`,bold:true},
         {text:'Main metrics include in-process agents; exclude child processes.',tone:'muted'},
@@ -63,8 +67,9 @@ export class Monitor {
         ...(this.error?[{text:'Sampling failed: '+this.error,tone:'danger' as const},{text:'Use Sample now to retry.',tone:'muted' as const}]:[]),
         ...(!tabs?[{text:`[ Chart: ${this.metric==='cpu'?'CPU':this.metric==='memory'?'Memory':'Child CPU'} · switch ]`,action:'switch'}]:[]),
         ...(this.metric==='children'?[{text:`Child CPU: ${this.currentChildCpu?.cpu===undefined?'waiting for interval':this.currentChildCpu.cpu.toFixed(1)+'%'}${this.currentChildCpu?.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
+        {text:this.graphics?'[ Graphics: on · switch ]':'[ Graphics: off · switch ]',action:this.graphics?'graphics-off':'graphics-on'},
         {text:this.metric==='cpu'?'CPU history (%)':this.metric==='memory'?'Resident memory history (MiB)':'Child CPU history (%) · approximate',bold:true},
-        ...chart(this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576),this.columns,this.metric==='memory'?'MiB':'%',this.metric==='memory'?0:100).map(text=>({text})),
+        ...chart(values,this.columns,unit,floor).map(text=>({text})),
         ...(this.shareStatus?[{text:this.shareStatus,tone:'muted' as const}]:[]),
         {text:'[ Send latest sample to agent ]',action:'share'},
         {text:this.paused?'[ Resume ]':'[ Pause ]',action:'pause',tone:'accent' as const},
@@ -119,12 +124,14 @@ export class Monitor {
       if(revision+1===this.childrenRevision)await this.paint();
       return;
     }
-    if(!['cpu','memory','child-cpu','switch','pause','sample','clear'].includes(key))return;
+    if(!['cpu','memory','child-cpu','switch','pause','sample','clear','graphics-on','graphics-off'].includes(key))return;
     this.stop();
     if(['cpu','memory','child-cpu','switch','pause','clear'].includes(key))this.cancelChildren();
     if(key==='cpu'||key==='memory')this.metric=key;
     if(key==='child-cpu')this.metric='children';
     if(key==='switch')this.metric=this.metric==='cpu'?'memory':this.metric==='memory'?'children':'cpu';
+    if(key==='graphics-on')this.graphics=true;
+    if(key==='graphics-off')this.graphics=false;
     if(key==='pause'){this.paused=!this.paused;this.resetSampler();}
     if(key==='sample'){this.take();if(this.metric==='children')await this.sampleChildren(true);}
     if(key==='clear'){this.samples=[];this.childrenHistory=[];this.resetSampler();this.take();}
@@ -142,11 +149,11 @@ export class Monitor {
   }
 }
 const instances=new Map<string,Monitor>();
-function monitor($:any){let value=instances.get($.session.id);if(!value){value=new Monitor($);instances.set($.session.id,value);}return value;}
+function monitor($:any){let value=instances.get($.session.id);if(!value){value=new Monitor($.background());instances.set($.session.id,value);}return value;}
 function initialize(_:unknown,$:any){instances.get($.session.id)?.dispose();instances.delete($.session.id);}
 export function dispose(){for(const value of instances.values())value.dispose();instances.clear();}
 export default {
-  'session.start':initialize,'session.reload':initialize,
+  'session.start':initialize,'session.reload':initialize,'session.end':initialize,
   'prompt.submit':async(event:{text:string},$:any)=>{
     if(event.text.trim()!=='/resources')return;
     await monitor($).show();return {drop:'resources: opened'};

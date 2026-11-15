@@ -6,8 +6,8 @@ import {tmpdir} from 'node:os';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {afterEach,describe,it,expect,vi} from 'vitest';
-import {Sampler,chart} from '../../../plugins/resources/metrics.js';
-import {Monitor} from '../../../plugins/resources/hooks.js';
+import {Sampler,chart,chartRaster} from '../../../plugins/resources/metrics.js';
+import resourcesHooks,{Monitor} from '../../../plugins/resources/hooks.js';
 import {ChildrenCpu,processCounters,snapshotChildren,systemCounters} from '../../../plugins/resources/children.js';
 import {uiTextViewSchema,type UiTextView} from '@agent-compositor/events';
 
@@ -20,7 +20,12 @@ describe('resources monitor',()=>{
    const provider=new ScriptedProvider([{text:'MAIN_RUNNING',hold:true}]);app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins/resources')]});expect(app.pluginErrors).toEqual([]);
    const core=app.createCore(async()=>true),views:UiTextView[]=[],queued:string[]=[];core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='prompt.queued')queued.push((event.input as any).text);if(event.kind==='catalog'&&event.event==='ui.surface'&&(event.input as any).plugin==='resources')views.push((event.input as any).view);});
    const turn=core.submit('Work');await vi.waitFor(()=>{expect(core.failure).toBeUndefined();expect(provider.requests).toHaveLength(1);},{timeout:3000});
-   const command=app.commands().find(command=>command.name==='/resources');expect(command?.ui?.site).toBe('plugin-resources-resources');await core.host.emit('ui.press',{site:command!.ui!.site,key:'command:/resources'});expect(views.at(-1)!.lines.some(line=>line.text.includes('Compositor process'))).toBe(true);expect(core.getState()).toBe('running');expect(provider.requests).toHaveLength(1);
+   const command=app.commands().find(command=>command.name==='/resources');expect(command?.ui?.site).toBe('plugin-resources-resources');
+   const opening=new AbortController();await core.host.emit('ui.press',{site:command!.ui!.site,key:'command:/resources'},opening.signal);opening.abort();
+   expect(views.at(-1)!.lines.some(line=>line.text.includes('Compositor process'))).toBe(true);expect(core.getState()).toBe('running');expect(provider.requests).toHaveLength(1);
+   expect(views.at(-1)!.raster).toBeUndefined();await core.host.emit('ui.press',{site:command!.ui!.site,key:'graphics-on'});
+   expect(uiTextViewSchema.safeParse(views.at(-1)).success).toBe(true);expect(views.at(-1)!.raster?.alt).toContain('text chart');expect(provider.requests).toHaveLength(1);
+   await core.host.emit('ui.press',{site:command!.ui!.site,key:'graphics-off'});expect(views.at(-1)!.raster).toBeUndefined();
    await core.host.emit('ui.press',{site:command!.ui!.site,key:'memory'});
    await core.host.emit('ui.press',{site:command!.ui!.site,key:'share'});
    expect(queued).toHaveLength(1);expect(views.at(-1)!.lines.some(line=>line.text==='Resource observation queued for the agent.')).toBe(true);expect(queued[0]).toContain('Compositor process RSS:');expect(queued[0]).toContain('excludes child processes');
@@ -110,6 +115,18 @@ describe('resources monitor',()=>{
  it('plots actual observations with bounded width and an honest multi-core axis',()=>{
   const plot=chart([undefined,0,50,200],30,'%',100);expect(plot[0]).toContain('200.0');expect(plot.join('\n')).toContain('Older -> newer (%)');
   expect(plot.join('').split('*').length-1).toBe(3);expect(chart(Array(1000).fill(10),24,'MiB').join('').split('*').length-1).toBe(14);
+ });
+ it('draws bounded raster observations without joining across missing intervals',()=>{
+  const image=chartRaster([0,undefined,200],14,100),pixels=Buffer.from(image.rgba,'base64');
+  expect(image).toMatchObject({width:120,height:48});expect(pixels.length).toBe(120*48*4);
+  const at=(x:number,y:number)=>[...pixels.subarray((y*120+x)*4,(y*120+x)*4+4)];
+  expect(at(40,47)).toEqual([64,210,190,255]);expect(at(119,0)).toEqual([64,210,190,255]);
+  expect(at(80,24)).not.toEqual([64,210,190,255]);
+ });
+ it('stops the retained monitor when its session ends',async()=>{
+  vi.useFakeTimers();let views=0;const api:any={session:{id:'closing-session'},ui:{supports:()=>true,view:async()=>{views++;},remove:async()=>{}}};api.background=()=>api;
+  await resourcesHooks['session.start']({},api);await resourcesHooks['ui.press']({site:'plugin-resources-resources',key:'command:/resources'},api);
+  expect(views).toBe(1);await resourcesHooks['session.end']({},api);await vi.advanceTimersByTimeAsync(3000);expect(views).toBe(1);expect(vi.getTimerCount()).toBe(0);
  });
  it('bounds history and stops timers while paused, hidden, closed or disposed',async()=>{
   vi.useFakeTimers();let ticks=0;const views:UiTextView[]=[];

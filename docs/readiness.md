@@ -319,6 +319,16 @@ Two earlier close attempts timed out on the test's focus observation; the second
 capture shows the focused narrow title was truncated. This is one terminal and
 synthetic plugin, not proof of other terminals or packaged-archive behavior.
 
+The resources monitor now offers an opt-in raster plot alongside its text
+chart and retains a plugin-lifetime handle for periodic updates after the
+opening action finishes. A source OpenTUI/Kitty/tmux check observed successive
+samples, keyboard activation, the graph after PageUp and stable scroll during
+updates; passthrough-off separately showed the text alternative. The initial
+unfixed attempt failed after its captured foreground UI context expired.
+These are source checks in one terminal, not native-archive certification.
+Evidence is under `dist/tmux-research-20261115/resources-graphics-real-final-on/`
+and `dist/tmux-research-20261115/resources-graphics-fallback-off/`.
+
 ## Plugin development and interface usability
 
 The 1.0 objective explicitly includes developing missing plugins needed for

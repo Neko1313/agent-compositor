@@ -33,6 +33,13 @@ exactly spaced timestamps. History retains at most 120 samples in memory; the pl
 shows the newest samples that fit. Narrow windows reduce the plot width; use
 Alt+f or PageUp/PageDown for the complete controls.
 
+**Graphics** optionally adds a colored version of the same observations. Use
+PageUp to reach it in a small window; the numeric text chart stays available.
+Missing or incomplete intervals remain gaps, and the vertical scale follows the
+same data as the text chart. Terminals without image support show an explanatory
+text alternative. Graphics is off initially and is kept only for the current
+plugin instance; switching it does not ask a model.
+
 **Send latest sample to agent** explicitly queues the latest complete observation
 for the current conversation. CPU and memory describe the Compositor process;
 Child CPU is an approximate descendant interval. The request includes units and
@@ -58,5 +65,5 @@ resuming, showing the window or returning to the Child CPU tab.
 Process CPU history is also retained, but its current reading is cleared on
 pause, hide, reopen or counter failure; sharing waits for a new interval.
 
-The plugin uses the existing text-view and visibility contracts; its graph is
-portable terminal cells, not a native image/video or OpenTUI implementation.
+The plugin uses existing text-view and visibility contracts; the text plot
+remains portable and the optional image uses the host's raster support.

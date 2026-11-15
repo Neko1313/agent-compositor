@@ -1896,11 +1896,15 @@ it('uses actual manager navigation, local inactive installation, cross-manager f
   await press(marketId, 'catalog:local-flow');
   await press(marketId, 'navigate:extensions');
   await press(extensionId, 'navigate:marketplace'); await press(marketId, 'catalog:local-flow');
+  const search = await waitAction(marketId, 'install:local-flow-probe@local-flow'); search.change('search', 'flow-probe', search.snapshot().revision);
+  await expect.poll(() => f.find(marketId)?.snapshot().view?.input?.value).toBe('flow-probe');
   await press(marketId, 'install:local-flow-probe@local-flow');
   const install = await f.waitForm('Install local-flow-probe@local-flow'); f.answer(install, 'install', {scope: 'project'});
   await expect.poll(() => f.form()).toBeUndefined();
   const market = await waitAction(marketId, 'manage:local-flow-probe');
   expect(market.snapshot().view?.lines.some(line => line.text.includes('Installed inactive. Check Installed plugins'))).toBe(true);
+  expect(market.snapshot().view?.input?.value).toBe('flow-probe');
+  expect(market.snapshot().view?.lines.some(line => line.action === 'install:local-flow-probe@local-flow')).toBe(true);
   const stateFile = join(f.app.storage.paths.state, 'extensions-state.json');
   const inactive = JSON.parse(await readFile(stateFile, 'utf8'));
   expect(inactive.disabled).toContain('local-flow-probe'); expect(inactive.enabled).not.toContain('local-flow-probe');
@@ -1915,6 +1919,8 @@ it('uses actual manager navigation, local inactive installation, cross-manager f
   await expect.poll(() => f.find(extensionId)?.snapshot().view?.lines[0]?.text).toContain('Enabled local-flow-probe');
   await expect.poll(() => f.find(marketId)?.snapshot().view?.lines[0]?.text).toContain('Enabled local-flow-probe');
   expect(f.find(marketId)?.snapshot().view?.lines.some(line => line.text.includes('Installed inactive. Check Installed plugins'))).toBe(false);
+  expect(f.find(marketId)?.snapshot().view?.input?.value).toBe('flow-probe');
+  expect(f.find(marketId)?.snapshot().view?.lines.some(line => line.action === 'install:local-flow-probe@local-flow')).toBe(true);
   f.layout.act({type:'open',id:marketId});f.layout.act({type:'close'});
   await f.host.core.host.emit('service.extension.control',{action:'disable',name:'local-flow-probe',scope:'project'});
   expect(f.layout.snapshot().locations[marketId]).toBeUndefined();

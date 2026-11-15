@@ -360,19 +360,20 @@ export async function marketplaces(
       }
     },
   };
-  const browse=async($:any)=>{
-    const reg=(await registrations())[selectedMarket];if(!reg)return;
+  const browse=async($:any,receipt?:any,focus=true)=>{
+    const reg=(await registrations())[selectedMarket];if(!reg)throw Error('Marketplace is no longer registered');
     const data=await catalog(reg),needle=query.toLowerCase();
     const rows=data.plugins.filter(p=>`${p.name} ${p.description??''}`.toLowerCase().includes(needle));
     browseRows=rows;selectedIndex=Math.min(selectedIndex,Math.max(0,rows.length-1));
     await $.ui.view('marketplaces','Marketplaces',{hint:'↑↓ select plugin · Enter install · Ctrl+U clear search',input:{id:'search',value:query,placeholder:'Search plugins'},lines:[
+      ...(receipt?.lines??[]).filter((line:any)=>!['navigate:extensions','navigate:marketplace','navigate:placement'].includes(line.action)),
       {text:selectedMarket,bold:true},{text:'Installed plugins',action:'navigate:extensions'},
       {text:'All marketplaces',action:'navigate:marketplace'},
       {text:'Choose a plugin to install. Installation leaves it off.',tone:'muted'},
       {text:`${rows.length} plugins`,tone:'muted'},
       ...rows.map((p,index)=>({selected:index===selectedIndex,text:`${p.name}  v${p.version??'unversioned'}${p.description?' · '+(p.description.length>96?p.description.slice(0,93)+'…':p.description):''}`,action:'install:'+p.name+'@'+selectedMarket})),
       ...(rows.length?[]:[{text:'No matching plugins. Clear or change the search.',tone:'muted'}]),
-    ]},{site:'sidebar',size:.5,focus:true});
+    ]},{site:'sidebar',size:.5,focus});
   };
   const plugin: any = {
     manifest: {
@@ -408,7 +409,7 @@ export async function marketplaces(
         const result=await $.next();
         if(receipt&&receipt===$.state.get('installReceipt')&&['enable','disable','remove','update','rollback'].includes(e.action)&&
           String(e.name??'').split('@')[0]===receipt&&result&&typeof result==='object'&&'value'in result&&!$.signal.aborted){
-          try{await $.ui.view('marketplaces','Marketplaces',extensionView(e.action,{ok:true,data:result.value}),{site:'sidebar',size:.5,focus:false});}
+          try{await browse($,extensionView(e.action,{ok:true,data:result.value}),false);}
           catch{/* A refresh must not change the completed extension operation. */}
         }
         return result;
@@ -454,8 +455,11 @@ export async function marketplaces(
           if(!form||form.action!=='install')return;
           await $.ui.view('marketplaces','Marketplaces',pendingManagementView('install',name),{site:'sidebar',size:.5,focus:true});
           const result=await managementResult($,'service.extension.control',{action:'install',name,scope:form.values.scope});
-          await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'sidebar',size:.5,focus:true});
-          if(result.ok)$.state.set('installReceipt',name.split('@')[0]);
+          if(result.ok){
+            $.state.set('installReceipt',name.split('@')[0]);
+            try{await browse($,extensionView('install',result));}
+            catch{await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'sidebar',size:.5,focus:true});}
+          }else await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'sidebar',size:.5,focus:true});
         }
       },
     },

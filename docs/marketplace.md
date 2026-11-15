@@ -24,6 +24,9 @@ The repository catalog is available offline as the default `agent-compositor`
 marketplace. All filesystem plugins start off. Installation and catalog refresh
 do not activate packages. The interactive marketplace lists packages and offers
 a scope form; `/extensions` shows available/active status and scoped management.
+After installing a plugin, the catalog keeps its search and results alongside the
+operation status. Managing that installed plugin updates the status without taking
+focus away from the current window.
 See [plugin standard 1](plugin-standard.md) for testing and independent releases.
 
 Installation defaults to user scope (`~/.agent-compositor/plugins`).

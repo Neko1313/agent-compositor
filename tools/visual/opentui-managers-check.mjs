@@ -160,9 +160,12 @@ try{
   await noListenerWarnings();
   await formButton('Add marketplace','Add marketplace');await absent('Add marketplace · Form');await wait('Refreshed local-flow');
   await click('All marketplaces');await wait('local-flow · project');await click('local-flow · project');await wait('Choose a plugin to install.');
+  await click('Search plugins',{pane:'Marketplaces'});await type('flow-probe');await wait('Search: flow-probe');
   await click('local-flow-probe  v1.0.0');await wait('Install local-flow-probe@local-flow · Form');await zoom();await paneText('Install local-flow-probe@local-flow');
   await formButton('Install local-flow-probe@local-flow','Install inactive');await wait('Installed local-flow-probe');
   await wait('Installed inactive. Check Installed plugins for current status.');
+  assert.match(await paneText('Marketplaces'),/Search: flow-probe/);
+  assert.match(await paneText('Marketplaces'),/local-flow-probe  v1\.0\.0/);
   const installed=await observe(()=>json(launch.managers.extensionState),value=>value.installed?.[plugin]?.version==='1.0.0','Actual install must write the lock');
   assert.ok(installed.disabled.includes(plugin));assert.equal((await json(launch.managers.manifest)).version,'1.0.0');
   assert.equal(await exists(launch.managers.receipt),false,'Inactive plugin must not run its hooks');await noUnexpectedModelRequests(1);
@@ -176,6 +179,8 @@ try{
   await unzoom();
   await observe(()=>paneText('Marketplaces'),text=>text.includes('Enabled local-flow-probe')&&!text.includes('Installed inactive. Check Installed plugins'),
     'Marketplace receipt must reflect the successful activation');
+  assert.match(await paneText('Marketplaces'),/Search: flow-probe/);
+  assert.match(await paneText('Marketplaces'),/local-flow-probe  v1\.0\.0/);
   await click('Apply plugin changes');await waitMain('Plugin reload queued until current operations finish');
   assert.equal(await exists(launch.managers.receipt),false,'Queued reload must wait for the unresolved Main question');await noUnexpectedModelRequests(1);
   await unzoom();await main();await pendingMainDraft();await click('Edit answer',{pane:'Main'});await wait('[x] Production');await click('Draft');

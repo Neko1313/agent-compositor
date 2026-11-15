@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import {createCliRenderer,NativeSession,type KeyEvent,type PasteEvent} from '@opentui/core';
+import {createCliRenderer,NativeSession,type KeyEvent,type PasteEvent,type TextareaRenderable} from '@opentui/core';
 import {createRoot,flushSync} from '@opentui/react';
 import {ConversationView} from './view.js';
 import type {ComposerMedia} from './ghost.js';
@@ -7,9 +7,10 @@ import type {PluginTableSource} from './table.js';
 import type {PluginManagerSource} from './plugins.js';
 import type {ConversationSession} from './session.js';
 import {isWindowGestureCancelKey,type WindowLayoutSource} from './layout.js';
-import type {UiSurfaceRegistry} from './surface.js';
+import type {UiSurfaceRegistry,UiSurfaceSource} from './surface.js';
 import type {WindowNavigationInput,WindowNavigationSource} from './navigation.js';
 import {useKeyboard} from '@opentui/react';
+import {useState} from 'react';
 import {createEditorInputOwnership} from './editor-ownership.js';
 import type {ConversationWindowRegistry} from './conversation-windows.js';
 import {AppearanceProvider,type AppearanceSource} from './appearance.js';
@@ -69,10 +70,19 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   const abort=()=>destroy();
   options.signal?.addEventListener('abort',abort,{once:true});
   let replaying=false,draining=false,inputFailure:unknown;
-  type QueuedInput={generation:string}&({kind:'key';key:KeyEvent}|{kind:'paste';event:PasteEvent}|{kind:'mouse';run():void});
+  type MouseResult='target-unavailable'|{selected:string;owner:UiSurfaceSource|ConversationSession;editor:TextareaRenderable}|void;
+  type QueuedInput={generation:string;epoch:number}&({kind:'key';key:KeyEvent}|{kind:'paste';event:PasteEvent}|{kind:'mouse';run():MouseResult});
   const queued:QueuedInput[]=[];
+  const retained:QueuedInput[]=[];let inputEpoch=0,awaitingTarget=false,showInputNotice:(notice:string|undefined)=>void=()=>{};
   const generation=()=>options.inputAdmission?.generation()??'';
   const settled=()=>options.inputAdmission?.settled()??Promise.resolve();
+  function recoveryAllowed(id:string,owner?:UiSurfaceSource|ConversationSession):boolean{
+    const surface=options.surfaces?.snapshot().find(source=>source.id===id);
+    if(surface){const state=surface.snapshot();return Boolean((!owner||surface===owner)&&state.view?.input&&!state.approval&&!state.interaction&&!state.form&&!state.controller);}
+    const session=options.conversationWindows?.snapshot().find(window=>window.id===id)?.session??sessions.find(item=>item.paneId===id);
+    if(!session||owner&&session!==owner)return false;
+    const state=session.snapshot();return !state.approval&&!state.interaction&&!state.controller&&!state.editor;
+  }
   function consumeKey(key:KeyEvent):boolean|Promise<boolean>{
     if(!options.navigation)return false;
     let consumed=false;
@@ -94,28 +104,54 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     return item.kind==='key'?consumeKey(item.key):item.kind==='paste'?options.navigation?.handle({kind:'paste',text:''})??false:false;
   }
   function replay(item:QueuedInput,consumed:boolean){
-    if(consumed||item.generation!==generation()||options.signal?.aborted)return;
-    replaying=true;
+    if(consumed||item.epoch!==inputEpoch||item.generation!==generation()||options.signal?.aborted)return;
+    replaying=true;const outcome:{result:MouseResult}={result:undefined};
     try{flushSync(()=>{
       if(item.kind==='key')renderer.keyInput.processParsedKey({...item.key});
       else if(item.kind==='paste')renderer.keyInput.processPaste(item.event.bytes,item.event.metadata);
-      else item.run();
+      else outcome.result=item.run();
     });}finally{replaying=false;}
+    return outcome.result;
   }
   async function drain(first?:{item:QueuedInput;admission:Promise<boolean>}){
     try{
       if(first){replay(first.item,await first.admission);await settled();}
       while(queued.length&&!options.signal?.aborted){
         const item=queued.shift()!;await settled();
-        if(item.generation!==generation())continue;
-        replay(item,await consume(item));await settled();
+        if(item.epoch!==inputEpoch||item.generation!==generation())continue;
+        if(awaitingTarget&&item.kind!=='mouse'){
+          if(item.kind==='key'&&item.key.name==='0'&&(item.key.meta||item.key.option)&&!item.key.ctrl){
+            const handled=await consume(item);await settled();
+            if(handled&&options.windowLayout.snapshot().focused==='session'&&recoveryAllowed('session')&&renderer.currentFocusedEditor){
+              awaitingTarget=false;showInputNotice(undefined);queued.unshift(...retained.splice(0));
+            }
+            continue;
+          }
+          // Recover text and editor navigation only. Actions and shortcuts must
+          // never execute in a newly chosen window without fresh user intent.
+          if(item.kind==='paste')retained.push(item);
+          else if(!item.key.ctrl&&!item.key.meta&&!item.key.option&&!item.key.super&&!item.key.hyper
+            &&(['backspace','delete','left','right','home','end'].includes(item.key.name)
+              ||Boolean(item.key.sequence)&&![...item.key.sequence].some(char=>char.codePointAt(0)!<32||char.codePointAt(0)===127)))retained.push(item);
+          continue;
+        }
+        const result=replay(item,await consume(item));await settled();
+        if(result==='target-unavailable'){
+          awaitingTarget=true;showInputNotice('Click input or Alt+0 · Esc discards · actions cancelled');
+        }else if(result&&typeof result==='object'&&awaitingTarget&&options.windowLayout.snapshot().focused===result.selected
+          &&recoveryAllowed(result.selected,result.owner)&&renderer.currentFocusedEditor===result.editor){
+          awaitingTarget=false;showInputNotice(undefined);queued.unshift(...retained.splice(0));
+        }
       }
     }catch(error){inputFailure=error;destroy();}
     finally{draining=false;}
   }
   function capture(item:QueuedInput,event:KeyEvent|PasteEvent){
     if(event.defaultPrevented||replaying)return;
-    if(draining||options.inputAdmission?.pending()){
+    if(awaitingTarget&&item.kind==='key'&&item.key.name==='escape'){
+      event.preventDefault();event.stopPropagation();inputEpoch++;retained.length=0;queued.length=0;awaitingTarget=false;showInputNotice(undefined);return;
+    }
+    if(awaitingTarget||draining||options.inputAdmission?.pending()){
       event.preventDefault();event.stopPropagation();queued.push(item);
       if(!draining){draining=true;void drain();}return;
     }
@@ -124,19 +160,20 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
       event.preventDefault();event.stopPropagation();draining=true;void drain({item,admission});
     }else if(admission){event.preventDefault();event.stopPropagation();}
   }
-  function scheduleMouse(run:()=>void):boolean{
-    if(replaying||!draining&&!options.inputAdmission?.pending())return false;
-    queued.push({kind:'mouse',run,generation:generation()});
+  function scheduleMouse(run:()=>MouseResult):boolean{
+    if(replaying||!awaitingTarget&&!draining&&!options.inputAdmission?.pending())return false;
+    queued.push({kind:'mouse',run,generation:generation(),epoch:inputEpoch});
     if(!draining){draining=true;void drain();}return true;
   }
-  const captureKey=(key:KeyEvent)=>capture({kind:'key',key,generation:generation()},key);
+  const captureKey=(key:KeyEvent)=>capture({kind:'key',key,generation:generation(),epoch:inputEpoch},key);
   const capturePaste=(event:PasteEvent)=>{
     // Preserve the original bytes/caret edit while a preceding window command
     // crosses the transport. Only admission, not model completion, serializes it.
-    capture({kind:'paste',event,generation:generation()},event);
+    capture({kind:'paste',event,generation:generation(),epoch:inputEpoch},event);
   };
   if(options.navigation||options.inputAdmission){renderer.keyInput.prependListener('keypress',captureKey);renderer.keyInput.prependListener('paste',capturePaste);}
   function Desktop(){
+    const [inputNotice,setInputNotice]=useState<string>();showInputNotice=setInputNotice;
     useKeyboard(key=>{
       if(key.defaultPrevented||(!options.onCtrlC&&!runtime)||!key.ctrl||key.meta||key.name!=='c')return;
       key.preventDefault();
@@ -149,7 +186,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     return <TmuxComposerProvider runtime={runtime}><AppearanceProvider source={options.appearance}><ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
       animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership}
-      conversationWindows={options.conversationWindows} publicRender={options.publicRender} scheduleMouse={scheduleMouse} /></AppearanceProvider></TmuxComposerProvider>;
+      conversationWindows={options.conversationWindows} publicRender={options.publicRender} scheduleMouse={scheduleMouse} inputNotice={inputNotice} /></AppearanceProvider></TmuxComposerProvider>;
   }
   try {
     renderer.keyInput.setMaxListeners(keyboardListenerLimit);
@@ -159,7 +196,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     if(inputFailure)throw inputFailure;
   } finally {
     options.signal?.removeEventListener('abort',abort);
-    queued.length=0;
+    queued.length=0;retained.length=0;
     if(options.navigation||options.inputAdmission){renderer.keyInput.off('keypress',captureKey);renderer.keyInput.off('paste',capturePaste);}
     await runtime?.close();
     renderer.destroy();

@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import { MouseButton, RGBA, TextAttributes, parseColor, type BoxRenderable, type KeyBinding, type MouseEvent, type OptimizedBuffer, type ScrollBoxRenderable, type TextareaRenderable } from '@opentui/core';
+import { MouseButton, RGBA, TextAttributes, TextareaRenderable, parseColor, type BoxRenderable, type KeyBinding, type MouseEvent, type OptimizedBuffer, type ScrollBoxRenderable } from '@opentui/core';
 import { flushSync, useKeyboard, useRenderer, useTerminalDimensions } from '@opentui/react';
 import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {useAppearance} from './appearance.js';
@@ -389,7 +389,7 @@ function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSour
   return <Tab {...tab} label={state.title+(status?' · '+status:'')} />;
 }
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows,publicRender,scheduleMouse }: {
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows,publicRender,scheduleMouse,inputNotice }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
@@ -401,7 +401,8 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   editorOwnership?:EditorInputOwnership;
   conversationWindows?:ConversationWindowRegistry;
   publicRender?:PublicRenderSlots;
-  scheduleMouse?(run:()=>void):boolean;
+  scheduleMouse?(run:()=>void|'target-unavailable'|{selected:string;owner:UiSurfaceSource|ConversationSession;editor:TextareaRenderable}):boolean;
+  inputNotice?:string;
 }) {
   const appearance=useAppearance(),{color,presentation}=appearance;
   const editorOwns=useSyncExternalStore(editorOwnership?.subscribe??(()=>()=>{}),editorOwnership?.snapshot??(()=>false));
@@ -565,21 +566,28 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       ?panes.find(pane=>pane.id===observedFrame.surface):undefined;
     if(scheduleMouse?.(()=>{
       if(phase==='down'){
+        const same=target?.surface?surfaces.snapshot().includes(target.surface):target?.session
+          ?conversationWindows?conversationWindows.snapshot().some(window=>window.id===target.id&&window.session===target.session):sessions.includes(target.session)
+          :false;
+        if(target&&(target.surface||target.session)&&!same)return 'target-unavailable';
         if(geometry()!==observed){
           // A pane body click selects a logical window. If it moved or was
           // hidden, retain that intent instead of retargeting later typing.
           const current=windowLayout.snapshot();
-          const same=target?.surface?surfaces.snapshot().includes(target.surface):target?.session
-            ?conversationWindows?conversationWindows.snapshot().some(window=>window.id===target.id&&window.session===target.session):sessions.includes(target.session)
-            :false;
           if(same&&target&&current.workspace===initial.workspace&&!current.gesture
-            &&(!navigation||navigation.snapshot().mode==='normal'))
+            &&(!navigation||navigation.snapshot().mode==='normal')){
             windowLayout.act({type:current.frames.some(item=>item.surface===target.id)?'focus':'open',id:target.id});
-          return;
+            const owner=target.surface??target.session;
+            return owner&&event.target instanceof TextareaRenderable?{selected:target.id,owner,editor:event.target}:undefined;
+          }
+          return target?'target-unavailable':undefined;
         }
         gesture!.accepted=true;
       }else if(gesture&&!gesture.accepted)return;
       pointer(phase,event);
+      if(phase==='down'&&target&&event.target instanceof TextareaRenderable){
+        const owner=target.surface??target.session;if(owner)return {selected:target.id,owner,editor:event.target};
+      }
     })){
       if(phase==='down')queuedPointer.current=gesture;
       else if(phase==='up')queuedPointer.current=undefined;
@@ -663,6 +671,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   });
   return <box width="100%" height="100%" backgroundColor={color.background} flexDirection="column">
     {navigation&&workspaceBar}
+    {inputNotice&&<box height={Math.min(3,Math.ceil(inputNotice.length/Math.max(1,width-2)))} paddingX={1} flexShrink={0}>
+      <text fg={color.error} wrapMode="word">{inputNotice}</text>
+    </box>}
     {navigation&&<box flexDirection="row" flexWrap="wrap" columnGap={1} paddingX={1} flexShrink={0}>
       {navigationButton(width>=42?(navigationState.mode==='arrange'?'Alt+W Type':'Alt+W Arrange'):(navigationState.mode==='arrange'?'Type':'Arrange'),navigationState.mode==='arrange',()=>navigation.toggleArrange())}
       {navigationButton(width>=42?(editorOwns?'Alt+W w Windows':'F2 Windows'):'Windows',navigationState.mode==='finder',()=>navigation.openFinder())}

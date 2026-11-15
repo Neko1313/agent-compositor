@@ -159,6 +159,75 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     f.release();await f.until(()=>f.layout.snapshot().focused==='session'&&f.test.captureCharFrame().includes('FOR_MAIN')&&!f.client.pending());
     expect(value).toBe('FIRST');
   },12000);
+  it.each(['removed','replaced','discarded','narrow','keyboard','noninput','typing','recovery_replaced','field_replaced'] as const)('holds later text and cancels Enter when the selected plugin is %s',async mode=>{
+    const f=await fixture();let value='',submitted=0;
+    f.host.core.host.registerPlugin({name:'mouse-origin',version:'1.0.0',trust:'trusted'}, {
+      'ui.change':async(event,$)=>{value=event.value;await $.ui.view('main','Origin',{
+        input:{id:'reply',label:'Reply',value,submitAction:'send'},lines:[{text:'Send',action:'send'}]});},
+      'ui.press':event=>{if(event.key==='send')submitted++;},
+    });
+    f.host.core.host.registerPlugin({name:'mouse-target',version:'1.0.0',trust:'trusted'},{});
+    const view={input:{id:'reply',label:'Reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]};
+    await f.host.core.host.emit('service.ui.view',{plugin:'mouse-origin',id:'main',title:'Origin',view,options:{site:'split'}});
+    await f.host.core.host.emit('service.ui.view',{plugin:'mouse-target',id:'main',title:'Target',view,options:{site:'split'}});
+    const origin='plugin-mouse-origin-main',target='plugin-mouse-target-main';
+    await f.until(()=>f.layout.snapshot().frames.some(frame=>frame.surface===target));f.layout.act({type:'focus',id:origin});
+    await f.until(()=>f.test.captureCharFrame().includes('Origin · focused'));
+    f.holdWhen(input=>input?.operation.kind==='surface-change');f.packet('\t\x1b[200~FIRST\x1b[201~');
+    await f.until(()=>f.held.length>0&&f.test.captureCharFrame().includes('FIRST'));
+    const frame=f.layout.snapshot().frames.find(item=>item.surface===target)!;
+    await f.test.mockMouse.click(frame.x+5,frame.y+7);f.packet('\x1b[200~FOR_TARGET\x1b[201~\r');
+    f.host.core.host.unregisterPlugin('mouse-target');await f.until(()=>!f.host.surfaces.snapshot().some(source=>source.id===target));
+    if(mode==='replaced'){
+      f.host.core.host.registerPlugin({name:'mouse-target',version:'2.0.0',trust:'trusted'},{});
+      await f.host.core.host.emit('service.ui.view',{plugin:'mouse-target',id:'main',title:'Replacement',view,options:{site:'split'}});
+      await f.until(()=>f.host.surfaces.snapshot().some(source=>source.id===target));
+    }
+    f.release();await f.until(()=>f.test.captureCharFrame().includes('Click input or Alt+0'));
+    expect(value).toBe('FIRST');expect(submitted).toBe(0);
+    if(mode==='typing'){f.packet('NEW');await f.test.flush({maxPasses:30});}
+    if(mode==='keyboard'){
+      f.packet('\x1b0');await f.until(()=>f.layout.snapshot().focused==='session'&&f.test.captureCharFrame().includes('FOR_TARGET')&&!f.client.pending());
+      expect(value).toBe('FIRST');expect(submitted).toBe(0);return;
+    }
+    if(mode==='noninput'){
+      const rows=f.test.captureCharFrame().split('\n'),tabRow=rows.findIndex(line=>line.includes('Main')&&line.includes('Origin'));
+      await f.test.mockMouse.click(rows[tabRow].indexOf('Main')+1,tabRow);
+      await f.until(()=>f.layout.snapshot().focused==='session');
+      expect(f.test.captureCharFrame()).toContain('Click input or Alt+0');expect(value).toBe('FIRST');
+    }
+    if(mode==='narrow'){
+      f.test.resize(40,18);try{await f.until(()=>f.test.captureCharFrame().replace(/\s+/g,' ').includes('Esc discards')&&f.test.captureCharFrame().replace(/\s+/g,' ').includes('actions cancelled'));}
+      catch(error){throw Error(f.test.captureCharFrame(),{cause:error});}
+      f.test.resize(100,36);await f.until(()=>f.layout.snapshot().frames.some(item=>item.surface===origin));
+    }
+    if(mode==='discarded'){
+      f.test.mockInput.pressEscape();await f.until(()=>!f.test.captureCharFrame().includes('Click input or Alt+0'));
+      const current=f.layout.snapshot().frames.find(item=>item.surface===origin)!;await f.test.mockMouse.click(current.x+5,current.y+7);
+      await f.until(()=>!f.client.pending());expect(value).toBe('FIRST');expect(submitted).toBe(0);return;
+    }
+    const lines=f.test.captureCharFrame().split('\n'),row=lines.findIndex(line=>line.includes('Reply: FIRST')),col=lines[row].indexOf('Reply: FIRST')+12;
+    if(mode==='recovery_replaced'||mode==='field_replaced')f.holdWhen(input=>input?.operation.kind==='layout-action');
+    await f.test.mockMouse.click(col,row);
+    if(mode==='field_replaced'){
+      await f.until(()=>f.held.length>0);
+      await f.host.core.host.emit('service.ui.view',{plugin:'mouse-origin',id:'main',title:'Origin',view:{
+        input:{id:'replacement',label:'Replacement',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+      await f.until(()=>f.client.surfaces.snapshot().find(source=>source.id===origin)?.snapshot().view?.input?.id==='replacement');
+      f.release();await f.until(()=>!f.client.pending());expect(f.test.captureCharFrame()).toContain('Click input or Alt+0');
+      expect(value).toBe('FIRST');expect(submitted).toBe(0);return;
+    }
+    if(mode==='recovery_replaced'){
+      await f.until(()=>f.held.length>0);const previous=f.client.surfaces.snapshot().find(source=>source.id===origin);
+      f.host.core.host.unregisterPlugin('mouse-origin');await f.until(()=>!f.host.surfaces.snapshot().some(source=>source.id===origin));
+      f.host.core.host.registerPlugin({name:'mouse-origin',version:'2.0.0',trust:'trusted'},{});
+      await f.host.core.host.emit('service.ui.view',{plugin:'mouse-origin',id:'main',title:'Replacement origin',view,options:{site:'split'}});
+      await f.until(()=>Boolean(f.client.surfaces.snapshot().find(source=>source.id===origin&&source!==previous)));
+      f.release();await f.until(()=>!f.client.pending());expect(f.test.captureCharFrame()).toContain('Click input or Alt+0');
+      expect(value).toBe('FIRST');expect(submitted).toBe(0);return;
+    }
+    await f.until(()=>value===(mode==='typing'?'FIRSTFOR_TARGETNEW':'FIRSTFOR_TARGET')&&!f.client.pending());expect(submitted).toBe(0);
+  },12000);
   it('replays a queued drag through its own geometry updates and releases the gesture',async()=>{
     const f=await fixture();
     f.host.core.host.registerPlugin({name:'mouse-drag',version:'1.0.0',trust:'trusted'},{'ui.change':()=>{}});

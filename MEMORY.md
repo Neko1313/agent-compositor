@@ -34,8 +34,13 @@ that window by identity after it moves; the test verifies subsequent input goes
 to it. A subsequent held-receipt test hid the selected Main window before
 admission: the previous renderer delivered later input to the old focus. If the
 same window owner still exists, OpenTUI now reopens the hidden target before
-replaying that input. Other stale gestures remain discarded. Handling queued
-input when the selected owner is removed or replaced remains unverified.
+replaying that input. Other stale gestures remain discarded. A controlled native
+renderer fixture then removed or replaced the selected plugin before admission:
+OpenTUI retains subsequent text for an explicit input-field click or Alt+0 to
+Main; Escape discards it and pending actions, including Enter, are cancelled.
+Tests cover both owner changes, narrow display, an unrelated tab selection and
+mouse/keyboard recovery. This is not a persistence guarantee across restart or
+an exhaustive check of all plugin-specific inputs.
 
 ## Physical tmux graphics probe — 2026-11-15
 

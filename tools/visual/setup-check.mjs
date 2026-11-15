@@ -31,6 +31,14 @@ try{
  const selection=JSON.parse(await readFile(join(identity.state,'extensions-state.json'),'utf8'));
  assert.ok(selection.installed['project-checks'],'The chosen plugin must actually be installed');
  const installed=JSON.parse(await readFile(join(selection.bindings['project-checks'],'plugin.json'),'utf8'));assert.equal(installed.name,'project-checks');
+ // A user can change the selection through Extensions before applying it.
+ await page.keyboard.press('Alt+i');for(const _ of 'UNSENT_SETUP_DRAFT')await page.keyboard.press('Backspace');await wait('Describe your task');await page.keyboard.type('/extensions disable project-checks --project');await wait('› /extensions disable project-checks --project');await page.keyboard.press('Enter');await wait('Disabled project-checks');
+ await page.keyboard.press('Alt+i');await page.keyboard.type('/setup');await wait('› /setup');await page.keyboard.press('Enter');await wait('Get started');
+ await wait('longer enabled');await shot('02a-disabled-elsewhere');await click('Start chatting');await page.waitForFunction(()=>!visual.text().includes('Get started'));report.checks.push('setup.disabled-elsewhere');
+ // Reopen the guide and select the plugin again for the ordinary install flow.
+ await page.keyboard.press('Alt+i');await page.keyboard.type('/setup');await wait('› /setup');await page.keyboard.press('Enter');await wait('Get started');
+ await click('Choose recommended tools');await wait('Choose your work');await click('Continue');await wait('Choose optional tools');await click('Install and enable selected');await wait('Apply pending tools: project-checks');
+ await page.keyboard.press('Alt+i');await page.keyboard.type('UNSENT_SETUP_DRAFT');await wait('UNSENT_SETUP_DRAFT');
  await click('Apply plugin changes');await wait('Tools: 1 suggested plugins active');assert.equal((await transport()).requests,0);report.checks.push('setup.install-enable-reload');
  const credentials=await readFile(join(identity.home,'credentials.json'),'utf8');assert.ok(credentials.includes('PRIVATE_FIRST_RUN_KEY'));assert.equal((await stat(join(identity.home,'credentials.json'))).mode&0o077,0);assert.ok(!(await readFile(join(identity.state,'providers.json'),'utf8')).includes('PRIVATE_FIRST_RUN_KEY'));report.checks.push('setup.private-credential-storage');
  const resize=async(cols,rows)=>{const before=await page.evaluate(()=>visual.frames);await page.evaluate(({cols,rows})=>visual.terminal.resize(cols,rows),{cols,rows});await page.waitForFunction(before=>visual.frames>before,before);await wait('Start chatting');};

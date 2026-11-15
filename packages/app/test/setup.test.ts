@@ -15,7 +15,7 @@ async function fixture(failInstall=false){
   control:async(args:any)=>{operations.push(args);if(args.action==='list')return{ok:true,data:{installed:{'project-checks':{version:'99.0.0'}},available:[]}};if(args.action==='install')return failInstall?{ok:false,error:'Download unavailable'}:{ok:true};enabled.push(args.name);return{ok:true};}});
  const api:any={signal:new AbortController().signal,ui:{view:async(_id:string,_title:string,view:any)=>{views.push(view);},notify:async(message:string,level:string)=>{notices.push({message,level});},remove:async()=>{},form:async(form:any)=>{forms.push(form);return answers.shift()??null;}}};
  const press=(key:string)=>(guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key},api);
- return{root,storage,guide,api,press,forms,answers,operations,views,notices,setConfigured:(value:boolean)=>{configured=value;},setLoaded:(value:string[])=>{loaded=value;},close:()=>rm(root,{recursive:true,force:true})};
+ return{root,storage,guide,api,press,forms,answers,operations,views,notices,setConfigured:(value:boolean)=>{configured=value;},setLoaded:(value:string[])=>{loaded=value;},setEnabled:(value:string[])=>{enabled=value;},close:()=>rm(root,{recursive:true,force:true})};
 }
 
 it('shows a local guide without mutations, supports skipping and keeps manual setup available',async()=>{
@@ -37,6 +37,17 @@ it('keeps installed pins, enables only selected plugins and waits for reload bef
   await f.press('finish');expect(f.notices.at(-1).message).toMatch(/Apply plugin changes/);
   f.setLoaded(['project-checks']);await (f.guide.plugin.hooks['session.reload'] as any)({},f.api);await f.press('finish');
   expect(JSON.parse(await readFile(join(f.storage.paths.home,'setup.json'),'utf8')).status).toBe('complete');
+ }finally{await f.close();}
+});
+
+it('lets setup finish when a selected plugin is disabled elsewhere before reload',async()=>{
+ const f=await fixture();try{
+  f.setConfigured(true);f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true}});
+  await f.press('tools');expect(f.views.at(-1).lines.some((line:any)=>line.action==='navigate:reload')).toBe(true);
+  f.setEnabled([]);await (f.guide.plugin.hooks['session.reload'] as any)({},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.action==='navigate:reload')).toBe(false);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text==='project-checks: no longer enabled')).toBe(true);
+  await f.press('finish');expect(JSON.parse(await readFile(join(f.storage.paths.home,'setup.json'),'utf8')).status).toBe('complete');
  }finally{await f.close();}
 });
 

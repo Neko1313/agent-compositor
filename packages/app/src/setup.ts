@@ -23,9 +23,9 @@ type Dependencies={
 export function setupGuide(storage:ProjectStorage,deps:Dependencies){
  const file=join(storage.paths.home,'setup.json');let visible=false,changed:string[]=[],notes:string[]=[];
  const state=async()=>readFile(file,'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return{};});
- const pending=()=>changed.filter(name=>!deps.loaded().includes(name));
+ const pending=()=>{const enabled=deps.enabled(),loaded=deps.loaded();return changed.filter(name=>enabled.includes(name)&&!loaded.includes(name));};
  const show=async($:HooksApi,focus=true)=>{
-  visible=true;const model=await deps.model(),waiting=pending();
+  visible=true;const model=await deps.model(),waiting=pending(),enabled=deps.enabled();
   await $.ui.view('setup','Get started',{hint:'No model is needed for this guide. You choose what to configure and install.',lines:[
    {text:'Connect a model, choose tools, then start a task.',bold:true},
    {text:model.configured?`Model selected: ${model.profile} · ${model.model}`:'Model: choose a connection before sending a task',tone:model.configured?'accent':'warning'},
@@ -33,7 +33,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
    {text:`Tools: ${deps.loaded().filter(name=>suggestions.some(item=>item.name===name)).length} suggested plugins active`},
    {text:'[ Choose recommended tools ]',action:'tools'},
    ...(waiting.length?[{text:`Apply pending tools: ${waiting.join(', ')}`,tone:'warning' as const},{text:'[ Apply plugin changes ]',action:'navigate:reload'}]:[]),
-   ...notes.map(text=>({text,tone:'muted' as const})),
+   ...notes.map(text=>({text:changed.some(name=>!enabled.includes(name)&&text===`${name}: selected for this project`)?text.replace(': selected for this project',': no longer enabled'):text,tone:'muted' as const})),
    {text:'[ Start chatting ]',action:'finish',tone:'accent'},
    {text:'[ Skip for now ]',action:'skip'},
    {text:'[ Models & providers ]',action:'navigate:settings'},

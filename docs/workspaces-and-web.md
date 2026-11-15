@@ -25,6 +25,9 @@ ignore rules; tracked files remain visible. Specific ancestor `.gitignore`,
 repository and global exclusions are applied conservatively to untracked files,
 even if a different rule would re-include one. An ancestor `.gitignore` rule
 that hides the selected root itself is lifted for this discovery.
+If Git cannot enumerate a repository, discovery reports an error instead of
+walking files without the repository's exclusions. Repair the Git index or
+configuration and retry.
 The editor completes local, absolute and home paths. Tab accepts a suggestion;
 Enter submits a typed reference unless a suggestion was explicitly selected.
 Completing a directory lets you continue its path. Browsing completion suggestions

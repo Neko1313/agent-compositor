@@ -248,6 +248,8 @@ ancestor `.gitignore` rules are also checked against the enclosing path. Rules
 that hide the selected root itself are lifted from ancestor `.gitignore` files;
 other exclusions are conservative and can hide an untracked file even if a
 different rule would re-include it.
+If Git cannot enumerate a repository, search reports an error rather than
+falling back to a walk that bypasses repository and global exclusions.
 Escaping symlinks, deleted entries, binary and oversized text
 files are excluded. Regex search streams ripgrep in argument-safe batches;
 literal search has no ripgrep dependency. Search scanning is bounded to 32 MiB

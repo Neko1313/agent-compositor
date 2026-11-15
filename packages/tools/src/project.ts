@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readdir, realpath, readFile, stat, mkdtemp, rm } from 'node:fs/promises';
+import { readdir, realpath, readFile, stat, lstat, mkdtemp, rm } from 'node:fs/promises';
 import { resolve, join, dirname, relative, sep } from 'node:path';
 import {homedir,tmpdir} from 'node:os';
 import ignore from 'ignore';
@@ -78,7 +78,24 @@ export async function projectFiles(root: string, limit = 20000): Promise<string[
             } catch { /* Keep the original Git inventory rather than bypassing its ignore policy. */ }
         }
     }
-    catch {
+    catch (inventoryError) {
+        // A failed Git inventory must not silently turn into an unfiltered
+        // directory walk: that walk cannot apply repository/global excludes.
+        let repository=false;
+        try {
+            repository=(await exec('git',['rev-parse','--is-inside-work-tree'],{cwd:root,timeout:10000})).stdout.trim()==='true';
+        } catch (error) {
+            const code=(error as {code?:unknown}).code;
+            if(code!==128 && code!=='ENOENT') throw new Error('Git file inventory failed', {cause:inventoryError});
+            // Even a broken repository or missing Git must not expose files.
+            for(let dir=await realpath(root);;dir=dirname(dir)) {
+                try {await lstat(join(dir,'.git'));repository=true;break;}
+                catch (markerError) {if((markerError as NodeJS.ErrnoException).code!=='ENOENT')throw markerError;}
+                if(dirname(dir)===dir)break;
+            }
+            if(process.env.GIT_DIR || process.env.GIT_WORK_TREE) repository=true;
+        }
+        if(repository) throw new Error('Git file inventory failed; check the repository and Git index', {cause:inventoryError});
         files = [];
         const visit = async (dir: string, inherited: Array<{
             base: string;

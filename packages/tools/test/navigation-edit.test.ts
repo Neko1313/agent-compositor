@@ -111,6 +111,17 @@ describe('guarded exact editing', () => {
     });
 });
 describe('bounded project search', () => {
+    it('does not bypass Git exclusions when its index is corrupt', async () => {
+        const cwd=await temp();
+        execFileSync('git',['init','-q',cwd]);
+        await writeFile(join(cwd,'.git/info/exclude'),'private.txt\n');
+        await writeFile(join(cwd,'private.txt'),'PRIVATE_FIXTURE\n');
+        await writeFile(join(cwd,'.git/index'),'corrupt index');
+        await expect(projectFiles(cwd)).rejects.toThrow('Git file inventory failed');
+        await expect(queryProject({cwd,action:'grep',pattern:'PRIVATE_FIXTURE'})).rejects.toThrow('Git file inventory failed');
+        await writeFile(join(cwd,'.git/config'),'[broken\n');
+        await expect(projectFiles(cwd)).rejects.toThrow('Git file inventory failed');
+    });
     it('finds an explicitly selected project inside an ignored parent while respecting local and global ignores', async () => {
         const outer=await temp(),cwd=join(outer,'hidden','project');await mkdir(cwd,{recursive:true});
         const git=(...args:string[])=>execFileSync('git',args,{cwd:outer,env:{...process.env,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}});

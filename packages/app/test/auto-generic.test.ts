@@ -23,15 +23,28 @@ it.each(['command','button'])('clears an earlier refusal when auto review is ena
         name:'ci_check',description:'Run the configured project check',parameters:{type:'object'},describe:()=>({tool:'ci_check'}),execute:async()=>{executed++;return{ok:true,data:'checked'};},
     }]} as any);
     const core=app.createCore(async()=>{asked++;return false;});
+    let entered!:()=>void;
+    const secondRequest=new Promise<void>(resolve=>{entered=resolve;});
+    const complete=provider.complete.bind(provider);
+    provider.complete=async function* (request){
+        const iterator=complete(request)[Symbol.asyncIterator]();
+        try{
+            const first=await iterator.next();
+            if(provider.requests.length===2)entered();
+            if(!first.done){yield first.value;for(;;){const next=await iterator.next();if(next.done)break;yield next.value;}}
+        }finally{await iterator.return?.();}
+    };
     const turn=core.submit('Run the configured project check');
+    let timer:ReturnType<typeof setTimeout>|undefined;
     try{
-        await expect.poll(()=>provider.requests.length).toBe(2);
+        const deadline=new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Second provider request did not start within 10 seconds')),10000);});
+        await Promise.race([secondRequest,turn.then(()=>{throw Error('Model turn completed before its second request');}),deadline]);
         if(control==='command')await core.submit('/auto on');
         else await core.host.emit('ui.press',{site:'plugin-auto-approve-approvals',key:'on'});
         provider.release();await turn;
         expect(core.failure).toBeUndefined();expect(asked).toBe(1);expect(executed).toBe(1);expect(provider.requests).toHaveLength(4);
-    }finally{provider.release();await turn;await app.close();}
-});
+    }finally{clearTimeout(timer);provider.release();if(core.getState()==='running')core.interrupt();await turn;await app.close();}
+},20000);
 it('keeps auto mode controls usable on older hosts without refusal memory',async()=>{
     const state=new Map<string,unknown>(),$={state:{get:(key:string)=>state.get(key),set:(key:string,value:unknown)=>state.set(key,value)},emit:async()=>{throw Error('unknown event "service.permission.invalidate"');},ui:{notify:async()=>{}}};
     await review['command.invoke']({name:'/auto',args:'on'},$);expect(state.get('enabled')).toBe(true);

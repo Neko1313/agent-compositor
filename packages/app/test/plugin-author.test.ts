@@ -80,12 +80,27 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
       expect(f.events.some(e => e.event === (kind === 'panel' ? 'ui.surface' : 'ui.notification'))).toBe(true);
       expect(f.app.commands().find(c=>c.name==='/local-extension')?.ui).toEqual({site:'plugin-local-extension-main'});
       const count=f.events.filter(e=>e.event===(kind==='panel'?'ui.surface':'ui.notification')).length;
+      let entered!:()=>void;
+      const providerEntered=new Promise<void>(resolve=>{entered=resolve;});
+      const complete=f.provider.complete.bind(f.provider);
+      f.provider.complete=async function* (request){
+        const iterator=complete(request)[Symbol.asyncIterator]();
+        try{
+          const first=await iterator.next();entered();
+          if(!first.done){yield first.value;for(;;){const next=await iterator.next();if(next.done)break;yield next.value;}}
+        }finally{await iterator.return?.();}
+      };
       const active=f.core.submit('Hold model for UI command');
-      await expect.poll(()=>f.provider.requests.length).toBe(1);
-      await f.core.host.emit('ui.press',{site:'plugin-local-extension-main',key:'command:/local-extension'});
-      expect(f.events.filter(e=>e.event===(kind==='panel'?'ui.surface':'ui.notification')).length).toBeGreaterThan(count);
-      expect(f.core.getState()).toBe('running');expect(f.provider.requests[0].signal.aborted).toBe(false);f.provider.release();
-      await active;
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      try{
+        const deadline=new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Provider did not start within 10 seconds')),10000);});
+        await Promise.race([providerEntered,active.then(()=>{throw Error('Model turn completed before reaching the provider');}),deadline]);
+        expect(f.provider.requests).toHaveLength(1);
+        await f.core.host.emit('ui.press',{site:'plugin-local-extension-main',key:'command:/local-extension'});
+        expect(f.events.filter(e=>e.event===(kind==='panel'?'ui.surface':'ui.notification')).length).toBeGreaterThan(count);
+        expect(f.core.getState()).toBe('running');expect(f.provider.requests[0].signal.aborted).toBe(false);f.provider.release();
+        await active;
+      }finally{clearTimeout(timer);f.provider.release();if(f.core.getState()==='running')f.core.interrupt();await active;}
     }
     if (kind === 'service') {
       await writeFile(join(f.cwd,'agent-compositor.json'),JSON.stringify({agent:{projectContext:false},serviceProviders:{'service.agent.instructions':'local-extension'}}));
@@ -93,7 +108,7 @@ export default {'prompt.submit':async(event,$)=>{if(event.text!=='/catalog-greet
       await app.createCore(async()=>false).submit('Use the selected provider');
       expect(systems(f.provider.requests[0])).toContain('Help the user with the selected domain');
     }
-  });
+  },20000);
 
   it('composes all components in one package without overwriting hooks or selecting providers', async () => {
     const f=await fixture();

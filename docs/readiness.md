@@ -415,6 +415,13 @@ evaluation of existing features.
 Prioritize gaps that block daily work, then repeated friction observed during
 use. This scope does not raise the authorized live-model spending limit.
 
+An isolated XTerm 411 check of the default Ink frontend exposed a light-terminal
+contrast issue: with XTerm's default white background, much of the setup guide
+was very pale and hard to read. The same guide was readable with an explicitly
+dark background. Captures are under `dist/sixel-xterm-research/setup-corrupt-ink/`
+and `setup-corrupt-ink-dark/`. This is an open usability issue, not evidence
+that every light terminal or theme has the same behavior.
+
 ### Accepted usability work — 2026-11-13
 
 The user's daily-use feedback adds these implementation requirements:

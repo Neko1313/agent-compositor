@@ -42,3 +42,8 @@ it('reports queued work instead of idle when a model turn is blocked', () => {
   const view=publicStatusView({messages:[],running:false,pending:true},1,false,{},120);
   expect(view.lines[0]).toEqual({text:'Queued · WS 1',tone:'accent'});
 });
+
+it('reports a session switch instead of ready while startup is pending', () => {
+  const view=publicStatusView({messages:[],running:false,restoring:true},1,false,{},120);
+  expect(view.lines[0]).toEqual({text:'Restoring · WS 1',tone:'accent'});
+});

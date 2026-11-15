@@ -299,6 +299,15 @@ fallbacks, broad multiplexer compatibility and video remain open, as do the defa
 CPU-assisted onboarding, repeated realistic development,
 initial useful-plugin delivery, sustained sessions and trust remain open gates.
 
+An additional source-tree plugin-raster check in Kitty 0.50.0 and tmux 3.8
+observed the fixture's red pixels with passthrough enabled, and its alt text
+with no red pixels when disabled. Both processes exited normally and the private
+display was cleaned up. Component tests separately exercise frame replacement
+and image deletion on hiding. This is not installed-archive, resize, screen or
+cross-terminal coverage. Evidence is retained in
+`dist/tmux-research-20261115/plugin-raster-20261115-on-v2/` and
+`dist/tmux-research-20261115/plugin-raster-20261115-off/`.
+
 ## Plugin development and interface usability
 
 The 1.0 objective explicitly includes developing missing plugins needed for

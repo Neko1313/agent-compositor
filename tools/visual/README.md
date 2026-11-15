@@ -306,7 +306,11 @@ Concurrent JSONL observation waits for complete newline-terminated records;
 malformed complete records still fail the scenario.
 Actual mouse and keyboard input activates render-added rows/tabs/expanded table details;
 graphics-disabled output must retain the raster's supplied alt text. This
-proves the portable fallback, not physical terminal media support. Main public
+proves the portable fallback, not physical terminal media support. The tmux
+composer component tests additionally exercise plugin-raster negotiation,
+updates and cleanup; physical Kitty/tmux observations and their limits are
+recorded in [readiness](../../docs/readiness.md#current-development-checkpoint--2026-11-15).
+Main public
 actions preserve its native or selected editor's Unicode draft/cursor/undo.
 When the original selected editor truncates its single text row in a narrow
 copy, the check retains that exact view and width: it verifies the visible

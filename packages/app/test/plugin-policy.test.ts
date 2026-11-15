@@ -1,5 +1,5 @@
 import {afterEach,it,expect} from 'vitest';
-import {mkdtemp,mkdir,rm,writeFile,readFile,cp} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,writeFile,readFile,cp,stat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {buildApp} from '../src/build.js';
@@ -33,6 +33,66 @@ it('waits for another live core and ignores it after close before reloading',asy
  await second.close();await second.whenClosed;
  expect((await first.invokeTool('extension_control',{action:'disable',name:'probe',scope:'project'})).ok).toBe(true);
  expect(await a.reloadPlugins(first)).toContain('Reloaded 0 plugins');expect(first.host.hasPlugin('probe')).toBe(false);
+});
+it('does not reload application plugins while a managed shared-workspace agent is running',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([{text:'agent working',hold:true}]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider});apps.push(a);
+ const main=a.createCore(async()=>true);await main.start();
+ const created=await main.invokeTool('agent_control',{action:'create',name:'shared',worktree:false});expect(created.ok).toBe(true);
+ const id=(created.output as {id:string}).id;
+ try{
+  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Work independently'})).ok).toBe(true);
+  await expect.poll(()=>provider.requests.length).toBe(1);
+  expect(await a.reloadPlugins(main)).toContain('Wait until');
+ }finally{provider.release();}
+ await expect.poll(async()=>{const list=await main.invokeTool('agent_control',{action:'list'});return (list.output as any[]).find(row=>row.id===id)?.state;}).toBe('idle');
+ expect(await a.reloadPlugins(main)).toContain('Reloaded');
+});
+it('defers removal of an installed plugin until a managed agent finishes',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([{text:'agent working',hold:true}]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider});apps.push(a);
+ const main=a.createCore(async()=>true);await main.start();
+ expect((await main.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+ expect((await main.invokeTool('extension_control',{action:'enable',name:'todos',scope:'project'})).ok).toBe(true);
+ await a.reloadPlugins(main);const directory=a.plugins.find(plugin=>plugin.manifest.name==='todos')!.dir;
+ const created=await main.invokeTool('agent_control',{action:'create',name:'shared',worktree:false});expect(created.ok).toBe(true);const id=(created.output as {id:string}).id;
+ try{
+  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Work independently'})).ok).toBe(true);
+  await expect.poll(()=>provider.requests.length).toBe(1);
+  const result=await main.host.emit('service.extension.control',{action:'remove',name:'todos',scope:'project'});
+  expect(JSON.stringify(result.value)).toContain('"queued":true');expect(await stat(directory)).toBeTruthy();
+  expect(await a.reloadPlugins(main)).toContain('Wait until');
+ }finally{provider.release();}
+ await expect.poll(async()=>{const list=await main.invokeTool('agent_control',{action:'list'});return (list.output as any[]).find(row=>row.id===id)?.state;}).toBe('idle');
+ await a.reloadPlugins(main);expect(await stat(directory).catch(()=>null)).toBeNull();
+});
+it('refreshes plugin tools in an already loaded idle managed agent',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([{text:'done'},{text:'done again'}]);
+ await writeFile(join(f.cwd,'plugins/probe/tools.ts'),`export default[{name:'probe_value',description:'Probe',parameters:{type:'object'},describe:()=>({tool:'probe_value',readOnly:true}),execute:async()=>({ok:true,data:'available'})}];`);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider});apps.push(a);
+ const main=a.createCore(async()=>true),views:any[]=[];
+ main.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface')views.push(event.input);});await main.start();
+ const created=await main.invokeTool('agent_control',{action:'create',name:'shared',worktree:false});expect(created.ok).toBe(true);const id=(created.output as {id:string}).id;
+ expect((await main.invokeTool('extension_control',{action:'enable',name:'probe',scope:'project'})).ok).toBe(true);
+ expect(await a.reloadPlugins(main)).toContain('Reloaded');
+ expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Check available tools'})).ok).toBe(true);
+ await expect.poll(()=>provider.requests.length).toBe(1);
+ expect(provider.requests[0].tools.map(tool=>tool.name)).toContain('probe_value');
+ await expect.poll(async()=>{const list=await main.invokeTool('agent_control',{action:'list'});return (list.output as any[]).find(row=>row.id===id)?.state;}).toBe('idle');
+ expect((await main.invokeTool('extension_control',{action:'disable',name:'probe',scope:'project'})).ok).toBe(true);
+ expect(await a.reloadPlugins(main)).toContain('Reloaded');
+ expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Check tools again'})).ok).toBe(true);
+ await expect.poll(()=>provider.requests.length).toBe(2);
+ expect(provider.requests[1].tools.map(tool=>tool.name)).not.toContain('probe_value');
+ await expect.poll(()=>views.some(view=>view.id===`plugin-agent-hub-agent-${id}`&&JSON.stringify(view).includes('done again'))).toBe(true);
+});
+it('updates the reported plugin load errors after reload and recovery',async()=>{
+ const f=await fixture();await writeFile(join(f.cwd,'plugins/probe/hooks.ts'),'export default { invalid syntax');
+ const a=await app(f),core=a.createCore(async()=>true);
+ expect((await core.invokeTool('extension_control',{action:'enable',name:'probe',scope:'project'})).ok).toBe(true);
+ await a.reloadPlugins(core);expect(a.pluginErrors.length).toBeGreaterThan(0);expect(core.host.hasPlugin('probe')).toBe(false);
+ await writeFile(join(f.cwd,'plugins/probe/hooks.ts'),'export default {};');
+ await a.reloadPlugins(core);expect(a.pluginErrors).toEqual([]);expect(core.host.hasPlugin('probe')).toBe(true);
 });
 it('defaults to no executable plugins, retains offline default market and does not import inactive modules',async()=>{
  const f=await fixture(),a=await app(f),core=a.createCore(async()=>true);expect(a.plugins).toEqual([]);

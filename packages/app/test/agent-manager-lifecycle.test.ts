@@ -20,6 +20,43 @@ async function saved(){
 }
 function gate(){let done!:()=>void;const promise=new Promise<void>(resolve=>{done=resolve;});release.push(done);return{promise,done};}
 
+it('blocks new agent work while its existing runtime reloads plugins',async()=>{
+  const cwd=await mkdtemp(join(tmpdir(),'agent-plugin-reload-'));cleanup.push(()=>rm(cwd,{recursive:true,force:true}));
+  const pause=gate(),provider=new ScriptedProvider([{text:'after reload'}]);let entered=false;
+  const manager=await agentManager(cwd,async()=>{
+    const core=new AgentCore({cwd,provider,tools:[],controlTools:[]});
+    return{core,close:()=>core.close(),history:async()=>[],reload:async()=>{entered=true;await pause.promise;return 'Reloaded 0 plugins.';}};
+  });cleanup.push(()=>manager.close());
+  const record=await manager.control({action:'create',name:'Actor',worktree:false},channels) as {id:string};
+  expect(manager.beginPluginReload()).toBe(true);
+  const reload=manager.reloadPlugins();
+  try{
+    await expect.poll(()=>entered).toBe(true);
+    await expect(manager.control({action:'send',id:record.id,prompt:'Too early'},channels)).rejects.toThrow('Plugin reload in progress');
+    expect(provider.requests).toHaveLength(0);
+  }finally{pause.done();await reload;manager.endPluginReload();}
+  await manager.control({action:'send',id:record.id,prompt:'After reload'},channels);
+  await expect.poll(()=>provider.requests.length).toBe(1);
+});
+
+it('prevents sending to an agent whose plugin reload failed until a retry succeeds',async()=>{
+  const cwd=await mkdtemp(join(tmpdir(),'agent-plugin-reload-failure-'));cleanup.push(()=>rm(cwd,{recursive:true,force:true}));
+  const provider=new ScriptedProvider([{text:'after successful retry'}]);let fail=true;
+  const manager=await agentManager(cwd,async()=>{
+    const core=new AgentCore({cwd,provider,tools:[],controlTools:[]});
+    return{core,close:()=>core.close(),history:async()=>[],reload:async()=>{if(fail)throw Error('fixture reload failure');return 'Reloaded 0 plugins.';}};
+  });cleanup.push(()=>manager.close());
+  const record=await manager.control({action:'create',name:'Actor',worktree:false},channels) as {id:string};
+  expect(manager.beginPluginReload()).toBe(true);
+  try{await expect(manager.reloadPlugins()).rejects.toThrow('fixture reload failure');}finally{manager.endPluginReload();}
+  await expect(manager.control({action:'send',id:record.id,prompt:'Must wait'},channels)).rejects.toThrow('retry /reload');
+  expect(provider.requests).toHaveLength(0);
+  fail=false;expect(manager.beginPluginReload()).toBe(true);
+  try{await manager.reloadPlugins();}finally{manager.endPluginReload();}
+  await manager.control({action:'send',id:record.id,prompt:'Continue'},channels);
+  await expect.poll(()=>provider.requests.length).toBe(1);
+});
+
 it('joins one in-flight saved actor load during shutdown and closes the factory result before returning',async()=>{
   const f=await saved(),pause=gate();let factories=0,closes=0,actor!:AgentCore;
   const manager=await agentManager(f.cwd,async()=>{

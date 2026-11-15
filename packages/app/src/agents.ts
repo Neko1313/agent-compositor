@@ -35,6 +35,7 @@ type RuntimeEntry = {
   activity:string[];
   history:ReturnType<typeof agentHistory>;
   close: (signal?:AbortSignal) => Promise<void>;
+  reload?:()=>Promise<string>;
 };
 type Channels = {
   inputSource?:()=>"user"|"agent";
@@ -46,7 +47,7 @@ type Channels = {
 type Factory = (
   record: RecordEntry,
   channels: Channels
-) => Promise<{ core: AgentCore; close: (signal?:AbortSignal) => Promise<void>; history:()=>Promise<SessionEvent[]> }>;
+) => Promise<{ core: AgentCore; close: (signal?:AbortSignal) => Promise<void>; history:()=>Promise<SessionEvent[]>; reload?:()=>Promise<string> }>;
 const exec = promisify(execFile);
 export async function agentManager(
   cwd: string,
@@ -64,6 +65,10 @@ export async function agentManager(
   if (!Array.isArray(records)) throw new Error("Invalid agent registry");
   const entries = new Map<string, RuntimeEntry>();
   const loading=new Map<string,Promise<RuntimeEntry>>();
+  let pluginReloading=false;
+  const pluginReloadErrors=new Map<string,string>();
+  let controlsInFlight=0;
+  const isBusy=()=>controlsInFlight>0||loading.size>0||[...entries.values()].some(entry=>entry.core.isClosed||entry.core.getState()==='running'||entry.core.hasActiveOperations);
   let host: HooksApi|undefined, channels: Channels | undefined;
   const publication=new AsyncLocalStorage<HooksApi>();
   let closePromise:Promise<void>|undefined;
@@ -154,6 +159,7 @@ export async function agentManager(
   }
   async function load(record: RecordEntry) {
     if(closePromise)throw Error('The agent manager is closed');
+    if(pluginReloading)throw Error('Plugin reload in progress; retry the agent action');
     const existing=loading.get(record.id);if(existing)return existing;
     if (entries.has(record.id)) return entries.get(record.id)!;
     const pending=loadFresh(record).finally(()=>{if(loading.get(record.id)===pending)loading.delete(record.id);});
@@ -183,6 +189,7 @@ export async function agentManager(
       activity:[],
       history:agentHistory(managed.history,(view,focus)=>publishUi(api=>api.ui.view('history-'+record.id,'Activity: '+record.name,view,{site:'inspector',focus}),focus)),
       close: managed.close,
+      reload: managed.reload,
     };
     entries.set(record.id, entry);
     let scheduled = false,overviewDirty=false;
@@ -306,6 +313,9 @@ export async function agentManager(
   }
   async function control(args: any, provided: Channels,reveal=true) {
     if(closePromise)throw Error('The agent manager is closed');
+    if(pluginReloading&&args.action!=='list')throw Error('Plugin reload in progress; retry the agent action');
+    const tracked=args.action!=='list';if(tracked)controlsInFlight++;
+    try{
     channels = provided;
     if (args.action === "list")
       return (args.id ? [find(args.id)] : records).map((r) => ({
@@ -383,6 +393,7 @@ export async function agentManager(
         entries.delete(record.id);
       }
       record.archived = true;
+      pluginReloadErrors.delete(record.id);
       drafts.set(record.id,'');
       await save();
       try{await drafts.flush();}catch(error){await publishUi(api=>api.ui.notify('Agent archived, but could not clear its saved draft: '+String(error).slice(0,300),'error'));}
@@ -393,7 +404,9 @@ export async function agentManager(
       return { archived: record.id, worktreePreserved: record.cwd };
     }
     const entry = await load(record);
+    if(pluginReloading)throw Error('Plugin reload in progress; retry the agent action');
     if (args.action === "send") {
+      if(pluginReloadErrors.has(record.id))throw Error(`Agent plugin reload failed; retry /reload before sending: ${pluginReloadErrors.get(record.id)}`);
       if (typeof args.prompt !== "string" || !args.prompt.trim())
         throw new Error("Prompt is required");
       // Core queues follow-up messages if another turn is running.
@@ -445,6 +458,7 @@ export async function agentManager(
       return { merged: record.branch, output: result.stdout };
     }
     throw new Error("Unknown agent action");
+    }finally{if(tracked)controlsInFlight--;}
   }
   let target: string | undefined;
   const select = async (id: string | undefined, $: any) => {
@@ -506,6 +520,7 @@ export async function agentManager(
           }
         }
       },
+      'session.reload':async(_e,$)=>{host=$;},
       "prompt.submit": async (e, $) => {
         if(await handleCommand(e.text,$))return{drop:"agent-hub: handled"};
         if (target && !e.text.startsWith("/")) {
@@ -658,6 +673,26 @@ export async function agentManager(
     plugin,
     tool,
     control,
+    isBusy,
+    beginPluginReload:()=>{
+      if(pluginReloading||closePromise||isBusy())return false;
+      pluginReloading=true;
+      for(const entry of entries.values())pluginReloadErrors.set(entry.record.id,'Reload did not complete');
+      return true;
+    },
+    endPluginReload:()=>{pluginReloading=false;},
+    reloadPlugins:async()=>{
+      const failures:string[]=[];
+      for(const entry of entries.values()){
+        try{
+          if(!entry.reload)throw Error('Reload is unavailable');
+          const result=await entry.reload();
+          if(result.startsWith('Wait until'))throw Error(result);
+          pluginReloadErrors.delete(entry.record.id);
+        }catch(error){const reason=String(error);pluginReloadErrors.set(entry.record.id,reason);failures.push(`${entry.record.name}: ${reason}`);}
+      }
+      if(failures.length)throw Error(failures.join('; '));
+    },
     open:async(args:{id?:string;prompt?:string;name?:string},provided:Channels)=>{
       if(provided.inputSource?.()!=='user')throw Error('Opening a conversation requires explicit user invocation');
       const record:RecordEntry=args.id?find(args.id):await control({action:'create',worktree:false,name:args.name??'Side conversation'},provided,false) as RecordEntry;

@@ -569,6 +569,11 @@ For multiple live cores owned by the same application, reload requires all to
 be idle and updates each core's plugin composition. If another session is
 busy, retry after it finishes. Independently built agent applications have their
 own lifecycle and configuration.
+Running managed agents also defer update, rollback and removal; retry reload
+after they finish. A reload refreshes already loaded idle managed agents using
+each agent application's own configuration; agent actions must be retried if
+requested during that reload.
+If an agent's refresh fails, retry `/reload` before sending it more work.
 Closing the app discards unapplied deferred file operations. Saved installation
 and activation choices survive restart. A cancelled management caller also
 discards its own unapplied deferred file operations; replacing a queued action

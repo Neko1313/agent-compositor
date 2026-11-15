@@ -385,7 +385,11 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               return handler?handler(plugin,request,signal,context):Promise.resolve(null);
             });
             for(const entry of channels.workspace?.()??[])await managed.attachWorkspace(entry.path);
-            return {core:managed,close:child.close,history:async()=>(await child.store.load(record.sessionId,record.cwd)).events};
+            return {core:managed,close:child.close,reload:async()=>{
+              const result=await child.reloadPlugins(managed);
+              if(child.pluginErrors.length)throw Error(child.pluginErrors.map(error=>error.error).join('; '));
+              return result;
+            },history:async()=>(await child.store.load(record.sessionId,record.cwd)).events};
           },
           Math.min(
             16,
@@ -433,7 +437,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
   const cores=new Set<AgentCore>();
-  extensions.setUserRuntime(()=>[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"));
+  extensions.setUserRuntime(()=>Boolean(hub?.isBusy())||[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"));
   const toolOverrides = (source=plugins) => Object.entries(config.config.toolProviders ?? {}).map(([name,owner])=>{
     const tool=source.find(p=>p.manifest.name===owner)?.tools.find(t=>t.name===name);
     if(!tool)throw new Error(`Selected tool provider ${owner} does not supply ${name}`);
@@ -619,8 +623,10 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   };
   const reloadPlugins = async (core: AgentCore): Promise<string> => {
     if (core.isClosed) throw Error('Cannot reload a closed session');
-    if ([...cores].some(item=>item.isClosed||item.getState() === "running" || item.hasActiveOperations))
+    if (hub?.isBusy()||[...cores].some(item=>item.isClosed||item.getState() === "running" || item.hasActiveOperations))
       return "Wait until all sessions finish before /reload.";
+    if(hub&&!hub.beginPluginReload())return "Wait until all sessions finish before /reload.";
+    try{
     await extensions.applyPending();
     await extensions.refresh();
     const next = await loadPluginsFromDisk([...new Set([...dirs,...extensions.boundDirectories()])], disabled(), extensions.enabled(), accepts);
@@ -630,7 +636,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     let targets:AgentCore[]=[];
     await store.replaceWith(()=>prepareRepository(next.plugins),()=>{
       targets=[...cores];
-      if(!targets.includes(core)||targets.some(item=>item.isClosed||item.getState()==='running'||item.hasActiveOperations))
+      if(!targets.includes(core)||hub?.isBusy()||targets.some(item=>item.isClosed||item.getState()==='running'||item.hasActiveOperations))
         throw Error('Wait until all sessions finish before /reload.');
       for(const target of targets)target.replacePlugins(
       [
@@ -652,6 +658,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     );});
     await Promise.allSettled(plugins.map((p) => p.dispose?.()));
     plugins.splice(0, plugins.length, ...next.plugins);
+    errors.splice(0,errors.length,...next.errors);
     const mcpServers = Object.assign(
       {},
       ...plugins.map((p) => p.mcpServers ?? {})
@@ -666,9 +673,11 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
         tier: p.tier,
       })),
     })));
+    try{await hub?.reloadPlugins();}catch(error){throw Error(`Main plugins reloaded, but managed agent reload failed: ${String(error)}`);}
     return `Reloaded ${plugins.length} plugins. ${next.errors
       .map((e) => e.error)
       .join("; ")}`;
+    }finally{hub?.endPluginReload();}
   };
   const commands = ():AppCommand[] =>
     [

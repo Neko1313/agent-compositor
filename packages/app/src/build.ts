@@ -444,7 +444,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
   const cores=new Set<AgentCore>();
-  extensions.setUserRuntime(()=>Boolean(hub?.isBusy())||[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"),()=>{
+  extensions.setUserRuntime(()=>Boolean(hub?.isBusy())||[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"),(sessionId)=>{
+    if(sessionId&&![...cores].some(core=>core.sessionId===sessionId&&!core.isClosed))return;
     if(options.managedPluginMutation)return options.managedPluginMutation();
     if(!hub)return()=>{};
     if(!hub.beginPluginReload())return;

@@ -444,8 +444,8 @@ export async function extensionManager(
     }),
     execute: async (ctx, args) => {
       const guarded=['update','rollback','remove'].includes((args as any)?.action);
-      const release=guarded?acquireMutation():()=>{};
-      if(!release)return {ok:false,error:'Plugin changes are unavailable while managed agents are active; use the main session after they finish'};
+      const release=guarded?acquireMutation(ctx.sessionId):()=>{};
+      if(!release)return {ok:false,error:'Plugin changes are unavailable while another agent is active; use the main session after it finishes'};
       let unchanged=false;
       try {
         const data=await control(args, ctx.signal,ctx.fetch);unchanged=data?.unchanged===true;
@@ -457,7 +457,7 @@ export async function extensionManager(
   };
   let runtimeBusy=()=>false;
   let userFetch:typeof fetch=fetch;
-  let acquireMutation:()=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{};
+  let acquireMutation:(sessionId?:string)=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{};
   const pending=new Map<string,{args:any;signal:AbortSignal;forget:()=>void}>();
   const applyPending=async()=>{
     if(runtimeBusy())throw Error('Wait for running agents before applying plugin changes');
@@ -546,7 +546,7 @@ export async function extensionManager(
       },
     },
   };
-  return { tool, plugin, userControl, applyPending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch,acquire:()=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{})=>{runtimeBusy=busy;userFetch=fetcher;acquireMutation=acquire;}, disabled, enabled,activationRestriction,activationScope,selectedPath,projectDirectory,
+  return { tool, plugin, userControl, applyPending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch,acquire:(sessionId?:string)=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{})=>{runtimeBusy=busy;userFetch=fetcher;acquireMutation=acquire;}, disabled, enabled,activationRestriction,activationScope,selectedPath,projectDirectory,
     boundDirectories:()=>enabled().flatMap(name=>{const path=selectedPath(name);return path?[path]:[];}),
     refresh:async()=>{states.user=await read(files.user);states.project=await read(files.project);},
     setAvailable:(read:typeof available)=>{available=read;} };

@@ -80,8 +80,25 @@ it('does not let a running managed agent remove a shared installed plugin',async
  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Remove the plugin'})).ok).toBe(true);
  await expect.poll(()=>provider.requests.length).toBe(2);
  await expect.poll(async()=>{const list=await main.invokeTool('agent_control',{action:'list'});return (list.output as any[]).find(row=>row.id===id)?.state;}).toBe('idle');
- expect(provider.requests[1].messages.filter(message=>message.role==='tool').map(message=>String(message.content)).join('\n')).toContain('use the main session after they finish');
+ expect(provider.requests[1].messages.filter(message=>message.role==='tool').map(message=>String(message.content)).join('\n')).toContain('use the main session after it finishes');
  expect(await stat(directory)).toBeTruthy();
+ expect((await main.invokeTool('extension_control',{action:'remove',name:'todos',scope:'project'})).ok).toBe(true);
+ expect(await stat(directory).catch(()=>null)).toBeNull();
+});
+it('does not let a delegated task remove a plugin used by its parent',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([
+  {toolCalls:[{name:'task',args:{prompt:'Remove the plugin'}}]},
+  {toolCalls:[{name:'extension_control',args:{action:'remove',name:'todos',scope:'project'}}]},
+  {text:'Could not remove the plugin'}, {text:'Child finished'},
+ ]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider});apps.push(a);
+ const main=a.createCore(async()=>true);await main.start();
+ expect((await main.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+ expect((await main.invokeTool('extension_control',{action:'enable',name:'todos',scope:'project'})).ok).toBe(true);await a.reloadPlugins(main);
+ const directory=a.plugins.find(plugin=>plugin.manifest.name==='todos')!.dir;
+ await main.submit('Delegate plugin removal');
+ expect(await stat(directory)).toBeTruthy();
+ expect(provider.requests[2].messages.filter(message=>message.role==='tool').map(message=>String(message.content)).join('\n')).toContain('Plugin changes are unavailable');
  expect((await main.invokeTool('extension_control',{action:'remove',name:'todos',scope:'project'})).ok).toBe(true);
  expect(await stat(directory).catch(()=>null)).toBeNull();
 });

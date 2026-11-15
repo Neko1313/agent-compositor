@@ -344,6 +344,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       ...plugins.flatMap(plugin=>plugin.dir?[{name:`plugin:${plugin.manifest.name}`,dir:path.join(plugin.dir,"skills")}]:[]),
     ],
   });
+  let acquireManagedMutation:()=>((unchanged?:boolean)=>void)|undefined=()=>undefined;
   let hub:Awaited<ReturnType<typeof agentManager>>|undefined;
   hub =
     options.agentHub === false || config.config.disabledPlugins?.includes("agent-hub") || (config.config.enabledPlugins && !config.config.enabledPlugins.includes("agent-hub"))
@@ -359,10 +360,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
               inheritedSettings: (name) => storage.config(name),
               env: { ...env, AGENT_MODEL: router.active },
               agentHub: false,
-              managedPluginMutation:()=>{
-                if(!hub?.beginPluginReload())return;
-                return(unchanged?:boolean)=>hub?.endPluginReload(unchanged);
-              },
+              managedPluginMutation:()=>acquireManagedMutation(),
               cwd: record.cwd,
               sessionId: record.sessionId,
               agentId:record.name,
@@ -444,12 +442,26 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
   const cores=new Set<AgentCore>();
+  let pluginChangeActive=false;
+  let pluginFilesDirty=false;
+  const finishPluginChange=()=>{pluginChangeActive=false;if(!pluginFilesDirty)for(const core of cores)core.resumePendingWork();};
+  const acquirePluginChange=()=>{
+    if(pluginChangeActive||hub&&!hub.beginPluginReload())return;
+    pluginChangeActive=true;
+    return(unchanged?:boolean)=>{if(!unchanged)pluginFilesDirty=true;hub?.endPluginReload(unchanged);finishPluginChange();};
+  };
+  acquireManagedMutation=()=>{
+    if([...cores].some(core=>core.isClosed||core.getState()==='running'||core.hasActiveOperations))return;
+    return acquirePluginChange();
+  };
   extensions.setUserRuntime(()=>Boolean(hub?.isBusy())||[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"),(sessionId)=>{
-    if(sessionId&&![...cores].some(core=>core.sessionId===sessionId&&!core.isClosed))return;
+    if(sessionId){
+      const owners=[...cores].filter(core=>core.sessionId===sessionId&&!core.isClosed);
+      if(owners.length!==1||owners[0].getState()==='running'&&!owners[0].isUserInvocation||
+        [...cores].some(core=>core!==owners[0]&&(core.isClosed||core.getState()==='running'||core.hasActiveOperations)))return;
+    }
     if(options.managedPluginMutation)return options.managedPluginMutation();
-    if(!hub)return()=>{};
-    if(!hub.beginPluginReload())return;
-    return(unchanged?:boolean)=>hub.endPluginReload(unchanged);
+    return acquirePluginChange();
   });
   const toolOverrides = (source=plugins) => Object.entries(config.config.toolProviders ?? {}).map(([name,owner])=>{
     const tool=source.find(p=>p.manifest.name===owner)?.tools.find(t=>t.name===name);
@@ -491,6 +503,8 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     sessionApprovals.restore(approvals.session.list());
     const coreOptions: ConstructorParameters<typeof AgentCore>[0] = {
       agentId:options.agentId,
+      isWorkBlocked:()=>pluginChangeActive||pluginFilesDirty,
+      isToolWorkBlocked:name=>pluginChangeActive||(pluginFilesDirty&&name!=='extension_control'),
       userCommands:()=>[...new Map([
         ...(hostAgentCommand()?[['/agents',{name:'/agents',plugin:'agent-hub'}] as const]:[]),
         ...plugins.flatMap(plugin=>(plugin.commands??[]).filter(command=>command.execution==='immediate').map(command=>[command.name,{name:command.name,plugin:plugin.manifest.name}] as const)),
@@ -636,9 +650,11 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   };
   const reloadPlugins = async (core: AgentCore): Promise<string> => {
     if (core.isClosed) throw Error('Cannot reload a closed session');
-    if (hub?.isBusy()||[...cores].some(item=>item.isClosed||item.getState() === "running" || item.hasActiveOperations))
+    if (pluginChangeActive||hub?.isBusy()||[...cores].some(item=>item.isClosed||item.getState() === "running" || item.hasActiveOperations))
       return "Wait until all sessions finish before /reload.";
     if(hub&&!hub.beginPluginReload())return "Wait until all sessions finish before /reload.";
+    pluginChangeActive=true;
+    pluginFilesDirty=true;
     try{
     await extensions.applyPending();
     await extensions.refresh();
@@ -679,18 +695,19 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     if (Object.keys(mcpServers).length)
       storage.contributions["mcp.json"] = { mcpServers };
     else delete storage.contributions["mcp.json"];
-    await Promise.all(targets.map(target=>target.host.emit("session.reload", {
+    await Promise.all(targets.map(target=>target.duringPluginReload(()=>target.host.emit("session.reload", {
       plugins: plugins.map((p) => ({
         name: p.manifest.name,
         version: p.manifest.version,
         tier: p.tier,
       })),
-    })));
+    }))));
     try{await hub?.reloadPlugins();}catch(error){throw Error(`Main plugins reloaded, but managed agent reload failed: ${String(error)}`);}
+    pluginFilesDirty=false;
     return `Reloaded ${plugins.length} plugins. ${next.errors
       .map((e) => e.error)
       .join("; ")}`;
-    }finally{hub?.endPluginReload();}
+    }finally{hub?.endPluginReload();finishPluginChange();}
   };
   const commands = ():AppCommand[] =>
     [

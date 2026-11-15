@@ -576,9 +576,11 @@ requested during that reload or an update, rollback or removal already in progre
 After an actual file change or a failed file operation whose effects are
 uncertain, apply the plugin changes before sending more work. An update that
 leaves the installed version unchanged needs no reload.
-Managed and delegated agents cannot update, roll back or remove shared plugin
-files during their own turns; perform those actions from the main session after
-they finish.
+Model turns, including managed and delegated agents, cannot update, roll back or
+remove installed plugin files while they are running. Use the management
+interface during the turn to queue those changes, then apply them when idle.
+Prompts received during a file change or while its reload is pending stay queued;
+immediate commands and the management interface remain available.
 If an agent's refresh fails, retry `/reload` before sending it more work.
 Closing the app discards unapplied deferred file operations. Saved installation
 and activation choices survive restart. A cancelled management caller also

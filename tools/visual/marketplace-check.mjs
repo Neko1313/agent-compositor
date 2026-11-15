@@ -111,6 +111,16 @@ try {
   await page.keyboard.press('Alt+i');await wait('Unsent draft');
   await shot('17-draft-preserved-after-management.png');
   report.checks.push('At 48x18, global plugin/settings shortcuts work while the toolbar is hidden and a question waits; returning to the question completes the turn, and later navigation preserves an unsent draft');
+  await page.evaluate(()=>visual.terminal.resize(100,30));await page.waitForFunction(()=>visual.terminal.cols===100);
+  await page.keyboard.press('Alt+i');await page.keyboard.press('End');for(let i=0;i<'Unsent draft'.length;i++)await page.keyboard.press('Backspace');
+  await page.waitForFunction(()=>!visual.text().includes('Unsent draft'));
+  const submitFromInput=async text=>{await page.keyboard.press('Alt+i');await page.keyboard.type(text);await page.waitForFunction(value=>visual.text().split('\n').some(line=>line.includes('› '+value)),text);await page.keyboard.press('Enter');};
+  await submitFromInput('/extensions remove cost --project');await wait('Removed cost');
+  await submitFromInput('BARRIER_PENDING_CHECK');await wait('Message queued while');
+  if(await page.evaluate(()=>visual.text().includes('BARRIER_COMPLETED_CHECK')))throw Error('Queued prompt ran before the plugin reload');
+  await shot('18-queued-before-plugin-reload.png');
+  await submitFromInput('/reload');await wait('BARRIER_COMPLETED_CHECK');await shot('19-queued-after-plugin-reload.png');
+  report.checks.push('A prompt submitted after a plugin file change stays queued and visible until reload, then reaches the real scripted provider');
   report.ok=report.errors.length===0;
 } catch(error){report.errors.push(String(error));await page?.screenshot({path:resolve(output,'failure.png')}).catch(()=>{});}
 finally{

@@ -168,7 +168,7 @@ export async function extensionManager(
     }
     return [...new Map(entries.map((row) => [row.name, row])).values()];
   }
-  async function control(args: any, signal: AbortSignal,fetcher:typeof fetch=fetch) {
+  async function control(args: any, signal: AbortSignal,fetcher:typeof fetch=fetch,onMutation:()=>void=()=>{}) {
     signal.throwIfAborted();
     if (args.action === "list"){
       const rows=await inventory(),selected=enabled();
@@ -252,7 +252,7 @@ export async function extensionManager(
           `${name}-${Date.now()}-${randomUUID()}`
         );
         await mkdir(join(globalRoot, "extension-backups"), { recursive: true });
-        await rename(join(dir, name), destination);
+        onMutation();await rename(join(dir, name), destination);
         return destination;
       };
       if(args.action==='rollback'){
@@ -281,6 +281,7 @@ export async function extensionManager(
           throw Error("Only managed extensions in this scope can be removed");
         const saved = await stat(destination).catch(()=>undefined)?await backup():undefined;
         const old=structuredClone(state);
+        onMutation();
         delete state.installed[name];
         state.enabled=(state.enabled??[]).filter(n=>n!==name);
         if(!state.disabled.includes(name))state.disabled.push(name);
@@ -377,6 +378,7 @@ export async function extensionManager(
         const saved = previous ? await backup() : undefined;
         try {
           signal.throwIfAborted();
+          onMutation();
           await rename(source, join(dir, name));
           state.installed[name] = {
           repository: entry.repository,
@@ -445,14 +447,14 @@ export async function extensionManager(
     execute: async (ctx, args) => {
       const guarded=['update','rollback','remove'].includes((args as any)?.action);
       const release=guarded?acquireMutation(ctx.sessionId):()=>{};
-      if(!release)return {ok:false,error:'Plugin changes are unavailable while another agent is active; use the main session after it finishes'};
-      let unchanged=false;
+      if(!release)return {ok:false,error:'Plugin changes are unavailable during agent work or other plugin changes; use the main session after they finish'};
+      let mutated=false;
       try {
-        const data=await control(args, ctx.signal,ctx.fetch);unchanged=data?.unchanged===true;
+        const data=await control(args, ctx.signal,ctx.fetch,()=>{mutated=true;});
         return { ok: true, data };
       } catch (error) {
         return { ok: false, error: String(error) };
-      } finally {release(unchanged);}
+      } finally {release(!mutated);}
     },
   };
   let runtimeBusy=()=>false;
@@ -484,10 +486,10 @@ export async function extensionManager(
       signal.addEventListener('abort',forget,{once:true});
       return {ok:true,data:{name,scope,queued:true}};
     }
-    let unchanged=false;
-    try { const data=await control(args,signal,userFetch);unchanged=data?.unchanged===true;return {ok:true,data}; }
+    let mutated=false;
+    try { const data=await control(args,signal,userFetch,()=>{mutated=true;});return {ok:true,data}; }
     catch(error) { return {ok:false,error:String(error)}; }
-    finally{release?.(unchanged);}
+    finally{release?.(!mutated);}
   };
   const plugin: CorePlugin = {
     manifest: { name: "extension-manager", version: "1.1.0", trust: "trusted",hookTimeouts:{'ui.press':300000,'prompt.submit':300000} },

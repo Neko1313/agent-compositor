@@ -6,7 +6,7 @@ import {buildApp} from '../src/build.js';
 import {ScriptedProvider} from '@agent-compositor/core';
 const roots:string[]=[],apps:Awaited<ReturnType<typeof buildApp>>[]=[];
 afterEach(async()=>{for(const a of apps.splice(0))await a.close();for(const r of roots.splice(0))await rm(r,{recursive:true,force:true});});
-it.each(['interface','tool'])('does not start a managed agent while an installed plugin update is in flight via %s',async route=>{
+it.each(['interface','tool','other-core'])('does not start another session while an installed plugin update is in flight via %s',async route=>{
  const{createServer}=await import('node:http'),{execFile}=await import('node:child_process'),{promisify}=await import('node:util'),{createHash}=await import('node:crypto');
  const root=await mkdtemp(join(tmpdir(),'ac-update-agent-race-'));roots.push(root);
  const cwd=join(root,'project'),home=join(root,'home'),market=join(root,'market'),plugin=join(root,'source/probe');
@@ -23,13 +23,14 @@ it.each(['interface','tool'])('does not start a managed agent while an installed
  }
  let pending:Promise<unknown>|undefined;
  try{
-  await publish('1.0.0');const provider=new ScriptedProvider([{text:'after unchanged check'},{text:'after update'}]);
+  await publish('1.0.0');const provider=new ScriptedProvider([{text:'after unchanged check'},...(route==='other-core'?[{text:'queued session'}]:[]),{text:'after update'}]);
   const app=await buildApp({cwd,env:{HOME:home},provider});apps.push(app);const main=app.createCore(async()=>true);await main.start();
+  const second=route==='other-core'?app.createCore(async()=>true):undefined;
   expect((await main.invokeTool('marketplace_control',{action:'add',source:market,scope:'project'})).ok).toBe(true);
   expect((await main.invokeTool('extension_control',{action:'install',name:'probe@race-market',scope:'project'})).ok).toBe(true);
   expect((await main.invokeTool('extension_control',{action:'enable',name:'probe',scope:'project'})).ok).toBe(true);await app.reloadPlugins(main);
   const agent=await main.invokeTool('agent_control',{action:'create',name:'worker',worktree:false});expect(agent.ok).toBe(true);const id=(agent.output as {id:string}).id;
-  const update=()=>route==='interface'?main.host.emit('service.extension.control',{action:'update',name:'probe',scope:'project'}):main.invokeTool('extension_control',{action:'update',name:'probe',scope:'project'});
+  const update=()=>route==='tool'?main.invokeTool('extension_control',{action:'update',name:'probe',scope:'project'}):main.host.emit('service.extension.control',{action:'update',name:'probe',scope:'project'});
   const unchanged=await update();
   expect(JSON.stringify(unchanged)).toContain('"unchanged":true');
   expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Continue after unchanged update'})).ok).toBe(true);
@@ -37,13 +38,16 @@ it.each(['interface','tool'])('does not start a managed agent while an installed
   expect(provider.requests).toHaveLength(1);
   await publish('1.1.0');hold=true;
   pending=update();await started;
-  await expect(main.host.emit('service.agent.control',{action:'send',id,prompt:'Must wait for plugin update'})).rejects.toThrow('Plugin reload in progress');
+  if(second)await second.submit('Must wait for plugin update');
+  else await expect(main.host.emit('service.agent.control',{action:'send',id,prompt:'Must wait for plugin update'})).rejects.toThrow('Plugin reload in progress');
   expect(provider.requests).toHaveLength(1);
   release();await pending;pending=undefined;
-  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Must wait for reload'})).error).toContain('retry /reload');
+  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Must wait for reload'})).error).toContain('/reload');
+  expect(provider.requests).toHaveLength(1);
   expect(await app.reloadPlugins(main)).toContain('Reloaded');
+  if(second)await expect.poll(()=>provider.requests.length).toBe(2);
   expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Continue after reload'})).ok).toBe(true);
-  await expect.poll(()=>provider.requests.length).toBe(2);
+  await expect.poll(()=>provider.requests.length).toBe(second?3:2);
  }finally{release();await pending?.catch(()=>{});server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 },15000);
 it('locks independent versions, separates install/enable, checks updates, rolls back and rejects mutable versions',async()=>{

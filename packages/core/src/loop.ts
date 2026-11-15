@@ -79,6 +79,10 @@ export interface AgentCoreOptions {
   agentId?:string;
   /** Explicit controls from the currently loaded plugin manifests. */
   userCommands?:()=>readonly {name:string;plugin:string}[];
+  /** @internal Host lifecycle barrier for new plugin-dependent work. */
+  isWorkBlocked?:()=>boolean;
+  /** @internal Host may keep recovery tools available while work is paused. */
+  isToolWorkBlocked?:(name:string)=>boolean;
   homeDir?:string;
   workspacePaths?:string[];
   uiControllers?:ConstructorParameters<typeof HooksHost>[1]["uiControllers"];
@@ -240,6 +244,7 @@ export class AgentCore {
   private inPromptHook = false;
   private invokingTool = false;
   private readonly userOperation=new AsyncLocalStorage<UserToolOperation>();
+  private readonly pluginLifecycle=new AsyncLocalStorage<{active:boolean}>();
   private readonly toolOperation=new AsyncLocalStorage<CoreToolInvocation>();
   private readonly toolOrigins=new WeakSet<object>();
   private readonly humanInstance=Object.freeze({});
@@ -861,6 +866,7 @@ export class AgentCore {
 
   /** UI calls share policy and session costs but never reset an active turn. */
   async invokeUserTool(name:string,args:unknown,options:{owner?:string;signal?:AbortSignal}={}):Promise<{ok:boolean;output?:unknown;error?:string}>{
+    if((this.options.isToolWorkBlocked?.(name)??this.options.isWorkBlocked?.())&&!this.pluginLifecycle.getStore()?.active)return{ok:false,error:'Plugin change in progress or pending; apply /reload before retrying'};
     const command=this.userOperation.getStore();
     if(command?.command){
       const child=this.userOperation.exit(()=>this.invokeUserTool(name,args,{owner:options.owner??command.owner,signal:AbortSignal.any([command.signal,...(options.signal?[options.signal]:[])])}));
@@ -900,6 +906,7 @@ export class AgentCore {
     args: unknown,
     callerSignal?:AbortSignal
   ): Promise<{ ok: boolean; output?: unknown; error?: string }> {
+    if((this.options.isToolWorkBlocked?.(name)??this.options.isWorkBlocked?.())&&!this.pluginLifecycle.getStore()?.active)return{ok:false,error:'Plugin change in progress or pending; apply /reload before retrying'};
     if(callerSignal?.aborted)return{ok:false,error:String(callerSignal.reason??"Tool cancelled")};
     if(this.resettingBackground)await this.resetBackground;
     if(this.closed)return{ok:false,error:'Session is closed'};
@@ -1188,6 +1195,12 @@ export class AgentCore {
     if(this.closed)throw Error('Session is closed');
     if(cancellation!==this.promptCancellation)return;
     if(source==='user'&&this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
+    if(this.options.isWorkBlocked?.()){
+      this.promptQueue.push({text,source});admitted?.('queued');
+      await this.emit('prompt.queued',{text,depth:this.promptQueue.length});
+      this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'extension-manager',message:'Message queued while plugins change. Apply /reload if the change requires it.',level:'info'}});
+      return;
+    }
     // Terminal hooks and journal writes still belong to the previous turn.
     // Let its cleanup settle before a resume can replace shared turn context.
     if(this.activeTurn&&this.state!=="running"){
@@ -1215,6 +1228,7 @@ export class AgentCore {
   }
   private async steerInput(text:string,admitted?:InputAdmitted):Promise<void>{
     if(this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
+    if(this.options.isWorkBlocked?.()){await this.submitInput(text,'user',admitted);return;}
     if (this.state !== "running") {
       await this.submitInput(text,'user',admitted);
       return;
@@ -1820,13 +1834,13 @@ export class AgentCore {
   }
 
   private scheduleQueue(){
-    if(this.queueTimer||this.closed||this.state!=='idle'||!this.promptQueue.length)return;
+    if(this.queueTimer||this.closed||this.state!=='idle'||!this.promptQueue.length||this.options.isWorkBlocked?.())return;
     this.queueTimer=setTimeout(()=>{this.queueTimer=undefined;void this.drainQueue().catch(error=>this.options.notify?.(String(error),'error','background-jobs'));},20);
   }
   private drainQueue():Promise<void>{
     if(this.draining)return this.draining;
     this.draining=(async()=>{
-      while(this.promptQueue.length&&!this.closed&&this.state==='idle'){
+      while(this.promptQueue.length&&!this.closed&&this.state==='idle'&&!this.options.isWorkBlocked?.()){
         const next=this.promptQueue.shift()!;
         if(next.owner&&!this.host.hasPlugin(next.owner,'trusted'))continue;
         if(next.owner)while(this.promptQueue[0]?.owner===next.owner&&next.text.length+this.promptQueue[0].text.length<4096)next.text+='\n\n'+this.promptQueue.shift()!.text;
@@ -1835,6 +1849,14 @@ export class AgentCore {
       }
     })().finally(()=>{this.draining=undefined;});
     return this.draining;
+  }
+
+  /** @internal Retry accepted background work after a host lifecycle barrier. */
+  resumePendingWork():void{this.scheduleQueue();}
+
+  /** @internal Allow awaited reload hooks to use tools within their lifecycle. */
+  async duringPluginReload<T>(work:()=>Promise<T>):Promise<T>{
+    const scope={active:true};try{return await this.pluginLifecycle.run(scope,work);}finally{scope.active=false;}
   }
 
   private missingEditTargetHint(args: unknown, turnId: string): string {

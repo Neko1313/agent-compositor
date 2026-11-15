@@ -18,6 +18,13 @@ it('reloads a plugin into all live cores of the same application',async()=>{
  expect(first.getToolNames()).toContain('probe_value');expect(second.getToolNames()).toContain('probe_value');
  expect(await readFile(join(f.root,first.sessionId),'utf8')).toBe('reloaded');expect(await readFile(join(f.root,second.sessionId),'utf8')).toBe('reloaded');
 });
+it('allows plugin reload hooks to await their own tools while external work is barred',async()=>{
+ const f=await fixture(),marker=join(f.root,'reload-tool.json');await writeFile(join(f.cwd,'source.txt'),'fixture');
+ await writeFile(join(f.cwd,'plugins/probe/hooks.ts'),`import{writeFileSync}from'node:fs';export default{'session.reload':async(_,$)=>writeFileSync(${JSON.stringify(marker)},JSON.stringify(await $.agent.tool('read',{path:'source.txt'})))};`);
+ const a=await app(f),core=a.createCore(async()=>true);
+ expect((await core.invokeTool('extension_control',{action:'enable',name:'probe',scope:'project'})).ok).toBe(true);
+ await a.reloadPlugins(core);expect(JSON.parse(await readFile(marker,'utf8'))).toMatchObject({ok:true});
+});
 it('waits for another live core and ignores it after close before reloading',async()=>{
  const f=await fixture(),provider=new ScriptedProvider([{text:'working',hold:true}]);
  const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider,agentHub:false});apps.push(a);
@@ -33,6 +40,20 @@ it('waits for another live core and ignores it after close before reloading',asy
  await second.close();await second.whenClosed;
  expect((await first.invokeTool('extension_control',{action:'disable',name:'probe',scope:'project'})).ok).toBe(true);
  expect(await a.reloadPlugins(first)).toContain('Reloaded 0 plugins');expect(first.host.hasPlugin('probe')).toBe(false);
+});
+it('prevents one core from removing an installed plugin while another core runs',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([{text:'working',hold:true}]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider,agentHub:false});apps.push(a);
+ const first=a.createCore(async()=>true),second=a.createCore(async()=>true);
+ expect((await first.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+ expect((await first.invokeTool('extension_control',{action:'enable',name:'todos',scope:'project'})).ok).toBe(true);await a.reloadPlugins(first);
+ const directory=a.plugins.find(plugin=>plugin.manifest.name==='todos')!.dir,running=second.submit('Hold this session');
+ try{
+  await expect.poll(()=>provider.requests.length).toBe(1);
+  const removal=await first.invokeTool('extension_control',{action:'remove',name:'todos',scope:'project'});
+  expect(removal.ok).toBe(false);expect(await stat(directory)).toBeTruthy();
+ }finally{provider.release();await running;}
+ expect((await first.invokeTool('extension_control',{action:'remove',name:'todos',scope:'project'})).ok).toBe(true);
 });
 it('does not reload application plugins while a managed shared-workspace agent is running',async()=>{
  const f=await fixture(),provider=new ScriptedProvider([{text:'agent working',hold:true}]);
@@ -80,7 +101,7 @@ it('does not let a running managed agent remove a shared installed plugin',async
  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Remove the plugin'})).ok).toBe(true);
  await expect.poll(()=>provider.requests.length).toBe(2);
  await expect.poll(async()=>{const list=await main.invokeTool('agent_control',{action:'list'});return (list.output as any[]).find(row=>row.id===id)?.state;}).toBe('idle');
- expect(provider.requests[1].messages.filter(message=>message.role==='tool').map(message=>String(message.content)).join('\n')).toContain('use the main session after it finishes');
+ expect(provider.requests[1].messages.filter(message=>message.role==='tool').map(message=>String(message.content)).join('\n')).toContain('use the main session after they finish');
  expect(await stat(directory)).toBeTruthy();
  expect((await main.invokeTool('extension_control',{action:'remove',name:'todos',scope:'project'})).ok).toBe(true);
  expect(await stat(directory).catch(()=>null)).toBeNull();
@@ -101,6 +122,19 @@ it('does not let a delegated task remove a plugin used by its parent',async()=>{
  expect(provider.requests[2].messages.filter(message=>message.role==='tool').map(message=>String(message.content)).join('\n')).toContain('Plugin changes are unavailable');
  expect((await main.invokeTool('extension_control',{action:'remove',name:'todos',scope:'project'})).ok).toBe(true);
  expect(await stat(directory).catch(()=>null)).toBeNull();
+});
+it('does not replace installed plugin files during the main model turn',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([
+  {toolCalls:[{name:'extension_control',args:{action:'remove',name:'todos',scope:'project'}}]},
+  {text:'Plugin change requires a safe point'},
+ ]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider});apps.push(a);
+ const main=a.createCore(async()=>true);await main.start();
+ expect((await main.invokeTool('extension_control',{action:'install',name:'todos@agent-compositor',scope:'project'})).ok).toBe(true);
+ expect((await main.invokeTool('extension_control',{action:'enable',name:'todos',scope:'project'})).ok).toBe(true);await a.reloadPlugins(main);
+ const directory=a.plugins.find(plugin=>plugin.manifest.name==='todos')!.dir;
+ await main.submit('Remove the plugin');expect(await stat(directory)).toBeTruthy();
+ expect(provider.requests[1].messages.filter(message=>message.role==='tool').map(message=>String(message.content)).join('\n')).toContain('Plugin changes are unavailable');
 });
 it('refreshes plugin tools in an already loaded idle managed agent',async()=>{
  const f=await fixture(),provider=new ScriptedProvider([{text:'done'},{text:'done again'}]);

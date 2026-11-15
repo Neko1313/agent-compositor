@@ -314,6 +314,52 @@ it('does not accept a late generic-tool verdict after auto is disabled', async (
     expect(await pending).toMatchObject({ value: { decision: 'ask', risk: 'unknown', reason: 'Auto review disabled or cancelled' } });
 });
 
+it.each(['command','button'])('cancels all active reviewer requests when disabled by %s', async control => {
+    const f=await fixture({timeoutMs:15000});
+    f.$.emit=async()=>({});f.$.ui.notify=async()=>{};
+    const requests:AbortSignal[]=[];const finish:((value:string)=>void)[]=[];
+    f.$.model.complete=(request:any)=>{requests.push(request.signal);return new Promise<string>(resolve=>finish.push(resolve));};
+    const event=(callId:string)=>({tool:'ci_check',callId,context:{task:'Run project tests'}});
+    const pending=[review['service.permission.review'](event('one'),f.$),review['service.permission.review'](event('two'),f.$)];
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    try {
+        await expect.poll(()=>requests.length).toBe(2);
+        if(control==='command')await review['command.invoke']({name:'/auto',args:'off'},f.$);
+        else await review['ui.press']({site:'plugin-auto-approve-approvals',key:'off'},f.$);
+        const result=await Promise.race([Promise.all(pending),new Promise<'stalled'>(resolve=>{timer=setTimeout(()=>resolve('stalled'),300);})]);
+        expect(result).toEqual([expect.objectContaining({value:expect.objectContaining({decision:'ask',risk:'unknown'})}),expect.objectContaining({value:expect.objectContaining({decision:'ask',risk:'unknown'})})]);
+        expect(requests.every(signal=>signal.aborted)).toBe(true);
+        expect(f.state.get('activeReviews').size).toBe(0);
+        await review['command.invoke']({name:'/auto',args:'on'},f.$);
+        f.$.model.complete=async()=>JSON.stringify(allowed);
+        expect(await review['service.permission.review'](event('new'),f.$)).toMatchObject({value:{decision:'allow'}});
+    } finally {
+        clearTimeout(timer);for(const resolve of finish)resolve(JSON.stringify(allowed));await Promise.allSettled(pending);
+    }
+});
+
+it('switches an actual running tool review to manual when auto is disabled',async()=>{
+    const cwd=await temp();let executed=0,asked=0;
+    const provider=new ScriptedProvider([
+        {toolCalls:[{name:'ci_check',args:{script:'test'}}]},
+        {hold:true},
+        {text:'Check was not run'},
+    ]);
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins')]});
+    app.plugins.push({manifest:{name:'ci-fixture',version:'1.0.0',trust:'trusted'},hooks:{},tools:[{
+        name:'ci_check',description:'Run a configured check',parameters:{type:'object'},describe:()=>({tool:'ci_check'}),execute:async()=>{executed++;return{ok:true};},
+    }]} as any);
+    const core=app.createCore(async()=>{asked++;return false;});
+    let turn:Promise<unknown>|undefined,timer:ReturnType<typeof setTimeout>|undefined;
+    try{
+        await core.submit('/auto on');turn=core.submit('Run the configured check');
+        await expect.poll(()=>provider.requests.length,{timeout:5000}).toBe(2);
+        await core.submit('/auto off');
+        await Promise.race([turn,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Turn did not leave review')),2000);})]);
+        expect(provider.requests[1].signal.aborted).toBe(true);expect(asked).toBe(1);expect(executed).toBe(0);
+    }finally{clearTimeout(timer);provider.release();if(core.getState()==='running')core.interrupt();await turn;await app.close();}
+},10000);
+
 it('settles a review when cancellation occurs synchronously as the model starts', async () => {
     const f = await fixture();
     const controller = new AbortController();

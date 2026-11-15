@@ -74,6 +74,7 @@ async function show($: any) {
 async function mode($: any, enabled: boolean) {
     $.state.set("enabled", enabled);
     $.state.set("generation", ($.state.get("generation") ?? 0) + 1);
+    for (const controller of ($.state.get('activeReviews') ?? []) as Set<AbortController>) controller.abort();
     try { await $.emit('service.permission.invalidate', {}); }
     catch (error) {
         // Older hosts have no refusal memory and do not need invalidation.
@@ -155,11 +156,17 @@ export default {
                 throw new Error("Review input or session budget exceeded");
             $.state.set("reviews", count + 1);
             const timeoutMs = Math.min(15000, Math.max(100, Number(config.timeoutMs ?? 8000)));
+            const timeout = AbortSignal.timeout(timeoutMs);
+            let active:Set<AbortController>=$.state.get('activeReviews');
+            if(!active){active=new Set();$.state.set('activeReviews',active);}
+            const controller=new AbortController();active.add(controller);
             const signal = AbortSignal.any([
                 $.signal,
-                AbortSignal.timeout(timeoutMs),
+                controller.signal,
+                timeout,
             ]);
-            const response = await untilAbort(signal, () => $.model.complete({
+            let response:unknown;
+            try { response = await untilAbort(signal, () => $.model.complete({
                     ...(config.profile === undefined ? {} : {profile: config.profile}),
                     maxOutputTokens: 512,
                     signal,
@@ -177,7 +184,7 @@ export default {
                         },
                         { role: "user", content: payload },
                     ],
-                }));
+                })); } finally { active.delete(controller); }
             verdict = parseVerdict(response,e.context);
         }
         catch (error) {

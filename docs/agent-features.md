@@ -37,8 +37,9 @@ See [the management flow](../packages/app/README.md#manage-plugins-while-the-age
 ## Auto review
 
 Enable the mode explicitly for the current session. Approvals return to manual
-after restart. Disabling it with the button also invalidates a review already in
-progress: a stale review result cannot approve an action.
+after restart. Switching the mode with the command or button cancels active
+review requests and invalidates their results, so a stale review cannot approve
+an action. Affected actions fall back to manual handling.
 If the review request is cancelled or reaches its configured timeout, the
 review returns to manual handling without waiting for an unresponsive provider.
 The cancellation signal is sent to the provider, but whether it stops remote

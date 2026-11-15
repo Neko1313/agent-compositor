@@ -880,6 +880,19 @@ onboarding. Dynamic backend discovery still searches the working directory;
 the diagnostic's private directory remains necessary. The build identifies its
 own commit as unknown because Git was absent inside the build container.
 
+The same relocated binary was then run under Debian QEMU user-mode 7.2.22
+with its `qemu64` CPU model in an isolated network-disconnected container. A
+separate minimal CPUID probe recorded SSE2 present and SSE4.2/AVX absent. The
+loader trace shows the engine inspecting candidate backends and then loading
+`libggml-cpu-x64.so`. With the cached Qwen3.5 0.8B Q4_0 weights, two CPU
+threads, a 512-token context and a one-token output limit, the engine exited
+successfully and produced one token; the traced run reports approximately
+0.96 seconds for that generated token under emulation. Raw probe, output and
+trace are under `dist/onboarding-qemu-probe/`; the first missing-model loader
+trace is `dist/onboarding-qemu64.stderr`. This checks one emulated CPU path and
+one token, not real older hardware, sustained performance, model quality or a
+general fallback guarantee. The temporary QEMU container was removed.
+
 ## Offline CPU development diagnostic
 
 With `ollama` on PATH and an existing local model cache, run:

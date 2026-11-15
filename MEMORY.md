@@ -32,6 +32,12 @@ non-root user. The host selected AVX2; the model still incorrectly claimed
 test-reports is required to run tests. Reports and file hashes are in
 dist/onboarding-bookworm-inference/. This is not verification on old CPUs,
 other platforms, backend integrity or product-quality onboarding.
+The same experimental binary under QEMU 7.2.22 `qemu64` reported SSE2 but no
+SSE4.2 or AVX in a separate CPUID probe, selected its x64 backend, and generated
+one token with the cached 0.8B model. The network-disconnected temporary
+container was removed; artifacts are in dist/onboarding-qemu-probe/ and the
+limits are in docs/evals.md. Emulation is not real old-hardware, sustained
+performance, general CPU fallback or model-quality evidence.
 
 ## Dependency advisory — 2026-11-16
 

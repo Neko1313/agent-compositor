@@ -47,4 +47,7 @@ if(identityPlugin){
  if(process.env.VISUAL_PLUGIN_DIR&&resolve(selected.dir)!==resolve(process.env.VISUAL_PLUGIN_DIR))throw Error('UI scenario loaded a different package copy');
  await writeFile(join(process.env.VISUAL_OUTPUT!,'fixture-identity.json'),JSON.stringify({plugin:selected.manifest.name,version:selected.manifest.version,directory:selected.dir,cwd:app.storage.paths.project,state:app.storage.paths.state}));
 }
-await runTui(app, process.stdin, process.stdout, process.env.VISUAL_START_HISTORY?"/history":undefined);
+if(process.env.VISUAL_ONBOARDING_OPENTUI==='1'){
+ const {runOpenTui}=await import('../../packages/app/src/opentui.js');
+ await runOpenTui(app,process.stdin,process.stdout);
+}else await runTui(app, process.stdin, process.stdout, process.env.VISUAL_START_HISTORY?"/history":undefined);

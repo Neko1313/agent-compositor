@@ -467,6 +467,8 @@ Set `VISUAL_EXECUTABLE` to the executable from an extracted release archive to
 run the same flow against a compiled app. The bench records actual storage paths
 for both modes; the report identifies source/binary mode and hashes the selected
 binary. Keep the complete archive contents beside that executable.
+Set `VISUAL_ONBOARDING_OPENTUI=1` to run the same flow with OpenTUI; without it
+the scenario uses Ink. Both source and extracted-binary modes support the flag.
 
 `VISUAL_OUTPUT=dist/btw-proof node tools/visual/plugin-check.mjs btw` checks the
 actual side-conversation flow: opening while the main model is held, inline

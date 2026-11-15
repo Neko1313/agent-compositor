@@ -154,7 +154,7 @@ let terminalSize={cols:100,rows:30};
 async function start(ws) {
   if(process.env.VISUAL_PERFORMANCE)appendFileSync(join(output,'terminal.events.jsonl'),JSON.stringify({type:'start',...terminalSize})+'\n');
   let command = process.env.VISUAL_EXECUTABLE
-    ? [resolve(process.env.VISUAL_EXECUTABLE), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
+    ? [resolve(process.env.VISUAL_EXECUTABLE), ...(process.env.VISUAL_ONBOARDING_OPENTUI==='1'?['--renderer','opentui']:[]), '--cwd', cwd,...(process.env.VISUAL_START_HISTORY?['--resume']:[])]
     : ['bun', join(import.meta.dir, process.env.VISUAL_OPENTUI === '1' ? 'opentui-sample.ts' : 'fixture.ts'), cwd];
   if(process.env.VISUAL_OPENTUI_WIRE==='1')command=['bun',join(import.meta.dir,'opentui-wire-fixture.mjs')];
   if(process.env.VISUAL_OPENTUI_APP){

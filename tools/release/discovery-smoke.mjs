@@ -10,12 +10,14 @@ import {pathToFileURL} from 'node:url';
 import {readModelResult} from './model-read.mjs';
 
 /** Probe the installed tool schemas and real discovery/read services without source injection. */
-export async function smokeDiscovery(binary,output){
- const root=await realpath(await mkdtemp(join(tmpdir(),'compositor-discovery-smoke-'))),cwd=join(root,'project'),home=join(root,'home'),errors=[];
+export async function smokeDiscovery(binary,output,options={}){
+ const root=await realpath(await mkdtemp(join(tmpdir(),'compositor-discovery-smoke-'))),cwd=join(root,...(options.ignoredParent?['hidden','project']:['project'])),home=join(root,'home'),errors=[];
  let server,requests=0,execution,readRejected=false,emptyHint=false,discovered=false,readCorrect=false,noOpRejected=false,editSchema=false,editTarget;
  const original='export const amount = 18;\n';
  try{
-  await mkdir(cwd);await mkdir(home);await writeFile(join(cwd,'actual.mjs'),original);await writeFile(join(cwd,'user-draft.txt'),'PRESERVED');
+  await mkdir(cwd,{recursive:true});await mkdir(home);
+  if(options.ignoredParent){await promisify(execFile)('git',['init','-q',root],{env:{...process.env,HOME:home,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}});await writeFile(join(root,'.gitignore'),'hidden/\n');}
+  await writeFile(join(cwd,'actual.mjs'),original);await writeFile(join(cwd,'user-draft.txt'),'PRESERVED');
   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['callix'],agent:{tools:['read','edit','glob','grep'],builtinTools:['read','edit'],controlTools:[],skills:false,projectContext:false,fileReferences:false},compaction:{enabled:false},permissions:{rules:[{tool:'edit',path:cwd+'/**',decision:'allow'}]}}));
   server=createServer(async(req,res)=>{try{
    if(req.url==='/v1/models'){res.setHeader('content-type','application/json');res.end(JSON.stringify({data:[{id:'packed-discovery-probe',context_window:16384}]}));return;}
@@ -55,8 +57,9 @@ export async function smokeDiscovery(binary,output){
   catch(error){execution={code:error.code,stdout:error.stdout,stderr:error.stderr};}
   let result;try{result=JSON.parse(execution.stdout);}catch{errors.push('Native discovery output was not JSON');}
   const preserved=(await readFile(join(cwd,'actual.mjs'),'utf8'))===original&&(await readFile(join(cwd,'user-draft.txt'),'utf8'))==='PRESERVED';
-  const report={ok:errors.length===0&&requests===6&&execution.code===0&&execution.stderr===''&&!result?.error&&result?.response==='DISCOVERY_RECOVERY_OK'&&preserved&&emptyHint&&discovered&&readRejected&&readCorrect&&noOpRejected&&editSchema,requests,emptyHint,discovered,readRejected,readCorrect,noOpRejected,editSchema,preserved,errors,execution,paidRequests:0};
+  const executable={path:resolve(binary),sha256:createHash('sha256').update(await readFile(binary)).digest('hex')};
+  const report={executable,ignoredParent:Boolean(options.ignoredParent),ok:errors.length===0&&requests===6&&execution.code===0&&execution.stderr===''&&!result?.error&&result?.response==='DISCOVERY_RECOVERY_OK'&&preserved&&emptyHint&&discovered&&readRejected&&readCorrect&&noOpRejected&&editSchema,requests,emptyHint,discovered,readRejected,readCorrect,noOpRejected,editSchema,preserved,errors,execution,paidRequests:0};
   if(output)await writeFile(output,JSON.stringify(report,null,2)+'\n');assert.ok(report.ok,'Installed discovery probe failed: '+JSON.stringify(report));return report;
  }finally{if(server){server.closeAllConnections();await new Promise(done=>server.close(()=>done()));}await rm(root,{recursive:true,force:true});}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){if(!process.argv[2])throw Error('Provide an installed compositor binary');console.log(JSON.stringify(await smokeDiscovery(process.argv[2],process.argv[3])));}
+if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){if(!process.argv[2])throw Error('Provide an installed compositor binary');console.log(JSON.stringify(await smokeDiscovery(process.argv[2],process.argv[3],{ignoredParent:process.argv[4]==='--ignored-parent'})));}

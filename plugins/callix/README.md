@@ -240,7 +240,10 @@ Extra agent ignore rules filter graph results and stored
 nodes; the native CLI still discovers/analyzes the root under its own rules.
 
 File search respects Git inventory and agent ignores, and uses nested gitignore
-rules outside Git. Escaping symlinks, deleted entries, binary and oversized text
+rules outside Git. When the selected project root is itself ignored by an
+ancestor repository, untracked discovery starts at the selected root while its
+own Git ignore rules, repository/global Git excludes and agent ignores still
+apply; tracked files remain included. Escaping symlinks, deleted entries, binary and oversized text
 files are excluded. Regex search streams ripgrep in argument-safe batches;
 literal search has no ripgrep dependency. Search scanning is bounded to 32 MiB
 and approximately 10 seconds, with `scanLimited` requiring a narrower scope.

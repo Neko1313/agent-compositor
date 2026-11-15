@@ -1,7 +1,8 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readdir, realpath, readFile, stat } from 'node:fs/promises';
+import { readdir, realpath, readFile, stat, mkdtemp, rm } from 'node:fs/promises';
 import { resolve, join, dirname, sep } from 'node:path';
+import {tmpdir} from 'node:os';
 import ignore from 'ignore';
 import {encodeReadCursor,readHash,readPageEnd,type ReadCursor} from './read-cursor.js';
 import type {ReadArgs} from './tools/fs.js';
@@ -28,6 +29,21 @@ export async function projectFiles(root: string, limit = 20000): Promise<string[
     let files: string[];
     try {
         files = (await exec('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, maxBuffer: 8 * 1024 * 1024, timeout: 10000 })).stdout.split('\0').filter(Boolean);
+        // An explicitly selected root can itself be ignored by an ancestor
+        // repository. Keep its tracked inventory, but enumerate untracked files
+        // against the selected root so that its own and global excludes apply.
+        const rootIgnored = await exec('git', ['check-ignore', '--no-index', '-q', '--', '.'], {cwd: root, timeout: 10000}).then(()=>true,()=>false);
+        if (rootIgnored) {
+            try {
+                const temporary = await mkdtemp(join(tmpdir(), 'compositor-project-index-'));
+                try {
+                    const untracked = await exec('git', ['--work-tree', resolve(root), 'ls-files', '--others', '--exclude-standard', '-z'], {
+                        cwd: root, env: {...process.env, GIT_INDEX_FILE: join(temporary, 'index')}, maxBuffer: 8 * 1024 * 1024, timeout: 10000,
+                    });
+                    files.push(...untracked.stdout.split('\0').filter(Boolean));
+                } finally {await rm(temporary, {recursive: true, force: true}).catch(()=>{});}
+            } catch { /* Keep the original Git inventory rather than bypassing its ignore policy. */ }
+        }
     }
     catch {
         files = [];

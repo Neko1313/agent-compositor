@@ -3,6 +3,7 @@ import { mkdtemp, readFile, writeFile, rm, mkdir, symlink } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 import { readTool, editTool, registerDefaultResolvers, UndoStore, queryProject, projectFiles, type ToolContext } from '../src/index.js';
 const roots: string[] = [];
 afterEach(async () => { for (const p of roots.splice(0))
@@ -110,6 +111,21 @@ describe('guarded exact editing', () => {
     });
 });
 describe('bounded project search', () => {
+    it('finds an explicitly selected project inside an ignored parent while respecting local and global ignores', async () => {
+        const outer=await temp(),cwd=join(outer,'hidden','project');await mkdir(cwd,{recursive:true});
+        const git=(...args:string[])=>execFileSync('git',args,{cwd:outer,env:{...process.env,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}});
+        git('init','-q');await writeFile(join(outer,'.gitignore'),'hidden/\n');await writeFile(join(outer,'shared.txt'),'parent\n');git('add','shared.txt');
+        const globalIgnore=join(outer,'global-ignore');await writeFile(globalIgnore,'global.secret\n');git('config','core.excludesFile',globalIgnore);
+        await writeFile(join(cwd,'.gitignore'),'*.log\nlocal.secret\n');await writeFile(join(cwd,'.agentignore'),'agent.secret\n');
+        for(const file of ['actual.mjs','shared.txt','tracked.log','local.secret','global.secret','agent.secret'])await writeFile(join(cwd,file),'needle\n');
+        git('add','-f','hidden/project/tracked.log');
+        const files=await projectFiles(cwd);
+        expect(files).toContain('actual.mjs');expect(files).toContain('shared.txt');expect(files).toContain('tracked.log');
+        expect(files).not.toContain('local.secret');expect(files).not.toContain('global.secret');expect(files).not.toContain('agent.secret');
+        expect((await queryProject({cwd,action:'glob',pattern:'**/*.mjs'})).files).toContain('actual.mjs');
+        expect((await queryProject({cwd,action:'grep',pattern:'needle'})).matches.map((item:any)=>item.path)).toContain('actual.mjs');
+    });
+
     it('honors nested ignore/negation rules outside git and handles filenames with spaces', async () => {
         const cwd = await temp();
         await mkdir(join(cwd, 'src'));

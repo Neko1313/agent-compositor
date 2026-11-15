@@ -19,6 +19,9 @@ Compare @../shared/schema.json with @src/schema.json
 Double-quoted references accept JSON escapes. Single quotes also support spaces.
 `@.` lists the primary project. A directory reference lists up to 200 files
 under the project's ignore rules and loads its applicable project instructions.
+If the selected root itself is ignored by an enclosing Git repository, discovery
+starts at that root and still applies its local, repository/global and agent
+ignore rules; tracked files remain visible.
 The editor completes local, absolute and home paths. Tab accepts a suggestion;
 Enter submits a typed reference unless a suggestion was explicitly selected.
 Completing a directory lets you continue its path. Browsing completion suggestions

@@ -184,8 +184,11 @@ probe: real empty text search, broad glob, rejected zero-based read pagination,
 valid ranged read and its guarded edit anchor, and rejection of an edit that
 leaves the actual file unchanged. It checks the actual model-facing schema and
 response guidance, preserves project/user files, and uses six bounded
-loopback completions. The probe is required on every declared native platform;
-it establishes packaged tool behavior, not live model coding quality.
+loopback completions. Each native job runs it both normally and with the
+explicitly selected project inside a parent repository's ignored directory;
+the latter report is `dist/release/discovery-ignored-smoke-PLATFORM.json`.
+Both reports identify the executable by SHA-256. The probes establish packaged
+tool behavior, not live model coding quality.
 
 `dist/release/query-smoke-PLATFORM.json` records installed query-loop recovery.
 Actual built-in reads and Callix searches must each receive a recovery reminder
@@ -248,7 +251,13 @@ journal provenance, request previews and unrelated draft must survive. A small
 public SDK fixture records permission context; it does not replace core,
 context or session services. All model traffic goes to a bounded local HTTP
 fixture. The report is `dist/release/background-smoke-PLATFORM.json`.
-These controlled checks do not establish long-session or live-model quality.
+Another installed-CLI case journals a controlled tool call, kills the process
+after its file effect but before its result, and resumes the session. The next
+local model request must retain the original task and report the outcome as
+unknown; the effect must not repeat and an unrelated draft must survive. The
+report is `dist/release/effect-crash-smoke-PLATFORM.json`. This fixture does not
+prove recovery for arbitrary external effects. These controlled checks do not
+establish long-session or live-model quality.
 Plain-session startup is checked with a real SDK plugin too: immediate EOF initializes
 the plugin once without a model request, and startup finishes before the first
 model request in a second process. Its report is

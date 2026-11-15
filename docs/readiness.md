@@ -7,6 +7,28 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An isolated Linux x64 release smoke first failed discovery when its temporary
+project was itself inside the checkout's ignored `dist` directory; the same
+smoke outside that repository passed. A focused installed-binary regression
+then reproduced the failure in a fresh parent Git repository whose ignore rule
+covers the selected project. The revised source retains tracked files and uses
+a separate temporary Git index to enumerate the explicit root under its own
+and repository/global ignore rules. Local tests also cover a colliding parent
+index name and agent ignores. The prior binary fails and a locally rebuilt
+binary passes the same installed discovery probe; reports are
+`dist/ignored-parent-native-before-fix-20261116.json` and
+`dist/ignored-parent-native-20261116.json`. This does not establish behavior on
+other platforms or a public release.
+
+
+A locally built Linux x64 installed CLI was killed after a controlled plugin
+appended a file and before its result was recorded. On resume, its second
+loopback model request retained the original task and an explicit unknown-outcome
+result; the effect was not repeated and an unrelated draft survived. The report
+is `dist/effect-crash-native-20261116.json`; this is a single controlled effect,
+not proof for arbitrary services, other platforms or multi-hour sessions.
+
+
 The [effect-boundary regression](../packages/core/test/effect-crash.test.ts)
 starts a separate core process, waits until a controlled tool has modified a
 file and its call is journaled, then sends SIGKILL before any result is recorded.

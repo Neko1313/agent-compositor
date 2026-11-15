@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkflowEngine } from '../../../plugins/workflows/engine.js';
@@ -94,6 +94,39 @@ describe('dynamic workflow scheduler', () => {
         expect(calls.filter(c => c.endsWith('-a'))).toHaveLength(1);
         expect(done?.stages[1].attempts).toBe(2);
         await engine.close();
+    });
+    it('keeps a failed stage unchanged when retry cannot acquire the workflow lease', async () => {
+        const cwd=await temp();let fail=true;
+        const engine=new WorkflowEngine({cwd,request:async()=>{if(fail)throw Error('temporary failure');return {output:'ok',tokens:12} as any;}});
+        try{
+            const run=await engine.start({completion:'none',stages:[{id:'a',prompt:'work'}]});
+            expect((await engine.wait(run.id))?.status).toBe('failed');
+            const root=join(cwd,'.agent-compositor','workflows','runs'),lock=join(root,run.id+'.lock');
+            const before=structuredClone(engine.runs.get(run.id));const disk=await readFile(join(root,run.id+'.json'),'utf8');
+            await writeFile(lock,JSON.stringify({pid:process.pid}));
+            await expect(engine.control(run.id,'retry','a')).rejects.toThrow('owned by a running process');
+            expect(engine.runs.get(run.id)).toEqual(before);expect(await readFile(join(root,run.id+'.json'),'utf8')).toBe(disk);
+            await rm(lock);
+            const journal=join(root,run.id+'.json');await rm(journal);await mkdir(journal);
+            await expect(engine.control(run.id,'retry','a')).rejects.toThrow();
+            expect(engine.runs.get(run.id)).toEqual(before);await expect(readFile(lock,'utf8')).rejects.toMatchObject({code:'ENOENT'});
+            await rm(journal,{recursive:true});await writeFile(journal,disk);
+            fail=false;await engine.control(run.id,'retry','a');
+            expect((await engine.wait(run.id))?.status).toBe('completed');
+        }finally{await engine.close();}
+    });
+    it('keeps stopped stages unchanged when resume cannot acquire the workflow lease', async () => {
+        const cwd=await temp();
+        const engine=new WorkflowEngine({cwd,request:async(_event,p:any)=>{if(!p.signal.aborted)await new Promise<void>(resolve=>p.signal.addEventListener('abort',()=>resolve(),{once:true}));p.signal.throwIfAborted();return {output:'unused'} as any;}});
+        try{
+            const run=await engine.start({completion:'none',stages:[{id:'a',prompt:'work'},{id:'b',prompt:'later',dependsOn:['a']}]});
+            await vi.waitFor(()=>expect(engine.runs.get(run.id)?.stages[0].status).toBe('running'));
+            await engine.control(run.id,'stop');
+            const before=structuredClone(engine.runs.get(run.id));expect(before?.stages.every(stage=>stage.status==='stopped')).toBe(true);
+            const lock=join(cwd,'.agent-compositor','workflows','runs',run.id+'.lock');await writeFile(lock,JSON.stringify({pid:process.pid}));
+            await expect(engine.control(run.id,'resume')).rejects.toThrow('owned by a running process');
+            expect(engine.runs.get(run.id)).toEqual(before);await rm(lock);
+        }finally{await engine.close();}
     });
     it('pauses scheduling, stops active work and recovers interrupted stages conservatively', async () => {
         const cwd = await temp();

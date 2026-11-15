@@ -335,29 +335,36 @@ export class WorkflowEngine {
         await this.active.get(id)?.promise;
         if (this.closed)
             throw Error('Workflow engine closed');
+        const target = action === 'retry' ? run.stages.find(s => s.id === stageId) : undefined;
         if (action === 'retry') {
-            const target = run.stages.find(s => s.id === stageId);
             if (!target || !['failed', 'stopped'].includes(target.status!))
                 throw Error('Select a failed/stopped stage');
-            target.status = 'pending';
-            target.error = undefined;
         }
         else {
             if (run.status === 'completed')
                 return structuredClone(run);
             if (run.stages.some(s => s.status === 'failed'))
                 throw Error('Retry the failed stage before resuming');
-            for (const s of run.stages)
-                if (s.status === 'stopped')
-                    s.status = 'pending';
         }
         if ([...this.runs.values()].filter(r => r.status === 'running').length >= 4)
             throw Error('Workflow concurrency limit reached');
         await this.lease(run.id);
-        this.contexts.set(run.id,context);run.ownerSessionId=context.sessionId;
-        run.status = 'running';
-        run.error = undefined;
-        await this.persist(run);
+        const before=structuredClone(run),previousContext=this.contexts.get(run.id);
+        try {
+            if(this.closed)throw Error('Workflow engine closed');
+            if(target){target.status='pending';target.error=undefined;}
+            else for(const s of run.stages)if(s.status==='stopped')s.status='pending';
+            this.contexts.set(run.id,context);run.ownerSessionId=context.sessionId;
+            run.status = 'running';
+            run.error = undefined;
+            await this.persist(run);
+        } catch(error) {
+            for(const key of Object.keys(run))delete (run as any)[key];
+            Object.assign(run,before);
+            if(previousContext)this.contexts.set(run.id,previousContext);else this.contexts.delete(run.id);
+            await this.release(run.id).catch(()=>{});
+            throw error;
+        }
         this.launch(run);
         return structuredClone(run);
     }

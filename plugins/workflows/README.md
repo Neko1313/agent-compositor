@@ -89,6 +89,9 @@ crash, running stages are marked pending and the run is paused; resume is explic
 Completed stages are reused, not checked against subsequent repository edits.
 Interrupted operations may have external side effects: inspect them before
 retrying. Start a fresh run after material changes invalidate old results.
+If another process owns a workflow, or saving a retry or resume fails, the
+attempt does not change its stage state. Resolve the ownership or storage error
+before trying again.
 
 Defaults: concurrency 2 (maximum 8), 100 stages (maximum 500), 60000 tokens and
 10 minutes per stage, at most 32 model steps per stage, four active workflows per

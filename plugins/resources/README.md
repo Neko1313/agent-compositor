@@ -11,6 +11,15 @@ JavaScript heap. Metrics include agents running inside the same process and
 exclude child shell processes, external model servers and other applications.
 They are not per-agent attribution or a machine-wide utilization estimate.
 
+On Linux, **Snapshot children** separately measures the currently live descendant
+processes and sums their RSS. It does not run a helper command. This is a
+best-effort snapshot, not a process-tree CPU graph: short-lived processes can be
+missed, processes can change during enumeration, and shared memory may be counted
+more than once. A process that disappears or cannot be read, or a limit of 512
+descendants or 128 threads per process, marks the result incomplete. The snapshot
+is not refreshed automatically and is unavailable on other platforms. External
+model servers that are not descendants remain excluded.
+
 The CPU and Memory tabs show a scaled time-series plot of the latest samples with
 numeric axes and units. Each `*` is a real observation. Sampling targets one second
 between completed updates. The horizontal axis is sample order, not a promise of

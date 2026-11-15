@@ -1,11 +1,14 @@
 import {buildApp} from '../src/build.js';
 import {ScriptedProvider} from '@agent-compositor/core';
-import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
+import {spawn} from 'node:child_process';
+import {once} from 'node:events';
 import {afterEach,describe,it,expect,vi} from 'vitest';
 import {Sampler,chart} from '../../../plugins/resources/metrics.js';
 import {Monitor} from '../../../plugins/resources/hooks.js';
+import {snapshotChildren} from '../../../plugins/resources/children.js';
 import {uiTextViewSchema,type UiTextView} from '@agent-compositor/events';
 
 afterEach(()=>vi.useRealTimers());
@@ -56,6 +59,41 @@ describe('resources monitor',()=>{
    await monitor.show();expect(latest.lines.some(line=>line.text.includes('COUNTERS_DOWN'))).toBe(true);expect(vi.getTimerCount()).toBe(0);
    broken=false;await monitor.press('sample');expect(latest.lines.some(line=>line.tone==='danger')).toBe(false);expect(vi.getTimerCount()).toBe(1);
    await monitor.press('switch');expect(latest.tabs).toBeUndefined();expect(latest.lines.some(line=>line.text==='Resident memory history (MiB)')).toBe(true);
+  }finally{monitor.dispose();}
+ });
+ it.skipIf(process.platform!=='linux')('samples RSS of a real live child process without a subprocess helper',async()=>{
+  const child=spawn(process.execPath,['-e',"process.stdout.write('ready');setInterval(()=>{},1000)"],{stdio:['ignore','pipe','ignore']});
+  try{
+   await once(child.stdout!,'data');
+   const status=await readFile(`/proc/${child.pid}/status`,'utf8');
+   const childRss=Number(/^VmRSS:\s+(\d+)\s+kB\s*$/m.exec(status)?.[1])*1024;
+   expect(childRss).toBeGreaterThan(0);
+   const snapshot=await snapshotChildren();
+   expect(snapshot).toBeDefined();expect(snapshot!.count).toBeGreaterThanOrEqual(1);expect(snapshot!.rss).toBeGreaterThanOrEqual(childRss);
+  }finally{child.kill();await once(child,'exit');}
+ });
+ it('shows an explicit child snapshot and ignores an unfinished snapshot after close',async()=>{
+  let resolve!:(value:{count:number;rss:number;partial:boolean})=>void,signal:AbortSignal|undefined;
+  const views:UiTextView[]=[];
+  const monitor=new Monitor({ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{views.push(view);},remove:async()=>{}}},undefined,
+    current=>new Promise(done=>{signal=current;resolve=done;}));
+  try{
+   await monitor.show();const pending=monitor.press('children');await vi.waitFor(()=>expect(resolve).toBeDefined());
+   expect(views.at(-1)!.lines.some(line=>line.text.includes('Reading child'))).toBe(true);
+   resolve({count:2,rss:2*1048576,partial:true});await pending;
+   expect(views.at(-1)!.lines.some(line=>line.text.includes('2 processes · 2.0 MiB RSS · incomplete'))).toBe(true);
+   const next=monitor.press('children');await vi.waitFor(()=>expect(views.at(-1)!.lines.some(line=>line.text.includes('Reading child'))).toBe(true));
+   await monitor.press('close');expect(signal?.aborted).toBe(true);const before=views.length;resolve({count:1,rss:1,partial:false});await next;expect(views).toHaveLength(before);
+  }finally{monitor.dispose();}
+ });
+ it('distinguishes unsupported and failed child snapshots and permits retry',async()=>{
+  let latest!:UiTextView,attempt=0;
+  const monitor=new Monitor({ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{latest=view;},remove:async()=>{}}},undefined,
+    async()=>{attempt++;if(attempt===1)return undefined;if(attempt===2)throw Error('unavailable');return {count:1,rss:1048576,partial:false};});
+  try{
+   await monitor.show();await monitor.press('children');expect(latest.lines.some(line=>line.text.includes('Linux only'))).toBe(true);
+   await monitor.press('children');expect(latest.lines.some(line=>line.text.includes('failed. Try again'))).toBe(true);
+   await monitor.press('children');expect(latest.lines.some(line=>line.text.includes('1 processes · 1.0 MiB'))).toBe(true);
   }finally{monitor.dispose();}
  });
 });

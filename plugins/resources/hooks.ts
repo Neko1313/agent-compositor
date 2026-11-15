@@ -1,4 +1,5 @@
 import {Sampler,chart,type Sample} from './metrics.js';
+import {snapshotChildren,type ChildrenSnapshot} from './children.js';
 
 export class Monitor {
   samples:Sample[]=[];
@@ -10,9 +11,15 @@ export class Monitor {
   private error?:string;
   private revision=0;
   private timer?:ReturnType<typeof setTimeout>;
-  constructor(private readonly $:any,private readonly sampler=new Sampler()){}
+  private children?:ChildrenSnapshot | null;
+  private childrenError=false;
+  private childrenPending=false;
+  private childrenRevision=0;
+  private childrenController?:AbortController;
+  constructor(private readonly $:any,private readonly sampler=new Sampler(),private readonly readChildren=snapshotChildren){}
   private stop(){clearTimeout(this.timer);this.timer=undefined;this.revision++;}
-  dispose(){this.open=false;this.stop();this.sampler.reset();}
+  private cancelChildren(){this.childrenRevision++;this.childrenController?.abort();this.childrenController=undefined;this.childrenPending=false;}
+  dispose(){this.open=false;this.cancelChildren();this.stop();this.sampler.reset();}
   private take(){
     try{this.samples.push(this.sampler.sample());this.samples=this.samples.slice(-120);this.error=undefined;}
     catch(error){this.error=String(error).slice(0,500);this.sampler.reset();}
@@ -41,12 +48,13 @@ export class Monitor {
         {text:`${this.paused?'Paused':'Live'} · Samples ${this.samples.length}/120 · 1 s target interval`,bold:true},
         {text:`CPU: ${latest?.cpu===undefined?'waiting for interval':latest.cpu.toFixed(1)+'%'} · 100% = one core`},
         {text:latest?`RSS: ${mib(latest.rss)} MiB · JS heap used: ${mib(latest.heapUsed)} MiB`:'No measurements yet.'},
+        ...(this.childrenPending?[{text:'Reading child processes…',tone:'muted' as const}]:this.childrenError?[{text:'Child snapshot failed. Try again.',tone:'danger' as const}]:this.children===null?[{text:'Child snapshots are available on Linux only.',tone:'muted' as const}]:this.children?[{text:`Last child snapshot: ${this.children.count} processes · ${mib(this.children.rss)} MiB RSS${this.children.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
         ...(this.error?[{text:'Sampling failed: '+this.error,tone:'danger' as const},{text:'Use Sample now to retry.',tone:'muted' as const}]:[]),
         ...(!tabs?[{text:`[ Chart: ${this.metric==='cpu'?'CPU':'Memory'} · switch ]`,action:'switch'}]:[]),
         {text:this.metric==='cpu'?'CPU history (%)':'Resident memory history (MiB)',bold:true},
         ...chart(this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576),this.columns,this.metric==='cpu'?'%':'MiB',this.metric==='cpu'?100:0).map(text=>({text})),
         {text:this.paused?'[ Resume ]':'[ Pause ]',action:'pause',tone:'accent' as const},
-        {text:'[ Sample now ]',action:'sample'},{text:'[ Clear history ]',action:'clear'},{text:'[ Close ]',action:'close'},
+        {text:'[ Sample now ]',action:'sample'},this.childrenPending?{text:'[ Reading children… ]',tone:'muted' as const}:{text:'[ Snapshot children ]',action:'children'},{text:'[ Clear history ]',action:'clear'},{text:'[ Close ]',action:'close'},
       ],
     },{site:'inspector',focus});
   }
@@ -54,6 +62,14 @@ export class Monitor {
   async press(key:string){
     if(!this.open)return;
     if(key==='close'){this.dispose();await this.$.ui.remove('resources');return;}
+    if(key==='children'){
+      if(this.childrenPending)return;
+      const revision=++this.childrenRevision,controller=new AbortController();this.childrenController=controller;this.childrenPending=true;this.childrenError=false;await this.paint();
+      try {const value=await this.readChildren(controller.signal);if(revision===this.childrenRevision)this.children=value??null;}
+      catch {if(revision===this.childrenRevision)this.childrenError=true;}
+      if(revision===this.childrenRevision){this.childrenController=undefined;this.childrenPending=false;await this.paint();}
+      return;
+    }
     if(!['cpu','memory','switch','pause','sample','clear'].includes(key))return;
     this.stop();
     if(key==='cpu'||key==='memory')this.metric=key;
@@ -69,7 +85,7 @@ export class Monitor {
     const width=Math.max(14,event.columns);
     if(this.visible===event.visible&&this.columns===width)return;
     const wasVisible=this.visible;this.visible=event.visible;this.columns=width;this.stop();
-    if(!this.visible){this.sampler.reset();return;}
+    if(!this.visible){this.cancelChildren();this.sampler.reset();return;}
     if(!wasVisible){this.sampler.reset();if(!this.paused)this.take();}
     await this.paint();this.schedule();
   }

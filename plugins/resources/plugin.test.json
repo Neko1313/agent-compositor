@@ -333,6 +333,20 @@
       }
     },
     {
+      "id": "child-snapshot-lifecycle",
+      "kind": "deterministic",
+      "requirements": ["view.content", "view.lifecycle"],
+      "setup": "The actual monitor uses a controlled delayed process snapshot in an isolated view.",
+      "expect": ["A completed partial snapshot is labelled; a result arriving after close cannot repaint."],
+      "forbidden": ["Late UI effects after closing the monitor."],
+      "timeoutMs": 60000,
+      "run": {
+        "runner": "vitest",
+        "file": "packages/app/test/resources.test.ts",
+        "test": "resources monitor shows an explicit child snapshot and ignores an unfinished snapshot after close"
+      }
+    },
+    {
       "id": "independent-command",
       "kind": "deterministic",
       "requirements": [

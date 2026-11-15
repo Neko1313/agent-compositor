@@ -7,6 +7,28 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+The [effect-boundary regression](../packages/core/test/effect-crash.test.ts)
+starts a separate core process, waits until a controlled tool has modified a
+file and its call is journaled, then sends SIGKILL before any result is recorded.
+A resumed core retains the original task, reports the effect outcome as unknown
+to the next scripted provider request, and does not replay the available tool.
+The test uses a local append-only journal and fixture effect; it does not prove
+recovery for arbitrary external services or multi-hour work.
+
+
+Build-only [run `43750368231` for `ef87cbb`](https://github.com/Neko1313/agent-compositor/actions/runs/43750368231)
+failed the Linux ARM64 installed delegated-request scenario: its exact model-call
+ledger recorded three detached requests where the scenario expected four. The
+retained trace shows the final detached launcher and its cancellation, but no
+fourth provider request. The test previously closed the application immediately
+after launching that child while requiring its model request in the final ledger.
+It now requires the new provider request and a visible child question before
+closing, so the shutdown assertion exercises an actually pending child. This
+addresses a possible timing race; it does not establish the original ordering or
+turn that failed archive run into a pass. Evidence is retained under
+`dist/candidate-ef87cbb-linux-arm-failure/`.
+
+
 An isolated local Linux x64 archive built from clean `b6ad606` passed the
 SIGKILL queued-input and interrupted-retry checks after extraction into a
 separate directory. The installed executable SHA-256 is

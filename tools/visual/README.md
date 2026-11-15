@@ -271,7 +271,9 @@ already-running child's original selected lease. Actual source unregister is
 covered separately by real Core/host tests; the CLI uses actual source Core
 replacement or managed archive to verify revocation. Main resume revokes Main descendants, while an
 independent managed request survives and later managed input uses the newly
-committed host channel. Archive/application close cancels retained input.
+committed host channel. Archive/application close cancels retained input. The
+shutdown case waits for a detached child to reach the provider and show its
+question before closing the application.
 
 The reports retain private synthetic factory/answer receipts, public-hook and
 model/journal privacy checks, terminal input/output, current screenshots and

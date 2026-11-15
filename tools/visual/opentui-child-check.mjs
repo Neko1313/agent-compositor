@@ -198,7 +198,13 @@ for(const composition of ['native','selected']){
   await controls('managed-nested','Start managed nested child');await choose('Questions #',1);const nested=await pane();assert.ok(nested.title.endsWith(' · Parent '+managedSource+' · via ask_user'));await question();
   await controls('managed-form','Open managed private form');await choose('Form #',1);assert.ok((await pane()).title.endsWith(' · '+managedSource+' · Child local form'));await wait(composition==='selected'?'CUSTOM PRIVATE FORM':'Private name');await controls('managed-close','Close managed proof');await observe(trace,rows=>rows.some(row=>row.event==='managed-control'&&row.action==='managed-close'&&row.result?.value?.archived),'Manager archive closes its pending form');await observe(trace,rows=>rows.some(row=>row.event==='private-form-result'&&row.tag==='CHILD_FORM_MANAGED'&&(row.value===null||Boolean(row.error))),'Exact managed archive form cancellation');await entries('Form #',0);await key('Escape');await normal();
   await controls('managed-create-last','Create managed shutdown proof');await controls('managed-last-form','Open managed shutdown form');await choose('Form #',1);await wait(composition==='selected'?'CUSTOM PRIVATE FORM':'Private name');
-  await capture('06-managed-lifetimes-and-shutdown');await main();await controls('detached','Start detached child');await main();await key('Control+c');await observe(async()=>ptyExit,value=>value===0,'Actual CLI application close');result.ptyExitCode=ptyExit;
+  await capture('06-managed-lifetimes-and-shutdown');await main();
+  const detachedBeforeClose=(await http()).filter(row=>row.kind==='completion'&&row.body.messages?.at(-1)?.content==='CHILD_DETACHED_Q_0').length;
+  await controls('detached','Start detached child');
+  await observe(http,rows=>rows.filter(row=>row.kind==='completion'&&row.body.messages?.at(-1)?.content==='CHILD_DETACHED_Q_0').length===detachedBeforeClose+1,'Detached child must reach the provider before shutdown');
+  await choose('Questions #',1);await wait(composition==='selected'?'CUSTOM QUESTION':'Remote');
+  await capture('07-detached-question-before-close');
+  await main();await key('Control+c');await observe(async()=>ptyExit,value=>value===0,'Actual CLI application close');result.ptyExitCode=ptyExit;
   await observe(trace,rows=>rows.some(row=>row.event==='private-form-result'&&row.tag==='CHILD_FORM_MANAGED_LAST'&&(row.value===null||Boolean(row.error))),'Application close cancels managed form');
   await observe(trace,rows=>rows.filter(row=>row.event==='child-result'&&row.mode==='detached').length===rows.filter(row=>row.event==='child-launch'&&row.mode==='detached').length,'Application close settles every actual detached caller');
   if(composition==='native'){passed.add(4);passed.add(5);}else{passed.add(2);passed.add(3);}

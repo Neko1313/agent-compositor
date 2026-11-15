@@ -279,9 +279,10 @@ these profile fields:
 ```
 
 The endpoint must share the provider's origin. It uses the profile key and caches
-results for 30 seconds. Without an endpoint, or on error, the UI reports that
+results for 30 seconds; changing the credential, endpoint, response mapping or
+transport triggers a new lookup. Without an endpoint, or on error, the UI reports that
 quota information is unavailable. Account balance is not inferred from a local
-counter.
+counter. Responses are limited to 100,000 bytes while reading.
 
 ## Extensions
 

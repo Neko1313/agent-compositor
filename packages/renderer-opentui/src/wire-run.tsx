@@ -91,7 +91,7 @@ export async function runOpenTuiWireRenderer(options:OpenTuiWireRendererOptions)
   try{
     if(interactive){
       sdk=await import('@opentui/core');
-      renderer=await sdk.createCliRenderer({stdin,stdout,environment:options.environment,exitOnCtrlC:false,useMouse:mouseEnabled,enableMouseMovement:mouseEnabled,autoFocus:false,kittyImageTransport:'zlib',consoleMode:'disabled',externalOutputMode:'passthrough'});
+      renderer=await sdk.createCliRenderer({stdin,stdout,environment:options.environment,exitOnCtrlC:false,useMouse:mouseEnabled,enableMouseMovement:mouseEnabled,autoFocus:false,kittyImageTransport:'zlib',consoleMode:'disabled',externalOutputMode:'passthrough',debounceDelay:20});
       renderer.keyInput.on('keypress',key);renderer.keyInput.on('paste',paste);renderer.on(sdk.CliRenderEvents.RESIZE,resize);
       renderer.on(sdk.CliRenderEvents.RENDER_ERROR,renderError);renderer.on(sdk.CliRenderEvents.HANDLER_ERROR,renderError);
       void renderer.closed.then(()=>finish(),error=>finish(error));

@@ -739,6 +739,12 @@ Cancellation can remove a waiting prompt without waiting for that later write.
 An accepted ordinary queued prompt cancelled by interruption is immediately
 available for explicit review with `/recover`; an input interrupted before
 admission stays in the editor instead of appearing in that in-memory list.
+New user input, queue and steering intent records carry a host-assigned recovery
+order. Replay uses it to retain their relative order even when a custom journal
+acknowledges concurrent intent writes out of order. Older records without this
+metadata keep their journal order ahead of ordered entries; they are not rewritten.
+Custom journal implementations must preserve the complete event payload,
+including this metadata, for that ordering to survive a restart.
 A steering notification is recorded separately from its application at the next
 model step. An accepted steer that did not reach that boundary is offered for
 explicit review with `/recover`, including when the current turn finishes first.

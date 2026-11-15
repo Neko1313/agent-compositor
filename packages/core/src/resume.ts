@@ -259,10 +259,13 @@ function safeStringify(output: unknown): string {
 export function recoverQueuedInputs(events: SessionEvent[]): {id:string;text:string}[] {
   const consumed=new Set(events.filter(event=>event.type==='prompt.submit'||event.type==='prompt.dropped'||event.type==='prompt.steer.applied'||event.type==='prompt.recovery.discarded')
     .map(event=>event.recoveryId).filter((id):id is string=>typeof id==='string'));
-  const found=new Map<string,string>();
+  const found=new Map<string,{text:string;order?:number}>();
   for(const event of events){
     if((event.type==='prompt.queued'||event.type==='prompt.queue.intent'||event.type==='prompt.input.intent'||event.type==='prompt.steer.intent')&&typeof event.recoveryId==='string'&&typeof event.text==='string'
-      &&!consumed.has(event.recoveryId)&&!found.has(event.recoveryId))found.set(event.recoveryId,event.text);
+      &&!consumed.has(event.recoveryId)&&!found.has(event.recoveryId)){
+      const order=event.recoveryOrder;
+      found.set(event.recoveryId,{text:event.text,...(typeof order==='number'&&Number.isSafeInteger(order)&&order>=0?{order}:{})});
+    }
   }
-  return [...found].map(([id,text])=>({id,text}));
+  return [...found].sort(([,a],[,b])=>a.order===undefined?b.order===undefined?0:-1:b.order===undefined?1:a.order-b.order).map(([id,value])=>({id,text:value.text}));
 }

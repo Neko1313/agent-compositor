@@ -1,5 +1,20 @@
 # Project memory
 
+## Recovery order in concurrent journals — 2026-11-16
+
+A custom journal fixture delayed one steering intent while accepting a later
+queued intent first. The earlier in-memory ordering and journal replay then
+disagreed. New user-input, queued and steering intent records now carry a
+host-issued recovery order; replay uses it even if intent writes reach that
+backend in a different order. Older unnumbered entries remain first in their
+existing journal order, and resumed sessions continue above recorded orders.
+The held-write regression and a mixed legacy/resume/retry case exercise these
+rules; custom journal implementations must preserve the complete payload. The
+ordinary mixed-order PTY passed on source and a locally relocated Linux x64
+archive, with the latter at dist/visual-opentui-journal-order-native-final-20261116/.
+That PTY does not inject an out-of-order journal. This does not establish
+behavior for corrupt, dishonest or partially lost journals.
+
 ## Mixed recovery ordering — 2026-11-16
 
 Interrupting a held turn with both accepted steering and queued input previously

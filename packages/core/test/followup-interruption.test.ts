@@ -98,6 +98,37 @@ it('keeps earlier recovered messages ahead of newly interrupted steering',async(
   expect(recoverQueuedInputs(journal).map(item=>item.text)).toEqual(['Older queued','New steering']);
  }finally{provider.release();}
 });
+it('keeps mixed recovery order when a custom journal acknowledges intents out of order',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'recovery-concurrent-order-'));roots.push(cwd);const journal:any[]=[];
+ let entered!:()=>void,release!:()=>void;const started=new Promise<void>(resolve=>{entered=resolve;}),held=new Promise<void>(resolve=>{release=resolve;});
+ const provider=new ScriptedProvider([{text:'Working',hold:true}]);
+ const sessions={create:async()=>{},append:async(_id:string,events:any[])=>{if(events.some(event=>event.type==='prompt.steer.intent')){entered();await held;}journal.push(...events);}};
+ const core=new AgentCore({cwd,provider,sessions});cores.push(core);const turn=core.submit('Start');await vi.waitFor(()=>expect(provider.requests).toHaveLength(1));
+ try{
+  const steering=core.steer('First steering');await started;
+  const queued=core.dispatchInput('Second queued');expect(await queued.admitted).toBe('queued');await queued.completion;
+  release();await steering;core.interrupt();await turn;
+  expect(core.getRecoveredInputs().map(item=>item.text)).toEqual(['First steering','Second queued']);
+  expect(recoverQueuedInputs(journal).map(item=>item.text)).toEqual(['First steering','Second queued']);
+ }finally{release();provider.release();}
+});
+it('continues recovery ordering after resume while keeping legacy entries first',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'recovery-order-resume-'));roots.push(cwd);
+ const journal:any[]=[{type:'prompt.queue.intent',text:'Legacy',recoveryId:'legacy'},
+  {type:'prompt.queue.intent',text:'Earlier',recoveryId:'earlier',recoveryOrder:40},
+  {type:'prompt.queue.intent',text:'Legacy',recoveryId:'legacy',recoveryOrder:80},
+  {type:'prompt.input.intent',text:'Completed',recoveryId:'completed',recoveryOrder:90},
+  {type:'prompt.submit',text:'Completed',recoveryId:'completed'}];
+ const core=AgentCore.resume({cwd,isWorkBlocked:()=>true,sessions:{create:async()=>{},append:async(_id,events)=>{journal.push(...events);}}},structuredClone(journal));cores.push(core);
+ const input=core.dispatchInput('New');expect(await input.admitted).toBe('queued');await input.completion;core.interrupt();
+ expect(journal.find(event=>event.type==='prompt.queue.intent'&&event.text==='New').recoveryOrder).toBe(91);
+ expect(core.getRecoveredInputs().map(item=>item.text)).toEqual(['Legacy','Earlier','New']);
+ expect(recoverQueuedInputs(journal).map(item=>item.text)).toEqual(['Legacy','Earlier','New']);
+ expect(await core.retryRecoveredInput('legacy')).toBe('queued');
+ expect(journal.filter(event=>event.type==='prompt.queue.intent'&&event.recoveryId==='legacy').at(-1)).not.toHaveProperty('recoveryOrder');
+ core.interrupt();expect(core.getRecoveredInputs().map(item=>item.text)).toEqual(['Legacy','Earlier','New']);
+ expect(recoverQueuedInputs(journal).map(item=>item.text)).toEqual(['Legacy','Earlier','New']);
+});
 it('does not expose an already requeued recovery when its earlier cancelled write fails late',async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'queue-recovery-late-failure-'));roots.push(cwd);
  let entered!:()=>void,release!:()=>void,writes=0;const started=new Promise<void>(resolve=>{entered=resolve;}),held=new Promise<void>(resolve=>{release=resolve;});

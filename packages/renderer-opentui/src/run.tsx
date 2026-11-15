@@ -57,7 +57,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   let renderer:Awaited<ReturnType<typeof createCliRenderer>>;
   try{renderer=await createCliRenderer({stdin,stdout,environment:options.environment,nativeSession:session,
     prependInputHandlers:runtime?[sequence=>runtime.input(sequence)]:undefined,
-    exitOnCtrlC:!options.onCtrlC&&!runtime, kittyImageTransport: 'zlib',debounceDelay:20});}
+    exitOnCtrlC:!options.onCtrlC&&!runtime, kittyImageTransport: 'zlib'});}
   catch(error){await runtime?.close();session?.dispose();throw error;}
   runtime?.start();
   let closing:Promise<void>|undefined;

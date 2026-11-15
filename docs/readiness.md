@@ -369,7 +369,17 @@ an intermediate screenshot briefly contained both old and new image positions
 before the final redraw. A control run with `AGENT_GRAPHICS=off` also captured
 duplicated text and panel borders immediately after the same resize, so the
 artifact is not limited to the SIXEL image path; its underlying cause remains
-unresolved. A further run focused the panel, closed it with its
+unresolved. An experimental reduction of OpenTUI's resize debounce from 100 ms
+to 20 ms produced earlier settled captures in three XTerm trials, but did not
+eliminate the intermediate artifact. In two additional synthetic trials of 75
+resize requests spaced 40 ms apart, the Bun process used about 1.92–1.93 CPU
+seconds over three seconds at 20 ms, versus 0.05 seconds at 100 ms. Both restored
+the chart. Two trials at 50 ms used 0.06 seconds in this same 40 ms-spaced
+scenario, but do not establish behavior at slower resize frequencies. This
+narrow XTerm/SIXEL fixture is not a general benchmark; the 20 ms
+change was reverted pending a better balance of responsiveness and resource use.
+Evidence is under `dist/sixel-xterm-research/timing-*` and `cpu-*`. A further
+run focused the panel, closed it with its
 mouse `[x]` control and reopened it through the window finder; the screenshot
 showed no colored pixels after closing and the image returned after reopening.
 A reference SIXEL image also rendered in the same isolated X11 environment.

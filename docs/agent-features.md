@@ -282,7 +282,8 @@ The endpoint must share the provider's origin. It uses the profile key and cache
 results for 30 seconds; changing the credential, endpoint, response mapping or
 transport triggers a new lookup. Without an endpoint, or on error, the UI reports that
 quota information is unavailable. Account balance is not inferred from a local
-counter. Responses are limited to 100,000 bytes while reading.
+counter. If configuration changes during a lookup, the result is rejected and
+can be requested again. Responses are limited to 100,000 bytes while reading.
 
 ## Extensions
 

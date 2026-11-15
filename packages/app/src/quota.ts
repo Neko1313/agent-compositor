@@ -2,10 +2,11 @@ import type { ProviderRouter } from "@agent-compositor/provider";
 import {createHash} from 'node:crypto';
 export function quotaReader(router: ProviderRouter) {
   let cached: { signature: string; fetcher: typeof fetch; at: number; value: unknown } | undefined;
+  const fingerprint=(name:string,p:any)=>createHash('sha256').update(JSON.stringify([name,p?.type,p?.baseUrl,p?.apiKey,p?.quota])).digest('hex');
   return async () => {
     const name = router.credentialProfile,
       p = router.profiles[name] as any,
-      config = p?.quota;
+      config = p?.quota ? {...p.quota} : undefined;
     if (!config?.url)
       return {
         value: { available: false, reason: "No quota endpoint configured" },
@@ -15,7 +16,7 @@ export function quotaReader(router: ProviderRouter) {
     if (url.origin !== base.origin)
       throw new Error("Quota endpoint must share the provider origin");
     const fetcher:typeof fetch=p.fetch??fetch;
-    const signature=createHash('sha256').update(JSON.stringify([name,p.type,p.baseUrl,p.apiKey,config])).digest('hex');
+    const signature=fingerprint(name,p);
     if (cached?.signature === signature && cached.fetcher===fetcher && Date.now() - cached.at < 30000)
       return { value: cached.value };
     const headers: Record<string, string> =
@@ -40,6 +41,9 @@ export function quotaReader(router: ProviderRouter) {
         text+=decoder.decode();
       }finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
     }
+    const current=router.profiles[router.credentialProfile] as any;
+    if(router.credentialProfile!==name||fingerprint(name,current)!==signature||(current?.fetch??fetch)!==fetcher)
+      throw new Error('Quota configuration changed during the request; retry');
     const body = JSON.parse(text);
     const field = (path: string) =>
       String(path)

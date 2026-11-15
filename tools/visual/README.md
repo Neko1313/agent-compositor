@@ -131,6 +131,9 @@ composition and its documented custom-editor F2 key unchanged.
 
 `npm run visual:opentui-editor` checks a selected editor in two fresh actual-CLI
 compositions: native private requests, then selected private request controllers.
+Its concurrent JSONL observations parse only newline-terminated records; a
+partially written final record is observed on the next read. Malformed complete
+records still fail the scenario.
 Its six bounded flows retain the original F2-submit/Enter-newline contract and
 exercise UTF-16 cursor checkpoints, terminal paste, command/file capabilities,
 visible busy queue receipts, accepted hook/provider failures, native and selected

@@ -6,6 +6,7 @@ import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
 import {createOpenTuiFinder} from './opentui-finder.mjs';
+import {completeJsonLines} from './jsonl.mjs';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-editor');
 const timeout=20_000,hash=text=>createHash('sha256').update(text).digest('hex');
@@ -74,8 +75,8 @@ for(const composition of ['native','selected']){
           if(previous.frames!==frames||previous.text!==text){window.__editorQuiet={frames,text,since:now};return false;}return now-previous.since>=150;
         },undefined,{polling:'raf',timeout:5000});}
     }throw Error('Terminal changed during both screenshot attempts: '+name);}
-    const trace=async()=>{const value=await readFile(launch.editor.trace,'utf8');return value.trim().split('\n').filter(Boolean).map(JSON.parse);};
-    const completions=async()=>(await readFile(join(directory,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse).filter(row=>row.kind==='completion');
+    const trace=async()=>completeJsonLines(await readFile(launch.editor.trace,'utf8'));
+    const completions=async()=>completeJsonLines(await readFile(join(directory,'app-http.jsonl'),'utf8')).filter(row=>row.kind==='completion');
     const sessionFiles=async()=>(await readdir(join(launch.state,'sessions'))).filter(name=>name.endsWith('.jsonl'));
     const journal=async()=>(await Promise.all((await sessionFiles()).map(name=>readFile(join(launch.state,'sessions',name),'utf8')))).join('\n');
     const receipt=mode=>observe(()=>json(launch.editor.receipts[mode]),()=>true,'Caller receipt '+mode);

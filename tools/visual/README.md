@@ -984,13 +984,16 @@ or proof of a compiled host archive. The fixture uses no saved profile or key.
 loads the exact selected `resources` package through the real app. The main model
 is held while the user opens the charts, waits for actual sample growth, pauses
 across a measured observation window, switches tabs by mouse/keyboard, samples
-manually, clears history, scrolls narrow controls, closes/reopens and restarts.
+manually, explicitly queues a selected memory sample while the main turn remains
+held, clears history, scrolls narrow controls, closes/reopens and restarts.
 The fixture uses actual process counters, not seeded graph values.
 
 For a complete extracted native host, use
 `VISUAL_RESOURCES=1 VISUAL_EXECUTABLE=/path/to/extracted/compositor VISUAL_OUTPUT=dist/native-resources node tools/visual/agent-table-check.mjs`.
 This uses the bundled plugin and one held-main loopback request; resource controls
-must not produce additional model requests. Both paths record thirteen checks,
+do not produce additional model requests while the main turn is held. The queued
+sample is interrupted and the isolated session restarted before it can run.
+Both paths record thirteen checks,
 including the visual certification requirements, and capture wide/narrow/restart
 screenshots. Source-host artifact certification can select an exact installed
 plugin with `VISUAL_PLUGIN_DIR`; native proof uses bundled code only.

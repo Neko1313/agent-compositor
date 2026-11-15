@@ -280,7 +280,9 @@ It includes in-process agents. On Linux, a separate child CPU chart estimates
 the load of surviving descendants and an on-demand snapshot sums their RSS; both
 report incomplete observations and can miss short-lived processes. External
 model servers, per-agent attribution and broader resource integrations remain
-open. Agent and workflow views use
+open. An explicit panel action can queue the latest complete selected sample for
+the current agent; sampling and opening the panel do not request a model. Agent
+and workflow views use
 catalog 0.27 semantic tables and catalog 0.28 tabs: expandable details, state
 filters, paginated stages/results, keyboard/mouse navigation and narrow stacked
 fields. Workflow pause/resume and legacy journals remain available. Closing the

@@ -18,11 +18,26 @@ describe('resources monitor',()=>{
   try{
    await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['resources'],agent:{projectContext:false,skills:false}}));
    const provider=new ScriptedProvider([{text:'MAIN_RUNNING',hold:true}]);app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins/resources')]});expect(app.pluginErrors).toEqual([]);
-   const core=app.createCore(async()=>true),views:UiTextView[]=[];core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.surface'&&(event.input as any).plugin==='resources')views.push((event.input as any).view);});
+   const core=app.createCore(async()=>true),views:UiTextView[]=[],queued:string[]=[];core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='prompt.queued')queued.push((event.input as any).text);if(event.kind==='catalog'&&event.event==='ui.surface'&&(event.input as any).plugin==='resources')views.push((event.input as any).view);});
    const turn=core.submit('Work');await vi.waitFor(()=>{expect(core.failure).toBeUndefined();expect(provider.requests).toHaveLength(1);},{timeout:3000});
    const command=app.commands().find(command=>command.name==='/resources');expect(command?.ui?.site).toBe('plugin-resources-resources');await core.host.emit('ui.press',{site:command!.ui!.site,key:'command:/resources'});expect(views.at(-1)!.lines.some(line=>line.text.includes('Compositor process'))).toBe(true);expect(core.getState()).toBe('running');expect(provider.requests).toHaveLength(1);
-   core.interrupt();await turn;
+   await core.host.emit('ui.press',{site:command!.ui!.site,key:'memory'});
+   await core.host.emit('ui.press',{site:command!.ui!.site,key:'share'});
+   expect(queued).toHaveLength(1);expect(views.at(-1)!.lines.some(line=>line.text==='Resource observation queued for the agent.')).toBe(true);expect(queued[0]).toContain('Compositor process RSS:');expect(queued[0]).toContain('excludes child processes');
+   expect(provider.requests).toHaveLength(1);expect(core.getState()).toBe('running');
+   provider.release();await turn;await vi.waitFor(()=>expect(provider.requests.length).toBeGreaterThanOrEqual(2));
+   expect(JSON.stringify(provider.requests[1].messages)).toContain('Compositor process RSS:');
   }finally{await app?.close();await rm(cwd,{recursive:true,force:true});}
+ });
+ it('only queues complete selected observations and reports rejected requests',async()=>{
+  const views:UiTextView[]=[],calls:any[]=[],sampler=new Sampler({now:()=>1n,cpu:()=>({user:0,system:0}),memory:()=>({rss:2097152,heapUsed:1048576,heapTotal:2097152})});
+  const api={ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{views.push(view);},remove:async()=>{}},emit:async(_event:string,input:any)=>{calls.push(input);return {deny:'queue full'};}};
+  const monitor=new Monitor(api,sampler);
+  try{
+   await monitor.show();await monitor.press('share');expect(calls).toHaveLength(0);expect(views.at(-1)!.lines.some(line=>line.text.includes('No process CPU interval'))).toBe(true);
+   await monitor.press('child-cpu');await monitor.press('share');expect(calls).toHaveLength(0);expect(views.at(-1)!.lines.some(line=>line.text.includes('No complete child CPU interval'))).toBe(true);
+   await monitor.press('memory');await monitor.press('share');expect(calls).toHaveLength(1);expect(calls[0].text).toContain('RSS: 2.0 MiB');expect(views.at(-1)!.lines.some(line=>line.text.includes('queue full'))).toBe(true);
+  }finally{monitor.dispose();}
  });
  it('measures elapsed CPU including multiple cores and rejects invalid counters',()=>{
   let now=0n,user=0;const sampler=new Sampler({now:()=>now,cpu:()=>({user,system:0}),memory:()=>({rss:100,heapUsed:50,heapTotal:80})});

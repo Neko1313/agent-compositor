@@ -1,7 +1,7 @@
 # Process resource monitor
 
 `/resources` opens an independent live CPU/memory window. It does not expose an
-agent tool, invoke a model, run a subprocess, or read project files. It stays usable
+agent tool, automatically invoke a model, run a subprocess, or read project files. It stays usable
 while the main agent works. Enable the `resources` plugin through Settings or the
 extension manager; invoke `/resources` to start sampling.
 
@@ -32,6 +32,16 @@ between completed updates. The horizontal axis is sample order, not a promise of
 exactly spaced timestamps. History retains at most 120 samples in memory; the plot
 shows the newest samples that fit. Narrow windows reduce the plot width; use
 Alt+f or PageUp/PageDown for the complete controls.
+
+**Send latest sample to agent** explicitly queues the latest complete observation
+for the current conversation. CPU and memory describe the Compositor process;
+Child CPU is an approximate descendant interval. The request includes units and
+these limits, not a per-agent or machine-wide diagnosis. A missing CPU interval
+or incomplete child interval is not sent. The agent runs the request after its
+current turn under normal permissions and budgets; interruption pauses queued
+follow-ups until an explicit continuation. Closing or unloading the plugin can
+revoke an undelivered request. This action can trigger a model request; opening
+or sampling the monitor does not.
 
 Pause/Resume freezes or resumes automatic measurement. Sample now takes a reading
 while paused and retries a failed sample; on Child CPU it also reads descendants.

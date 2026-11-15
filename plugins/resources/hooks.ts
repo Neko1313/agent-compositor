@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {Sampler,chart,type Sample} from './metrics.js';
 import {ChildrenCpu,snapshotChildren,type ChildrenSnapshot} from './children.js';
 
@@ -14,6 +15,8 @@ export class Monitor {
   private children?:ChildrenSnapshot | null;
   private childrenError=false;
   private childrenPending=false;
+  private sharing=false;
+  private shareStatus?:string;
   private childrenRevision=0;
   private childrenController?:AbortController;
   private readonly childrenCpu=new ChildrenCpu();
@@ -59,6 +62,8 @@ export class Monitor {
         ...(this.metric==='children'?[{text:`Child CPU: ${this.childrenHistory.at(-1)?.cpu===undefined?'waiting for interval':this.childrenHistory.at(-1)!.cpu!.toFixed(1)+'%'}${this.childrenHistory.at(-1)?.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
         {text:this.metric==='cpu'?'CPU history (%)':this.metric==='memory'?'Resident memory history (MiB)':'Child CPU history (%) · approximate',bold:true},
         ...chart(this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576),this.columns,this.metric==='memory'?'MiB':'%',this.metric==='memory'?0:100).map(text=>({text})),
+        ...(this.shareStatus?[{text:this.shareStatus,tone:'muted' as const}]:[]),
+        {text:'[ Send latest sample to agent ]',action:'share'},
         {text:this.paused?'[ Resume ]':'[ Pause ]',action:'pause',tone:'accent' as const},
         {text:'[ Sample now ]',action:'sample'},this.childrenPending?{text:'[ Reading children… ]',tone:'muted' as const}:{text:'[ Snapshot children ]',action:'children'},{text:'[ Clear history ]',action:'clear'},{text:'[ Close ]',action:'close'},
       ],
@@ -77,9 +82,34 @@ export class Monitor {
     if(revision===this.childrenRevision){this.childrenController=undefined;this.childrenPending=false;}
   }
   async show(){this.stop();this.cancelChildren();this.open=true;this.visible=true;this.sampler.reset();this.take();await this.paint(true);this.schedule();}
-  async press(key:string){
+  private async share($:any){
+    if(this.sharing)return;
+    const latest=this.samples.at(-1),child=this.childrenHistory.at(-1);
+    let observation:string;
+    if(this.metric==='children'){
+      if(!child||child.cpu===undefined||child.partial){this.shareStatus='No complete child CPU interval to send.';await this.paint();return;}
+      observation=`Child CPU: ${child.cpu.toFixed(1)}% (100% is one core). Approximate live descendant estimate; short-lived processes can be missed.`;
+    }else if(this.metric==='cpu'){
+      if(latest?.cpu===undefined){this.shareStatus='No process CPU interval to send yet.';await this.paint();return;}
+      observation=`Compositor process CPU: ${latest.cpu.toFixed(1)}% (100% is one core). Includes in-process agents and excludes child processes.`;
+    }else{
+      if(!latest){this.shareStatus='No memory sample to send yet.';await this.paint();return;}
+      observation=`Compositor process RSS: ${(latest.rss/1048576).toFixed(1)} MiB; JavaScript heap used: ${(latest.heapUsed/1048576).toFixed(1)} MiB. Includes in-process agents and excludes child processes.`;
+    }
+    this.sharing=true;
+    try{
+      const result=await $.emit('service.agent.enqueue',{plugin:'resources',key:`observation:${randomUUID()}`,text:`The user explicitly sent this resource observation for analysis: ${observation} This is a point-in-time measurement, not per-agent attribution or machine-wide usage. ${this.paused?'Sampling is paused, so this observation may be stale.':'This is the latest available sample; sampling can be delayed or stopped by errors.'} Investigate further only as appropriate for the user's task.`});
+      if(result?.deny)throw Error(result.deny);
+      if(result?.value?.queued!==true)throw Error('Follow-up was not queued');
+      this.shareStatus='Resource observation queued for the agent.';
+    }catch(error){this.shareStatus=`Could not queue resource observation: ${String(error).slice(0,300)}`;}
+    finally{this.sharing=false;}
+    await this.paint();
+  }
+  async press(key:string,$=this.$){
     if(!this.open)return;
     if(key==='close'){this.dispose();await this.$.ui.remove('resources');return;}
+    if(key==='share'){await this.share($);return;}
     if(key==='children'){
       if(this.childrenPending)return;
       const revision=this.childrenRevision;const pending=this.sampleChildren(false);await this.paint();await pending;
@@ -120,7 +150,7 @@ export default {
   },
   'ui.press':async(event:{site:string;key:string},$:any)=>{
     if(event.site!=='plugin-resources-resources')return;
-    if(event.key==='command:/resources')await monitor($).show();else await instances.get($.session.id)?.press(event.key);
+    if(event.key==='command:/resources')await monitor($).show();else await instances.get($.session.id)?.press(event.key,$);
   },
   'ui.visibility':async(event:any,$:any)=>{
     if(event.site==='plugin:resources/resources')await instances.get($.session.id)?.visibility(event);

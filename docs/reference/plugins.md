@@ -29,7 +29,7 @@ All 32 filesystem plugins start inactive. [Install and explicitly enable](../mar
 | [plan-mode](../../plugins/plan-mode/README.md) | 1.2.2 | Plan mode (Claude Code /plan analog): toggle with /plan — the model gets a read-only reminder, every write/exec call is denied until you toggle it off. Drop this folder to remove. |
 | [plugin-author](../../plugins/plugin-author/README.md) | 1.4.0 | Create and improve Compositor plugins from a request: bundled skill, current contracts, starter files and non-executing structure checks. |
 | [project-checks](../../plugins/project-checks/README.md) | 0.1.1 | Discover and run guarded local npm script checks from a tool or panel. |
-| [resources](../../plugins/resources/README.md) | 0.1.0 | Independent process CPU and memory charts; no agent tool or model request. |
+| [resources](../../plugins/resources/README.md) | 0.1.0 | Independent CPU and memory charts with explicit sample sharing; no automatic model request. |
 | [session-ctl](../../plugins/session-ctl/README.md) | 1.1.2 | /compact — force context compaction now; /clear — drop the conversation, keep the system prompt (Claude Code /compact and /clear analogs). Both ride $.agent. Drop this folder to remove. |
 | [slash-commands](../../plugins/slash-commands/README.md) | 1.1.2 | /help, /status, /usage — command palette harvested from Claude Code / Gemini CLI slash-command UX. Drop this folder to remove. |
 | [test-reports](../../plugins/test-reports/README.md) | 0.1.1 | Read local Vitest/Jest JSON reports with complete counts and bounded failures |

@@ -1,7 +1,7 @@
 {
   "name": "resources",
   "version": "0.1.0",
-  "description": "Independent process CPU and memory charts; no agent tool or model request.",
+  "description": "Independent CPU and memory charts with explicit sample sharing; no automatic model request.",
   "trust": "trusted",
   "capabilities": ["ui"],
   "commands": [{"name": "/resources", "description": "Open process CPU and memory charts", "ui": {"site": "resources"}}],

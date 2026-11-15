@@ -34,9 +34,13 @@ try{
   assert.deepEqual(after,before,'Screenshot must capture one stable terminal frame');report.screenshots.push(name+'.png');
  }
  await wait('Alt+W Arrange');await command('BTW_MAIN_HOLD');await wait('BTW_MAIN_WORKING');await wait('Main · Running');
- await command('/btw BTW_SIDE_QUESTION');await wait('Side conversation');await pick('Side conversation');await wait('BTW_SIDE_ANSWER');
+ await command('/btw BTW_SIDE_QUESTION');await wait('Side conversation');await pick('Side conversation');await wait('BTW_SIDE_ANSWER');await wait('idle · shared workspace');
  await capture('01-side-during-main');
- await key('Tab');await page.keyboard.type('BTW_SIDE_FOLLOWUP');await wait('BTW_SIDE_FOLLOWUP');await key('Enter');await wait('BTW_SIDE_FOLLOWUP_ANSWER');
+ await key('Tab');await page.keyboard.type('BTW_SIDE_FOLLOWUP');await wait('BTW_SIDE_FOLLOWUP');await key('Enter');await wait('BTW_SIDE_FOLLOWUP_ANSWER');await wait('idle · shared workspace');
+ await page.keyboard.type('BTW_SIDE_HOLD');await wait('BTW_SIDE_HOLD');await key('Enter');await wait('BTW_SIDE_WORKING');await key('Control+c');
+ const receipts=async()=>(await readFile(join(output,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
+ await observe(receipts,rows=>rows.some(row=>row.kind==='btw-side-aborted'),'Side request must be interrupted');
+ assert.ok(!(await receipts()).some(row=>row.kind==='btw-main-aborted'),'Stopping the side agent must not interrupt Main');
  await key('Alt+0');await wait('Main · focused');await wait('BTW_MAIN_WORKING');await wait('Main · Running');
  await page.keyboard.type('BTW_MAIN_DRAFT');await wait('BTW_MAIN_DRAFT');await pick('Side conversation');await page.keyboard.type('BTW_SIDE_DRAFT');await wait('BTW_SIDE_DRAFT');
  await key('Alt+0');await wait('Main · focused');await wait('BTW_MAIN_DRAFT');await wait('Main · Running');await capture('02-main-draft-retained');
@@ -49,7 +53,7 @@ try{
  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(value=>visual.generation>value,generation);await wait('Alt+W Arrange');
  await command('/btw');await wait('Side conversation');await pick('Side conversation');await wait('BTW_SIDE_FOLLOWUP_ANSWER');await wait('BTW_SIDE_DRAFT');await capture('04-side-after-restart');
  const http=(await readFile(join(output,'app-http.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse),completions=http.filter(row=>row.kind==='completion');
- assert.equal(completions.length,3);assert.deepEqual(completions.map(row=>row.body.messages.filter(message=>message.role==='user').at(-1).content),['BTW_MAIN_HOLD','BTW_SIDE_QUESTION','BTW_SIDE_FOLLOWUP']);
- report.checks.push('Main remains running while /btw opens and replies','Side follow-up uses its own conversation while Main keeps its draft','Closing and reopening /btw retains the side draft and history','After restart /btw restores the side draft and history','Only the three explicit prompts reached the loopback provider');report.ok=true;
+ assert.equal(completions.length,4);assert.deepEqual(completions.map(row=>row.body.messages.filter(message=>message.role==='user').at(-1).content),['BTW_MAIN_HOLD','BTW_SIDE_QUESTION','BTW_SIDE_FOLLOWUP','BTW_SIDE_HOLD']);
+ report.checks.push('Main remains running while /btw opens and replies','Stopping the side agent aborts only its own request','Side follow-up uses its own conversation while Main keeps its draft','Closing and reopening /btw retains the side draft and history','After restart /btw restores the side draft and history','Only the four explicit prompts reached the loopback provider');report.ok=true;
 }catch(error){report.errors.push(String(error));if(page){await writeFile(join(output,'failure.txt'),await page.evaluate(()=>visual.text()).catch(()=>''));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});}}
 finally{await browser?.close();if(server?.exitCode===null){server.kill('SIGTERM');await serverExit;}await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

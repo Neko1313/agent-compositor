@@ -244,9 +244,9 @@ const server = Bun.serve({
       appReceipt({kind:'completion',number:++appRequests,model:body.model,credential,authorizationHash:new Bun.CryptoHasher('sha256').update(authorization).digest('hex'),body});
       if(process.env.VISUAL_OPENTUI_BTW){
         if(appRequests>8||credential==='unexpected')return new Response('Unexpected isolated side-chat request',{status:400});
-        if(prompt==='BTW_MAIN_HOLD'){
-          const frame=`data: ${JSON.stringify({choices:[{delta:{content:'BTW_MAIN_WORKING'},finish_reason:null}]})}\n\n`;
-          return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(frame));request.signal.addEventListener('abort',()=>{appReceipt({kind:'btw-main-aborted'});try{controller.close();}catch{}},{once:true});}}),{headers:{'content-type':'text/event-stream'}});
+        if(prompt==='BTW_MAIN_HOLD'||prompt==='BTW_SIDE_HOLD'){
+          const side=prompt==='BTW_SIDE_HOLD',frame=`data: ${JSON.stringify({choices:[{delta:{content:side?'BTW_SIDE_WORKING':'BTW_MAIN_WORKING'},finish_reason:null}]})}\n\n`;
+          return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(frame));request.signal.addEventListener('abort',()=>{appReceipt({kind:side?'btw-side-aborted':'btw-main-aborted'});try{controller.close();}catch{}},{once:true});}}),{headers:{'content-type':'text/event-stream'}});
         }
         if(!['BTW_SIDE_QUESTION','BTW_SIDE_FOLLOWUP'].includes(prompt))return new Response('Unexpected side-chat prompt',{status:400});
         const content=prompt==='BTW_SIDE_QUESTION'?'BTW_SIDE_ANSWER':'BTW_SIDE_FOLLOWUP_ANSWER';

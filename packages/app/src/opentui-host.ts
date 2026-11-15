@@ -1516,6 +1516,16 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       return [...new Set(['/chat', '/reload', '/windows', '/placement', '/plugins', '/settings', '/models', '/providers',
         ...app.commands().map(command => command.name)].filter(name => immediate(name)))];
     },
+    interruptAgent(surfaceId: string): boolean {
+      const prefix = 'plugin-agent-hub-agent-';
+      const surface = surfaceMap.get(surfaceId);
+      if (!active || !surfaceId.startsWith(prefix) || !surface?.active || surface.owner !== 'agent-hub') return false;
+      const action = `stop:${surfaceId.slice(prefix.length)}`;
+      // A focused agent owns Ctrl+C even when its action cannot currently be
+      // admitted; never fall through and interrupt an unrelated Main turn.
+      if (surface.state.view && actions(surface.state.view).has(action)) surface.source.press(action, surface.state.revision);
+      return true;
+    },
     cancelOperation(surfaceId: string): boolean {
       if (!active) return false;
       let cancelled = false;

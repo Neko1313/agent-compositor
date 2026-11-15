@@ -57,6 +57,7 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
         if(form){surface?.cancelForm?.(form.id);return 'handled';}
         const main=current.mainSession(focused),mainController=main?.snapshot().controller;
         if(mainController){main?.cancelController?.(mainController.id);return 'handled';}
+        if(current.interruptAgent(focused))return 'handled';
         if(current.cancelOperation(focused))return 'handled';
         if(current.core.hasInterruptibleWork){current.core.interrupt();return 'handled';}
         return 'exit';

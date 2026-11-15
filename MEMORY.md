@@ -1,5 +1,15 @@
 # Project memory
 
+## Side-agent input observation — 2026-11-16
+
+During the OpenTUI `/btw` visual check, a follow-up entered immediately after
+the streamed answer appeared reached the fixture without its final character
+(`BTW_SIDE_FOLLOWU`). Evidence: `dist/visual-opentui-btw-side-cancel-fixed/`.
+The same scenario passed on another run. The answer had not necessarily reached
+idle when input began, so the check now waits for idle before the next prompt;
+this stabilizes that scenario but does not establish whether typing during
+finalization is safe. Reproduce and investigate that separate input race.
+
 ## Physical tmux graphics probe — 2026-11-15
 
 The real Kitty 0.50.0 terminal and isolated official tmux 3.8 (downloaded

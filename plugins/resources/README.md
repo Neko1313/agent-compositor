@@ -33,8 +33,9 @@ exactly spaced timestamps. History retains at most 120 samples in memory; the pl
 shows the newest samples that fit. Narrow windows reduce the plot width; use
 Alt+f or PageUp/PageDown for the complete controls.
 
-**Graphics** optionally adds a colored version of the same observations. Use
-PageUp to reach it in a small window; the numeric text chart stays available.
+**Graphics** optionally adds a colored version of the same observations. In
+OpenTUI the view reveals it when enabled; PageUp returns to it after scrolling.
+The numeric text chart stays available.
 Missing or incomplete intervals remain gaps, and the vertical scale follows the
 same data as the text chart. Terminals without image support show an explanatory
 text alternative. Graphics is off initially and is kept only for the current

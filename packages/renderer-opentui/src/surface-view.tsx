@@ -36,6 +36,8 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
     {ready:scrollReady,input:offset=>{if(override)memory.record(source.id,{top:offset,followBottom:false});}});
   const [selected,setSelected]=useState<string>();
   const [searching,setSearching]=useState(false);
+  const pendingRasterReveal=useRef<number | undefined>(undefined);
+  const preserveScroll=useRef(false);
   const actions=surfaceActions(view);
   const index=Math.max(0,actions.indexOf(selected??''));
   const action=actions[index];
@@ -50,10 +52,19 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
   const activeRequest=useRef(isActive);activeRequest.current=isActive;
   const requestSession=useMemo(()=>createSurfaceRequestSession(source,()=>activeRequest.current()),[source]);
   const interaction=surfaceInteraction(state);
+  useLayoutEffect(()=>{pendingRasterReveal.current=undefined;preserveScroll.current=false;},[source]);
   useLayoutEffect(()=>{
     const id=action?locations.get(action):undefined;
-    if(id)scroller.current?.scrollChildIntoView(id);
+    if(id&&!preserveScroll.current)scroller.current?.scrollChildIntoView(id);
   },[action,state.revision,publicState.revision,width,height]);
+  useLayoutEffect(()=>{
+    const revision=pendingRasterReveal.current;
+    if(revision===undefined||state.revision<=revision||state.busy)return;
+    pendingRasterReveal.current=undefined;
+    if(isActive()&&isVisible()&&!hasSurfaceRequest(state)&&view?.raster&&scroller.current){
+      preserveScroll.current=true;scroller.current.scrollTo(0);publicScroll.input();
+    }
+  },[state.revision,state.busy,view?.raster,isActive,isVisible,publicScroll]);
   useLayoutEffect(()=>{
     const field=view?.input;
     if(input.current&&field&&(fieldId.current!==field.id||(!state.busy&&(!focused||!searching)&&input.current.value!==field.value))){
@@ -68,29 +79,34 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
     return isVisible()&&current.revision===state.revision&&!hasSurfaceRequest(current)
       &&(!publicRender||publicRender.snapshot().revision===publicState.revision);
   };
-  const press=(key:string)=>{if(canPress()){if(override)publicRender?.press(key,publicState.revision);else source.press(key,state.revision);}};
+  const press=(key:string)=>{if(canPress()){
+    pendingRasterReveal.current=override||view?.raster?undefined:state.revision;
+    if(override)publicRender?.press(key,publicState.revision);else source.press(key,state.revision);
+  }};
   useKeyboard(key=>{
     if(key.defaultPrevented||!isActive()||hasSurfaceRequest(source.snapshot()))return;
     if(key.name==='escape'&&!key.meta&&!key.ctrl&&searching){key.preventDefault();flushSync(()=>setSearching(false));return;}
     if(key.name==='tab'&&!key.ctrl&&!key.meta){
       key.preventDefault();
+      pendingRasterReveal.current=undefined;
+      preserveScroll.current=false;
       if(view?.input)flushSync(()=>setSearching(value=>!value));
       else if(actions.length)flushSync(()=>setSelected(actions[(index+(key.shift?-1:1)+actions.length)%actions.length]));
       return;
     }
     if(key.name==='pageup'||key.name==='pagedown'){
-      key.preventDefault();publicScroll.input();scroller.current?.scrollBy(key.name==='pageup'?-1:1,'viewport');return;
+      key.preventDefault();pendingRasterReveal.current=undefined;preserveScroll.current=true;publicScroll.input();scroller.current?.scrollBy(key.name==='pageup'?-1:1,'viewport');return;
     }
     if(searching)return;
     if(key.ctrl||key.meta||key.super||key.hyper)return;
     if(key.name==='up'||key.name==='down'){
-      key.preventDefault();if(actions.length)flushSync(()=>setSelected(actions[Math.max(0,Math.min(actions.length-1,index+(key.name==='up'?-1:1)))]));
+      key.preventDefault();pendingRasterReveal.current=undefined;preserveScroll.current=false;if(actions.length)flushSync(()=>setSelected(actions[Math.max(0,Math.min(actions.length-1,index+(key.name==='up'?-1:1)))]));
     }else if(key.name==='return'&&action){key.preventDefault();if(!key.repeated&&isActive())press(action);}
     else if((key.name==='left'||key.name==='right')&&view?.tabs){
       const tabs=view.tabs.filter(tab=>!tab.disabled);
       const current=Math.max(0,tabs.findIndex(tab=>tab.selected));
       const tab=tabs[(current+(key.name==='left'?-1:1)+tabs.length)%tabs.length];
-      if(tab){key.preventDefault();if(!key.repeated){flushSync(()=>setSelected(tab.action));press(tab.action);}}
+      if(tab){key.preventDefault();pendingRasterReveal.current=undefined;preserveScroll.current=false;if(!key.repeated){flushSync(()=>setSelected(tab.action));press(tab.action);}}
     }
   });
 
@@ -106,7 +122,7 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
     </box>}
   </box>;
 
-  const select=(target:string)=>{setSelected(target);setSearching(false);};
+  const select=(target:string)=>{pendingRasterReveal.current=undefined;preserveScroll.current=false;setSelected(target);setSearching(false);};
   return <box flexGrow={1} flexDirection="column" paddingX={1} minHeight={0}>
     {view&&<TextViewTabs view={view} elementId={elementId} canPress={canPress} press={press} select={select}/>}
     {view?.input&&<box height={1} flexShrink={0} flexDirection="row" onMouseDown={event=>{
@@ -124,7 +140,13 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
           if(!syncingInput.current&&isActive()&&searching&&!hasSurfaceRequest(current)&&current.view?.input?.id===view.input!.id)source.change(view.input!.id,value,current.revision);
         }} />
     </box>}
-    <scrollbox ref={scroller} flexGrow={1} flexBasis={0} minHeight={1} focusable={false} scrollY scrollX={false} onMouse={publicScroll.onMouse}>
+    <scrollbox ref={scroller} flexGrow={1} flexBasis={0} minHeight={1} focusable={false} scrollY scrollX={false} onMouse={event=>{
+      const box=scroller.current,bar=box?.verticalScrollBar;
+      if(event.type==='scroll'||(event.type==='down'&&event.button===0&&event.target===box&&bar?.visible&&event.x>=bar.x&&event.x<bar.x+bar.width&&event.y>=bar.y&&event.y<bar.y+bar.height)){
+        pendingRasterReveal.current=undefined;preserveScroll.current=true;
+      }
+      publicScroll.onMouse(event);
+    }}>
       {!view&&<text fg={color.muted}>Waiting for this view</text>}
       {view&&<TextViewContent view={view} width={width-2} height={height} visible={isVisible()} action={action} narrow={width<60} linesActive={!searching}
         elementId={elementId} canPress={canPress} press={press} select={select}/>}

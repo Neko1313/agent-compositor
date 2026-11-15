@@ -214,6 +214,8 @@ native and selected-controller compositions (six plus four). Ordinary model
 managed create/send/archive uses public agent services with worktrees disabled.
 The normal saved loopback provider routes bounded requests. No private Core,
 manager or window methods simulate terminal interaction.
+Concurrent JSONL reads parse only newline-terminated records; an incomplete
+tail waits for the writer, while malformed completed records still fail.
 
 The scenario checks exact allow/deny effects, independent questions and
 questionnaires, private masked forms, nested parent titles, five same-name
@@ -310,7 +312,8 @@ proves the portable fallback, not physical terminal media support. The tmux
 composer component tests additionally exercise plugin-raster negotiation,
 updates and cleanup; physical Kitty/tmux observations and their limits are
 recorded in [readiness](../../docs/readiness.md#current-development-checkpoint--2026-11-15).
-Main public
+The surface-raster scroll test exercises action-triggered reveal and preservation
+of manual scrolling while a later image is pending. Main public
 actions preserve its native or selected editor's Unicode draft/cursor/undo.
 When the original selected editor truncates its single text row in a narrow
 copy, the check retains that exact view and width: it verifies the visible

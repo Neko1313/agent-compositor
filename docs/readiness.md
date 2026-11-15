@@ -44,6 +44,14 @@ missing-question fixture confirmed that this message identifies a completed
 submission, the received request and the relevant events; it does not explain
 the original uninstrumented failure.
 
+The Node 26 lane of [CI for `a120abb`](https://github.com/Neko1313/agent-compositor/actions/runs/43710603723)
+failed its delegated-child visual check with an unterminated JSON record while
+reading a concurrently written trace. The exact bytes at the instant of the
+failed read were not retained. The observer now uses the existing complete-line
+parser, which waits for a terminating newline and still rejects malformed complete
+records. This addresses a possible partial-write race; the failed run remains
+failed and does not establish the exact write ordering.
+
 At source revision `5133d5b`, the configured OpenTUI CLI passed nine
 browser-backed PTY navigation checks and eight conversation-copy checks.
 These include keyboard retiling, narrow-window layout, closed Main recovery,
@@ -328,6 +336,13 @@ unfixed attempt failed after its captured foreground UI context expired.
 These are source checks in one terminal, not native-archive certification.
 Evidence is under `dist/tmux-research-20261115/resources-graphics-real-final-on/`
 and `dist/tmux-research-20261115/resources-graphics-fallback-off/`.
+The later source check confirms OpenTUI reveals the newly enabled chart or its
+fallback without PageUp. A gated independent plugin scenario also confirms that
+manual PageDown while the image is pending is not reset to the top when it
+arrives. Reports and captures are in
+`dist/tmux-research-20261115/resources-auto-reveal-final-on/`,
+`dist/tmux-research-20261115/resources-auto-reveal-final-off/` and
+`dist/tmux-research-20261115/surface-raster-scroll-intent-v2/`.
 
 ## Plugin development and interface usability
 

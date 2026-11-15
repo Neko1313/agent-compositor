@@ -18,6 +18,19 @@ function setup(provider = new ScriptedProvider([])) {
 const manifest = (name: string) => ({ name, version: "1.0.0", trust: "trusted" as const });
 
 describe("pluggable presentation", () => {
+  it('adapts defaults to terminal background while keeping plugin colors authoritative', async () => {
+    const {ui,messages}=setup();
+    ui.core.host.registerPlugin(manifest('theme'),{});
+    const chrome=()=>messages.filter(m=>m.type==='layout').at(-1)?.frames[0].chrome;
+    ui.setTerminalBackground([255,255,255]);
+    expect(chrome()?.accent).toBe(appearanceFrom([],true).colors.accent);
+    await ui.core.host.emit('service.ui.configure',{plugin:'theme',appearance:{colors:{accent:'#aa22bb'}}});
+    expect(chrome()?.accent).toBe('#aa22bb');
+    ui.setTerminalBackground([0,0,0]);expect(chrome()?.accent).toBe('#aa22bb');
+    ui.core.host.unregisterPlugin('theme');
+    expect(chrome()?.accent).toBe(appearanceFrom([]).colors.accent);
+    ui.close();
+  });
   it("starts with a readable conversation and no empty tools pane", () => {
     const { ui, text } = setup();
     expect(ui.windows.ids()).toEqual(["session"]);

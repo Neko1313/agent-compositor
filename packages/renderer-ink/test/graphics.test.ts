@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { inflateSync } from 'node:zlib';
-import { TerminalGraphics } from '../src/graphics.js';
+import { TerminalGraphics, terminalBackground } from '../src/graphics.js';
+
+it('parses bounded terminal background replies',()=>{
+ expect(terminalBackground('rgb:ffff/8000/0000')).toEqual([255,128,0]);
+ expect(terminalBackground('#102030')).toEqual([16,32,48]);
+ expect(terminalBackground('rgb:ffff/0000/0000\u001b[31m')).toBeUndefined();
+});
 import { MouseDecoder } from '../src/mouse.js';
 import { RendererState } from '../src/state.js';
 import { rasterMessage } from '@agent-compositor/protocol';

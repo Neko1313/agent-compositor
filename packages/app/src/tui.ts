@@ -28,7 +28,7 @@ export async function runTui(app: BuiltApp, stdin: NodeJS.ReadStream, stdout: No
   resize(); stdout.on("resize", resize);
   try {
     renderer = await runInkRenderer({ source, send: message => ui.receive(message), stdin, stdout,
-      hostControlsExit: true, exit: () => {} });
+      hostControlsExit: true, exit: () => {},onTerminalBackground: color => ui.setTerminalBackground(color) });
     await renderer.waitUntilExit;
   } finally {
     stdout.off("resize", resize); ui.close(); await app.close(); await ui.settled();

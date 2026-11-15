@@ -417,10 +417,11 @@ use. This scope does not raise the authorized live-model spending limit.
 
 An isolated XTerm 411 check of the default Ink frontend exposed a light-terminal
 contrast issue: with XTerm's default white background, much of the setup guide
-was very pale and hard to read. The same guide was readable with an explicitly
-dark background. Captures are under `dist/sixel-xterm-research/setup-corrupt-ink/`
-and `setup-corrupt-ink-dark/`. This is an open usability issue, not evidence
-that every light terminal or theme has the same behavior.
+was very pale and hard to read. Ink now uses a light default palette when a valid
+terminal background reply indicates a light background. Follow-up captures for
+white and dark backgrounds are under `dist/sixel-xterm-research/setup-corrupt-ink/`
+and `setup-corrupt-ink-dark/`. This source check does not establish behavior for
+every light terminal, missing background replies, or custom plugin palettes.
 
 ### Accepted usability work — 2026-11-13
 

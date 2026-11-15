@@ -29,6 +29,14 @@ export const DEFAULT_APPEARANCE = {
     showTools: false,
   },
 };
+export const LIGHT_APPEARANCE: typeof DEFAULT_APPEARANCE = {
+  ...DEFAULT_APPEARANCE,
+  colors: {
+    text: '#202a33', muted: '#53616d', accent: '#135c78', success: '#32632f',
+    warning: '#805000', danger: '#a32929', border: '#6b7881',
+    titleBackground: '#e2e9ed', selectionBackground: '#244f64', selectionText: '#ffffff',
+  },
+};
 export type Appearance = typeof DEFAULT_APPEARANCE;
 export type Tone = NonNullable<UiTextView["lines"][number]["tone"]>;
 export type Row = UiTextView["lines"][number] & { cells?: Grid[number];actions?:{start:number;end:number;action?:string;selected?:boolean;focused?:boolean;disabled?:boolean}[] };
@@ -47,9 +55,9 @@ export interface TranscriptBlock {
 
 /** Contributions replace per plugin; later publishers win per field. */
 export function appearanceFrom(
-  contributions: Iterable<UiAppearance>
+  contributions: Iterable<UiAppearance>, light = false
 ): Appearance {
-  const result: Appearance = structuredClone(DEFAULT_APPEARANCE), patch = mergeAppearance(contributions);
+  const result: Appearance = structuredClone(light ? LIGHT_APPEARANCE : DEFAULT_APPEARANCE), patch = mergeAppearance(contributions);
   Object.assign(result.colors, patch.colors);
   Object.assign(result.chrome, patch.chrome);
   Object.assign(result.presentation, patch.presentation);

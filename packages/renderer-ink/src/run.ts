@@ -1,4 +1,4 @@
-import { TerminalGraphics, type GraphicsMode } from "./graphics.js";
+import { TerminalGraphics, terminalBackground, type GraphicsMode } from "./graphics.js";
 import {pointerControl,type PointerMode,type PointerShape} from "./pointer.js";
 import { mouseInput } from "./mouse.js";
 import { render } from "ink";
@@ -48,6 +48,7 @@ export interface InkRendererOptions {
   /** exit hook, mostly for tests; default calls process.exit */
   exit?: (code: number) => void;
   graphics?: GraphicsMode;
+  onTerminalBackground?: (rgb: readonly [number,number,number]) => void;
 }
 
 export interface InkRendererHandle {
@@ -86,6 +87,10 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     // Coordinates are terminal-global; compositor performs hit testing.
     opts.send({ type: "input", surface: store.state.focused ?? "input", data });
   }, (control, payload) => {
+    if(control==='background'){
+      const color=terminalBackground(payload);
+      if(color)opts.onTerminalBackground?.(color);
+    }
     const before=`${graphics.cell.width}:${graphics.cell.height}:${graphics.background}`;
     graphics.response(control,payload);
     if(graphics.enabled&&graphics.backend==='sixel'&&before!==`${graphics.cell.width}:${graphics.cell.height}:${graphics.background}`){graphics.beforeUpdate();graphics.paint(store.state);}
@@ -159,6 +164,7 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
     const mode = opts.graphics ?? (['kitty','sixel','off'].includes(process.env.AGENT_GRAPHICS ?? '') ? process.env.AGENT_GRAPHICS as GraphicsMode : 'auto');
     // Allow Ink to enter raw mode before the probe response arrives.
     await new Promise(resolve => setTimeout(resolve, 0));
+    if(mouseEnabled&&opts.onTerminalBackground)stdout.write('\x1b]11;?\x1b\\');
     if (await graphics.detect(mode, mouseEnabled, !!(process.env.TMUX || process.env.STY))) {
       store.state.nativeImages = true;
       localHello.capabilities.elements = [...new Set([...localHello.capabilities.elements, 'Raster'])];

@@ -8,6 +8,14 @@ export type Raster = NonNullable<RenderMessage['raster']>;
 export type GraphicsMode = 'auto' | 'kitty' | 'sixel' | 'off';
 const escape = (control: string, data = '') => `\x1b_G${control};${data}\x1b\\`;
 
+/** Parse an OSC 11 terminal background reply without accepting arbitrary controls. */
+export function terminalBackground(payload:string):[number,number,number]|undefined {
+  const rgb=/^rgb:([a-f0-9]{1,4})\/([a-f0-9]{1,4})\/([a-f0-9]{1,4})$/i.exec(payload);
+  if(rgb)return rgb.slice(1).map(c=>Math.round(parseInt(c,16)*255/(16**c.length-1))) as [number,number,number];
+  const hex=/^#([a-f0-9]{6})$/i.exec(payload);
+  if(hex)return [0,2,4].map(i=>parseInt(hex[1].slice(i,i+2),16)) as [number,number,number];
+}
+
 /** Terminal-owned pixel rendering. No plugin-supplied escape strings are executed. */
 export class TerminalGraphics {
   enabled = false;
@@ -62,9 +70,8 @@ export class TerminalGraphics {
       if(rows>0&&columns>0&&h>0&&w>0&&Number.isInteger(h/rows)&&Number.isInteger(w/columns)&&w/columns<=128&&h/rows<=256){this.cell={width:w/columns,height:h/rows};this.cellKnown=true;}
     }
     if(control==='background'){
-      const rgb=/^rgb:([a-f0-9]{1,4})\/([a-f0-9]{1,4})\/([a-f0-9]{1,4})$/i.exec(payload);
-      if(rgb){this.background=rgb.slice(1).map(c=>Math.round(parseInt(c,16)*255/(16**c.length-1))) as [number,number,number];this.bgKnown=true;}
-      const hex=/^#([a-f0-9]{6})$/i.exec(payload);if(hex){this.background=[0,2,4].map(i=>parseInt(hex[1].slice(i,i+2),16)) as [number,number,number];this.bgKnown=true;}
+      const color=terminalBackground(payload);
+      if(color){this.background=color;this.bgKnown=true;}
     }
     if (control.split(',').includes(`i=${this.queryId}`)&&payload==='OK'&&this.finishProbe){this.backend='kitty';this.finishProbe?.(true);}
   }

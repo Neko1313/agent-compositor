@@ -25,6 +25,12 @@ and mono themes specify explicit selection foreground/background pairs so the
 selection remains readable with either frontend's defaults. The separate
 `ui.render` status override supplied by this plugin applies to both frontends.
 
+Ink queries the terminal background and chooses light or dark defaults when it
+receives a valid OSC 11 reply, including when graphics are disabled. Terminals
+that do not answer retain the dark defaults. Explicit plugin colors keep their
+usual precedence; plugins supplying custom colors should select contrasting
+foreground and background pairs for the terminals they support.
+
 Tools no longer occupy an empty window at startup. In Ink, `Alt+t` opens detailed
 tool activity. In OpenTUI, F2 Windows can open canonical Tools, while Arrange
 `t` creates another Tools view. The conversation displays compact tool activity.

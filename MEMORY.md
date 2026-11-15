@@ -23,6 +23,12 @@ The test verifies both pane and tab clicks: pre-click text reaches the original
 field, the click changes focus, and post-click text reaches Main. This is a
 controlled delayed-receipt fixture, not a claim about arbitrary transport failure
 or every plugin-specific mouse action.
+Another held-receipt fixture reproduced a queued pane click being applied after
+the windows had swapped positions. OpenTUI now checks the visible geometry
+before admitting the queued pointer press. A stale press and its associated
+gesture are dropped; a separate delayed drag test checks that its own movements
+and release still run. This covers controlled layout changes in the production
+renderer, not every possible asynchronous UI change.
 
 ## Physical tmux graphics probe — 2026-11-15
 

@@ -548,8 +548,27 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
     if (!key.repeated || action.type === 'resize' || action.type === 'direction') act(action);
   });
 
+  const queuedPointer=useRef<{accepted:boolean}|undefined>(undefined);
   function pointer(phase: 'down' | 'move' | 'up', event: MouseEvent) {
-    if(scheduleMouse?.(()=>pointer(phase,event))){event.preventDefault();event.stopPropagation();return;}
+    // A queued pointer event refers to the geometry the user actually saw.
+    // Do not reinterpret its coordinates after a resize or window rearrangement.
+    const geometry=()=>{
+      const state=windowLayout.snapshot(),bounds=viewport.current;
+      return JSON.stringify([state.workspace,state.frames,bounds&&[bounds.x,bounds.y,bounds.width,bounds.height],
+        navigation?.snapshot().mode,phase==='down'?state.focused:undefined]);
+    };
+    const observed=geometry(),gesture=phase==='down'?{accepted:false}:queuedPointer.current;
+    if(scheduleMouse?.(()=>{
+      if(phase==='down'){
+        if(geometry()!==observed)return;
+        gesture!.accepted=true;
+      }else if(gesture&&!gesture.accepted)return;
+      pointer(phase,event);
+    })){
+      if(phase==='down')queuedPointer.current=gesture;
+      else if(phase==='up')queuedPointer.current=undefined;
+      event.preventDefault();event.stopPropagation();return;
+    }
     if(navigation?.snapshot().mode==='finder')return;
     const bounds = viewport.current;
     if (!bounds || (phase !== 'move' && event.button !== MouseButton.LEFT)) return;

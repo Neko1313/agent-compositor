@@ -800,6 +800,15 @@ grader failed and the protected files remained unchanged. The owned CPU server
 exited. Evidence is in `dist/local-cpu-glob-receipt/`. This single known-case
 run does not establish causation, general model quality or completed repair.
 
+A navigation diagnostic at `b762c94` used aligned 12-step and 12-request
+limits. The step-budget label appeared in serialized requests 11 and 12. The
+model discovered and read source files but did not edit them or successfully
+run a verification check before the step limit. The held-out grader failed;
+protected fixtures remained unchanged, and the owned CPU server exited. The
+preflight oracle passed. Evidence is in `dist/local-cpu-step-budget-warning/`.
+This single known case demonstrates delivery, not improved model quality or
+causation, and differs from earlier diagnostics in its step limit.
+
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory
 listing and ordinary project-instruction expansion available to the user. These

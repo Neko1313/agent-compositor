@@ -816,15 +816,20 @@ finite read-only observations; omit it for polling, streaming and effects. It
 does not grant permissions or enter the model's tool schema. Legacy unannotated
 tools and selected replacement run strategies retain their behavior.
 
-A model step containing only successful annotated queries is repeated when every
+A model step containing annotated query observations is repeated when every
 effective tool/argument/result observation is already in the recent window. Object
 argument key order is ignored; paths are not rewritten. The window retains at most
 256 observation hashes and compares the text actually visible to the model. No
 result is cached or substituted: each permitted call still executes normally.
+Alongside successful queries, an `ENOENT` returned by the executed built-in
+`read` tool is tracked as an observation. This bounds cycles that alternate
+empty searches with reads of the same missing file. Denials, other errors,
+intercepted results and extension read failures are not treated as missing-file
+observations.
 After three repeated steps, the model receives one recovery reminder for that
 streak. Six repeated steps stop the turn with preserved progress and an error.
 The first novel observation does not count toward those six steps. A new result
-or query resets the repeated-step count; a non-query/failed step, new turn or user
+or query resets the repeated-step count; a non-query or other failed step, new turn or user
 steering resets the window too. Context replacement, including compaction, resets
 it so a new context can reread prior evidence. Duplicate calls within one model batch count as
 one step. Alternating previously observed queries can still form a repeated streak.

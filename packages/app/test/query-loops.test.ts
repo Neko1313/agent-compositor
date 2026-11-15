@@ -14,3 +14,37 @@ it('preserves Callix query metadata and the configured repeated-query step limit
  const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[resolve('plugins/callix')]});apps.push(app);const core=app.createCore(async()=>false),results:any[]=[];core.subscribe(e=>{if(e.kind==='catalog'&&e.event==='tool.result')results.push(e.input);});
  await core.submit('Inspect the source');expect(core.failure).toContain('Repeated query results');expect(provider.requests).toHaveLength(3);expect(results).toHaveLength(3);expect(results.every(r=>r.ok&&r.output.matches[0].path==='actual.mjs')).toBe(true);
 });
+it('bounds alternating empty searches and missing native reads without caching either result',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'app-missing-query-loop-'));roots.push(cwd);
+ await writeFile(join(cwd,'actual.mjs'),'export const answer=42;\n');
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['callix'],agent:{tools:['grep','read'],builtinTools:['read'],controlTools:[],skills:false,projectContext:false,fileReferences:false,maxRepeatedQuerySteps:2},compaction:{enabled:false}}));
+ const pair=[{toolCalls:[{name:'grep',args:{pattern:'not-present'}}]},{toolCalls:[{name:'read',args:{path:'invented.mjs'}}]}];
+ const provider=new ScriptedProvider([...pair,...pair,...pair]);
+ const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[resolve('plugins/callix')]});apps.push(app);
+ const core=app.createCore(async()=>false),results:any[]=[];core.subscribe(e=>{if(e.kind==='catalog'&&e.event==='tool.result')results.push(e.input);});
+ await core.submit('Find the implementation');
+ expect(core.failure).toContain('Repeated query results');expect(provider.requests).toHaveLength(4);
+ expect(results.map(result=>[result.tool,result.ok])).toEqual([['grep',true],['read',false],['grep',true],['read',false]]);
+ expect(results.filter(result=>result.tool==='read').every(result=>result.error.includes('ENOENT'))).toBe(true);
+});
+it('permits a read to succeed after an intervening authorized file creation',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'app-query-created-'));roots.push(cwd);
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({agent:{tools:['read','write'],builtinTools:['read','write'],controlTools:[],skills:false,projectContext:false,fileReferences:false,maxRepeatedQuerySteps:2},compaction:{enabled:false}}));
+ const read={toolCalls:[{name:'read',args:{path:'created.txt'}}]};
+ const provider=new ScriptedProvider([read,read,{toolCalls:[{name:'write',args:{path:'created.txt',content:'created content'}}]},read,{text:'File created and read.'}]);
+ const app=await buildApp({cwd,env:{HOME:cwd},provider});apps.push(app);const core=app.createCore(async()=>true),results:any[]=[];
+ core.subscribe(e=>{if(e.kind==='catalog'&&e.event==='tool.result')results.push(e.input);});await core.submit('Create and inspect the file');
+ expect(core.failure).toBeUndefined();expect(results.filter(result=>result.tool==='read').map(result=>result.ok)).toEqual([false,false,true]);
+ expect(results.filter(result=>result.tool==='read').at(-1).output.content).toContain('created content');
+});
+it('lets the model recover from the alternating loop by discovering a real file',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'app-query-recover-'));roots.push(cwd);
+ await writeFile(join(cwd,'actual.mjs'),'export const answer=42;\n');
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['callix'],agent:{tools:['grep','read'],builtinTools:['read'],controlTools:[],skills:false,projectContext:false,fileReferences:false},compaction:{enabled:false}}));
+ const pair=[{toolCalls:[{name:'grep',args:{pattern:'not-present'}}]},{toolCalls:[{name:'read',args:{path:'invented.mjs'}}]}];
+ const provider=new ScriptedProvider([...pair,...pair,...pair,{toolCalls:[{name:'grep',args:{pattern:'answer'}}]},{toolCalls:[{name:'read',args:{path:'actual.mjs'}}]},{text:'Found the implementation.'}]);
+ const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[resolve('plugins/callix')]});apps.push(app);const core=app.createCore(async()=>false),results:any[]=[];
+ core.subscribe(e=>{if(e.kind==='catalog'&&e.event==='tool.result')results.push(e.input);});await core.submit('Find the implementation');
+ expect(core.failure).toBeUndefined();expect(provider.requests.some(request=>request.messages.some(message=>message.content.includes('Query recovery:')))).toBe(true);
+ expect(results.filter(result=>result.tool==='read').at(-1)).toMatchObject({ok:true,output:{content:expect.stringContaining('answer=42')}});
+});

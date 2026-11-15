@@ -751,6 +751,13 @@ exited. Reports are retained in `dist/local-cpu-development/`. This focused
 composition did not expose Callix file-search tools, so the result does not
 evaluate the navigation composition or establish general model quality.
 
+A separately configured navigation run at `223237b` also failed the same
+case after its 12-request ceiling. It repeatedly alternated empty `grep`
+searches with reads of the same invented file. The grader failed and the two
+protected files stayed unchanged; the owned CPU server exited. Evidence is in
+`dist/local-cpu-navigation-281bafb-followup/`. This is one known-case diagnostic,
+not a controlled model-quality comparison with the focused runs.
+
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory
 listing and ordinary project-instruction expansion available to the user. These

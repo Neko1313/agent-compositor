@@ -1512,7 +1512,7 @@ export class AgentCore {
         if(failures>=3)this.messages.push({role:"user",origin:"harness",content:"Harness recovery: repeated tool failures produced no progress. Inspect the errors and available tool schemas. Do not repeat denied actions or bypass policy. Use permitted read-only tools for authorized investigation, or report a concrete blocker."});
         if(this.steerQueue.length||this.messages!==queryContext){queryProgress.reset();queryContext=this.messages;}
         else {
-          const repeated=queryProgress.observe(this.turnToolRecords.slice(recordStart).map(record=>record.ok?this.queryObservations.get(record):undefined));
+          const repeated=queryProgress.observe(this.turnToolRecords.slice(recordStart).map(record=>this.queryObservations.get(record)));
           if(repeated>=(this.options.maxRepeatedQuerySteps??6)){failed='Repeated query results without new observations; progress saved. Change the query or report a concrete blocker before resuming.';break;}
           if(repeated===3)this.messages.push({role:'user',origin:'harness',content:'Query recovery: these successful queries repeat observations already returned. Use the available evidence: open an exact discovered path, narrow or change the query, or perform the next authorized step. Do not repeat the same query without a concrete reason. If blocked, report the blocker. Polling tools remain available for genuinely running work.'});
         }
@@ -1925,6 +1925,7 @@ export class AgentCore {
       let modelText:string|undefined;
       let denied = false;
       let error: string | undefined;
+      let missingRead = false;
       let approvedPath:string|undefined;
 
       const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -2130,6 +2131,7 @@ export class AgentCore {
             else {
               error = executed.error;
               denied = executed.denied ?? false;
+              missingRead = !denied && spec.execute === readTool.execute && spec.describe === readTool.describe && /\bENOENT\b/.test(error);
               if (!denied && this.isBuiltinEdit(spec) && error === 'edit: no match for oldText in ' + approvedPath)
                 error += this.earlierEditHint(args, turnId);
             }
@@ -2141,7 +2143,7 @@ export class AgentCore {
         result = interceptedResult;
       }
 
-      const delivered = await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText);
+      const delivered = await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText,missingRead);
       if (!error && approvedPath && turnId === this.currentTurnId && !this.userOperation.getStore() &&
           this.isBuiltinEdit(spec) && isObject(result) && result.path === approvedPath &&
           result.match === 'exact' && typeof result.replacements === 'number' && result.replacements > 0 &&
@@ -2161,7 +2163,7 @@ export class AgentCore {
     }
   }
 
-  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string):Promise<ChatMessage> {
+  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string,missingRead=false):Promise<ChatMessage> {
     const record={name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result,...(denied?{denied:true}:{})};
     this.executionRecords.push(record);
     const formatted=typeof modelText==='string'&&modelText.length>0;
@@ -2175,7 +2177,7 @@ export class AgentCore {
       denied: denied || undefined,
       ...(error===undefined&&formatted?{modelText:text}:{}),
     });
-    if(query&&record.ok)this.queryObservations.set(record,queryObservation(call.name,args,text));
+    if(query&&(record.ok||missingRead))this.queryObservations.set(record,queryObservation(call.name,args,text));
     const delivered: ChatMessage = {
       role: "tool",
       toolCallId: call.id,

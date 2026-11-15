@@ -28,6 +28,10 @@ it('treats argument key reordering as the same query',async()=>{
 it('detects alternating known observations without requiring identical consecutive calls',async()=>{
  const f=await fixture([query({path:'a'}),query({path:'b'}),query({path:'a'}),query({path:'b'}),{text:'Too late'}],{maxRepeatedQuerySteps:2});await f.core.submit('Inspect');expect(f.core.failure).toContain('Repeated query results');expect(f.provider.requests).toHaveLength(4);
 });
+it('still resets the observation window on other query failures',async()=>{
+ const f=await fixture([query({path:'a'}),query({path:'fail'}),query({path:'a'}),{text:'Observed'}],{maxRepeatedQuerySteps:1},{execute:async(_ctx:any,args:any)=>args.path==='fail'?{ok:false,error:'temporary failure'}:{ok:true,data:{path:args.path}}});
+ await f.core.submit('Inspect');expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(4);
+});
 it('lets a model recover by making a new observation after the reminder',async()=>{
  const f=await fixture([...Array.from({length:4},()=>query()),query({path:'different.mjs'}),{text:'Inspected a different file.'}]);await f.core.submit('Inspect');expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(6);expect(f.provider.requests[4].messages.some(m=>m.content.includes('Query recovery:'))).toBe(true);
 });

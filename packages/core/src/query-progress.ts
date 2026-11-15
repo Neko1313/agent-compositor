@@ -6,7 +6,7 @@ export function queryObservation(name:string,args:unknown,resultText:string):str
  return createHash('sha256').update(input).update('\0').update(resultText).digest('hex');
 }
 
-/** A bounded observation window; polling/effect/failure steps reset it. */
+/** A bounded observation window; polling, effects and untracked failures reset it. */
 export class QueryProgress {
  private seen=new Set<string>();
  private repeated=0;

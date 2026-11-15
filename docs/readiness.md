@@ -358,8 +358,24 @@ arrives. Reports and captures are in
 Plugin raster protocol selection also has SDK-renderer coverage for SIXEL with
 and without pixel geometry, including returning to alt text when geometry is
 lost. A real Kitty/tmux source regression separately rechecked image update,
-resize, window close and reopen after that change. This does not establish
-physical SIXEL terminal or packaged-archive behavior.
+resize, window close and reopen after that change. On 2026-11-15, a separate
+source-tree check at `f883ab1` launched OpenTUI in XTerm 411 configured as a
+VT340 with `AGENT_GRAPHICS=sixel`. An isolated synthetic plugin displayed its
+red raster and text in the sidebar, and the application exited normally. A
+follow-up synthetic plugin replaced the raster with green, removed its view and
+recreated it with red; screen captures showed the old colored pixels disappearing
+at each transition. Resizing the XTerm window down and back restored the chart;
+an intermediate screenshot briefly contained both old and new image positions
+before the final redraw. A control run with `AGENT_GRAPHICS=off` also captured
+duplicated text and panel borders immediately after the same resize, so the
+artifact is not limited to the SIXEL image path; its underlying cause remains
+unresolved. A further run focused the panel, closed it with its
+mouse `[x]` control and reopened it through the window finder; the screenshot
+showed no colored pixels after closing and the image returned after reopening.
+A reference SIXEL image also rendered in the same isolated X11 environment.
+Reports and captures are under `dist/sixel-xterm-research/`. These checks do not
+establish absence of transient resize artifacts, other terminal implementations,
+tmux passthrough, or packaged-archive behavior.
 
 ## Plugin development and interface usability
 

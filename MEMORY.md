@@ -33,6 +33,19 @@ not evidence of the before state. This validates one potential primitive, not
 its integration with OpenTUI, animation, clipping, resize or other terminals.
 See the [Kitty Unicode placeholders specification](https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders).
 
+Follow-up source experiments in the same environment used an actual OpenTUI
+`NativeSession` and React text widgets to upload a synthetic virtual image,
+move its cells and observe the old location clear. Pixel bounds moved from
+`[0,31,17,48]` to `[81,111,98,128]`; evidence is in
+`dist/tmux-research-20261115/probe-opentui-placeholder-v3/`. A separate
+wrapped feature query received Kitty's `e=T,C=1,U=1;OK` reply through tmux,
+including through OpenTUI's input handler. These are isolated toolkit probes,
+not the application or a full animation. The first two toolkit launch attempts
+failed on fixture module resolution; they did not establish a renderer failure.
+The source wire fixture additionally ran through real tmux with forced Kitty:
+it advertised no `Raster` and retained the text fallback, with a painted frame
+in `dist/tmux-research-20261115/wire-source-forced-painted/`.
+
 ## Media candidate timing regression and causal repair — 2026-11-15
 
 This goal turn makes concrete progress: source bf5e61b2ac83b2af4186cd313673182fa113e131

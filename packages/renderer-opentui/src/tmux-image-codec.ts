@@ -180,7 +180,7 @@ export class TmuxFramePlayer {
   }
 }
 
-/** Remove only this image and its virtual placements, never another client's. */
+/** Remove this id and its virtual placements; the caller must choose an unshared id. */
 export function tmuxDeleteImage(id:number):Buffer {
   if(!imageId(id))throw RangeError('Invalid Kitty image id');
   return tmuxWrap(`\x1b_Ga=d,d=I,i=${id},q=2\x1b\\`);

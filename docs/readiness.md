@@ -194,8 +194,13 @@ preserved, including the incomplete ANSI observer that did not handle Kitty's
 OSC 66 width metadata. The successful flow retains 15 unsupported mode 2027
 messages and one modifyOtherKeys advisory without filtering.
 This text/key path does not establish graphics or mode 2027 compatibility.
+A later source-tree OpenTUI run in Kitty 0.50.0 and tmux 3.8 with
+`allow-passthrough on` exercised the actual Ghost composer: changing frames,
+pause/resume, off/on, resized draft restoration and normal exit passed. With
+passthrough disabled it retained the compact status. This is one Linux terminal
+configuration, not installed-archive or cross-platform certification.
 Full state transitions, physical compositing, resize,
-fallbacks, tmux and video remain open, as do the default frontend switch,
+fallbacks, broad multiplexer compatibility and video remain open, as do the default frontend switch,
 CPU-assisted onboarding, repeated realistic development,
 initial useful-plugin delivery, sustained sessions and trust remain open gates.
 

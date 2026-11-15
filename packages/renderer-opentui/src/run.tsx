@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import {createCliRenderer,type KeyEvent,type PasteEvent} from '@opentui/core';
+import {createCliRenderer,NativeSession,type KeyEvent,type PasteEvent} from '@opentui/core';
 import {createRoot,flushSync} from '@opentui/react';
 import {ConversationView} from './view.js';
 import type {ComposerMedia} from './ghost.js';
@@ -14,6 +14,7 @@ import {createEditorInputOwnership} from './editor-ownership.js';
 import type {ConversationWindowRegistry} from './conversation-windows.js';
 import {AppearanceProvider,type AppearanceSource} from './appearance.js';
 import type {PublicRenderSlots} from './public-render.js';
+import {TmuxComposer,TmuxComposerProvider} from './tmux-composer.js';
 
 // Closed windows keep native widgets resident. The host admits at most 256
 // panes, each with up to two keyboard hooks; SDK and desktop handlers use the
@@ -49,10 +50,23 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   if (options.workflowTable) paneIds.push('workflows');
   if (options.pluginManager) paneIds.push('plugins');
   if (new Set(paneIds).size !== paneIds.length) throw new Error('Window pane IDs must be unique.');
-  const renderer = await createCliRenderer({stdin:options.stdin,stdout:options.stdout,environment:options.environment,
-    exitOnCtrlC:!options.onCtrlC, kittyImageTransport: 'zlib'});
+  const env=options.environment??process.env,stdin=options.stdin??process.stdin,stdout=options.stdout??process.stdout;
+  const tmuxEligible=Boolean(env.TMUX&&!env.STY&&stdin.isTTY&&stdout.isTTY&&env.TERM!=='dumb'&&env.NO_COLOR===undefined&&
+    env.AGENT_REDUCED_MOTION!=='1'&&(!env.AGENT_GRAPHICS||env.AGENT_GRAPHICS==='auto'||env.AGENT_GRAPHICS==='kitty'));
+  const session=tmuxEligible?new NativeSession(stdout):undefined,runtime=session?new TmuxComposer(session):null;
+  let renderer:Awaited<ReturnType<typeof createCliRenderer>>;
+  try{renderer=await createCliRenderer({stdin,stdout,environment:options.environment,nativeSession:session,
+    prependInputHandlers:runtime?[sequence=>runtime.input(sequence)]:undefined,
+    exitOnCtrlC:!options.onCtrlC&&!runtime, kittyImageTransport: 'zlib'});}
+  catch(error){await runtime?.close();session?.dispose();throw error;}
+  runtime?.start();
+  let closing:Promise<void>|undefined;
+  const destroy=()=>{
+    if(!runtime){renderer.destroy();return;}
+    closing??=runtime.close().finally(()=>renderer.destroy());
+  };
   const editorOwnership=createEditorInputOwnership();
-  const abort=()=>renderer.destroy();
+  const abort=()=>destroy();
   options.signal?.addEventListener('abort',abort,{once:true});
   let replaying=false,draining=false,inputFailure:unknown;
   type QueuedInput={generation:string}&({kind:'key';key:KeyEvent}|{kind:'paste';event:PasteEvent});
@@ -95,7 +109,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
         if(item.generation!==generation())continue;
         replay(item,await consume(item));await settled();
       }
-    }catch(error){inputFailure=error;renderer.destroy();}
+    }catch(error){inputFailure=error;destroy();}
     finally{draining=false;}
   }
   function capture(item:QueuedInput,event:KeyEvent|PasteEvent){
@@ -118,18 +132,18 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   if(options.navigation||options.inputAdmission){renderer.keyInput.prependListener('keypress',captureKey);renderer.keyInput.prependListener('paste',capturePaste);}
   function Desktop(){
     useKeyboard(key=>{
-      if(key.defaultPrevented||!options.onCtrlC||!key.ctrl||key.meta||key.name!=='c')return;
+      if(key.defaultPrevented||(!options.onCtrlC&&!runtime)||!key.ctrl||key.meta||key.name!=='c')return;
       key.preventDefault();
       if(!key.repeated){
-        const result=options.onCtrlC();
-        if(typeof result==='string'){if(result==='exit')renderer.destroy();}
-        else void result.then(decision=>{if(decision==='exit')renderer.destroy();},error=>{inputFailure=error;renderer.destroy();});
+        const result=options.onCtrlC?.()??'exit';
+        if(typeof result==='string'){if(result==='exit')destroy();}
+        else void result.then(decision=>{if(decision==='exit')destroy();},error=>{inputFailure=error;destroy();});
       }
     });
-    return <AppearanceProvider source={options.appearance}><ConversationView sessions={sessions} workflowTable={options.workflowTable}
+    return <TmuxComposerProvider runtime={runtime}><AppearanceProvider source={options.appearance}><ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
       animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership}
-      conversationWindows={options.conversationWindows} publicRender={options.publicRender} /></AppearanceProvider>;
+      conversationWindows={options.conversationWindows} publicRender={options.publicRender} /></AppearanceProvider></TmuxComposerProvider>;
   }
   try {
     renderer.keyInput.setMaxListeners(keyboardListenerLimit);
@@ -141,6 +155,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     options.signal?.removeEventListener('abort',abort);
     queued.length=0;
     if(options.navigation||options.inputAdmission){renderer.keyInput.off('keypress',captureKey);renderer.keyInput.off('paste',capturePaste);}
+    await runtime?.close();
     renderer.destroy();
     await renderer.closed;
   }

@@ -345,8 +345,10 @@ that compact presentation, including pause and error state. It subscribes to
 metadata without image pixels while compact, so the producer can stop animation
 without losing status updates. A custom editor and the hidden standard editor
 never own two concurrent attachment subscriptions. Native Kitty/SIXEL selection
-uses actual capabilities and current pixel geometry; tmux/screen and unsupported
-graphics retain text. Explicit `AGENT_GRAPHICS=off` and reduced motion also keep
+uses actual capabilities and current pixel geometry. The OpenTUI composer can
+also display Kitty virtual images through tmux with `allow-passthrough on`
+after a successful capability reply; unsupported tmux configurations, screen
+and unsupported graphics retain text. Explicit `AGENT_GRAPHICS=off` and reduced motion also keep
 the status.
 
 Multiple producers use stable registration order with the latest selected;

@@ -18,12 +18,15 @@ The renderer probes actual capabilities, independently of the file format:
 
 `AGENT_GRAPHICS=auto` is the default. `kitty` explicitly selects Kitty output;
 `sixel` selects SIXEL (cell metrics/background replies are still required for
-safe placement); `off` disables image output. Auto detection is disabled inside
-tmux/screen because passthrough is not implemented. SIXEL terminals can answer
+safe placement); `off` disables image output. In OpenTUI, the composer also supports Kitty graphics through tmux when
+`allow-passthrough on` is configured and the terminal confirms virtual image
+placement. Unanswered or unsupported probes fall back to status; screen and
+other multiplexer paths remain text-only. SIXEL terminals can answer
 the direct cell-size query, or text-area pixel/cell queries (as VTE does).
-Font-size changes re-query geometry. Source frame changes bypass React/Ink when
-text and layout are unchanged; actual terminal throughput still determines how
-many frames are visible. No FFmpeg executable is needed at runtime.
+Font-size changes re-query geometry. Direct native image updates bypass React/Ink
+when text and layout are unchanged; tmux composer frames use the negotiated
+virtual-image path. Actual terminal throughput still determines how many frames
+are visible. No FFmpeg executable is needed at runtime.
 
 A terminal is a rendering client, not a universally addressable framebuffer.
 Full pixel playback requires a graphics protocol. FFmpeg's libcaca output is
@@ -66,14 +69,15 @@ This is not a guarantee of 60 visible fps in every terminal or connection.
 
 The configured OpenTUI frontend selects Kitty or SIXEL only after actual terminal
 capability detection. SIXEL also requires queried pixel geometry, which is
-refreshed after resize. Unsupported protocols, tmux/screen, constrained panes,
+refreshed after resize. Kitty composer images through tmux require passthrough
+and a successful capability reply. Unsupported protocols, screen, constrained panes,
 `AGENT_GRAPHICS=off`, reduced motion and `NO_COLOR` retain the selected producer's
 compact status instead of substituting block artwork. Pixel subscriptions stop
 in compact mode; activity labels and transient expiry still update. A hidden
 composer yields its media subscription to the visible editor. Removing a selected
 replacement contribution resumes the previous producer without another focus or
-layout action. Physical SIXEL and multiplexer behavior need their own terminal
-verification; negotiated support alone is not a native rendering certificate.
+layout action. Physical behavior varies by terminal; negotiated support alone is not a native
+rendering certificate.
 
 The old Ghost source has six frames at 180 ms each (about 5.6 fps). A new renderer
 cannot manufacture missing motion. Supply a higher-frame-rate APNG/GIF for a

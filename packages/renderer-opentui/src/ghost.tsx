@@ -4,6 +4,7 @@ import { useRenderer } from '@opentui/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {useAppearance} from './appearance.js';
 import {composerImageProtocol, composerMediaStatus, type ComposerImageProtocol, type ComposerMediaPresentation} from './composer-media.js';
+import {TmuxComposerImage,useTmuxComposer} from './tmux-composer.js';
 
 interface ComposerFrame {
   width: number;
@@ -43,7 +44,9 @@ function AnimatedImage({getFrame, size, protocol}: {getFrame: () => ComposerFram
 export function Ghost({ media, enabled, expanded = true, active }: { media?: ComposerMedia; enabled: boolean; expanded?: boolean; active: boolean }) {
   const renderer = useRenderer();
   const {color} = useAppearance();
+  const tmuxCandidate=useTmuxComposer();
   const graphics = process.env.AGENT_GRAPHICS ?? 'auto';
+  const tmux=graphics==='auto'||graphics==='kitty'?tmuxCandidate:null;
   const [protocol, setProtocol] = useState<ComposerImageProtocol>();
   const [snapshot, setSnapshot] = useState<{media: ComposerMedia; frame?: ComposerFrame; presentation?: ComposerMediaPresentation; size?: {width: number; height: number}}>();
   useEffect(() => {
@@ -67,7 +70,7 @@ export function Ghost({ media, enabled, expanded = true, active }: { media?: Com
   }, [renderer, graphics]);
 
   const presentation = snapshot?.media === media ? snapshot?.presentation : media?.presentation?.();
-  const imageEnabled = Boolean(enabled && expanded && protocol && (!media?.presentation || presentation?.hasImage !== false) && process.env.NO_COLOR === undefined &&
+  const imageEnabled = Boolean(enabled && expanded && (protocol||tmux) && (!media?.presentation || presentation?.hasImage !== false) && process.env.NO_COLOR === undefined &&
     process.env.TERM !== 'dumb' && process.env.AGENT_REDUCED_MOTION !== '1');
   useEffect(() => {
     if (!media || !enabled) {setSnapshot(undefined); return;}
@@ -80,8 +83,12 @@ export function Ghost({ media, enabled, expanded = true, active }: { media?: Com
   }, [media, enabled, imageEnabled, active]);
 
   if (!media || !enabled || snapshot?.media !== media) return null;
+  if(imageEnabled&&tmux&&snapshot.frame){
+    const columns=Math.max(1,Math.min(20,snapshot.size?.width??8)),rows=Math.max(1,Math.min(8,snapshot.size?.height??4));
+    return <TmuxComposerImage runtime={tmux} getFrame={()=>snapshot.frame!} columns={columns} rows={rows} fallback={composerMediaStatus(snapshot.presentation,true)}/>;
+  }
   if (imageEnabled && protocol && snapshot.frame) return <AnimatedImage getFrame={() => snapshot.frame!} size={snapshot.size} protocol={protocol}/>;
-  const status = composerMediaStatus(snapshot.presentation, !protocol && graphics !== 'off');
+  const status = composerMediaStatus(snapshot.presentation, !protocol && !tmux && graphics !== 'off');
   return status ? <box height={1} maxWidth="50%" minWidth={0} flexShrink={1}>
     <text height={1} wrapMode="none" truncate selectable={false} fg={color.muted}>{status}</text>
   </box> : null;

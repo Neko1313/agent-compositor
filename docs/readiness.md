@@ -681,11 +681,23 @@ and the private display was removed. The report and captures are in
 probe has SHA-256 `13532d44b36475d5b66110f70225b83407754928d7f626cbba5255b0846b981b`.
 This confirms a visible intermediate artifact in one environment, not its cause
 or a regression across all terminals. A blind reduction of the debounce remains
-insufficient evidence of a fix. A separate single trial with a temporary 50 ms
-delay still showed the duplicate text and panel edge in the first restored-frame
-capture; the application change was reverted. Its captures are in
-`dist/sixel-xterm-research/text-resize-50ms-9b8a750/`. This is not a CPU or
-terminal compatibility benchmark.
+insufficient evidence of a fix. An initial purported 50 ms trial changed the
+unused wire renderer, so it is not evidence about the application's debounce.
+A subsequent single trial changed the native renderer actually used by the
+application: its first restored-frame capture still shows the artifact. That
+temporary change was reverted. Captures are in
+`dist/sixel-xterm-research/text-resize-native-50ms/`. This is not a CPU or
+terminal compatibility benchmark. Another temporary native-renderer experiment
+called its immediate resize API on the first SIGWINCH, throttled to at most one
+call per 120 ms. Instrumentation recorded both 87×28 and 110×36 callbacks; the
+first post-expansion capture still showed the artifact and the next was settled.
+The first capture began in the same millisecond as the expansion callback, so it
+does not establish the relative ordering of the terminal's paint and the
+renderer output. This experiment was also reverted; screenshots, callback times
+and capture intervals are in
+`dist/sixel-xterm-research/text-resize-native-leading-timed/`. Its script and
+temporary instrumented renderer are local diagnostic evidence, not a shipped
+fix or proof of bounded CPU under continuous resize.
 Evidence is under `dist/sixel-xterm-research/timing-*` and `cpu-*`. A further
 run focused the panel, closed it with its
 mouse `[x]` control and reopened it through the window finder; the screenshot

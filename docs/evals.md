@@ -748,6 +748,19 @@ later answers repeated generic suggestions. The local variant and report are
 `dist/onboarding-multiturn-35-ru-20261116/`. These single-dialogue observations
 do not show that changing the prompt makes its output reliable.
 
+The same maintained dialogue was also run on
+[Qwen3.5 2B Q4_K_M](https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF)
+at revision `b3d92b4949a5a37582af957d572ee75969ea7ee9` (SHA-256
+`84aeb7fe40e7b833d71303d7f1b9f9c1991b931b5dbd214e0aa48d56a0af1f85`).
+All three outputs were valid JSON and it did not claim to know plugin state,
+but it incorrectly told the user they could not check that state and did not
+name a useful tool. In the separate Russian-instruction variant, it named
+`test-reports` and directed the user to Extensions, but attributed CI/CD
+integration to that plugin and did not suggest `project-checks` for running
+tests. Reports are `dist/onboarding-multiturn-35-2b-20261116/` and
+`dist/onboarding-multiturn-35-2b-ru-20261116/`. These are two known dialogues,
+not evidence of general model quality or a safe production onboarding flow.
+
 ## Offline CPU development diagnostic
 
 With `ollama` on PATH and an existing local model cache, run:

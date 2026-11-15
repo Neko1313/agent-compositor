@@ -822,8 +822,10 @@ argument key order is ignored; paths are not rewritten. The window retains at mo
 256 observation hashes and compares the text actually visible to the model. No
 result is cached or substituted: each permitted call still executes normally.
 Alongside successful queries, an `ENOENT` returned by the executed built-in
-`read` tool is tracked as an observation. This bounds cycles that alternate
-empty searches with reads of the same missing file. Denials, other errors,
+`read` tool and a native `read` argument-validation failure are tracked as
+observations. This bounds cycles that alternate empty searches with reads of
+the same missing file or identical invalid arguments. Validation failures still
+occur before file access and approval. Denials, other errors,
 intercepted results and extension read failures are not treated as missing-file
 observations.
 After three repeated steps, the model receives one recovery reminder for that

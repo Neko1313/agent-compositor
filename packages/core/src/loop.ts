@@ -1525,7 +1525,7 @@ export class AgentCore {
           }
           const repeated=queryProgress.observe(records.map(record=>this.queryObservations.get(record)));
           if(repeated>=(this.options.maxRepeatedQuerySteps??6)){failed='Repeated query results without new observations; progress saved. Change the query or report a concrete blocker before resuming.';break;}
-          if(repeated===3)this.messages.push({role:'user',origin:'harness',content:'Query recovery: these successful queries repeat observations already returned. Use the available evidence: open an exact discovered path, narrow or change the query, or perform the next authorized step. Do not repeat the same query without a concrete reason. If blocked, report the blocker. Polling tools remain available for genuinely running work.'});
+          if(repeated===3)this.messages.push({role:'user',origin:'harness',content:'Query recovery: these query results repeat observations already returned. Use the available evidence: open an exact discovered path, correct invalid read arguments, narrow or change the query, or perform the next authorized step. Do not repeat the same query without a concrete reason. If blocked, report the blocker. Polling tools remain available for genuinely running work.'});
         }
         if (step === this.maxSteps - 1) {
           failed = `Step limit (${this.maxSteps}) reached; progress saved. Continue this session to resume.`;
@@ -1936,7 +1936,7 @@ export class AgentCore {
       let modelText:string|undefined;
       let denied = false;
       let error: string | undefined;
-      let missingRead = false;
+      let stableReadFailure = false;
       let failedCheck:string|undefined;
       let approvedPath:string|undefined;
 
@@ -1970,6 +1970,7 @@ export class AgentCore {
         }
         args=this.toolInput(spec,args);
         error=this.toolArgumentError(spec,args);
+        if(error&&spec.execute===readTool.execute&&spec.describe===readTool.describe)stableReadFailure=true;
         if (error && this.isBuiltinEdit(spec)) error += this.missingEditTargetHint(args, turnId);
         // 2) Recheck policy after waiting for an identical in-flight review.
         while(error===undefined){
@@ -2148,7 +2149,7 @@ export class AgentCore {
             else {
               error = executed.error;
               denied = executed.denied ?? false;
-              missingRead = !denied && spec.execute === readTool.execute && spec.describe === readTool.describe && /\bENOENT\b/.test(error);
+              stableReadFailure = !denied && spec.execute === readTool.execute && spec.describe === readTool.describe && /\bENOENT\b/.test(error);
               if (!denied && this.isBuiltinEdit(spec) && error === 'edit: no match for oldText in ' + approvedPath)
                 error += this.earlierEditHint(args, turnId);
             }
@@ -2160,7 +2161,7 @@ export class AgentCore {
         result = interceptedResult;
       }
 
-      const delivered = await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText,missingRead,failedCheck);
+      const delivered = await this.finishToolCall(call,args,result,error,denied,spec.loopGuard==='query',modelText,stableReadFailure,failedCheck);
       if (!error && approvedPath && turnId === this.currentTurnId && !this.userOperation.getStore() &&
           this.isBuiltinEdit(spec) && isObject(result) && result.path === approvedPath &&
           result.match === 'exact' && typeof result.replacements === 'number' && result.replacements > 0 &&
@@ -2180,7 +2181,7 @@ export class AgentCore {
     }
   }
 
-  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string,missingRead=false,failedCheck?:string):Promise<ChatMessage> {
+  private async finishToolCall(call:ChatToolCall,args:unknown,result:unknown,error:string|undefined,denied:boolean,query=false,modelText?:string,stableReadFailure=false,failedCheck?:string):Promise<ChatMessage> {
     const record={name:call.name,args,ok:error===undefined&&(call.name!=="exec"||(result as any)?.exitCode===0||((result as any)?.started===true&&typeof (result as any)?.shellId==='string')),output:result,...(denied?{denied:true}:{})};
     this.executionRecords.push(record);
     const formatted=typeof modelText==='string'&&modelText.length>0;
@@ -2194,7 +2195,7 @@ export class AgentCore {
       denied: denied || undefined,
       ...(error===undefined&&formatted?{modelText:text}:{}),
     });
-    if(query&&(record.ok||missingRead))this.queryObservations.set(record,queryObservation(call.name,args,text));
+    if(query&&(record.ok||stableReadFailure))try{this.queryObservations.set(record,queryObservation(call.name,args,text));}catch{/* Diagnostics cannot change tool results. */}
     if(failedCheck)this.failedCheckObservations.set(record,failedCheck);
     const delivered: ChatMessage = {
       role: "tool",

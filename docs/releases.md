@@ -77,7 +77,11 @@ installed beside the renderer workspace at different versions.
 
 Each native job extracts the archive outside the checkout and runs the actual
 OpenTUI app, managers, navigation, cancellation, request-window, selected
-private-controller and editor scenarios through the shared PTY/browser bench. The selected
+private-controller and editor scenarios through the shared PTY/browser bench. Each
+job also verifies explicit recovery of a queued input after SIGKILL and a retry
+interrupted during a controlled journal write. Reports identify the extracted
+executable by SHA-256 and remain available on failure. These cases use a loopback
+provider and do not prove recovery at every external effect boundary. The selected
 controller gate uses isolated explicit approval/question/form providers with a
 bounded loopback model; it does not select a custom editor, history or placement
 implementation. The matching source command is `npm run visual:opentui-controllers`.

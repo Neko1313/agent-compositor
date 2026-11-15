@@ -1,12 +1,13 @@
 import {chromium} from 'playwright';
 import {spawn} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {mkdir,readFile,readdir,writeFile,rm,access} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 const output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-recovery');await mkdir(output,{recursive:true});
-const report={ok:false,checks:[],screenshots:[],errors:[]};let server,browser,page,gate;
+const report={ok:false,mode:process.env.VISUAL_EXECUTABLE?'binary':'source',checks:[],screenshots:[],errors:[]};let server,browser,page,gate;
 try{
  const env=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR','PYTHON','LD_LIBRARY_PATH','CI'].flatMap(name=>process.env[name]===undefined?[]:[[name,process.env[name]]]));
- server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_OPENTUI_APP:'1',...(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT?{VISUAL_OPENTUI_RECOVERY_INTERRUPT:'1'}:{}),...(process.env.VISUAL_OPENTUI_PROCESS_KILL?{VISUAL_OPENTUI_PROCESS_KILL:'1'}:{}),VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
+ server=spawn('bun',['tools/visual/server.mjs'],{env:{...env,VISUAL_OPENTUI_APP:'1',...(process.env.VISUAL_EXECUTABLE?{VISUAL_EXECUTABLE:resolve(process.env.VISUAL_EXECUTABLE)}:{}),...(process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT?{VISUAL_OPENTUI_RECOVERY_INTERRUPT:'1'}:{}),...(process.env.VISUAL_OPENTUI_PROCESS_KILL?{VISUAL_OPENTUI_PROCESS_KILL:'1'}:{}),VISUAL_OUTPUT:output,AGENT_GRAPHICS:'off'},stdio:['ignore','pipe','inherit']});
  const url=await new Promise((done,fail)=>{let text='';const timer=setTimeout(()=>fail(Error('Server timeout')),20000);server.stdout.on('data',chunk=>{text+=chunk;const match=text.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);done(match[1]);}});server.once('exit',code=>fail(Error('Server exit '+code)));});
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
  page=await browser.newPage({viewport:{width:1600,height:1100}});page.on('pageerror',error=>report.errors.push(error.message));await page.goto(url);
@@ -16,6 +17,11 @@ try{
  const send=async(text,key='Enter')=>{await main();await page.keyboard.type(text);await wait(text);await page.keyboard.press(key);};
  await wait('Message Main');await send('APP_HOLD');await wait('APP_MODEL_HELD');await send('APP_RESTORED',process.env.VISUAL_OPENTUI_QUEUE?'Enter':'Tab');await wait(process.env.VISUAL_OPENTUI_QUEUE?'Queued: APP_RESTORED':'Steering queued: APP_RESTORED');await shot('00-accepted-before-restart.png');
  const launch=JSON.parse(await readFile(join(output,'opentui-app-launch.json'),'utf8'));
+ if(process.env.VISUAL_EXECUTABLE){
+  const executable=resolve(process.env.VISUAL_EXECUTABLE),sha256=createHash('sha256').update(await readFile(executable)).digest('hex');
+  if(launch.executable!==executable||launch.sha256!==sha256)throw Error('The requested native executable was not launched');
+  report.executable={path:executable,sha256};
+ }
  const deadline=Date.now()+20000;let durable=false;
  while(Date.now()<deadline){const files=await readdir(join(launch.state,'sessions')).catch(()=>[]);for(const name of files.filter(name=>name.endsWith('.jsonl'))){
   const data=await readFile(join(launch.state,'sessions',name),'utf8');if(data.split('\n').some(line=>{try{const event=JSON.parse(line);return event.type===(process.env.VISUAL_OPENTUI_QUEUE?'prompt.queued':'prompt.steer')&&event.text==='APP_RESTORED';}catch{return false;}}))durable=true;

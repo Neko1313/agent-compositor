@@ -7,6 +7,15 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An isolated local Linux x64 archive built from clean `b6ad606` passed the
+SIGKILL queued-input and interrupted-retry checks after extraction into a
+separate directory. The installed executable SHA-256 is
+`9064329369267e3a66fb587975a02061e498b06d998b3e7f2dc37fa0af774393`;
+reports and screenshots are under `dist/native-recovery-sigkill-20261116/` and
+`dist/native-recovery-interrupt-20261116/`. This checks one locally built
+platform with a loopback provider, not the public release or the other platforms.
+
+
 A local browser-backed PTY check now kills the actual OpenTUI CLI with SIGKILL
 only after a queued message or steering notification is saved in its session
 journal. The bridge observed exit status 137 in both runs. After a fresh start,

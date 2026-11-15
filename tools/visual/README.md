@@ -33,7 +33,9 @@ and subsequent queued turn. It does not exercise a paid model or native terminal
 
 `node tools/visual/opentui-recovery-check.mjs` runs the actual OpenTUI CLI
 against an isolated loopback provider, verifies that unapplied steering survives
-restart and retries only after a user command. Set `VISUAL_OPENTUI_QUEUE=1` to
+restart and retries only after a user command. `VISUAL_EXECUTABLE` selects a
+relocated installed executable and the report records its SHA-256. The SIGKILL
+and interrupted-retry variants also run against each native release archive. Set `VISUAL_OPENTUI_QUEUE=1` to
 check the Enter-to-queue path instead. Set `VISUAL_OPENTUI_PROCESS_KILL=1`
 to kill the CLI with SIGKILL after its input is persisted and verify explicit
 recovery after a fresh start; the report retains the observed exit code. The

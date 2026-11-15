@@ -13,6 +13,7 @@ import { callixRelease } from '../../plugins/callix/distribution.mjs';
 import { smokeContextTask } from './context-smoke.mjs';
 import { smokeCodingVerification } from './coding-smoke.mjs';
 import { smokeDiscovery } from './discovery-smoke.mjs';
+import { smokeEditInspect } from './edit-inspect-smoke.mjs';
 import { smokeQueries } from './query-smoke.mjs';
 import { smokeBackgroundTask } from './background-smoke.mjs';
 import { smokeEffectCrash } from './effect-crash-smoke.mjs';
@@ -134,6 +135,9 @@ try {
   console.log('Installed discovery/read recovery:',JSON.stringify(discoverySmoke));
   const ignoredDiscovery=await smokeDiscovery(binary,resolve('dist/release',`discovery-ignored-smoke-${process.platform}-${process.arch}.json`),{ignoredParent:true});
   console.log('Installed discovery under ignored parent:',JSON.stringify(ignoredDiscovery));
+  const editInspect=await smokeEditInspect(binary,resolve('dist/release',`edit-inspect-smoke-${process.platform}-${process.arch}.json`));
+  console.log('Installed duplicate-edit inspection:',JSON.stringify(editInspect));
+  assert.ok(editInspect.ok,'Installed duplicate-edit inspection failed');
   const querySmoke=await smokeQueries(binary,resolve('dist/release',`query-smoke-${process.platform}-${process.arch}.json`));
   console.log('Installed query repetition/recovery:',JSON.stringify(querySmoke));
   const codingSmoke=await smokeCodingVerification(binary,resolve('dist/release',`coding-smoke-${process.platform}-${process.arch}.json`));

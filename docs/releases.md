@@ -193,6 +193,12 @@ repository and global exclusions in both file and semantic results. Its report i
 executable by SHA-256. The probes establish packaged tool behavior, not live
 model coding quality.
 
+`dist/release/edit-inspect-smoke-PLATFORM.json` records a separate installed
+loopback-provider flow: an edit duplicates adjacent code, its returned `inspect`
+arguments read the current file, and a fresh guarded edit restores the original.
+The probe checks a separate draft survives. It verifies packaged tool cooperation,
+not autonomous model recovery.
+
 `dist/release/query-smoke-PLATFORM.json` records installed query-loop recovery.
 Actual built-in reads and Callix searches must each receive a recovery reminder
 and stop after one novel plus six repeated query steps, with seven successful

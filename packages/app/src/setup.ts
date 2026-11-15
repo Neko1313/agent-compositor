@@ -48,22 +48,26 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
  const tools=async($:HooksApi)=>{
   const current=guide($);
   const goal=await $.ui.form({title:'Choose your work',description:'Recommendations are optional. Existing plugins and settings are kept.',fields:[{id:'work',label:'Main use',type:'select',value:'coding',options:[{value:'coding',label:'Code and tests'},{value:'research',label:'Read and research'},{value:'chat',label:'Chat without extra tools'}]}],actions:[{id:'next',label:'Continue'},{id:'cancel',label:'Cancel'}]});
+  $.signal.throwIfAborted();
   if(!goal)return;
   const options=suggestions.filter(item=>!deps.enabled().includes(item.name));
   if(!options.length){current.notes=['All suggested tools are already enabled. Existing installations were kept.'];return;}
   const selected=await $.ui.form({title:'Choose optional tools',description:'Checked plugins will be installed if needed and enabled for this project. Downloads may be required. Existing active plugins are kept; manage them in All plugins.',fields:options.map(item=>({id:item.name,label:`${item.label} · ${item.name}`,type:'toggle' as const,value:(goal.values.work==='coding'&&item.coding===true)||(goal.values.work==='research'&&item.research===true),hint:item.reason})),actions:[{id:'apply',label:'Install and enable selected'},{id:'cancel',label:'Cancel'}]});
+  $.signal.throwIfAborted();
   if(!selected)return;
   const names=options.filter(item=>selected.values[item.name]===true).map(item=>item.name);if(!names.length){current.notes=['No optional tools selected. You can add them later.'];return;}
-  const inventory=await deps.control({action:'list'},$.signal);if(!inventory.ok)throw Error(inventory.error??'Could not list available plugins');
+  const inventory=await deps.control({action:'list'},$.signal);$.signal.throwIfAborted();if(!inventory.ok)throw Error(inventory.error??'Could not list available plugins');
   current.notes=[];
   for(const name of names){
+   $.signal.throwIfAborted();
    if(deps.enabled().includes(name)){current.notes.push(`${name}: already enabled; installation kept`);continue;}
    try{
     const local=inventory.data?.available?.some((row:any)=>row.name===name&&!row.bundled);
-    if(!inventory.data?.installed?.[name]&&!local){const installed=await deps.control({action:'install',name:name+'@agent-compositor',scope:'project'},$.signal);if(!installed.ok)throw Error(installed.error??'Installation failed');}
+    if(!inventory.data?.installed?.[name]&&!local){const installed=await deps.control({action:'install',name:name+'@agent-compositor',scope:'project'},$.signal);if(!installed.ok)throw Error(installed.error??'Installation failed');if($.signal.aborted){current.notes.push(`${name}: installed; activation cancelled`);$.signal.throwIfAborted();}}
     const enabled=await deps.control({action:'enable',name,scope:'project'},$.signal);if(!enabled.ok)throw Error(enabled.error??'Activation failed');
     current.changed=[...new Set([...current.changed,name])];current.notes.push(`${name}: selected for this project`);
-   }catch(error){current.notes.push(`${name}: ${error instanceof Error?error.message:String(error)}`);}
+    $.signal.throwIfAborted();
+   }catch(error){$.signal.throwIfAborted();current.notes.push(`${name}: ${error instanceof Error?error.message:String(error)}`);}
   }
  };
  const plugin:CorePlugin={manifest:{name:'setup-guide',version:'1.0.0',trust:'trusted',hookTimeouts:{'ui.press':300000,'service.extension.control':300000}},hooks:{
@@ -76,13 +80,14 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
     if(event.key==='model')await deps.configure($);
     else if(event.key==='tools')await tools($);
     else if(event.key==='finish'||event.key==='skip'){
-     if(event.key==='finish'&&!(await deps.model()).configured){await $.ui.notify('Set up a model or choose Skip for now.','warn');return;}
+     if(event.key==='finish'){const model=await deps.model();$.signal.throwIfAborted();if(!model.configured){await $.ui.notify('Set up a model or choose Skip for now.','warn');return;}}
      if(event.key==='finish'&&pending($).length){await $.ui.notify('Apply plugin changes before starting, or choose Skip for now.','warn');return;}
+     $.signal.throwIfAborted();
      await atomicJson(file,{version:1,status:event.key==='finish'?'complete':'skipped'});current.visible=false;current.revision++;await $.ui.remove('setup');
      await $.ui.notify(event.key==='finish'?'Ready. Enter a task in the main message box.':'Setup skipped. Reopen it with /setup.');return;
     }
     await show($);
-   }catch(error){current.notes=[`Setup needs attention: ${error instanceof Error?error.message:String(error)}`];await show($);}
+   }catch(error){$.signal.throwIfAborted();current.notes=[`Setup needs attention: ${error instanceof Error?error.message:String(error)}`];await show($);}
   },
   'session.reload':async(_,$)=>{if(guide($).visible)await show($,false);},
   'session.end':async(_,$)=>{sessions.delete($.session.id);},

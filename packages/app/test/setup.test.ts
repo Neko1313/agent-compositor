@@ -101,6 +101,30 @@ it('does not inspect or install plugins if their selection form is cancelled',as
  const f=await fixture();try{f.answers.push({action:'next',values:{work:'coding'}},null);await f.press('tools');expect(f.operations).toEqual([]);}finally{await f.close();}
 });
 
+it.each(['install','enable'])('stops selecting further plugins when %s completes after cancellation',async stage=>{
+ const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});
+ const controller=new AbortController(),calls:string[]=[];let enabled:string[]=[];
+ const guide=setupGuide(f.storage,{model:async()=>({configured:false,profile:'',model:''}),configure:async()=>{},loaded:()=>[],enabled:()=>enabled,
+  control:async(args:any)=>{calls.push(`${args.action}:${args.name??''}`);if(args.action==='list')return {ok:true,data:{installed:stage==='enable'?{'project-checks':{},'test-reports':{}}:{},available:[]}};
+   if(args.action===stage&&args.name?.startsWith('project-checks')){started();await gate;}if(args.action==='enable')enabled=[...enabled,args.name];return {ok:true};}});
+ const api={...f.api,signal:controller.signal};f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true,'test-reports':true}});
+ try{
+  await (guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},api);
+  const running=(guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key:'tools'},api);await entered;controller.abort();release();await expect(running).rejects.toThrow();
+  expect(calls).toEqual(stage==='install'?['list:','install:project-checks@agent-compositor']:['list:','enable:project-checks']);
+  const fresh={...api,signal:new AbortController().signal};await (guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},fresh);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text===(stage==='install'?'project-checks: installed; activation cancelled':'project-checks: selected for this project'))).toBe(true);
+ }finally{release();await f.close();}
+});
+
+it('does not complete setup if model status returns after cancellation',async()=>{
+ const f=await fixture();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});
+ const guide=setupGuide(f.storage,{model:async()=>{started();await gate;return {configured:true,profile:'fixture',model:'fixture'};},configure:async()=>{},loaded:()=>[],enabled:()=>[],control:async()=>({ok:true})});
+ const controller=new AbortController(),api={...f.api,signal:controller.signal};
+ try{const finishing=(guide.plugin.hooks['ui.press'] as any)({site:'plugin-setup-guide-setup',key:'finish'},api);await entered;controller.abort();release();await expect(finishing).rejects.toThrow();await expect(readFile(join(f.storage.paths.home,'setup.json'),'utf8')).rejects.toMatchObject({code:'ENOENT'});}
+ finally{release();await f.close();}
+});
+
 it('reports an installation failure without claiming activation or enabling the missing package',async()=>{
  const f=await fixture(true);try{
   f.answers.push({action:'next',values:{work:'research'}},{action:'apply',values:{web:true}});await f.press('tools');

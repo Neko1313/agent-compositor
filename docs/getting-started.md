@@ -80,6 +80,9 @@ Extensions before applying changes, the open guide in that session updates
 without taking focus and no longer waits for that plugin to load.
 Failures remain visible so you can retry or
 continue without optional tools. No model is invoked by these setup steps.
+If an installation is interrupted, the guide stops before starting the next
+selection. An operation already in progress may have completed; reopen `/setup`
+or Extensions to inspect what was installed or enabled before retrying.
 
 Since host v0.4.0, bundled filesystem plugins start inactive. Installation and
 activation are separate, and `/reload` applies plugin changes between turns.

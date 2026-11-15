@@ -469,7 +469,10 @@ Explicit profile `contextWindow` wins. Ollama profiles support native `/api/show
 and `/api/ps` metadata; the default local port 11434 and the Ollama UI preset
 select that adapter. Gemini uses native model metadata. Other gateways can set
 an origin-confined `metadataUrl` returning `context_window`, `context_length` or
-`max_input_tokens`. Limits are cached for 60 seconds by endpoint/model/settings.
+`max_input_tokens`. Limits are cached for 60 seconds per profile, protocol,
+endpoint, model, metadata settings, transport and credential/header state.
+Changing those settings causes a fresh lookup; API keys and custom headers are
+represented by a digest in cache keys.
 A private/global `model-catalog.json` can supply exact model entries:
 
 ```json

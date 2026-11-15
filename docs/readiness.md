@@ -7,6 +7,15 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+Source [CI for `321a8c8`](https://github.com/Neko1313/agent-compositor/actions/runs/43721499619)
+failed its Node 26 history-resume test: saved focus differed from the baseline
+when the assertion ran. The captured log does not establish the exact ordering
+of session startup, focus restoration and the storage read. The test now gates
+replacement startup and waits for the host's actual automatic Main selection
+before checking saved placement, while retaining its original placement,
+closed-window and split-ratio assertions. This addresses a possible premature
+assertion; it does not turn the failed CI run into a pass or prove its cause.
+
 Build-only [run `43709559231` for `9802f1b`](https://github.com/Neko1313/agent-compositor/actions/runs/43709559231)
 reports successful verification and all four Linux/macOS x64/ARM64 jobs;
 publication was skipped. The downloaded quality and installed-runtime evidence

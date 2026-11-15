@@ -150,9 +150,16 @@ it('preserves semantic window placement, closed identities and split ratios acro
   await expect.poll(()=>Boolean(f.layout.snapshot().saving)).toBe(false);const before=await f.app.loadLayout() as {windows:unknown};
   expect(f.layout.snapshot().locations[alpha]).toBe(3);expect(f.layout.snapshot().locations[beta]).toBeUndefined();
   await f.app.store.create(f.cwd,{id:'saved-window-target',name:'Saved window target'});
-  const source=await f.open();expect(f.input(source,{kind:'key',key:'enter'})).toBeTypeOf('number');
+  const source=await f.open(),resume=f.app.resume,started=gate(),automatic=f.layout.actAutomatic.bind(f.layout);
+  let mainSelected=false;
+  f.layout.actAutomatic=action=>{automatic(action);if(action.type==='open'&&action.id==='session')mainSelected=true;};
+  f.app.resume=async(...args)=>{const replacement=await resume(...args),start=replacement.start.bind(replacement);
+    replacement.start=async()=>{await start();await started.wait();};return replacement;};
+  expect(f.input(source,{kind:'key',key:'enter'})).toBeTypeOf('number');
   await expect.poll(()=>f.host.core.sessionId).toBe('saved-window-target');
   await expect.poll(()=>find(alpha)!==firstAlpha&&find(beta)!==firstBeta&&Boolean(find(alpha)&&find(beta))).toBe(true);
+  await expect.poll(started.entered).toBe(true);expect(mainSelected).toBe(false);started.release();
+  await expect.poll(()=>mainSelected).toBe(true);
   await expect.poll(()=>Boolean(f.layout.snapshot().saving)).toBe(false);
   expect(f.layout.snapshot().locations[alpha]).toBe(3);expect(f.layout.snapshot().locations[beta]).toBeUndefined();
   expect((await f.app.loadLayout() as {windows:unknown}).windows).toEqual(before.windows);

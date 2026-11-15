@@ -21,9 +21,10 @@ export class Monitor {
   private childrenController?:AbortController;
   private readonly childrenCpu=new ChildrenCpu();
   private childrenHistory:{cpu?:number;partial:boolean}[]=[];
+  private currentChildCpu?:{cpu?:number;partial:boolean};
   constructor(private readonly $:any,private readonly sampler=new Sampler(),private readonly readChildren=snapshotChildren){}
   private stop(){clearTimeout(this.timer);this.timer=undefined;this.revision++;}
-  private cancelChildren(){this.childrenRevision++;this.childrenController?.abort();this.childrenController=undefined;this.childrenPending=false;this.childrenCpu.reset();}
+  private cancelChildren(){this.childrenRevision++;this.childrenController?.abort();this.childrenController=undefined;this.childrenPending=false;this.childrenCpu.reset();this.currentChildCpu=undefined;}
   dispose(){this.open=false;this.cancelChildren();this.stop();this.sampler.reset();}
   private take(){
     try{this.samples.push(this.sampler.sample());this.samples=this.samples.slice(-120);this.error=undefined;}
@@ -59,7 +60,7 @@ export class Monitor {
         ...(this.childrenPending?[{text:'Reading child processes…',tone:'muted' as const}]:this.childrenError?[{text:'Child snapshot failed. Try again.',tone:'danger' as const}]:this.children===null?[{text:'Child snapshots are available on Linux only.',tone:'muted' as const}]:this.children?[{text:`Last child snapshot: ${this.children.count} processes · ${mib(this.children.rss)} MiB RSS${this.children.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
         ...(this.error?[{text:'Sampling failed: '+this.error,tone:'danger' as const},{text:'Use Sample now to retry.',tone:'muted' as const}]:[]),
         ...(!tabs?[{text:`[ Chart: ${this.metric==='cpu'?'CPU':this.metric==='memory'?'Memory':'Child CPU'} · switch ]`,action:'switch'}]:[]),
-        ...(this.metric==='children'?[{text:`Child CPU: ${this.childrenHistory.at(-1)?.cpu===undefined?'waiting for interval':this.childrenHistory.at(-1)!.cpu!.toFixed(1)+'%'}${this.childrenHistory.at(-1)?.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
+        ...(this.metric==='children'?[{text:`Child CPU: ${this.currentChildCpu?.cpu===undefined?'waiting for interval':this.currentChildCpu.cpu.toFixed(1)+'%'}${this.currentChildCpu?.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
         {text:this.metric==='cpu'?'CPU history (%)':this.metric==='memory'?'Resident memory history (MiB)':'Child CPU history (%) · approximate',bold:true},
         ...chart(this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576),this.columns,this.metric==='memory'?'MiB':'%',this.metric==='memory'?0:100).map(text=>({text})),
         ...(this.shareStatus?[{text:this.shareStatus,tone:'muted' as const}]:[]),
@@ -76,15 +77,15 @@ export class Monitor {
       const value=await this.readChildren(controller.signal);
       if(revision===this.childrenRevision){
         this.children=value??null;
-        if(trackCpu&&value){this.childrenHistory.push(this.childrenCpu.sample(value));this.childrenHistory=this.childrenHistory.slice(-120);}
+        if(trackCpu){this.currentChildCpu=value?this.childrenCpu.sample(value):undefined;if(this.currentChildCpu){this.childrenHistory.push(this.currentChildCpu);this.childrenHistory=this.childrenHistory.slice(-120);}}
       }
-    }catch{if(revision===this.childrenRevision){this.childrenError=true;this.childrenCpu.reset();}}
+    }catch{if(revision===this.childrenRevision){this.childrenError=true;this.childrenCpu.reset();this.currentChildCpu=undefined;}}
     if(revision===this.childrenRevision){this.childrenController=undefined;this.childrenPending=false;}
   }
   async show(){this.stop();this.cancelChildren();this.open=true;this.visible=true;this.sampler.reset();this.take();await this.paint(true);this.schedule();}
   private async share($:any){
     if(this.sharing)return;
-    const latest=this.samples.at(-1),child=this.childrenHistory.at(-1);
+    const latest=this.samples.at(-1),child=this.currentChildCpu;
     let observation:string;
     if(this.metric==='children'){
       if(!child||child.cpu===undefined||child.partial){this.shareStatus='No complete child CPU interval to send.';await this.paint();return;}

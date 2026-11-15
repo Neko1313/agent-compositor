@@ -78,6 +78,21 @@ describe('resources monitor',()=>{
    expect(latest.lines.some(line=>line.text.includes('Child CPU: waiting for interval'))).toBe(true);
   }finally{monitor.dispose();}
  });
+ it('does not share an old child CPU interval after pause, tab change or hide',async()=>{
+  vi.useFakeTimers();let calls=0,latest!:UiTextView;const queued:string[]=[];
+  const read=async()=>{calls++;return {count:1,rss:100,partial:false,system:{ticks:BigInt(calls*200),cpus:'cpu0,cpu1'},processes:new Map([[1,{start:1n,ticks:BigInt(calls*100)}]])};};
+  const sampler=new Sampler({now:()=>BigInt(Date.now())*1000000n+1n,cpu:()=>({user:Date.now(),system:0}),memory:()=>({rss:1,heapUsed:1,heapTotal:1})});
+  const api={ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{latest=view;},remove:async()=>{}},emit:async(_event:string,input:{text:string})=>{queued.push(input.text);return {value:{queued:true}};}};
+  const monitor=new Monitor(api,sampler,read);
+  try{
+   await monitor.show();await monitor.press('child-cpu');await vi.advanceTimersByTimeAsync(2000);await monitor.press('share');expect(queued).toHaveLength(1);
+   await monitor.press('pause');expect(latest.lines.some(line=>line.text.includes('Child CPU: waiting for interval'))).toBe(true);await monitor.press('share');expect(queued).toHaveLength(1);
+   await monitor.press('pause');await vi.advanceTimersByTimeAsync(2000);await monitor.press('share');expect(queued).toHaveLength(2);
+   await monitor.press('memory');await monitor.press('child-cpu');await monitor.press('share');expect(queued).toHaveLength(2);
+   await vi.advanceTimersByTimeAsync(2000);await monitor.press('share');expect(queued).toHaveLength(3);
+   await monitor.visibility({visible:false,attached:true,columns:40});await monitor.visibility({visible:true,attached:true,columns:40});await monitor.press('share');expect(queued).toHaveLength(3);
+  }finally{monitor.dispose();}
+ });
  it('plots actual observations with bounded width and an honest multi-core axis',()=>{
   const plot=chart([undefined,0,50,200],30,'%',100);expect(plot[0]).toContain('200.0');expect(plot.join('\n')).toContain('Older -> newer (%)');
   expect(plot.join('').split('*').length-1).toBe(3);expect(chart(Array(1000).fill(10),24,'MiB').join('').split('*').length-1).toBe(14);

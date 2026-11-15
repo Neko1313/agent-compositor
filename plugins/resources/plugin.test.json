@@ -353,6 +353,16 @@
       "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor samples child CPU only on its active tab and resets the interval across pause and hide"}
     },
     {
+      "id": "child-cpu-share-freshness",
+      "kind": "deterministic",
+      "requirements": ["view.content", "view.lifecycle"],
+      "setup": "The monitor obtains complete child CPU intervals before pause, tab changes and hiding.",
+      "expect": ["Historical points remain available, but sharing waits for a new complete interval after sampling resumes."],
+      "forbidden": ["Queuing an old interval as the current child CPU observation."],
+      "timeoutMs": 60000,
+      "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor does not share an old child CPU interval after pause, tab change or hide"}
+    },
+    {
       "id": "child-snapshot-lifecycle",
       "kind": "deterministic",
       "requirements": ["view.content", "view.lifecycle"],

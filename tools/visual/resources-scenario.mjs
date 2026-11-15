@@ -19,7 +19,7 @@ export async function resourcesScenario({page,wait,text,command,click,shot,repor
  await click('[Child CPU]');await wait('Child CPU history (%)');
  if(process.platform==='linux'){
   await click('[ Resume ]');await page.waitForFunction(()=>/Child CPU: [0-9]+\.[0-9]+%/.test(visual.text()),undefined,{timeout:15000});
-  await click('[ Pause ]');await wait('Paused');
+  await click('[ Pause ]');await wait('Paused');await wait('Child CPU: waiting for interval');await reveal('[ Send latest sample to agent ]');await click('[ Send latest sample to agent ]');await wait('No complete child CPU interval to send.');
  }
  await shot('01b-child-cpu');await click('[CPU]');
  await reveal('[ Clear history ]');await click('[ Clear history ]');await wait('Samples 1/120');

@@ -990,6 +990,8 @@ is held while the user opens the charts, waits for actual sample growth, pauses
 across a measured observation window, switches tabs by mouse/keyboard, samples
 manually, explicitly queues a selected memory sample while the main turn remains
 held, clears history, scrolls narrow controls, closes/reopens and restarts.
+On Linux it also verifies that pausing invalidates the current child CPU interval
+and prevents sharing the old interval, while preserving chart history.
 The fixture uses actual process counters, not seeded graph values.
 
 For a complete extracted native host, use

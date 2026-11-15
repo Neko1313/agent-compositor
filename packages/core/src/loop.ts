@@ -221,6 +221,8 @@ export class AgentCore {
   private outputLimit?:number;
   private recoveredInputs:{id:string;text:string}[]=[];
   private recoveringInputs=new Set<string>();
+  private recoveryOrder=new Map<string,number>();
+  private nextRecoveryOrder=0;
   private queuePause=new AbortController();
   private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string;accepted:boolean;ready:Promise<void>;cancel:()=>void}[]=[];
   private backgroundReceipts=new Set<string>();
@@ -1237,14 +1239,17 @@ export class AgentCore {
       return;
     }
     const turnId=this.currentTurnId??'',recoveryId=randomUUID(),cancellation=this.promptCancellation;
-    if(!await this.waitForQueuedWrite(this.persist('prompt.steer.intent',{text,recoveryId,turnId})))return;
-    if(this.closed)throw Error('Session is closed');
-    if(cancellation!==this.promptCancellation)return;
-    if(this.state!=='running'||this.currentTurnId!==turnId){await this.submitInput(text,'user',admitted,recoveryId);return;}
-    const entry={text,recoveryId,ready:Promise.resolve()};this.steerQueue.push(entry);
-    admitted?.('steered');
-    const write=this.emit("prompt.steer", { turnId, text },undefined,{turnId,recoveryId}).then(()=>{});
-    entry.ready=write;void write.catch(()=>{});await write;
+    this.rememberRecoveryOrder(recoveryId);
+    try{
+      if(!await this.waitForQueuedWrite(this.persist('prompt.steer.intent',{text,recoveryId,turnId})))return;
+      if(this.closed)throw Error('Session is closed');
+      if(cancellation!==this.promptCancellation)return;
+      if(this.state!=='running'||this.currentTurnId!==turnId){await this.submitInput(text,'user',admitted,recoveryId);return;}
+      const entry={text,recoveryId,ready:Promise.resolve()};this.steerQueue.push(entry);
+      admitted?.('steered');
+      const write=this.emit("prompt.steer", { turnId, text },undefined,{turnId,recoveryId}).then(()=>{});
+      entry.ready=write;void write.catch(()=>{});await write;
+    }finally{this.forgetUnusedRecoveryOrder(recoveryId);}
   }
 
   /** Stop the running turn or pause accepted automatic work before it starts. */
@@ -1261,6 +1266,7 @@ export class AgentCore {
       }
     }
     this.promptQueue = this.promptQueue.filter(entry => entry.owner);
+    for(const entry of cancelled)if(entry.recoveryId)this.forgetUnusedRecoveryOrder(entry.recoveryId);
     if(cancelled.length&&!this.closed)this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'session-manager',message:'Queued messages cancelled. Accepted messages are available with /recover.',level:'info'}});
     this.parkUnappliedSteers();
     clearTimeout(this.queueTimer);this.queueTimer=undefined;
@@ -1297,6 +1303,7 @@ export class AgentCore {
       );
     core.messages = replayTranscript(events, opts.systemPrompt);
     core.recoveredInputs = recoverQueuedInputs(events);
+    for(const input of core.recoveredInputs)core.rememberRecoveryOrder(input.id);
     return core;
   }
 
@@ -1485,6 +1492,7 @@ export class AgentCore {
         await this.persist('prompt.steer.applied',{recoveryId:steer.recoveryId,turnId});
         const index=this.steerQueue.indexOf(steer);if(index>=0)this.steerQueue.splice(index,1);
         this.recoveredInputs=this.recoveredInputs.filter(input=>input.id!==steer.recoveryId);
+        this.recoveryOrder.delete(steer.recoveryId);
         context.push({ role: "user", content: steer.text });
       }
 
@@ -1718,7 +1726,9 @@ export class AgentCore {
     if(this.userOperation.getStore())throw Error("A concurrent operation cannot clear the agent conversation");
     this.queuePause.abort();this.queuePause=new AbortController();
     this.promptCancellation++;
-    for(const entry of this.promptQueue)entry.cancel();this.promptQueue=[];this.recoveringInputs.clear();clearTimeout(this.queueTimer);this.queueTimer=undefined;
+    const cancelled=this.promptQueue;for(const entry of cancelled)entry.cancel();this.promptQueue=[];this.recoveringInputs.clear();
+    for(const entry of cancelled)if(entry.recoveryId)this.forgetUnusedRecoveryOrder(entry.recoveryId);
+    clearTimeout(this.queueTimer);this.queueTimer=undefined;
     this.resettingBackground=true;
     this.cancelOperations();
     this.resetBackground=Promise.allSettled(this.activeOperations().map(op=>op.promise)).then(()=>this.host.emit('session.end',{reason:'clear'})).then(async()=>{
@@ -1878,6 +1888,7 @@ export class AgentCore {
     if(!this.closed)this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'session-manager',message:'Steering may not have been applied. Review it with /recover.',level:'warning'}});
   }
   private queuePrompt(input:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string},admitted?:InputAdmitted):Promise<void>{
+    if(input.recoveryId)this.rememberRecoveryOrder(input.recoveryId);
     let cancel!:()=>void;const cancelled=new Promise<void>(resolve=>{cancel=resolve;});
     const entry={...input,accepted:false,ready:Promise.resolve(),cancel};this.promptQueue.push(entry);
     const depth=this.promptQueue.length;
@@ -1888,7 +1899,7 @@ export class AgentCore {
       await this.emit('prompt.queued',{text:input.text,depth},undefined,input.recoveryId?{recoveryId:input.recoveryId}:undefined);
     })().catch(error=>{
       const index=this.promptQueue.indexOf(entry);if(index>=0)this.promptQueue.splice(index,1);
-      if(input.recoveryId)this.recoveringInputs.delete(input.recoveryId);
+      if(input.recoveryId){if(index>=0)this.recoveringInputs.delete(input.recoveryId);this.forgetUnusedRecoveryOrder(input.recoveryId);}
       throw error;
     });
     entry.ready=Promise.race([write,cancelled]);
@@ -1930,7 +1941,12 @@ export class AgentCore {
   }
 
   /** @internal Inputs needing explicit review after session recovery; never run automatically. */
-  getRecoveredInputs():readonly {id:string;text:string}[]{return this.recoveredInputs.filter(input=>!this.recoveringInputs.has(input.id)).map(input=>({...input}));}
+  getRecoveredInputs():readonly {id:string;text:string}[]{return this.recoveredInputs.filter(input=>!this.recoveringInputs.has(input.id)).sort((a,b)=>(this.recoveryOrder.get(a.id)??Infinity)-(this.recoveryOrder.get(b.id)??Infinity)).map(input=>({...input}));}
+
+  private rememberRecoveryOrder(id:string):void{if(!this.recoveryOrder.has(id))this.recoveryOrder.set(id,this.nextRecoveryOrder++);}
+  private forgetUnusedRecoveryOrder(id:string):void{
+    if(!this.recoveredInputs.some(input=>input.id===id)&&!this.promptQueue.some(input=>input.recoveryId===id)&&!this.steerQueue.some(input=>input.recoveryId===id))this.recoveryOrder.delete(id);
+  }
 
   /** @internal User-initiated retry; a committed submit resolves the original record. */
   async retryRecoveredInput(id:string):Promise<CoreInputAdmission>{
@@ -1948,7 +1964,7 @@ export class AgentCore {
     if(this.closed)throw Error('Session is closed');
     if(!this.recoveredInputs.some(input=>input.id===id)||this.recoveringInputs.has(id))throw Error('Recovered message is unavailable');
     this.recoveringInputs.add(id);
-    try {await this.persist('prompt.recovery.discarded',{recoveryId:id});this.recoveredInputs=this.recoveredInputs.filter(input=>input.id!==id);}
+    try {await this.persist('prompt.recovery.discarded',{recoveryId:id});this.recoveredInputs=this.recoveredInputs.filter(input=>input.id!==id);this.recoveryOrder.delete(id);}
     finally {this.recoveringInputs.delete(id);}
   }
 
@@ -2460,7 +2476,7 @@ export class AgentCore {
     // Handled UI commands are audit records, not user messages on replay.
     const dropped=event==='prompt.submit'&&value&&typeof value==='object'&&'drop' in value;
     await this.persist(dropped?'prompt.dropped':event,journalMeta?{...input,...journalMeta}:input);
-    if(event==='prompt.submit'&&journalMeta?.recoveryId){this.recoveredInputs=this.recoveredInputs.filter(item=>item.id!==journalMeta.recoveryId);this.recoveringInputs.delete(journalMeta.recoveryId);}
+    if(event==='prompt.submit'&&journalMeta?.recoveryId){this.recoveredInputs=this.recoveredInputs.filter(item=>item.id!==journalMeta.recoveryId);this.recoveringInputs.delete(journalMeta.recoveryId);this.recoveryOrder.delete(journalMeta.recoveryId);}
     this.broadcast({ kind: "catalog", event, input });
     return value;
   }

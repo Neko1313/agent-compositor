@@ -72,6 +72,44 @@ it('preserves distinct cancelled messages and a discard across journal replay',a
  await core.discardRecoveredInput(entries[0].id);expect(core.getRecoveredInputs().map(entry=>entry.text)).toEqual(['Second queued']);
  expect(recoverQueuedInputs(journal).map(entry=>entry.text)).toEqual(['Second queued']);
 });
+it.each([true,false])('keeps interrupted steering and queue order across resume (steering first: %s)',async steeringFirst=>{
+ const cwd=await mkdtemp(join(tmpdir(),'queue-steer-order-'));roots.push(cwd);const journal:any[]=[];
+ const provider=new ScriptedProvider([{text:'Working',hold:true}]);
+ const core=new AgentCore({cwd,provider,sessions:{create:async()=>{},append:async(_id,events)=>{journal.push(...events);}}});cores.push(core);
+ const turn=core.submit('Start');await vi.waitFor(()=>expect(provider.requests).toHaveLength(1));
+ try{
+  const queue=async()=>{const input=core.dispatchInput('Queued message');expect(await input.admitted).toBe('queued');await input.completion;};
+  if(steeringFirst){await core.steer('Steering message');await queue();}else{await queue();await core.steer('Steering message');}
+  core.interrupt();await turn;
+  const expected=steeringFirst?['Steering message','Queued message']:['Queued message','Steering message'];
+  expect(recoverQueuedInputs(journal).map(item=>item.text)).toEqual(expected);
+  expect(core.getRecoveredInputs().map(item=>item.text)).toEqual(expected);
+ }finally{provider.release();}
+});
+it('keeps earlier recovered messages ahead of newly interrupted steering',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'recovery-old-before-new-'));roots.push(cwd);
+ const journal:any[]=[{type:'prompt.queue.intent',text:'Older queued',recoveryId:'old'}];
+ const provider=new ScriptedProvider([{text:'Working',hold:true}]);
+ const core=AgentCore.resume({cwd,provider,sessions:{create:async()=>{},append:async(_id,events)=>{journal.push(...events);}}},structuredClone(journal));cores.push(core);
+ const turn=core.submit('New task');await vi.waitFor(()=>expect(provider.requests).toHaveLength(1));
+ try{
+  await core.steer('New steering');core.interrupt();await turn;
+  expect(core.getRecoveredInputs().map(item=>item.text)).toEqual(['Older queued','New steering']);
+  expect(recoverQueuedInputs(journal).map(item=>item.text)).toEqual(['Older queued','New steering']);
+ }finally{provider.release();}
+});
+it('does not expose an already requeued recovery when its earlier cancelled write fails late',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'queue-recovery-late-failure-'));roots.push(cwd);
+ let entered!:()=>void,release!:()=>void,writes=0;const started=new Promise<void>(resolve=>{entered=resolve;}),held=new Promise<void>(resolve=>{release=resolve;});
+ const sessions={create:async()=>{},append:async(_id:string,events:any[])=>{if(events.some(event=>event.type==='prompt.queued')&&++writes===1){entered();await held;throw Error('old write failed');}}};
+ const core=new AgentCore({cwd,sessions,isWorkBlocked:()=>true});cores.push(core);
+ const first=core.dispatchInput('Retry once');expect(await first.admitted).toBe('queued');await started;
+ try{
+  core.interrupt();const id=core.getRecoveredInputs()[0].id;expect(await core.retryRecoveredInput(id)).toBe('queued');expect(core.getRecoveredInputs()).toEqual([]);
+  await first.completion;release();await vi.waitFor(()=>expect((core as any).journalFailure?.message).toContain('Session journal failed'));
+  expect(core.getRecoveredInputs()).toEqual([]);
+ }finally{release();}
+});
 it('does not let detached reload callbacks keep tool access after lifecycle completion',async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'reload-scope-expiry-'));roots.push(cwd);
  const core=new AgentCore({cwd,isWorkBlocked:()=>true});cores.push(core);let later!:Promise<{ok:boolean;error?:string}>;

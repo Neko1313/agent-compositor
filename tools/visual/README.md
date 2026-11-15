@@ -41,6 +41,10 @@ Set `VISUAL_OPENTUI_QUEUE=1` together with `VISUAL_OPENTUI_RECOVERY_CURRENT=1`
 to interrupt a queued message, review it without restarting, and verify that
 only an explicit retry invokes the model. This scenario also runs on each
 installed native release archive and in Node 26 CI.
+Set `VISUAL_OPENTUI_QUEUE=1` with `VISUAL_OPENTUI_RECOVERY_ORDER=1` to verify
+the displayed order of a steering message and a queued message before and after
+restart without issuing a second model request. This also runs in CI and on
+each native release archive.
 Set `VISUAL_OPENTUI_PROCESS_KILL=1`
 to kill the CLI with SIGKILL after its input is persisted and verify explicit
 recovery after a fresh start; the report retains the observed exit code. The

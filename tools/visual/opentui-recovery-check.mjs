@@ -15,7 +15,9 @@ try{
  const shot=async name=>{await page.screenshot({path:resolve(output,name)});report.screenshots.push(name);};
  const main=async()=>{await page.keyboard.press('Alt+0');await wait('Main · focused');};
  const send=async(text,key='Enter')=>{await main();await page.keyboard.type(text);await wait(text);await page.keyboard.press(key);};
- await wait('Message Main');await send('APP_HOLD');await wait('APP_MODEL_HELD');await send('APP_RESTORED',process.env.VISUAL_OPENTUI_QUEUE?'Enter':'Tab');await wait(process.env.VISUAL_OPENTUI_QUEUE?'Queued: APP_RESTORED':'Steering queued: APP_RESTORED');await shot('00-accepted-before-restart.png');
+ await wait('Message Main');await send('APP_HOLD');await wait('APP_MODEL_HELD');
+ if(process.env.VISUAL_OPENTUI_RECOVERY_ORDER){await send('APP_STEER_FIRST','Tab');await wait('Steering queued: APP_STEER_FIRST');}
+ await send('APP_RESTORED',process.env.VISUAL_OPENTUI_QUEUE?'Enter':'Tab');await wait(process.env.VISUAL_OPENTUI_QUEUE?'Queued: APP_RESTORED':'Steering queued: APP_RESTORED');await shot('00-accepted-before-restart.png');
  const launch=JSON.parse(await readFile(join(output,'opentui-app-launch.json'),'utf8'));
  if(process.env.VISUAL_EXECUTABLE){
   const executable=resolve(process.env.VISUAL_EXECUTABLE),sha256=createHash('sha256').update(await readFile(executable)).digest('hex');
@@ -28,7 +30,17 @@ try{
  }if(durable)break;await new Promise(done=>setTimeout(done,25));}
  if(!durable)throw Error('The input notification was not saved to the actual session journal');
  const receipts=()=>readFile(join(output,'app-http.jsonl'),'utf8').then(text=>text.trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)));
- if(process.env.VISUAL_OPENTUI_RECOVERY_CURRENT){
+ if(process.env.VISUAL_OPENTUI_RECOVERY_ORDER){
+  if(!process.env.VISUAL_OPENTUI_QUEUE)throw Error('Mixed recovery order requires a queued message');
+  await main();await page.keyboard.press('Control+c');await wait('Steering may not have been applied');
+  await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await shot('01-current-order.png');
+  if((await receipts()).filter(item=>item.kind==='completion').length!==1)throw Error('Recovery invoked the model without a retry');
+  const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();
+  await page.waitForFunction(g=>visual.generation>g,generation);await wait('recovered message');
+  await send('/recover');await wait('1. APP_STEER_FIRST');await wait('2. APP_RESTORED');await shot('02-restored-order.png');
+  if((await receipts()).filter(item=>item.kind==='completion').length!==1)throw Error('Restart invoked the model without a retry');
+  report.checks.push('Steering and queued input retain their order before and after restart without model requests');report.ok=!report.errors.length;
+ }else if(process.env.VISUAL_OPENTUI_RECOVERY_CURRENT){
   if(!process.env.VISUAL_OPENTUI_QUEUE)throw Error('Current-session recovery requires a queued message');
   await main();await page.keyboard.press('Control+c');await wait('Accepted messages are available');
   if((await receipts()).filter(item=>item.kind==='completion').length!==1)throw Error('Interrupted queued message invoked the model');

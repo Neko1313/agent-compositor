@@ -117,7 +117,10 @@ make it appear in `/recover` after reopening. Use
 acceptance remains available for review and is reported as not submitted. A recovered message may have
 been cancelled or may have begun processing before a crash; inspect the session
 and any external effects before retrying. Steering that misses the next model
-step is also offered for review. Recovery never runs a message on its own. Older queue records without an identifier cannot be reconstructed.
+step is also offered for review. Sequentially accepted steering and queued
+messages retain their relative order in the list after a restart. List numbers
+can change as messages are resolved, so list again before selecting another.
+Recovery never runs a message on its own. Older queue records without an identifier cannot be reconstructed.
 
 Settings → Models & providers (`/model`) includes a Reasoning action per profile.
 Choose the model's supported effort and save it for this project or all projects;

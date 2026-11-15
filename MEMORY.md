@@ -1,5 +1,26 @@
 # Project memory
 
+## Mixed recovery ordering — 2026-11-16
+
+Interrupting a held turn with both accepted steering and queued input previously
+listed queued messages first in the current process, regardless of their input
+order; journal replay used intent order instead. The core tracks outstanding
+recovery order across both kinds and discards ordering metadata as entries are
+resolved. Sequential steering-first and queue-first regressions now match their
+replayed lists. A late failed write from a cancelled queue entry no longer
+releases a newer retry's recovery ownership; a held-write fixture covers that
+race. Real OpenTUI source and locally relocated Linux x64 archive PTYs check
+steering-first ordering before and after restart with no additional loopback
+model request, at dist/visual-opentui-recovery-order-20261116-final/ and
+dist/visual-opentui-recovery-order-native-20261116/. Concurrent custom journal
+backends, other platforms and physical terminals are not established by this
+evidence; list indices can change as items are resolved.
+One full local run failed ENOTEMPTY during cleanup of the unrelated deferred
+plugin-removal test. Twenty focused repetitions passed. That test called the
+asynchronous layout disconnect without awaiting its outstanding writes; it now
+awaits teardown before deleting its temporary project. This is a plausible race,
+not proof of the original failure's exact ordering.
+
 ## Same-session queued input recovery — 2026-11-16
 
 An interrupted accepted user message in the ordinary queue is now immediately

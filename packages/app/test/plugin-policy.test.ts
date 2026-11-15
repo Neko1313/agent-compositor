@@ -247,7 +247,7 @@ it('retains a deferred removal after the OpenTUI management action completes',as
   await expect.poll(()=>host.surfaces.snapshot().find(source=>source.id==='plugin-extension-manager-extensions')?.snapshot().busy).toBe(false);
   provider.release();await running;await a.reloadPlugins(core);
   expect(await stat(directory).catch(()=>null)).toBeNull();
- }finally{provider.release();await host.close();layout.disconnect();}
+ }finally{provider.release();await host.close();await layout.disconnect();}
 },15000);
 
 it('cancels deferred plugin work only for the caller that owns it',async()=>{

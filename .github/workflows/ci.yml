@@ -77,6 +77,14 @@ jobs:
           VISUAL_RECOVERY_CURRENT: '1'
           VISUAL_OUTPUT: dist/visual-ink-recovery-current
         run: node tools/visual/recovery-check.mjs
+      - name: Check mixed recovery order across restart
+        if: matrix.node == '26'
+        timeout-minutes: 3
+        env:
+          VISUAL_OPENTUI_QUEUE: '1'
+          VISUAL_OPENTUI_RECOVERY_ORDER: '1'
+          VISUAL_OUTPUT: dist/visual-opentui-recovery-order
+        run: node tools/visual/opentui-recovery-check.mjs
       - name: Check OpenTUI recovery after process death
         if: matrix.node == '26'
         timeout-minutes: 3
@@ -184,6 +192,7 @@ jobs:
             dist/visual-opentui-recovery/
             dist/visual-opentui-recovery-current/
             dist/visual-ink-recovery-current/
+            dist/visual-opentui-recovery-order/
             dist/visual-opentui-recovery-sigkill/
             dist/visual-opentui-managers/
             dist/visual-opentui-navigation/

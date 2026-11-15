@@ -89,6 +89,12 @@ describe("event catalog", () => {
         expect(signature.input.properties.view.required??[]).not.toContain('tabs');
         expect(signature.input.properties.view.properties.tabs.type).toBe('array');
         delete signature.input.properties.view.properties.tabs;
+        // Reviewed additive 0.33: clients opt in to an advertised input action;
+        // old views omit it and retain their original schema and behavior.
+        const input=signature.input.properties.view.properties.input;
+        expect(input.properties.submitAction).toEqual({type:'string',minLength:1,maxLength:64});
+        expect(input.required??[]).not.toContain('submitAction');
+        delete input.properties.submitAction;
       }
       expect(createHash('sha256').update(JSON.stringify(canonical(signature))).digest('hex'),
         `${name}: changed a frozen schema; preserve the old contract or explicitly review an additive baseline update`).toBe(old.sha256);

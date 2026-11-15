@@ -12,3 +12,9 @@ export function surfaceActions(view?: UiTextView): string[] {
   }
   return actions;
 }
+
+/** Enter may invoke only an explicitly advertised, currently available action. */
+export function surfaceSubmitAction(view?:UiTextView):string|undefined {
+  const action=view?.input?.submitAction;
+  return action&&surfaceActions(view).includes(action)?action:undefined;
+}

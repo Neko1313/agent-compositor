@@ -5,7 +5,7 @@ import {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from '
 import {useAppearance} from './appearance.js';
 import {Interaction} from './interaction.js';
 import {ApprovalCard} from './approval-card.js';
-import {surfaceActions} from './surface-actions.js';
+import {surfaceActions,surfaceSubmitAction} from './surface-actions.js';
 import type {UiSurfaceSource} from './surface.js';
 import {createSurfaceRequestSession,hasSurfaceRequest,surfaceInteraction} from './surface.js';
 import {TextViewContent,TextViewTabs,literalViewText as literal} from './text-view.js';
@@ -118,6 +118,7 @@ export function SurfaceView({source,focused,width,height,isActive,isVisible,publ
         textColor={color.text} focusedTextColor={color.text} placeholderColor={color.muted}
         onKeyDown={key=>{if(!isActive()||!searching||hasSurfaceRequest(source.snapshot()))key.preventDefault();}}
         onPaste={event=>{if(!isActive()||!searching||hasSurfaceRequest(source.snapshot()))event.preventDefault();}}
+        onSubmit={()=>{const submit=surfaceSubmitAction(view);if(isActive()&&searching&&submit)press(submit);}}
         onInput={value=>{
           const current=source.snapshot();
           if(!syncingInput.current&&isActive()&&searching&&!hasSurfaceRequest(current)&&current.view?.input?.id===view.input!.id)source.change(view.input!.id,value,current.revision);

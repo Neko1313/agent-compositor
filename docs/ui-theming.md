@@ -278,6 +278,17 @@ view can preserve or replace the table. Plain surface text includes labeled rows
 and expanded details. No arbitrary frontend code is loaded. This table contract
 is independent of Ink; a future renderer can consume the same data directly.
 
+## Input submission actions
+
+An optional `UiTextView.input.submitAction` names an action already advertised
+by an enabled tab, line, table row or expanded detail. In Ink and OpenTUI,
+Enter in that field invokes the named `ui.press` action. A missing, disabled or
+unadvertised action is not invoked. A field without `submitAction` keeps its
+existing behavior; do not infer submission from its label. Independent plugins
+should check `$.ui.supports?.('input-submit') === true` before supplying the
+optional property, so strict older hosts can receive a compatible view instead.
+Typing continues to publish `ui.change` separately from submission.
+
 ## Semantic tabs
 
 Development catalog 0.28 adds optional `UiTextView.tabs` for plugin panes. Check

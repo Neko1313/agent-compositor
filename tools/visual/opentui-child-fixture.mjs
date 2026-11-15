@@ -41,6 +41,7 @@ async function spawn($,kind,count=1,mode='ordinary'){
 }
 async function control(action,$){
  record('control',{action,sessionId:$.session.id});
+ if(action==='repaint'){await $.ui.view('repaint','Repaint proof',{input:{id:'repaint-input',label:'Reply',value:'',submitAction:'commit'},lines:[{text:'Commit repaint input',action:'commit'}]},{site:'inspector',focus:false});return;}
  if(action==='spawn-five')return spawn($,'SIBLING_Q',5);
  if(action==='spawn-approvals')return spawn($,'APPROVAL',2);
  if(action==='spawn-form')return spawn($,'FORM',1);
@@ -64,7 +65,7 @@ export default {
  'session.start':async(_,$)=>{const old=read(active);if(old&&old.id!==$.session.id)return;const data={id:$.session.id,generation:(old?.generation??0)+1};writeFileSync(active,JSON.stringify(data));record('main-started',data);await show($);},
  'session.reload':async(_,$)=>{if(read(active)?.id!==$.session.id)return;record('main-reloaded',{sessionId:$.session.id});await show($);},
  'command.invoke':async(event,$)=>control(event.args.trim(),$),
- 'ui.press':async(event,$)=>{if(event.site==='plugin-child-proof-controls')return control(event.key,$);},
+ 'ui.press':async(event,$)=>{if(event.site==='plugin-child-proof-controls')return control(event.key,$);if(event.site==='plugin-child-proof-repaint'&&event.key==='commit')writeFileSync(managed+'.submitted',JSON.stringify($.state.get('repaint')??''));},
  'prompt.submit':async(event,$)=>{
   const tag=event.text;if(!tag.startsWith('CHILD_')&&!tag.startsWith('MANAGED_'))return;
   record('producer-prompt',{tag,sessionId:$.session.id});$.signal.addEventListener('abort',()=>record('producer-aborted',{tag,sessionId:$.session.id}),{once:true});
@@ -76,6 +77,7 @@ export default {
  },
  'subagent.start':(event,$)=>record('subagent-start',{parentSession:$.session.id,agentId:event.agentId,prompt:event.prompt,depth:event.depth}),
  'subagent.complete':(event,$)=>record('subagent-complete',{parentSession:$.session.id,agentId:event.agentId,ok:event.ok}),
+ 'ui.change':async(event,$)=>{if(event.site!=='plugin-child-proof-repaint'||event.id!=='repaint-input')return;await new Promise(done=>setTimeout(done,12));$.state.set('repaint',event.value);writeFileSync(managed+'.repaint',JSON.stringify(event.value));await $.ui.view('repaint','Repaint proof',{input:{id:'repaint-input',label:'Reply',value:event.value,submitAction:'commit'},lines:[{text:'Commit repaint input',action:'commit'}]},{site:'inspector',focus:false});},
  'ui.render':event=>appendFileSync(publicTrace,JSON.stringify(event)+'\n'),
 };
 `.replace('TRACE_PATH',JSON.stringify(trace)).replace('PUBLIC_PATH',JSON.stringify(publicTrace)).replace('ACTIVE_PATH',JSON.stringify(active)).replace('MANAGED_PATH',JSON.stringify(managed)));
@@ -88,6 +90,7 @@ export default {
 export function childModelResponse(prompt,body){
  const last=body.messages?.at(-1);let delta;
  if(last?.role==='tool')delta={content:'CHILD_FLOW_DONE '+prompt};
+ else if(prompt==='REPLY_ENTER_PROOF')delta={content:'REPLY_ENTER_DONE'};
  else if(prompt==='APP_CHILD_SAVED')delta={content:'CHILD_SAVED_CONTEXT'};
  else if(prompt==='APP_CHILD_MAIN_HOLD')delta={tool_calls:[call('ask_user',{question:'MAIN_QUESTION: choose deployment',options:['Preview','Production'],allowOther:false})]};
  else if(prompt.startsWith('APP_CHILD_TASK_'))delta={tool_calls:[call('task',{prompt:'CHILD_'+prompt.slice('APP_CHILD_TASK_'.length)})]};

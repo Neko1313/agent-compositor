@@ -1370,6 +1370,49 @@ it('serializes semantic input changes and forwards only the latest queued value'
   expect(f.requests).toHaveLength(0);
 });
 
+it('does not dispatch a field submission until its latest admitted change finishes',async()=>{
+  const f=await fixture();let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let current='',submitted:string|undefined;
+  f.host.core.host.registerPlugin({name:'submit-proof',version:'1.0.0',trust:'trusted'},{
+    'ui.change':async event=>{if(event.site!=='plugin-submit-proof-main')return;if(event.value==='first')await gate;current=event.value;},
+    'ui.press':event=>{if(event.site==='plugin-submit-proof-main'&&event.key==='send')submitted=current;},
+  });
+  await f.host.core.host.emit('service.ui.view',{plugin:'submit-proof',id:'main',title:'Submit',view:{input:{id:'reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+  const source=f.find('plugin-submit-proof-main')!;
+  try{
+    source.change('reply','first',source.snapshot().revision);await expect.poll(()=>source.snapshot().busy).toBe(true);
+    source.change('reply','latest',source.snapshot().revision);expect(source.press('send',source.snapshot().revision)).not.toBe(false);
+    await new Promise(resolve=>setImmediate(resolve));expect(submitted).toBeUndefined();release();await expect.poll(()=>submitted).toBe('latest');
+  }finally{release();}
+});
+
+it('cancels a field submission when its admitted input fails',async()=>{
+  const f=await fixture();let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let submitted=false;
+  f.host.core.host.registerPlugin({name:'submit-failure',version:'1.0.0',trust:'trusted'},{
+    'ui.change':async event=>{if(event.site==='plugin-submit-failure-main'){await gate;throw Error('failure');}},
+    'ui.press':event=>{if(event.site==='plugin-submit-failure-main')submitted=true;},
+  });
+  await f.host.core.host.emit('service.ui.view',{plugin:'submit-failure',id:'main',title:'Submit',view:{input:{id:'reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+  const source=f.find('plugin-submit-failure-main')!;
+  try{source.change('reply','new value',source.snapshot().revision);await expect.poll(()=>source.snapshot().busy).toBe(true);
+    expect(source.press('send',source.snapshot().revision)).not.toBe(false);release();
+    await expect.poll(()=>source.snapshot().error).toBe('Input change failed; submission cancelled');expect(submitted).toBe(false);
+  }finally{release();}
+});
+
+it('does not submit after a pending input operation is cancelled',async()=>{
+  const f=await fixture();let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let entered=false,submitted=false;
+  f.host.core.host.registerPlugin({name:'submit-cancel',version:'1.0.0',trust:'trusted'},{
+    'ui.change':async event=>{if(event.site==='plugin-submit-cancel-main'){entered=true;await gate;}},
+    'ui.press':event=>{if(event.site==='plugin-submit-cancel-main')submitted=true;},
+  });
+  await f.host.core.host.emit('service.ui.view',{plugin:'submit-cancel',id:'main',title:'Submit',view:{input:{id:'reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]}});
+  const source=f.find('plugin-submit-cancel-main')!;
+  try{source.change('reply','new value',source.snapshot().revision);await expect.poll(()=>entered).toBe(true);
+    expect(source.press('send',source.snapshot().revision)).not.toBe(false);expect(f.host.cancelOperation(source.id)).toBe(true);release();
+    await expect.poll(()=>source.snapshot().busy).toBe(false);expect(submitted).toBe(false);
+  }finally{release();}
+});
+
 it('bounds simultaneous UI operations and shuts down each private form through its owning signal', async () => {
   const f = await fixture();
   let calls = 0;

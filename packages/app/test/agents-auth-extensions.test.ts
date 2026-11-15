@@ -59,7 +59,7 @@ describe("independent agents, authentication and extensions", () => {
       const one=await create('First'),two=await create('Second'),site=(id:string)=>'plugin-agent-hub-agent-'+id;
       const press=(id:string,key:string)=>core.host.emit('ui.press',{site:site(id),key});
       const change=(id:string,value:string)=>core.host.emit('ui.change',{site:site(id),id:views.get(site(id)).input.id,value});
-      expect(views.get(site(one)).tabs.map((tab:any)=>tab.id)).toEqual(['overview',one,two]);
+      expect(views.get(site(one)).tabs.map((tab:any)=>tab.id)).toEqual(['overview',one,two]);expect(views.get(site(one)).input.submitAction).toBe('send:'+one);
       await change(one,'First task');await press(one,'send:'+one);
       await vi.waitFor(()=>expect(views.get(site(one)).lines.some((line:any)=>line.text==='FIRST_RESULT')).toBe(true));expect(asks).toBe(0);
       await press(one,'conversation:'+two);expect(views.get(site(two)).tabs.find((tab:any)=>tab.selected).id).toBe(two);expect(provider.requests).toHaveLength(1);

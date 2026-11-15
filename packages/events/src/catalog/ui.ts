@@ -82,7 +82,7 @@ export const uiTextViewSchema = z
     scrollKeys: z.enum(["host", "plugin"]).optional(),
     attachment: z.object({site:z.literal("composer"),width:z.number().int().min(4).max(20),rows:z.number().int().min(1).max(8).optional(),label:z.string().max(60)}).strict().optional(),
     hint: z.string().max(200).optional(),
-    input: z.object({label:z.string().max(60).optional(),id:z.string().min(1).max(64),value:z.string().max(4000),placeholder:z.string().max(200).optional()}).strict().optional(),
+    input: z.object({label:z.string().max(60).optional(),id:z.string().min(1).max(64),value:z.string().max(4000),placeholder:z.string().max(200).optional(),submitAction:z.string().min(1).max(64).optional()}).strict().optional(),
     tabs:z.array(z.object({id:z.string().min(1).max(64),label:z.string().min(1).max(60),action:z.string().min(1).max(64),selected:z.boolean().optional(),disabled:z.boolean().optional()}).strict()).min(1).max(12).superRefine((tabs,context)=>{
       if(new Set(tabs.map(tab=>tab.id)).size!==tabs.length)context.addIssue({code:'custom',message:'Tab IDs must be unique'});
       if(new Set(tabs.map(tab=>tab.action)).size!==tabs.length)context.addIssue({code:'custom',message:'Tab actions must be unique'});

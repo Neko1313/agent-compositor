@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {surfaceActions} from '../src/surface-actions.js';
+import {surfaceActions,surfaceSubmitAction} from '../src/surface-actions.js';
 
 it('keeps advertised targets unique across native tabs, lines and expanded table details',()=>{
   expect(surfaceActions({
@@ -11,4 +11,11 @@ it('keeps advertised targets unique across native tabs, lines and expanded table
     ]},
   })).toEqual(['show-all','add','expand','configure','toggle']);
   expect(surfaceActions()).toEqual([]);
+});
+
+it('submits only an explicit currently advertised action',()=>{
+  expect(surfaceSubmitAction({input:{id:'one',value:''},lines:[{text:'Search',action:'search'}]})).toBeUndefined();
+  expect(surfaceSubmitAction({input:{id:'one',value:'x',submitAction:'send'},lines:[{text:'Send',action:'send'}]})).toBe('send');
+  expect(surfaceSubmitAction({input:{id:'one',value:'x',submitAction:'missing'},lines:[{text:'Send',action:'send'}]})).toBeUndefined();
+  expect(surfaceSubmitAction({input:{id:'one',value:'x',submitAction:'hidden'},lines:[],tabs:[{id:'hidden',label:'Hidden',action:'hidden',disabled:true}]})).toBeUndefined();
 });

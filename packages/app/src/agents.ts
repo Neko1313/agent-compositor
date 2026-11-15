@@ -122,7 +122,7 @@ export async function agentManager(
       r.name,
       {
         tabs:navigation.tabs,scrollKeys:'host',
-        input:{id:`message-${draftIds.get(r.id)??0}`,label:'Reply',value:drafts.get(r.id)??'',placeholder:'Type a follow-up'},
+        input:{id:`message-${draftIds.get(r.id)??0}`,label:'Reply',value:drafts.get(r.id)??'',placeholder:'Type a follow-up',submitAction:`send:${r.id}`},
         hint:'Left/Right switches agents · Enter sends · PgUp/PgDn history · Ctrl+C stops this agent · Alt+i returns to main',
         lines: [
           ...(navigation.pages>1?[

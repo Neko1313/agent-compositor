@@ -438,7 +438,7 @@ isolated transcripts, independent drafts, button submission, closed-pane reopeni
 narrow layout, persisted selected-window identity and restart history without a
 reopen command. File reads only verify saved state; all interactions use actual
 terminal input. Nine checks require exactly three loopback requests and zero paid
-requests. Unsent drafts intentionally do not survive restart.
+requests. Independent Reply drafts survive restart after their debounced saves.
 
 For saved agent history, select the same extracted host and run
 `VISUAL_AGENT_HISTORY=1 VISUAL_EXECUTABLE=/path/to/extracted/compositor VISUAL_OUTPUT=dist/agent-history-proof node tools/visual/agent-table-check.mjs`.
@@ -1003,8 +1003,11 @@ plugin with `VISUAL_PLUGIN_DIR`; native proof uses bundled code only.
 ## OpenTUI agent reply recovery
 
 `VISUAL_OUTPUT=dist/visual-opentui-agent-drafts npm run visual:opentui-agent-drafts`
-uses the actual source CLI in an isolated PTY, with two managed agents and no
-model calls. It types independent Reply drafts, switches windows immediately,
-waits for the private state files, restarts and verifies both values. The
+uses the actual source CLI in an isolated PTY with two managed agents and one
+synthetic loopback provider request; no paid model is called. It types independent Reply drafts, switches windows immediately,
+waits for the private state files, restarts and verifies both values. It also
+types rapidly into a delayed plugin field that republishes each edit, switches
+windows immediately and verifies the exact value received by the producer. It
+also submits a Reply with Enter and checks the exact request and response. The
 scenario exercises native surface input admission and restart, not external
 terminal compatibility or a packaged distribution.

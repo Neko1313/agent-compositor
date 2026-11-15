@@ -191,6 +191,18 @@ describe("plugin action navigation", () => {
     expect(renders.has("plugin-placement")).toBe(false);
     ui.close();
   });
+  it('waits for the latest plugin field edit before its explicit Enter action',async()=>{
+    const {ui,text,key}=setup();let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let value='',submitted:string|undefined,submissions=0;
+    ui.core.host.registerPlugin({name:'submit-proof',version:'1.0.0',trust:'trusted'},{
+      'ui.change':async event=>{if(event.site!=='plugin-submit-proof-main')return;if(event.value==='first')await gate;value=event.value;},
+      'ui.press':event=>{if(event.site==='plugin-submit-proof-main'&&event.key==='send'){submitted=value;submissions++;}},
+    });
+    try{
+      await ui.core.host.emit('service.ui.view',{plugin:'submit-proof',id:'main',title:'Submit',view:{input:{id:'reply',value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]},placement:{site:'sidebar',size:.75,focus:true}});
+      text('first');text(' latest');key('enter');key('enter');await new Promise(resolve=>setImmediate(resolve));expect(submitted).toBeUndefined();
+      release();await ui.settled();expect(submitted).toBe('first latest');expect(submissions).toBe(1);
+    }finally{release();ui.close();}
+  });
   it('keeps the search label and literal characters visible in a narrow plugin pane',async()=>{
     const {ui,renders,text}=setup();ui.resize(60,24);
     await ui.core.host.emit('service.ui.view',{plugin:'search',id:'list',title:'Search',view:{input:{id:'search',value:'',placeholder:'Title, ID or conversation text'},lines:[{text:'Results'}]},placement:{site:'sidebar',size:.75,focus:true}});

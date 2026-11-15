@@ -492,7 +492,7 @@ export class HooksHost {
           if (!this.formHandler) throw new Error("Forms require an interactive UI");
           return runScoped(() => this.formHandler!(plugin, uiFormSchema.parse(request), signal));
         },
-        supports:feature=>feature==='table'||feature==='tabs',
+        supports:feature=>feature==='table'||feature==='tabs'||feature==='input-submit',
         view: async (id, title, view, placement) => {
           await callService("service.ui.view", { id, title, view, placement });
         },

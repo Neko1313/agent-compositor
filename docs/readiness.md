@@ -294,7 +294,8 @@ restore the selected pane with committed messages after restart. Agent Reply
 drafts are stored privately and survive restart after the debounced save; the
 main editor and private form drafts are not persisted. A source OpenTUI PTY
 scenario verifies fast switching and restoration of two Reply fields after
-process replacement, without a model request. Saved activity exposes persisted
+process replacement, and sends one reply through an isolated loopback provider.
+This does not establish external model quality. Saved activity exposes persisted
 prompts, turn lifecycle/usage and tool arguments/results/errors through filtered,
 paginated expandable records read through the configured session repository.
 Linux PTY checks cover an actual read tool call, a held main stream and restored

@@ -135,6 +135,8 @@ export class AppUI {
     ["tools", { title: "Tools", kind: "tools" }],
   ]);
   private viewInputs = new Map<string, {id:string;value:string}>();
+  private viewChangeTails = new Map<string,Promise<void>>();
+  private viewSubmissions = new Set<string>();
   private switchingSession = false;
   private visibility = new Map<string, string>();
   private composerViews = new Map<string, {plugin:string;surface:string;view:UiTextView}>();
@@ -1310,9 +1312,26 @@ export class AppUI {
           : Array.from(field.value).slice(0, -1).join("");
         this.viewInputs.set(site, field);
         this.scroll.set(site, 0);
-        this.track(this.core.host.emit("ui.change", { site, id: field.id, value: field.value }).then(() => {}));
+        const core=this.core,prior=this.viewChangeTails.get(site),value=field.value,id=field.id;
+        const change=(prior?prior.catch(()=>{}):Promise.resolve()).then(async()=>{
+          if(this.closed||this.core!==core||this.viewInputs.get(site)!==field)throw Error('Plugin input expired before it was applied');
+          const result=await core.host.emit("ui.change",{site,id,value});if(result.faults.length)throw Error('Plugin input failed');
+        });
+        this.viewChangeTails.set(site,change);
+        void change.then(()=>{if(this.viewChangeTails.get(site)===change)this.viewChangeTails.delete(site);},()=>{if(this.viewChangeTails.get(site)===change)this.viewChangeTails.delete(site);});
+        this.track(change);
       } else if (data.kind === "key") {
-        this.track(this.press(site,data.key));
+        const view=this.panes.get(site)?.view,submit=editable.submitAction;
+        const declared=submit&&view&&(
+          view.lines.some(line=>line.action===submit)||view.tabs?.some(tab=>!tab.disabled&&tab.action===submit)||
+          view.table?.rows.some(row=>row.action===submit||row.expanded&&row.details?.some(line=>line.action===submit)));
+        if(data.key==='enter'&&declared){
+          if(!this.viewSubmissions.has(site)){
+            this.viewSubmissions.add(site);
+            const core=this.core,tail=this.viewChangeTails.get(site)??Promise.resolve(),fieldId=editable.id;
+            this.track(tail.then(()=>{const current=this.panes.get(site)?.view;if(!this.closed&&this.core===core&&current?.input?.id===fieldId&&current.input.submitAction===submit)return this.press(site,submit!);}).finally(()=>this.viewSubmissions.delete(site)));
+          }
+        }else this.track(this.press(site,data.key));
       }
       this.draw();return;
     }

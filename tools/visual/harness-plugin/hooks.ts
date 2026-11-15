@@ -20,5 +20,9 @@ export default {
       if(!result.ok)await $.ui.notify(result.error,'error');return{drop:'proof started'};
     }
     if(e.text.trim()==='/workflow-release'){await $.fs.write('proof-release.txt','released');return{drop:'proof released'};}
+    if(e.text.trim()==='/workflow-inspect'){
+      const result=await $.agent.tool('workflow_run',{action:'list'});
+      if(!result.ok)throw Error(result.error);await $.ui.notify('WORKFLOW_INSPECT_OK');return{drop:'proof inspected'};
+    }
   },
 };

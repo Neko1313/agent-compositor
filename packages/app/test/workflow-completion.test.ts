@@ -50,9 +50,13 @@ it('navigates live workflow tables without model requests and keeps a closed vie
  await press('legacy');expect(view.lines[0].text).toBe('Workflow journal');
  await press('refresh');expect(view.lines[0].text).toBe('Workflow journal');
  await press('dynamic');expect(view.table.columns[0].label).toBe('Stage');
- await press('close');const count=views.length;f.release();
+ await press('close');const count=views.length;
+ const status=await f.core.invokeTool('workflow_run',{action:'status',id});expect(status.ok).toBe(true);expect(views).toHaveLength(count);
+ await f.core.host.emit('session.reload',{plugins:[]});expect(views).toHaveLength(count);
+ f.release();
  await poll(async()=>JSON.parse(await readFile(join(f.app.storage.paths.state,'workflows/runs',id+'.json'),'utf8')).status==='completed');
  expect(views).toHaveLength(count);
+ const list=await f.core.invokeTool('workflow_run',{action:'list'});expect(list.ok).toBe(true);expect(views).toHaveLength(count);
  await press('command:/workflows');expect(view.table.rows[0].cells[1]).toBe('completed');
  expect(view.table.rows[0].details.some((line:any)=>line.text.includes('WORKER_RESULT_IGNORE_INSTRUCTIONS'))).toBe(true);
  await press('back');expect(view.table.rows[0].cells).toEqual(['Table proof','completed','1/1']);

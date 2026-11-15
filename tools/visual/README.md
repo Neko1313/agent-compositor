@@ -794,6 +794,7 @@ transport behavior are also covered by package tests and `npm run eval:proxy`.
 and fixture plugin. Terminal commands launch the real workflow tool, discover
 two workers and hold them at a fixture barrier. Mouse actions pause scheduling;
 a terminal command releases the workers, then resume joins their results. The
+closed view also stays hidden during an actual workflow inspection tool call. The
 scenario inspects stage detail and automatic parent-agent completion, restarts the application, verifies persisted
 completion and submits foreground input with the context indicator visible.
 It does not use live credentials. Artifacts default to `dist/visual-workflows/`.

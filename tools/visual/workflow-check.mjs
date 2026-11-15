@@ -40,6 +40,9 @@ try{
  await wait('Progress');await click('+ Repository audit proof');await click('[ Inspect stages ]');await stageState('Inspect tests','running');await shot('01-running.png');
  await click('[ Pause scheduling ]');await wait('Repository audit proof · paused');await shot('02-paused.png');
  await click('[x]');await page.waitForFunction(()=>!visual.text().split('\n').some(line=>line.includes('│ Workflows')));
+ await submit('/workflow-inspect');await wait('WORKFLOW_INSPECT_OK');
+ assert.equal(await page.evaluate(()=>visual.text().split('\n').some(line=>line.includes('│ Workflows'))),false,'Inspecting workflows must not reopen the closed view');
+ report.checks.push('workflow.closed-during-tool-inspection');
  await submit('/workflow-release');
  const until=Date.now()+15000;let workersSettled=false;
  while(Date.now()<until){

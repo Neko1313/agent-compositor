@@ -69,8 +69,8 @@ Click a stage to expand its agent ID, dependencies, prompt, output/error and ret
 action. Only the selected stage includes its full detail payload; long prompts
 and results are split into bounded lines rather than silently shortened. The
 table shows current/last activity, attempts and accounted tokens (which can be
-estimates). Closing the panel suppresses background redraws; `/workflows` reopens
-it. **Legacy Python journals** opens the separate journal view; Refresh stays in
+estimates). Closing the panel suppresses background redraws and later workflow
+tool calls; `/workflows` reopens it. **Legacy Python journals** opens the separate journal view; Refresh stays in
 that view and **Dynamic workflows** returns. Hosts without `$.ui.supports('table')`
 retain the earlier text interface. Table-only hosts keep the cycling **View**
 control. Tables require catalog 0.27; optional tabs require catalog 0.28 and

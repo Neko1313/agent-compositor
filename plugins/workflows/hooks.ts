@@ -148,7 +148,7 @@ export default {
   "session.start": async (_event: unknown, $: HooksApi) => {
     await watch($);
     const engine=engineFor(context($));await engine.load();
-    if ((await runs($)).length || engine.runs.size) {
+    if (((await runs($)).length || engine.runs.size) && $.state.get('open') !== false) {
       $.state.set("open", true);
       await show($);
     }
@@ -156,7 +156,7 @@ export default {
   "session.reload": async (_event: unknown, $: HooksApi) => {
     await watch($);
     const engine=engineFor(context($));await engine.load();
-    if ((await runs($)).length || engine.runs.size) {
+    if (((await runs($)).length || engine.runs.size) && $.state.get('open') !== false) {
       $.state.set("open", true);
       await show($);
     }
@@ -233,6 +233,7 @@ export default {
   "tool.call": async (event: { tool: string }, $: HooksApi) => {
     if (["workflow","workflow_run"].includes(event.tool)) {
       await watch($);
+      if ($.state.get('open') === false) return;
       $.state.set("open", true);
       $.state.set("status", "Running…");
       await show($);

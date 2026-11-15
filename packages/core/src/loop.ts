@@ -1927,12 +1927,13 @@ export class AgentCore {
   getRecoveredInputs():readonly {id:string;text:string}[]{return this.recoveredInputs.filter(input=>!this.recoveringInputs.has(input.id)).map(input=>({...input}));}
 
   /** @internal User-initiated retry; a committed submit resolves the original record. */
-  async retryRecoveredInput(id:string):Promise<void>{
+  async retryRecoveredInput(id:string):Promise<CoreInputAdmission>{
     if(this.closed)throw Error('Session is closed');
     const input=this.recoveredInputs.find(item=>item.id===id);
     if(!input||this.recoveringInputs.has(id))throw Error('Recovered message is unavailable');
     this.recoveringInputs.add(id);
-    try {await this.submitInput(input.text,'user',undefined,id);}
+    let admission:CoreInputAdmission=false;
+    try {await this.submitInput(input.text,'user',value=>{admission=value;},id);return admission;}
     finally {if(!this.promptQueue.some(entry=>entry.recoveryId===id))this.recoveringInputs.delete(id);}
   }
 

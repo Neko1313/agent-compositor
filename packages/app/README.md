@@ -111,7 +111,8 @@ acceptance when persistent storage is configured. Interrupting an input before
 its intent write completes keeps the draft unaccepted; a late write can still
 make it appear in `/recover` after reopening. Use
 `/recover show N` to read one, `/recover retry N` to submit it explicitly, or
-`/recover discard N` to remove it from recovery. A recovered message may have
+`/recover discard N` to remove it from recovery. A retry interrupted before
+acceptance remains available for review and is reported as not submitted. A recovered message may have
 been cancelled or may have begun processing before a crash; inspect the session
 and any external effects before retrying. Steering that misses the next model
 step is also offered for review. Recovery never runs a message on its own. Older queue records without an identifier cannot be reconstructed.

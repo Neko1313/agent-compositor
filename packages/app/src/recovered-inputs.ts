@@ -20,5 +20,6 @@ export async function recoveryCommand(core:AgentCore,text:string):Promise<string
   const item=items[index];
   if(words[1]==='show')return `Recovered message ${index+1} (may have run or been cancelled):\n${clean(item.text)}`;
   if(words[1]==='discard'){await core.discardRecoveredInput(item.id);return 'Recovered message discarded.';}
-  await core.retryRecoveredInput(item.id);return 'Recovered message submitted or queued.';
+  const admitted=await core.retryRecoveredInput(item.id);
+  return admitted?'Recovered message submitted or queued.':'Recovered message was not submitted. Review it with /recover.';
 }

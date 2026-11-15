@@ -7,6 +7,16 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+A local CPU-only Qwen3 1.7B run started from clean `8c789e6` did not solve the known
+`multi-file-bug` case within 12 model requests. It searched for task phrases,
+repeatedly attempted a nonexistent file despite navigation hints, then listed
+the project and read the relevant source before reaching the limit. No successful
+project verification was recorded, and the independent behavior check failed;
+the protected package and check files were preserved. The owned loopback server exited, and the retained report is
+`dist/local-cpu-multifile-8c789e6/`. This single known-case diagnostic used no
+paid requests and does not establish general model quality. The worktree was
+edited after the process started, so the run is not exact-revision certification.
+
 The [workflow ownership regression](../packages/app/test/harness.test.ts) now
 uses a separate OS process to hold an actual workflow lease. An observer cannot
 pause or stop its active run or overwrite its completed journal from a stale

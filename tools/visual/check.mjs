@@ -223,7 +223,7 @@ try {
       lines[13]?.includes("Message") &&
       lines[14]?.includes("Describe your task") &&
       lines[16]?.includes("[1]") &&
-      lines[17]?.includes("amber · / commands · Ctrl+J newline")
+      lines[17]?.includes("amber · F2 windows · Alt+w arrange")
     );
   });
   await screenshot("10-narrow.png");

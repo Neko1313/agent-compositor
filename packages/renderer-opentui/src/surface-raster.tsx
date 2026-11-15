@@ -5,6 +5,7 @@ import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import type {UiTextView} from '@agent-compositor/events';
 import {useAppearance} from './appearance.js';
 import {appearanceText} from './colors.js';
+import {composerImageProtocol} from './composer-media.js';
 
 type Raster=NonNullable<UiTextView['raster']>;
 function Pixels({raster,width,height}:{raster:Raster;width:number;height:number}){
@@ -27,7 +28,7 @@ export function SurfaceRaster({raster,width,height,visible}:{raster:Raster;width
   useEffect(()=>{
     const update=()=>{
       const caps=renderer.capabilities;
-      setSupported(Boolean(caps?.kitty_graphics&&resolveImageRenderProtocol('auto',caps,false)==='kitty'));
+      setSupported(composerImageProtocol('kitty',resolveImageRenderProtocol('auto',caps,false),caps,false)==='kitty');
     };
     renderer.on(CliRenderEvents.CAPABILITIES,update);update();
     return()=>{renderer.off(CliRenderEvents.CAPABILITIES,update);};

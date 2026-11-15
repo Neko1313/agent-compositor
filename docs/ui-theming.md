@@ -319,6 +319,9 @@ The optional default [mascot plugin](../plugins/mascot/README.md) demonstrates
 raster panes and semantic reactions. `UiTextView.raster` accepts bounded base64
 RGBA8 frames alongside action rows. The terminal renderer scales frames into
 true-colour half blocks; `ui.render` can replace raster views as well as text.
+In the configured OpenTUI frontend, plugin panes use native Kitty graphics when
+available; otherwise their supplied raster alternative text remains visible.
+This includes tmux and screen, where image passthrough is not implemented.
 `ui.visibility` lets producers suspend timers while a pane is hidden or closed;
 `$.ui.remove(id)` removes a plugin's own pane from every workspace.
 

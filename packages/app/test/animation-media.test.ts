@@ -2,7 +2,7 @@ import{mkdtemp,writeFile,rm}from'node:fs/promises';import{join}from'node:path';i
 import{it,expect}from'vitest';
 import{GifWriter}from'omggif';
 import{decodeGif,decode}from'../../../plugins/mascot/animations.js';
-import{Timeline}from'../../../plugins/mascot/timeline.js';
+import{Timeline,nextFrameDelay}from'../../../plugins/mascot/timeline.js';
 
 function gif(disposal:number){
  const buffer=Buffer.alloc(4096),writer=new GifWriter(buffer,2,1,{palette:[0,0xff0000,0x00ff00,0x0000ff],loop:0});
@@ -38,6 +38,17 @@ it('keeps source time despite rendering delay, skips late frames, pauses and hon
  clock.play(true,1000);expect(clock.sample(frames,0,1030)).toEqual({index:0,wait:15,done:false});
  expect(clock.sample(frames,1,1030)).toEqual({index:2,wait:0,done:true});
  clock.select([...frames],1030);expect(clock.sample(frames,0,1040).index).toBe(0);
+});
+
+it('does not schedule before a fractional frame boundary and catches up when publishing crosses one',()=>{
+ const frames=[180,180,180].map(delay=>({width:1,height:1,rgba:'AAAAAA==',delay})),clock=new Timeline();
+ clock.select(frames,0);clock.play(true,0);
+ const first=clock.sample(frames,0,0),before=clock.sample(frames,0,179.25);
+ const delay=nextFrameDelay(first.index,before);
+ expect(delay).toBe(1);expect(clock.sample(frames,0,179.25+delay).index).toBe(1);
+ const late=clock.sample(frames,0,200);
+ expect(late.index).toBe(1);expect(nextFrameDelay(first.index,late)).toBe(1);
+ expect(clock.sample(frames,0,201).index).toBe(1);
 });
 
 it('never applies legacy outline repair to a clean replacement PNG automatically',async()=>{

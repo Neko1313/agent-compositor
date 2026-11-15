@@ -1,5 +1,10 @@
 import type { Frame } from './animations.js';
 
+/** Schedule immediately if publishing crossed a frame boundary. */
+export function nextFrameDelay(published: number, current: {index:number;wait:number}): number {
+  return published === current.index ? Math.max(1, Math.ceil(current.wait)) : 1;
+}
+
 /** Source-time playback: rendering latency never accumulates into the period. */
 export class Timeline {
   private key?: object;

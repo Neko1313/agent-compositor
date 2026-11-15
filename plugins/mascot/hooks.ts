@@ -1,4 +1,4 @@
-import { Timeline } from "./timeline.js";
+import { Timeline, nextFrameDelay } from "./timeline.js";
 import { Activity } from "./activity.js";
 import { AnimationPack, states, type Config, type State, type AnimationFrames } from "./animations.js";
 const FILE = ".agent-compositor/mascot.json";
@@ -132,7 +132,7 @@ class Companion {
     const remaining=(this.activity.transient?.until??0)-Date.now();
     const active=this.motion&&!this.config.paused&&!sample.done;
     if(!active&&remaining<=0)return;
-    const delay=active?Math.min(this.timeline.sample(frames,frames.plays).wait,remaining>0?remaining:Infinity):Math.max(1,remaining);
+    const delay=active?Math.min(nextFrameDelay(sample.index,this.timeline.sample(frames,frames.plays)),remaining>0?remaining:Infinity):Math.max(1,remaining);
     this.timer=setTimeout(()=>{void this.show().catch(()=>{});},Math.max(1,delay));
     this.timer.unref?.();
   }

@@ -60,6 +60,8 @@ when hidden/compact, and disposes timers on unload. Protected human dialogs and
 slash completion keep their input space. NO_COLOR, TERM=dumb and pause stop
 motion; activity/status changes and transient expiry still work. The text layer
 permits up to 60 redraws/s, while pixel-only updates use the native image path.
+Frame deadlines round up to the next millisecond, and publication that crosses
+a frame boundary schedules a prompt catch-up using the current source time.
 This is not a guarantee of 60 visible fps in every terminal or connection.
 
 The configured OpenTUI frontend selects Kitty or SIXEL only after actual terminal

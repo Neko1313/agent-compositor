@@ -8,7 +8,7 @@ import {once} from 'node:events';
 import {afterEach,describe,it,expect,vi} from 'vitest';
 import {Sampler,chart} from '../../../plugins/resources/metrics.js';
 import {Monitor} from '../../../plugins/resources/hooks.js';
-import {snapshotChildren} from '../../../plugins/resources/children.js';
+import {ChildrenCpu,processCounters,snapshotChildren,systemCounters} from '../../../plugins/resources/children.js';
 import {uiTextViewSchema,type UiTextView} from '@agent-compositor/events';
 
 afterEach(()=>vi.useRealTimers());
@@ -30,6 +30,38 @@ describe('resources monitor',()=>{
   now=2_000_000_000n;user=2250000;expect(sampler.sample().cpu).toBe(200);
   sampler.reset();now=9_000_000_000n;expect(sampler.sample().cpu).toBeUndefined();
   now=10_000_000_000n;user=-1;expect(()=>sampler.sample()).toThrow('Invalid process counters');
+ });
+ it('estimates child CPU only for matching process identities and marks churn incomplete',()=>{
+  const stat='123 (name ) with spaces) S 1 2 3 4 5 6 7 8 9 10 20 30 0 0 0 0 0 0 999';
+  expect(processCounters(stat)).toEqual({ticks:50n,start:999n});
+  const system=systemCounters('cpu 10 20 30 40 50 60 70 80 900 1000\ncpu0 1 2 3 4\ncpu1 1 2 3 4\n');
+  expect(system).toEqual({ticks:360n,cpus:'cpu0,cpu1'});
+  const sample=(ticks:bigint,processes:Map<number,{start:bigint;ticks:bigint}>,partial=false)=>({count:processes.size,rss:0,partial,system:{ticks,cpus:'cpu0,cpu1'},processes});
+  const counter=new ChildrenCpu();
+  expect(counter.sample(sample(100n,new Map([[1,{start:10n,ticks:10n}]]))).cpu).toBeUndefined();
+  expect(counter.sample(sample(300n,new Map([[1,{start:10n,ticks:110n}]])))).toEqual({cpu:100,partial:false});
+  expect(counter.sample(sample(500n,new Map([[1,{start:11n,ticks:120n}]])))).toEqual({cpu:0,partial:true});
+  counter.reset();expect(counter.sample(sample(600n,new Map())).cpu).toBeUndefined();
+  expect(counter.sample({...sample(800n,new Map()),system:{ticks:800n,cpus:'cpu0'}}).cpu).toBeUndefined();
+ });
+ it('samples child CPU only on its active tab and resets the interval across pause and hide',async()=>{
+  vi.useFakeTimers();let calls=0,latest!:UiTextView;
+  const read=vi.fn(async()=>{calls++;return {count:1,rss:100,partial:false,system:{ticks:BigInt(calls*200),cpus:'cpu0,cpu1'},processes:new Map([[1,{start:1n,ticks:BigInt(calls*100)}]])};});
+  const sampler=new Sampler({now:()=>BigInt(Date.now())*1000000n+1n,cpu:()=>({user:Date.now(),system:0}),memory:()=>({rss:1,heapUsed:1,heapTotal:1})});
+  const monitor=new Monitor({ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{latest=view;},remove:async()=>{}}},sampler,read);
+  try{
+   await monitor.show();await vi.advanceTimersByTimeAsync(2000);expect(read).not.toHaveBeenCalled();
+   await monitor.press('child-cpu');await vi.advanceTimersByTimeAsync(2000);
+   expect(latest.lines.some(line=>line.text.includes('Child CPU: 100.0%'))).toBe(true);
+   await monitor.press('pause');await vi.advanceTimersByTimeAsync(2000);expect(read).toHaveBeenCalledTimes(2);
+   await monitor.press('sample');expect(read).toHaveBeenCalledTimes(3);
+   expect(latest.lines.some(line=>line.text.includes('Child CPU: waiting for interval'))).toBe(true);
+   await monitor.press('pause');await vi.advanceTimersByTimeAsync(1000);
+   expect(latest.lines.some(line=>line.text.includes('Child CPU: waiting for interval'))).toBe(true);
+   await monitor.visibility({visible:false,attached:true,columns:40});await vi.advanceTimersByTimeAsync(2000);expect(read).toHaveBeenCalledTimes(4);
+   await monitor.visibility({visible:true,attached:true,columns:40});await vi.advanceTimersByTimeAsync(1000);
+   expect(latest.lines.some(line=>line.text.includes('Child CPU: waiting for interval'))).toBe(true);
+  }finally{monitor.dispose();}
  });
  it('plots actual observations with bounded width and an honest multi-core axis',()=>{
   const plot=chart([undefined,0,50,200],30,'%',100);expect(plot[0]).toContain('200.0');expect(plot.join('\n')).toContain('Older -> newer (%)');
@@ -70,6 +102,14 @@ describe('resources monitor',()=>{
    expect(childRss).toBeGreaterThan(0);
    const snapshot=await snapshotChildren();
    expect(snapshot).toBeDefined();expect(snapshot!.count).toBeGreaterThanOrEqual(1);expect(snapshot!.rss).toBeGreaterThanOrEqual(childRss);
+  }finally{child.kill();await once(child,'exit');}
+ });
+ it.skipIf(process.platform!=='linux')('observes CPU used by a real busy descendant',async()=>{
+  const child=spawn(process.execPath,['-e',"process.stdout.write('ready');setInterval(()=>{const end=Date.now()+50;while(Date.now()<end){}},60)"],{stdio:['ignore','pipe','ignore']});
+  try{
+   await once(child.stdout!,'data');const counter=new ChildrenCpu(),first=await snapshotChildren();expect(first).toBeDefined();counter.sample(first!);
+   await new Promise(resolve=>setTimeout(resolve,1300));const second=await snapshotChildren();expect(second).toBeDefined();
+   expect(counter.sample(second!).cpu).toBeGreaterThan(5);
   }finally{child.kill();await once(child,'exit');}
  });
  it('shows an explicit child snapshot and ignores an unfinished snapshot after close',async()=>{

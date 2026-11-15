@@ -11,14 +11,20 @@ JavaScript heap. Metrics include agents running inside the same process and
 exclude child shell processes, external model servers and other applications.
 They are not per-agent attribution or a machine-wide utilization estimate.
 
-On Linux, **Snapshot children** separately measures the currently live descendant
-processes and sums their RSS. It does not run a helper command. This is a
-best-effort snapshot, not a process-tree CPU graph: short-lived processes can be
-missed, processes can change during enumeration, and shared memory may be counted
-more than once. A process that disappears or cannot be read, or a limit of 512
-descendants or 128 threads per process, marks the result incomplete. The snapshot
-is not refreshed automatically and is unavailable on other platforms. External
-model servers that are not descendants remain excluded.
+On Linux, **Snapshot children** separately measures currently live descendants
+and sums their RSS. **Child CPU** also samples descendants while that tab is
+active and shows an approximate CPU history; the first reading needs a second
+sample. Both use procfs without a helper command and are unavailable on other
+platforms. The CPU estimate compares matching process IDs and start times against
+system CPU counters; it uses the same one-core 100% scale as the process graph.
+It excludes the Compositor process itself. New or exited processes make the
+interval incomplete, and processes that both start and exit between samples can
+be missed without detection. CPU hotplug or unavailable counters leave an
+interval without a value. Incomplete intervals are labelled and omitted from
+the graph. A process that disappears or cannot be read, or the
+limit of 512 descendants or 128 threads per process, also marks a reading
+incomplete. RSS may count shared memory more than once. External model servers
+that are not descendants remain excluded.
 
 The CPU and Memory tabs show a scaled time-series plot of the latest samples with
 numeric axes and units. Each `*` is a real observation. Sampling targets one second
@@ -28,7 +34,8 @@ shows the newest samples that fit. Narrow windows reduce the plot width; use
 Alt+f or PageUp/PageDown for the complete controls.
 
 Pause/Resume freezes or resumes automatic measurement. Sample now takes a reading
-while paused and retries a failed sample. Clear history resets the in-memory
+while paused and retries a failed sample; on Child CPU it also reads descendants.
+Clear history resets the in-memory
 window. The first CPU interval after open/resume/hidden time is unavailable until
 another reading; no zero is invented. Closing, hiding, disabling or unloading
 stops sampling. Reopening keeps this process's samples; restart/reload starts

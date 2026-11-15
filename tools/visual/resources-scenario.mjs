@@ -16,6 +16,12 @@ export async function resourcesScenario({page,wait,text,command,click,shot,repor
  await click('[Memory]');await wait('Resident memory history');await shot('01-paused-memory');await page.keyboard.press('ArrowLeft');await wait('CPU history (%)');
  await click('[ Sample now ]');await page.waitForFunction(previous=>Number(visual.text().match(/Samples (\d+)\/120/)?.[1])===previous+1,paused);assert.ok((await text()).includes('Paused'));
  await reveal('[ Snapshot children ]');await click('[ Snapshot children ]');await wait(process.platform==='linux'?'Last child snapshot:':'Child snapshots are available on Linux only.');await shot('01a-child-snapshot');
+ await click('[Child CPU]');await wait('Child CPU history (%)');
+ if(process.platform==='linux'){
+  await click('[ Resume ]');await page.waitForFunction(()=>/Child CPU: [0-9]+\.[0-9]+%/.test(visual.text()),undefined,{timeout:15000});
+  await click('[ Pause ]');await wait('Paused');
+ }
+ await shot('01b-child-cpu');await click('[CPU]');
  await click('[ Clear history ]');await wait('Samples 1/120');
  await page.evaluate(()=>visual.terminal.resize(48,18));await wait('RSS:');await reveal('[ Resume ]');await wait('[ Sample now ]');await shot('02-resources-narrow');
  await page.evaluate(()=>visual.terminal.resize(100,30));await page.keyboard.press('Alt+q');await page.waitForFunction(()=>!visual.text().includes('│ Resources')&&visual.text().split('\n')[1]?.includes('Conversation'));assert.ok((await text()).includes('Working'));

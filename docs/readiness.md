@@ -271,11 +271,11 @@ usage, cancellation, unload and shutdown bounds.
 
 The bundled `resources` plugin provides a standalone non-model window with live
 process CPU/RSS charts, pause/manual sampling and bounded in-memory history.
-It includes in-process agents; child shells, model servers, per-agent attribution
-and broader resource integrations remain open for the live charts. A separate
-on-demand Linux snapshot estimates the RSS of live descendants, with explicit
-incomplete results and no process-tree CPU attribution; external model servers
-remain outside its scope. Agent and workflow views use
+It includes in-process agents. On Linux, a separate child CPU chart estimates
+the load of surviving descendants and an on-demand snapshot sums their RSS; both
+report incomplete observations and can miss short-lived processes. External
+model servers, per-agent attribution and broader resource integrations remain
+open. Agent and workflow views use
 catalog 0.27 semantic tables and catalog 0.28 tabs: expandable details, state
 filters, paginated stages/results, keyboard/mouse navigation and narrow stacked
 fields. Workflow pause/resume and legacy journals remain available. Closing the

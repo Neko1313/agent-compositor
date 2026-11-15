@@ -1,5 +1,5 @@
 import {Sampler,chart,type Sample} from './metrics.js';
-import {snapshotChildren,type ChildrenSnapshot} from './children.js';
+import {ChildrenCpu,snapshotChildren,type ChildrenSnapshot} from './children.js';
 
 export class Monitor {
   samples:Sample[]=[];
@@ -7,7 +7,7 @@ export class Monitor {
   private visible=true;
   private paused=false;
   private columns=60;
-  private metric:'cpu'|'memory'='cpu';
+  private metric:'cpu'|'memory'|'children'='cpu';
   private error?:string;
   private revision=0;
   private timer?:ReturnType<typeof setTimeout>;
@@ -16,9 +16,11 @@ export class Monitor {
   private childrenPending=false;
   private childrenRevision=0;
   private childrenController?:AbortController;
+  private readonly childrenCpu=new ChildrenCpu();
+  private childrenHistory:{cpu?:number;partial:boolean}[]=[];
   constructor(private readonly $:any,private readonly sampler=new Sampler(),private readonly readChildren=snapshotChildren){}
   private stop(){clearTimeout(this.timer);this.timer=undefined;this.revision++;}
-  private cancelChildren(){this.childrenRevision++;this.childrenController?.abort();this.childrenController=undefined;this.childrenPending=false;}
+  private cancelChildren(){this.childrenRevision++;this.childrenController?.abort();this.childrenController=undefined;this.childrenPending=false;this.childrenCpu.reset();}
   dispose(){this.open=false;this.cancelChildren();this.stop();this.sampler.reset();}
   private take(){
     try{this.samples.push(this.sampler.sample());this.samples=this.samples.slice(-120);this.error=undefined;}
@@ -28,11 +30,14 @@ export class Monitor {
     this.stop();
     if(!this.open||!this.visible||this.paused||this.error)return;
     const revision=this.revision;
-    this.timer=setTimeout(()=>{
+    this.timer=setTimeout(async()=>{
       this.timer=undefined;
       if(revision!==this.revision||!this.open||!this.visible)return;
       this.take();
-      void this.paint().then(()=>{if(revision===this.revision)this.schedule();}).catch(()=>this.stop());
+      try{
+        if(this.metric==='children'&&this.children!==null)await this.sampleChildren(true);
+        await this.paint();if(revision===this.revision)this.schedule();
+      }catch{this.stop();}
     },1000);
     this.timer.unref?.();
   }
@@ -40,43 +45,56 @@ export class Monitor {
     if(!this.open||!this.visible)return;
     const latest=this.samples.at(-1),mib=(bytes:number)=>(bytes/1048576).toFixed(1),tabs=this.$.ui.supports?.('tabs')===true;
     await this.$.ui.view('resources','Resources',{
-      ...(tabs?{tabs:[{id:'cpu',label:'CPU',action:'cpu',selected:this.metric==='cpu'},{id:'memory',label:'Memory',action:'memory',selected:this.metric==='memory'}]}:{}),
+      ...(tabs?{tabs:[{id:'cpu',label:'CPU',action:'cpu',selected:this.metric==='cpu'},{id:'memory',label:'Memory',action:'memory',selected:this.metric==='memory'},{id:'children',label:'Child CPU',action:'child-cpu',selected:this.metric==='children'}]}:{}),
       scrollKeys:'host',hint:'Process metrics only · PgUp/PgDn scroll · Pause freezes samples',
       lines:[
         {text:`Compositor process · PID ${process.pid}`,bold:true},
-        {text:'Includes in-process agents; excludes child shell processes.',tone:'muted'},
+        {text:'Main metrics include in-process agents; exclude child processes.',tone:'muted'},
         {text:`${this.paused?'Paused':'Live'} · Samples ${this.samples.length}/120 · 1 s target interval`,bold:true},
         {text:`CPU: ${latest?.cpu===undefined?'waiting for interval':latest.cpu.toFixed(1)+'%'} · 100% = one core`},
         {text:latest?`RSS: ${mib(latest.rss)} MiB · JS heap used: ${mib(latest.heapUsed)} MiB`:'No measurements yet.'},
         ...(this.childrenPending?[{text:'Reading child processes…',tone:'muted' as const}]:this.childrenError?[{text:'Child snapshot failed. Try again.',tone:'danger' as const}]:this.children===null?[{text:'Child snapshots are available on Linux only.',tone:'muted' as const}]:this.children?[{text:`Last child snapshot: ${this.children.count} processes · ${mib(this.children.rss)} MiB RSS${this.children.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
         ...(this.error?[{text:'Sampling failed: '+this.error,tone:'danger' as const},{text:'Use Sample now to retry.',tone:'muted' as const}]:[]),
-        ...(!tabs?[{text:`[ Chart: ${this.metric==='cpu'?'CPU':'Memory'} · switch ]`,action:'switch'}]:[]),
-        {text:this.metric==='cpu'?'CPU history (%)':'Resident memory history (MiB)',bold:true},
-        ...chart(this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576),this.columns,this.metric==='cpu'?'%':'MiB',this.metric==='cpu'?100:0).map(text=>({text})),
+        ...(!tabs?[{text:`[ Chart: ${this.metric==='cpu'?'CPU':this.metric==='memory'?'Memory':'Child CPU'} · switch ]`,action:'switch'}]:[]),
+        ...(this.metric==='children'?[{text:`Child CPU: ${this.childrenHistory.at(-1)?.cpu===undefined?'waiting for interval':this.childrenHistory.at(-1)!.cpu!.toFixed(1)+'%'}${this.childrenHistory.at(-1)?.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
+        {text:this.metric==='cpu'?'CPU history (%)':this.metric==='memory'?'Resident memory history (MiB)':'Child CPU history (%) · approximate',bold:true},
+        ...chart(this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576),this.columns,this.metric==='memory'?'MiB':'%',this.metric==='memory'?0:100).map(text=>({text})),
         {text:this.paused?'[ Resume ]':'[ Pause ]',action:'pause',tone:'accent' as const},
         {text:'[ Sample now ]',action:'sample'},this.childrenPending?{text:'[ Reading children… ]',tone:'muted' as const}:{text:'[ Snapshot children ]',action:'children'},{text:'[ Clear history ]',action:'clear'},{text:'[ Close ]',action:'close'},
       ],
     },{site:'inspector',focus});
   }
-  async show(){this.stop();this.open=true;this.visible=true;this.sampler.reset();this.take();await this.paint(true);this.schedule();}
+  private async sampleChildren(trackCpu:boolean){
+    if(this.childrenPending)return;
+    const revision=++this.childrenRevision,controller=new AbortController();this.childrenController=controller;this.childrenPending=true;this.childrenError=false;
+    try {
+      const value=await this.readChildren(controller.signal);
+      if(revision===this.childrenRevision){
+        this.children=value??null;
+        if(trackCpu&&value){this.childrenHistory.push(this.childrenCpu.sample(value));this.childrenHistory=this.childrenHistory.slice(-120);}
+      }
+    }catch{if(revision===this.childrenRevision){this.childrenError=true;this.childrenCpu.reset();}}
+    if(revision===this.childrenRevision){this.childrenController=undefined;this.childrenPending=false;}
+  }
+  async show(){this.stop();this.cancelChildren();this.open=true;this.visible=true;this.sampler.reset();this.take();await this.paint(true);this.schedule();}
   async press(key:string){
     if(!this.open)return;
     if(key==='close'){this.dispose();await this.$.ui.remove('resources');return;}
     if(key==='children'){
       if(this.childrenPending)return;
-      const revision=++this.childrenRevision,controller=new AbortController();this.childrenController=controller;this.childrenPending=true;this.childrenError=false;await this.paint();
-      try {const value=await this.readChildren(controller.signal);if(revision===this.childrenRevision)this.children=value??null;}
-      catch {if(revision===this.childrenRevision)this.childrenError=true;}
-      if(revision===this.childrenRevision){this.childrenController=undefined;this.childrenPending=false;await this.paint();}
+      const revision=this.childrenRevision;const pending=this.sampleChildren(false);await this.paint();await pending;
+      if(revision+1===this.childrenRevision)await this.paint();
       return;
     }
-    if(!['cpu','memory','switch','pause','sample','clear'].includes(key))return;
+    if(!['cpu','memory','child-cpu','switch','pause','sample','clear'].includes(key))return;
     this.stop();
+    if(['cpu','memory','child-cpu','switch','pause','clear'].includes(key))this.cancelChildren();
     if(key==='cpu'||key==='memory')this.metric=key;
-    if(key==='switch')this.metric=this.metric==='cpu'?'memory':'cpu';
+    if(key==='child-cpu')this.metric='children';
+    if(key==='switch')this.metric=this.metric==='cpu'?'memory':this.metric==='memory'?'children':'cpu';
     if(key==='pause'){this.paused=!this.paused;this.sampler.reset();}
-    if(key==='sample')this.take();
-    if(key==='clear'){this.samples=[];this.sampler.reset();this.take();}
+    if(key==='sample'){this.take();if(this.metric==='children')await this.sampleChildren(true);}
+    if(key==='clear'){this.samples=[];this.childrenHistory=[];this.sampler.reset();this.take();}
     await this.paint();this.schedule();
   }
   async visibility(event:{visible:boolean;attached:boolean;columns:number}){

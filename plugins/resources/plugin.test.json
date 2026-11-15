@@ -333,6 +333,26 @@
       }
     },
     {
+      "id": "child-cpu-accounting",
+      "kind": "deterministic",
+      "requirements": ["view.content"],
+      "setup": "Synthetic Linux counter records exercise process identity, system ticks and CPU changes.",
+      "expect": ["CPU is normalized to one core; PID reuse and CPU topology changes do not create complete samples."],
+      "forbidden": ["Attributing a reused PID or unavailable interval as a complete observation."],
+      "timeoutMs": 60000,
+      "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor estimates child CPU only for matching process identities and marks churn incomplete"}
+    },
+    {
+      "id": "child-cpu-lifecycle",
+      "kind": "deterministic",
+      "requirements": ["view.lifecycle"],
+      "setup": "The actual monitor receives controlled CPU snapshots and clock ticks.",
+      "expect": ["Child CPU sampling follows the selected tab, pause, resume and visibility."],
+      "forbidden": ["Sampling in the background or retaining stale CPU intervals across pause or hide."],
+      "timeoutMs": 60000,
+      "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor samples child CPU only on its active tab and resets the interval across pause and hide"}
+    },
+    {
       "id": "child-snapshot-lifecycle",
       "kind": "deterministic",
       "requirements": ["view.content", "view.lifecycle"],

@@ -159,8 +159,8 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     f.release();await f.until(()=>f.layout.snapshot().focused==='session'&&f.test.captureCharFrame().includes('FOR_MAIN')&&!f.client.pending());
     expect(value).toBe('FIRST');
   },12000);
-  it.each(['removed','replaced','discarded','narrow','keyboard','noninput','typing','recovery_replaced','field_replaced'] as const)('holds later text and cancels Enter when the selected plugin is %s',async mode=>{
-    const f=await fixture();let value='',submitted=0;
+  it.each(['removed','replaced','discarded','discard_inflight','narrow','keyboard','noninput','typing','recovery_replaced','field_replaced','private','main_private'] as const)('holds later text and cancels Enter when the selected plugin is %s',async mode=>{
+    const f=await fixture(false,mode==='private');let value='',submitted=0;
     f.host.core.host.registerPlugin({name:'mouse-origin',version:'1.0.0',trust:'trusted'}, {
       'ui.change':async(event,$)=>{value=event.value;await $.ui.view('main','Origin',{
         input:{id:'reply',label:'Reply',value,submitAction:'send'},lines:[{text:'Send',action:'send'}]});},
@@ -185,6 +185,31 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     }
     f.release();await f.until(()=>f.test.captureCharFrame().includes('Click input or Alt+0'));
     expect(value).toBe('FIRST');expect(submitted).toBe(0);
+    if(mode==='main_private'){
+      f.host.core.host.registerPlugin({name:'private-recovery',version:'1.0.0',trust:'trusted'}, {
+        'ui.press':async(event,$)=>{if(event.site==='private-recovery-trigger')await $.ui.form({title:'PRIVATE_RECOVERY_FORM',
+          fields:[{id:'value',label:'Secret',type:'text',value:'ORIGINAL'}],actions:[{id:'cancel',label:'Cancel'}]});},
+      });
+      const pending=f.host.core.host.emit('ui.press',{site:'private-recovery-trigger',key:'open'});
+      await f.until(()=>f.host.session.snapshot().interaction?.kind==='form');f.packet('\x1b0');
+      await f.until(()=>f.layout.snapshot().focused==='session'&&f.test.captureCharFrame().includes('PRIVATE_RECOVERY_FORM'));
+      expect(f.test.captureCharFrame()).toContain('Click input or Alt+0');
+      expect(f.test.captureCharFrame()).not.toContain('FOR_TARGET');expect(value).toBe('FIRST');expect(submitted).toBe(0);
+      f.host.session.cancelInteraction!(f.host.session.snapshot().interaction!.id);await pending;return;
+    }
+    if(mode==='private'){
+      void f.host.submit('/controller-probe form');
+      await f.until(()=>f.host.surfaces.snapshot().some(source=>source.snapshot().controller?.kind==='form'));
+      const form=f.host.surfaces.snapshot().find(source=>source.snapshot().controller?.kind==='form')!;
+      f.layout.act({type:'focus',id:form.id});if(!f.layout.snapshot().fullscreen)f.layout.act({type:'zoom'});
+      await f.until(()=>f.test.captureCharFrame().includes('Name: FORMvalue|'));
+      const rows=f.test.captureCharFrame().split('\n'),row=rows.findIndex(line=>line.includes('Name: FORMvalue|'));
+      await f.test.mockMouse.click(rows[row].indexOf('Name: ')+9,row);await f.test.flush({maxPasses:30});
+      expect(f.test.captureCharFrame()).toContain('Click input or Alt+0');
+      const trace=(await readFile(f.controllerFixture!.trace,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
+      expect(trace.filter((entry:{event:string;input:string})=>entry.event==='input'&&entry.input==='text')).toHaveLength(0);
+      expect(value).toBe('FIRST');expect(submitted).toBe(0);return;
+    }
     if(mode==='typing'){f.packet('NEW');await f.test.flush({maxPasses:30});}
     if(mode==='keyboard'){
       f.packet('\x1b0');await f.until(()=>f.layout.snapshot().focused==='session'&&f.test.captureCharFrame().includes('FOR_TARGET')&&!f.client.pending());
@@ -207,8 +232,13 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
       await f.until(()=>!f.client.pending());expect(value).toBe('FIRST');expect(submitted).toBe(0);return;
     }
     const lines=f.test.captureCharFrame().split('\n'),row=lines.findIndex(line=>line.includes('Reply: FIRST')),col=lines[row].indexOf('Reply: FIRST')+12;
-    if(mode==='recovery_replaced'||mode==='field_replaced')f.holdWhen(input=>input?.operation.kind==='layout-action');
+    if(mode==='recovery_replaced'||mode==='field_replaced'||mode==='discard_inflight')f.holdWhen(input=>input?.operation.kind==='layout-action');
     await f.test.mockMouse.click(col,row);
+    if(mode==='discard_inflight'){
+      await f.until(()=>f.held.length>0);f.test.mockInput.pressEscape();
+      await f.until(()=>!f.test.captureCharFrame().includes('Click input or Alt+0'));
+      f.release();await f.until(()=>!f.client.pending());expect(value).toBe('FIRST');expect(submitted).toBe(0);return;
+    }
     if(mode==='field_replaced'){
       await f.until(()=>f.held.length>0);
       await f.host.core.host.emit('service.ui.view',{plugin:'mouse-origin',id:'main',title:'Origin',view:{

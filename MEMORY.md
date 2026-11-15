@@ -1,5 +1,20 @@
 # Project memory
 
+## Linux ARM64 `/btw` candidate failure — 2026-11-16
+
+GitHub reports the earlier build-only run `43759318216` for `c2fd409` succeeded
+in verification and all four native build jobs, with publication skipped. It
+predates the `/btw` recovery gate and cannot certify that scenario or later code.
+
+Build-only run `43762410510` for `938edb9` failed its installed Linux ARM64
+side-conversation gate: the final durable draft was `BTW_SIDE_DRAF` while the
+PTY input trace contains the final `T`. Evidence was downloaded to
+`dist/candidate-938-arm-failure/opentui-btw-linux-arm64/`. This predates
+`ab20151` and later input-order fixes; the saved evidence does not identify the
+rejected or lost event, so do not claim those fixes resolve this exact failure
+without a fresh native candidate. Its macOS Intel job was still running when
+last inspected; this failed candidate is not a release certificate.
+
 ## Side-agent input observation — 2026-11-16
 
 During the OpenTUI `/btw` visual check, a follow-up entered immediately after
@@ -41,6 +56,11 @@ Main; Escape discards it and pending actions, including Enter, are cancelled.
 Tests cover both owner changes, narrow display, an unrelated tab selection and
 mouse/keyboard recovery. This is not a persistence guarantee across restart or
 an exhaustive check of all plugin-specific inputs.
+Follow-up native-renderer regressions also held the recovery flow while a
+selected custom private form and an ordinary private Main form were open:
+the retained text did not enter either form. A separate delayed-selection case
+checks that Escape discards the text even while selection admission is pending.
+These are controlled fixtures, not verification of all controller providers.
 
 ## Physical tmux graphics probe — 2026-11-15
 

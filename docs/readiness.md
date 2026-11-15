@@ -7,6 +7,21 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+GitHub reports that the earlier build-only [run `43759318216` for `c2fd409`](https://github.com/Neko1313/agent-compositor/actions/runs/43759318216)
+completed verification and all four native build jobs successfully; publication
+was skipped. This predates the `/btw` recovery gate and the later fixes. The
+reported job results do not certify those later changes or establish 1.0 readiness.
+
+Build-only [run `43762410510` for `938edb9`](https://github.com/Neko1313/agent-compositor/actions/runs/43762410510)
+failed the installed Linux ARM64 `/btw` scenario: its side draft was saved as
+`BTW_SIDE_DRAF` although the input trace contains the final `T`. The retained
+failure report and terminal trace are in
+`dist/candidate-938-arm-failure/opentui-btw-linux-arm64/`. Later changes include
+retry handling for an earlier locally typed field value and input-admission
+ordering, but this artifact does not establish which race caused the failure.
+The candidate has not passed; current-source four-platform certification is
+still required. At the time of inspection its macOS Intel job was still running.
+
 An installed Linux x64 OpenTUI `/btw` probe reproduced a stale side Reply field:
 the draft reached private storage after switching to a held Main, but reopening
 the side window showed the prior empty value. Agent-hub now republishes its

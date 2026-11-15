@@ -7,6 +7,13 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An exploratory serverless CPU onboarding diagnostic now runs a pinned local
+`llama-completion` executable directly, with no model server or product actions.
+On twelve known intent cases, the 0.6B model matched five and the cached 1.7B
+model matched ten; both followed injected instructions in two cases. Valid JSON
+did not imply a trustworthy decision. See [the diagnostic and its limits](evals.md#serverless-cpu-onboarding-diagnostic).
+This does not implement or qualify embedded-model onboarding.
+
 Build-only run `43687179751` for `85ac6dc` failed its macOS ARM command
 cancellation scenario before the first cancellation check: the captured input
 clicked row 20, while the retained failure screen showed the answer button on

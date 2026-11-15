@@ -636,6 +636,47 @@ usage/profile forwarding and child-owned compaction. Default tool examples are
 checked against their parameter shapes; they are not blindly executed. No live
 Anthropic/OpenAI cache-hit or dollar-savings claim is made from these fixtures.
 
+## Serverless CPU onboarding diagnostic
+
+`npm run eval:onboarding-cpu` is an exploratory diagnostic for a Qwen-format
+GGUF model and an existing `llama-completion` executable. It starts a separate
+CPU-only process per synthetic case; it does not start a model server, read a
+saved provider or call a paid API. Supply explicit SHA-256 pins for both files:
+
+```sh
+npm run eval:onboarding-cpu -- --engine /path/to/llama-completion \
+  --engine-sha256 ENGINE_SHA256 --model /path/to/model.gguf \
+  --model-sha256 MODEL_SHA256 --output dist/onboarding-cpu-report
+```
+
+The output directory must not exist. The diagnostic checks 12 known Russian and
+English work-intent cases, including ambiguous text and instruction injection.
+The model produces only a grammar-constrained label; it cannot select, install or
+enable plugins through this diagnostic. Failures are retained in `report.json`
+and cause a nonzero exit. Two threads, zero GPU layers, 2048 context tokens and
+64 output tokens per case are requested. The executable is not sandboxed: use
+only a trusted runtime, and do not infer network isolation from its environment.
+Pins cover the named executable and model, not its dynamically linked libraries.
+
+This is a small, known-case research fixture, not an onboarding feature or a
+general quality benchmark. JSON validity does not establish semantic correctness,
+and an inferred label is never permission to change a user's setup. Runtime and
+model packaging, resource limits, other architectures and real first-run quality
+remain open.
+
+On 2026-11-15 a Linux x64 exploratory run used the same executable SHA-256
+`eb981d551bfcf2209dec89e88385c172ee9d2861e6e84f04e47eabdfad9eb79b`
+and fixture SHA-256 `49fb0d64e4feef187f1232408bd06f830569dea92c9bbbbc76e0b1977c40e49c`
+for both local models. The [official Qwen3 0.6B GGUF](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF)
+at revision `23749fefcc72300e3a2ad315e1317431b06b590a` produced valid JSON
+for 12/12 cases but matched 5/12 expected labels. The previously cached Qwen3
+1.7B model produced valid JSON for 12/12 and matched 10/12; both incorrect
+cases followed injected instructions. Reports and raw outputs are retained
+locally in `dist/onboarding-cpu-06-exact` and `dist/onboarding-cpu-17-exact`.
+Both runs deliberately exited nonzero. These known cases do not establish model
+quality or general injection resistance. Results must not preselect or apply
+plugin changes without the user's explicit selection.
+
 ## Offline CPU development diagnostic
 
 With `ollama` on PATH and an existing local model cache, run:

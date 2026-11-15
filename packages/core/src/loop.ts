@@ -2012,7 +2012,7 @@ export class AgentCore {
     for(const call of batch.filter(call=>!executed.has(call.id))) {
       const error="Tool call was not scheduled by the selected batch strategy";
       this.executionRecords.push({name:call.name,args:call.args,ok:false});
-      await this.emit("tool.result",{callId:call.id,tool:call.name,ok:false,error});
+      await this.emit("tool.result",{callId:call.id,tool:call.name,ok:false,error},undefined,{replayToolCall:call});
       this.executionMessages.push({role:"tool",toolCallId:call.id,name:call.name,content:error});
     }
   }
@@ -2049,7 +2049,7 @@ export class AgentCore {
           tool: call.name,
           ok: false,
           error,
-        });
+        },undefined,{replayToolCall:call});
         this.executionMessages.push({
           role: "tool",
           toolCallId: call.id,
@@ -2431,7 +2431,7 @@ export class AgentCore {
     input: Record<string, unknown>,
     signal?:AbortSignal,
     // Host provenance is journal metadata, not a plugin-writable prompt field.
-    journalMeta?:{origin?:"harness";turnId?:string;recoveryId?:string}
+    journalMeta?:{origin?:"harness";turnId?:string;recoveryId?:string;replayToolCall?:ChatToolCall}
   ): Promise<unknown> {
     const operation=this.userOperation.getStore();
     if(operation)input={...input,operationId:operation.id};

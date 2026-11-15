@@ -7,6 +7,17 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An unknown model tool call previously disappeared from provider context after
+session resume. Journal-only call metadata now preserves the original arguments
+and rejection, including for calls omitted by a batch strategy. Source regressions
+cover mixed and parallel batches without re-running tools or altering hook input.
+An installed Linux x64 process-death fixture fails on the earlier binary and
+passes on a locally rebuilt binary; reports are
+`dist/rejected-call-before-fix-20261116.json` and
+`dist/rejected-call-native-fixed-20261116.json`. Older journals lack the metadata;
+other platforms and external providers remain unverified for this change.
+
+
 An isolated Linux x64 release smoke first failed discovery when its temporary
 project was itself inside the checkout's ignored `dist` directory; the same
 smoke outside that repository passed. A focused installed-binary regression

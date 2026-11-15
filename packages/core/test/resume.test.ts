@@ -278,3 +278,60 @@ it('replays identified steering at its applied boundary rather than its earlier 
     ['user','Question'],['assistant','First answer continued'],['user','Correction'],['assistant','Second answer'],
   ]);
 });
+
+it('retains a rejected unknown tool call and its actual arguments after session resume',async()=>{
+ const journal:SessionEvent[]=[],sessions={create:async()=>{},append:async(_id:string,events:SessionEvent[])=>{journal.push(...events);}};
+ const provider=new ScriptedProvider([{toolCalls:[{name:'missing_tool',args:{path:'wanted.txt'}}]},{text:'The tool was unavailable.'}]);
+ let hooks=0,resultInput:Record<string,unknown>|undefined;const core=new AgentCore({cwd:process.cwd(),provider,sessions,tools:[],controlTools:[],plugins:[{manifest:{name:'observe-calls',version:'1.0.0',trust:'trusted'},hooks:{'tool.call':()=>{hooks++;},'tool.result':event=>{resultInput=event;}}}]});
+ let resumed:AgentCore|undefined;
+ try{
+  await core.submit('Inspect the target');
+  expect(journal.some(event=>event.type==='tool.result'&&event.tool==='missing_tool'&&String(event.error).includes('unknown tool'))).toBe(true);
+  expect(hooks).toBe(0);expect(journal.some(event=>event.type==='tool.call'&&event.tool==='missing_tool')).toBe(false);
+  expect(resultInput).toBeDefined();expect(resultInput).not.toHaveProperty('replayToolCall');
+  const nextProvider=new ScriptedProvider([{text:'I will use available tools.'}]);
+  resumed=AgentCore.resume({cwd:process.cwd(),provider:nextProvider,sessions,tools:[],controlTools:[]},structuredClone(journal));
+  await resumed.submit('Continue the inspection');
+  const messages=nextProvider.requests[0].messages;
+  expect(messages.flatMap(message=>message.toolCalls??[])).toEqual(expect.arrayContaining([expect.objectContaining({name:'missing_tool',args:{path:'wanted.txt'}})]));
+  expect(messages.some(message=>message.role==='tool'&&message.name==='missing_tool'&&message.content.includes('unknown tool'))).toBe(true);
+ }finally{await core.close();await resumed?.close();}
+});
+
+it('retains calls omitted by the selected batch strategy without executing them on replay',async()=>{
+ const journal:SessionEvent[]=[],sessions={create:async()=>{},append:async(_id:string,events:SessionEvent[])=>{journal.push(...events);}};
+ let effects=0;const tool={name:'inspect',description:'Inspection',parameters:{type:'object'},describe:()=>({tool:'inspect',readOnly:true}),execute:async()=>{effects++;return{ok:true as const,data:'observed'};}};
+ const provider=new ScriptedProvider([{toolCalls:[{name:'inspect',args:{path:'skipped.txt'}}]},{text:'The call was not scheduled.'}]);
+ const core=new AgentCore({cwd:process.cwd(),provider,sessions,tools:[tool],controlTools:[],plugins:[{manifest:{name:'skip-batch',version:'1.0.0',trust:'trusted'},hooks:{'service.agent.batch':async()=>({value:true})}}]});
+ let resumed:AgentCore|undefined;
+ try{
+  await core.submit('Inspect the file');expect(effects).toBe(0);
+  expect(journal.some(event=>event.type==='tool.result'&&String(event.error).includes('not scheduled'))).toBe(true);
+  const nextProvider=new ScriptedProvider([{text:'I will inspect the scheduling issue.'}]);
+  resumed=AgentCore.resume({cwd:process.cwd(),provider:nextProvider,sessions,tools:[tool],controlTools:[]},structuredClone(journal));
+  await resumed.submit('Continue');
+  const messages=nextProvider.requests[0].messages;
+  expect(messages.flatMap(message=>message.toolCalls??[])).toEqual(expect.arrayContaining([expect.objectContaining({name:'inspect',args:{path:'skipped.txt'}})]));
+  expect(messages.some(message=>message.role==='tool'&&message.content.includes('not scheduled'))).toBe(true);expect(effects).toBe(0);
+ }finally{await core.close();await resumed?.close();}
+});
+
+it.each(['unknown-first','known-first','parallel'] as const)('replays mixed known and unknown calls with their own results: %s',async order=>{
+ const journal:SessionEvent[]=[],sessions={create:async()=>{},append:async(_id:string,events:SessionEvent[])=>{journal.push(...events);}};
+ const tool={name:'inspect',description:'Inspect',parameters:{type:'object'},describe:()=>({tool:'inspect',readOnly:true}),execute:async()=>{if(order==='parallel')await new Promise(done=>setTimeout(done,30));return{ok:true as const,data:'OBSERVED'};}};
+ const known={name:'inspect',args:{path:'ok.txt'}},unknown={name:'missing_tool',args:{path:'missing.txt'}};
+ const provider=new ScriptedProvider([{toolCalls:order==='unknown-first'?[unknown,known]:[known,unknown]},{text:'Done'}]);
+ const core=new AgentCore({cwd:process.cwd(),provider,sessions,tools:[tool],controlTools:[],rules:[{tool:'inspect',decision:'allow'}],...(order==='parallel'?{plugins:[{manifest:{name:'parallel-replay',version:'1.0.0',trust:'trusted' as const},hooks:{'service.agent.batch':async(event:any)=>{await Promise.all(event.calls.map((call:any)=>event.context.execute(call)));return{value:true};}}}]}:{})});
+ let resumed:AgentCore|undefined;
+ try{
+  await core.submit('Inspect both');
+  const nextProvider=new ScriptedProvider([{text:'Continuing'}]);resumed=AgentCore.resume({cwd:process.cwd(),provider:nextProvider,sessions,tools:[tool],controlTools:[]},structuredClone(journal));
+  await resumed.submit('Continue');const messages=nextProvider.requests[0].messages;
+  for(const expected of [known,unknown]){
+   const call=messages.flatMap(message=>message.toolCalls??[]).find(item=>item.name===expected.name);
+   expect(call?.args).toEqual(expected.args);
+   const result=messages.find(message=>message.role==='tool'&&message.toolCallId===call?.id);
+   expect(result?.content).toContain(expected.name==='inspect'?'OBSERVED':'unknown tool');
+  }
+ }finally{await core.close();await resumed?.close();}
+});

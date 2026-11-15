@@ -740,6 +740,12 @@ serialization. Backends receive detached JSON records, including when a live
 service input contains an AbortSignal; they do not receive live signals or
 callable host capabilities. Hooks and execution retain their original inputs.
 Serialization errors fail closed through the same journal failure path.
+Rejected unknown tools and calls omitted by a batch strategy have no normal
+`tool.call` hook. Their `tool.result` journal record carries host-only
+`replayToolCall` data so resume can reconstruct the model call and rejection
+without invoking a tool or hook again. Older records without this field cannot
+reconstruct those arguments. The field is journal metadata, not a new
+`tool.result` hook input.
 The default journal propagates creation and append failures; the default store
 serializes concurrent appends within one store instance. This is not a cross-process
 transaction or an exactly-once guarantee for external effects. Terminal success

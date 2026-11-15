@@ -257,8 +257,11 @@ Another installed-CLI case journals a controlled tool call, kills the process
 after its file effect but before its result, and resumes the session. The next
 local model request must retain the original task and report the outcome as
 unknown; the effect must not repeat and an unrelated draft must survive. The
-report is `dist/release/effect-crash-smoke-PLATFORM.json`. This fixture does not
-prove recovery for arbitrary external effects. These controlled checks do not
+report is `dist/release/effect-crash-smoke-PLATFORM.json`. A second variant
+first requests an unknown tool and verifies that its original arguments and
+rejection survive the same process death; its report is
+`dist/release/rejected-call-smoke-PLATFORM.json`. This fixture does not prove
+recovery for arbitrary external effects. These controlled checks do not
 establish long-session or live-model quality.
 Plain-session startup is checked with a real SDK plugin too: immediate EOF initializes
 the plugin once without a model request, and startup finishes before the first

@@ -156,6 +156,13 @@ export function replayTranscript(
         break;
       }
       case "tool.result": {
+        // Unknown or unscheduled calls never enter the normal tool.call hook.
+        // The host records their original model call with the rejected result.
+        const saved=event.replayToolCall as ChatToolCall|undefined;
+        if(saved && typeof saved==='object' && typeof saved.id==='string' && saved.id===event.callId &&
+          typeof saved.name==='string' && saved.name===event.tool && !pendingCalls.some(call=>call.id===saved.id)) {
+          pendingCalls.push(saved);
+        }
         flushAssistant(); // assistant (text + calls) precedes its tool results
         batchClosed = true;
         const ok = event.ok === true;

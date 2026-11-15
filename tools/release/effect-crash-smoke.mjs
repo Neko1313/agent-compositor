@@ -8,11 +8,11 @@ import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 
 /** Installed CLI and actual journal across a process death after a controlled effect. */
-export async function smokeEffectCrash(binary,output){
+export async function smokeEffectCrash(binary,output,options={}){
  const root=await realpath(await mkdtemp(join(tmpdir(),'compositor-effect-smoke-')));
  const cwd=join(root,'project'),home=join(root,'home'),plugins=join(root,'plugins'),effect=join(cwd,'effect.txt'),sessions=join(cwd,'.agent-compositor/sessions');
  const task='Apply the controlled effect exactly once.',followup='Inspect the state before doing anything else.';
- const result={ok:false,paidRequests:0,requests:[],executions:[],errors:[],executable:{path:resolve(binary),sha256:createHash('sha256').update(await readFile(binary)).digest('hex')}};
+ const result={ok:false,unknownBeforeEffect:Boolean(options.unknownBeforeEffect),paidRequests:0,requests:[],executions:[],errors:[],executable:{path:resolve(binary),sha256:createHash('sha256').update(await readFile(binary)).digest('hex')}};
  let server,child,sessionId;
  const poll=async(fn,label)=>{const deadline=Date.now()+30000;while(Date.now()<deadline){if(await fn())return;await new Promise(done=>setTimeout(done,25));}throw Error('Timed out: '+label);};
  const journal=async()=>{const names=(await readdir(sessions).catch(()=>[])).filter(name=>name.endsWith('.jsonl'));assert.ok(names.length<=1,'Only one session is allowed');if(!names.length)return[];sessionId=names[0].slice(0,-6);const lines=(await readFile(join(sessions,names[0]),'utf8')).split('\n');lines.pop();return lines.filter(Boolean).map(line=>JSON.parse(line));};
@@ -33,9 +33,11 @@ export async function smokeEffectCrash(binary,output){
   server=createServer(async(req,res)=>{try{
    if(req.url==='/v1/models'){res.setHeader('content-type','application/json');res.end(JSON.stringify({data:[{id:'effect-crash-probe'}]}));return;}
    assert.equal(req.url,'/v1/chat/completions');let raw='';for await(const chunk of req){raw+=chunk;assert.ok(raw.length<1_000_000);}
-   const body=JSON.parse(raw);result.requests.push(body);assert.ok(result.requests.length<=2,'Bounded provider requests');
-   const delta=result.requests.length===1?{tool_calls:[{index:0,id:'effect-call',type:'function',function:{name:'effect_once',arguments:'{}'}}]}:{content:'RECOVERY_INSPECT_FIRST'};
-   res.writeHead(200,{'content-type':'text/event-stream'});res.end(`data: ${JSON.stringify({choices:[{delta,finish_reason:result.requests.length===1?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`);
+   const body=JSON.parse(raw);result.requests.push(body);const effectStep=options.unknownBeforeEffect?2:1;
+   assert.ok(result.requests.length<=effectStep+1,'Bounded provider requests');
+   const call=(id,name,args)=>({tool_calls:[{index:0,id,type:'function',function:{name,arguments:JSON.stringify(args)}}]});
+   const delta=options.unknownBeforeEffect&&result.requests.length===1?call('unknown-call','missing_tool',{path:'wanted.txt'}):result.requests.length===effectStep?call('effect-call','effect_once',{}):{content:'RECOVERY_INSPECT_FIRST'};
+   res.writeHead(200,{'content-type':'text/event-stream'});res.end(`data: ${JSON.stringify({choices:[{delta,finish_reason:result.requests.length<=effectStep?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`);
   }catch(error){result.errors.push(String(error));res.destroy(error);}});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));
   const first=start(false);child.stdin.write(task+'\r');
@@ -44,11 +46,17 @@ export async function smokeEffectCrash(binary,output){
   const before=await journal(),call=before.find(event=>event.type==='tool.call'&&event.tool==='effect_once');
   assert.ok(call?.callId,'Tool admission must be journaled before the effect');assert.ok(!before.some(event=>event.type==='tool.result'&&event.callId===call.callId),'No result may be saved before the kill');
   assert.equal(child.kill('SIGKILL'),true);await first.closed;assert.equal(first.signal,'SIGKILL');
-  assert.equal(result.requests.length,1);assert.equal(await readFile(effect,'utf8'),'APPLIED_ONCE\n');
+  const effectStep=options.unknownBeforeEffect?2:1;assert.equal(result.requests.length,effectStep);assert.equal(await readFile(effect,'utf8'),'APPLIED_ONCE\n');
   const second=start(true);child.stdin.write(followup+'\r');
   await poll(async()=>second.exited||second.stdout.includes('RECOVERY_INSPECT_FIRST'),'resumed model response');
   assert.ok(second.stdout.includes('RECOVERY_INSPECT_FIRST'),'Resumed CLI must receive the controlled response');
-  assert.equal(result.requests.length,2);const body=result.requests[1];
+  assert.equal(result.requests.length,effectStep+1);const body=result.requests[effectStep];
+  if(options.unknownBeforeEffect){
+   const rejected=body.messages.find(message=>message.role==='tool'&&message.tool_call_id==='unknown-call');
+   const original=body.messages.flatMap(message=>message.tool_calls??[]).find(call=>call.id==='unknown-call');
+   assert.match(String(rejected?.content),/unknown tool/i);assert.equal(original?.function?.name,'missing_tool');
+   assert.deepEqual(JSON.parse(original.function.arguments),{path:'wanted.txt'});
+  }
   assert.ok(body.messages.some(message=>message.role==='user'&&message.content===task),'Original task must survive');
   const outcome=body.messages.find(message=>message.role==='tool'&&message.tool_call_id===call.callId);
   assert.match(String(outcome?.content),/outcome is unknown/i);assert.match(String(outcome?.content),/inspect its state before retrying/i);
@@ -65,5 +73,5 @@ export async function smokeEffectCrash(binary,output){
  if(!result.ok)throw Error('Installed effect crash smoke failed: '+result.errors.join('; '));return result;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
- try{await smokeEffectCrash(process.argv[2],process.argv[3]);}catch(error){console.error(error);process.exitCode=1;}
+ try{await smokeEffectCrash(process.argv[2],process.argv[3],{unknownBeforeEffect:process.argv[4]==='--unknown-before-effect'});}catch(error){console.error(error);process.exitCode=1;}
 }

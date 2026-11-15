@@ -140,6 +140,8 @@ try {
   console.log('Installed coding verification:',JSON.stringify(codingSmoke));
   const effectCrash=await smokeEffectCrash(binary,resolve('dist/release',`effect-crash-smoke-${process.platform}-${process.arch}.json`));
   console.log('Installed effect crash recovery:',JSON.stringify({ok:effectCrash.ok,requests:effectCrash.requests.length,executable:effectCrash.executable}));
+  const rejectedCall=await smokeEffectCrash(binary,resolve('dist/release',`rejected-call-smoke-${process.platform}-${process.arch}.json`),{unknownBeforeEffect:true});
+  console.log('Installed rejected-call recovery:',JSON.stringify({ok:rejectedCall.ok,requests:rejectedCall.requests.length,executable:rejectedCall.executable}));
   const contextSmoke=await smokeContextTask(binary,resolve('dist/release',`context-smoke-${process.platform}-${process.arch}.json`));
   const backgroundSmoke=await smokeBackgroundTask(binary,resolve('dist/release',`background-smoke-${process.platform}-${process.arch}.json`));
   console.log('Installed background task retention:',JSON.stringify(backgroundSmoke));

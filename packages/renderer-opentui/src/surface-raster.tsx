@@ -5,11 +5,11 @@ import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import type {UiTextView} from '@agent-compositor/events';
 import {useAppearance} from './appearance.js';
 import {appearanceText} from './colors.js';
-import {composerImageProtocol} from './composer-media.js';
+import {composerImageProtocol,type ComposerImageProtocol} from './composer-media.js';
 import {TmuxComposerImage,useTmuxComposer,type TmuxComposer} from './tmux-composer.js';
 
 type Raster=NonNullable<UiTextView['raster']>;
-function Pixels({raster,width,height}:{raster:Raster;width:number;height:number}){
+function Pixels({raster,width,height,protocol}:{raster:Raster;width:number;height:number;protocol:ComposerImageProtocol}){
   const renderer=useRenderer();
   const image=useRef<ImageRenderable>(null);
   useLayoutEffect(()=>{
@@ -18,7 +18,7 @@ function Pixels({raster,width,height}:{raster:Raster;width:number;height:number}
     const source=NativeImage.fromPixels(bytes,raster.width,raster.height,{owner:renderer.nativeScene.resourceContext});
     try{image.current.source=source;}finally{source.dispose();}
   },[renderer,raster.rgba,raster.width,raster.height]);
-  return <image ref={image} width={Math.max(1,width)} height={Math.max(1,height)} fit="fit" protocol="kitty" flexShrink={0}/>;
+  return <image ref={image} width={Math.max(1,width)} height={Math.max(1,height)} fit="fit" protocol={protocol} flexShrink={0}/>;
 }
 
 function TmuxPixels({runtime,raster,width,height}:{runtime:TmuxComposer;raster:Raster;width:number;height:number}){
@@ -31,21 +31,23 @@ export function SurfaceRaster({raster,width,height,visible}:{raster:Raster;width
   const {color}=useAppearance();
   const renderer=useRenderer();
   const tmux=useTmuxComposer();
-  const [supported,setSupported]=useState(false);
+  const graphics=process.env.AGENT_GRAPHICS??'auto';
+  const [protocol,setProtocol]=useState<ComposerImageProtocol>();
   useEffect(()=>{
     const update=()=>{
       const caps=renderer.capabilities;
-      setSupported(composerImageProtocol('kitty',resolveImageRenderProtocol('auto',caps,false),caps,false)==='kitty');
+      const resolution=renderer.resolution,hasResolution=Boolean(resolution&&resolution.width>0&&resolution.height>0);
+      const requested=graphics==='kitty'||graphics==='sixel'?graphics:'auto';
+      setProtocol(composerImageProtocol(graphics,resolveImageRenderProtocol(requested,caps,hasResolution),caps,hasResolution));
     };
-    renderer.on(CliRenderEvents.CAPABILITIES,update);update();
-    return()=>{renderer.off(CliRenderEvents.CAPABILITIES,update);};
-  },[renderer]);
+    renderer.on(CliRenderEvents.CAPABILITIES,update);renderer.on(CliRenderEvents.RESIZE,update);renderer.on(CliRenderEvents.FRAME,update);update();
+    return()=>{renderer.off(CliRenderEvents.CAPABILITIES,update);renderer.off(CliRenderEvents.RESIZE,update);renderer.off(CliRenderEvents.FRAME,update);};
+  },[renderer,graphics]);
   if(!visible)return null;
-  const graphics=process.env.AGENT_GRAPHICS??'auto';
   const imageHeight=Math.max(1,Math.min(height-3,Math.ceil(width/2)));
   if(tmux&&(graphics==='auto'||graphics==='kitty')&&process.env.NO_COLOR===undefined&&process.env.TERM!=='dumb')
     return <TmuxPixels runtime={tmux} raster={raster} width={width} height={imageHeight}/>;
-  if(supported&&(graphics==='auto'||graphics==='kitty')&&process.env.NO_COLOR===undefined&&process.env.TERM!=='dumb')
-    return <Pixels raster={raster} width={width} height={imageHeight}/>;
+  if(protocol&&process.env.NO_COLOR===undefined&&process.env.TERM!=='dumb')
+    return <Pixels raster={raster} width={width} height={imageHeight} protocol={protocol}/>;
   return raster.alt?<text fg={color.muted} wrapMode="word">{appearanceText(raster.alt)}</text>:null;
 }

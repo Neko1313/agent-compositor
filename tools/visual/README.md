@@ -312,6 +312,8 @@ proves the portable fallback, not physical terminal media support. The tmux
 composer component tests additionally exercise plugin-raster negotiation,
 updates and cleanup; physical Kitty/tmux observations and their limits are
 recorded in [readiness](../../docs/readiness.md#current-development-checkpoint--2026-11-15).
+The raster component tests also exercise SIXEL selection and geometry loss in
+the SDK test renderer; they do not establish physical SIXEL terminal behavior.
 The surface-raster scroll test exercises action-triggered reveal and preservation
 of manual scrolling while a later image is pending. Main public
 actions preserve its native or selected editor's Unicode draft/cursor/undo.

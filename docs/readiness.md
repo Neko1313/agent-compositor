@@ -9,8 +9,14 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 Build-only [run `43709559231` for `9802f1b`](https://github.com/Neko1313/agent-compositor/actions/runs/43709559231)
 reports successful verification and all four Linux/macOS x64/ARM64 jobs;
-publication was skipped. Its archives have not been independently downloaded
-and this run does not include later resource-monitor or navigation changes.
+publication was skipped. The downloaded quality and installed-runtime evidence
+archives match GitHub's recorded SHA-256 digests. The quality archive records
+2665 passing tests, five skips and 32 successful plugin certificates with 405
+passing results; all 1347 certificate evidence references match their hashes.
+Each platform archive contains 13 successful OpenTUI reports (88 checks) and
+nine successful runtime smoke reports. The distributed binary archives have not
+been independently downloaded for this audit, and the run predates later
+resource-monitor and navigation changes.
 
 The build-only [run for `876e2d1`](https://github.com/Neko1313/agent-compositor/actions/runs/43703813967)
 passed verification and all four Linux/macOS x64/ARM64 jobs; publication was
@@ -348,6 +354,12 @@ arrives. Reports and captures are in
 `dist/tmux-research-20261115/resources-auto-reveal-final-on/`,
 `dist/tmux-research-20261115/resources-auto-reveal-final-off/` and
 `dist/tmux-research-20261115/surface-raster-scroll-intent-v2/`.
+
+Plugin raster protocol selection also has SDK-renderer coverage for SIXEL with
+and without pixel geometry, including returning to alt text when geometry is
+lost. A real Kitty/tmux source regression separately rechecked image update,
+resize, window close and reopen after that change. This does not establish
+physical SIXEL terminal or packaged-archive behavior.
 
 ## Plugin development and interface usability
 

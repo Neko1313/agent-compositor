@@ -103,6 +103,10 @@ to the agent state. Resizing reflows the visible conversation.
 - Ctrl+C interrupts work; when idle it exits.
 - `/reload` reloads disk plugins between turns, resetting plugin state.
 
+Queued messages are held in the running process. Interrupting work cancels ordinary
+queued messages, and reopening a session after the process exits does not restore
+them. Keep a copy of important follow-ups until they start.
+
 Settings → Models & providers (`/model`) includes a Reasoning action per profile.
 Choose the model's supported effort and save it for this project or all projects;
 Provider default clears the explicit setting. It applies to subsequent requests

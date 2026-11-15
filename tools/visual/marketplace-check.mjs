@@ -102,7 +102,7 @@ try {
   await page.waitForFunction(()=>visual.text().includes('Continue')&&!visual.text().includes('AGENT_DONE'));
   await page.keyboard.press('Enter');
   await ready();
-  await page.keyboard.press('Alt+s');await wait('AGENT_DONE');
+  await send('/chat');await wait('AGENT_DONE');
   await shot('16-question-answered-after-management.png');
   await page.keyboard.press('Alt+i');await page.keyboard.type('Unsent draft');await wait('Unsent draft');
   const beforePluginsAgain=await page.evaluate(()=>visual.frames);
@@ -119,8 +119,11 @@ try {
   await submitFromInput('BARRIER_PENDING_CHECK');await wait('Message queued while');
   if(await page.evaluate(()=>visual.text().includes('BARRIER_COMPLETED_CHECK')))throw Error('Queued prompt ran before the plugin reload');
   await shot('18-queued-before-plugin-reload.png');
-  await submitFromInput('/reload');await wait('BARRIER_COMPLETED_CHECK');await shot('19-queued-after-plugin-reload.png');
-  report.checks.push('A prompt submitted after a plugin file change stays queued and visible until reload, then reaches the real scripted provider');
+  await submitFromInput('/reload');await wait('BARRIER_COMPLETED_CHECK');
+  const conversationHeaders=await page.evaluate(()=>visual.text().split('\n').reduce((total,line)=>total+(line.match(/Conversation/g)??[]).length,0));
+  if(conversationHeaders!==1)throw Error(`Expected one conversation view after /chat and reload, found ${conversationHeaders}`);
+  await shot('19-queued-after-plugin-reload.png');
+  report.checks.push('A prompt submitted after a plugin file change stays queued and visible until reload, reaches the scripted provider, and /chat keeps a single conversation view');
   report.ok=report.errors.length===0;
 } catch(error){report.errors.push(String(error));await page?.screenshot({path:resolve(output,'failure.png')}).catch(()=>{});}
 finally{

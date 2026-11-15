@@ -14,7 +14,7 @@ async function fixture(){
   const cwd=await mkdtemp(join(tmpdir(),'agent-manager-ui-lifecycle-'));cleanup.push(()=>rm(cwd,{recursive:true,force:true}));
   const directory=join(cwd,'plugins','manager-controls'),trace=join(cwd,'receipts.jsonl');await mkdir(directory,{recursive:true});await writeFile(trace,'');
   await writeFile(join(directory,'plugin.json'),JSON.stringify({name:'manager-controls',version:'1.0.0',trust:'trusted',main:'hooks.js',
-    hookTimeouts:{'prompt.submit':300000,'ui.press':300000}}));
+    hookTimeouts:{'prompt.submit':300000,'ui.press':300000,'service.ui.view':300000}}));
   await writeFile(join(directory,'hooks.js'),`
 import {appendFile,readFile} from 'node:fs/promises';
 const record=value=>appendFile(${JSON.stringify(trace)},JSON.stringify(value)+'\\n');
@@ -40,6 +40,10 @@ export default {
   }catch(error){await record({kind:'fault',action:event.key,error:String(error),stack:error.stack});throw error;}
  },
  'service.ui.view':async(event,$)=>{
+  if(event.plugin==='agent-hub'&&event.title==='Agents'){
+   let gated=false;try{await readFile(${JSON.stringify(join(cwd,'overview-gate'))});gated=true;}catch{}
+   if(gated){const result=await $.next();await record({kind:'overview-published'});while(true){$.signal.throwIfAborted();try{await readFile(${JSON.stringify(join(cwd,'overview-release'))});break;}catch{await new Promise(resolve=>setTimeout(resolve,5));}}return result;}
+  }
   if(event.plugin==='agent-hub'&&event.title==='UI worker'&&event.placement?.focus){
    let gated=false;try{await readFile(${JSON.stringify(join(cwd,'focus-gate'))});gated=true;}catch{}
    if(gated){await record({kind:'focus-pending'});while(true){$.signal.throwIfAborted();try{await readFile(${JSON.stringify(join(cwd,'focus-release'))});break;}catch{await new Promise(resolve=>setTimeout(resolve,5));}}}
@@ -75,7 +79,9 @@ it('archives an ordinary managed form through a fresh UI action after an unrelat
   const {host,receipts,press,surface,action}=await fixture();
   await press('create');const id=(await receipts()).find(row=>row.action==='create').result.id;
   await press('create-peer');const peer=(await receipts()).find(row=>row.action==='create-peer').result.id;
-  await host.submit('/agents');const overview='plugin-agent-hub-agents';expect(surface(overview).snapshot().view?.table?.rows.some(row=>row.id===id)).toBe(true);
+  await host.submit('/agents');const overview='plugin-agent-hub-agents';
+  await expect.poll(()=>surface(overview)?.snapshot().view?.table?.rows.some(row=>row.id===id)).toBe(true);
+  await expect.poll(()=>surface(overview)?.snapshot().busy).toBe(false);
   await action('plugin-agent-hub-agent-'+id,'history:'+id);
   expect(surface('plugin-agent-hub-history-'+id)).toBeDefined();
   const oldMain=host.core;const resume=await oldMain.host.emit('service.session.control',{action:'resume',id:oldMain.sessionId});
@@ -91,6 +97,18 @@ it('archives an ordinary managed form through a fresh UI action after an unrelat
   expect(surface(overview).snapshot().view?.table?.rows.some(row=>row.id===id)).toBe(false);
   expect(surface('plugin-agent-hub-agent-'+peer).snapshot().view?.tabs?.some(tab=>tab.id===id)).toBe(false);
   expect(host.surfaces.snapshot().filter(source=>source.id.startsWith('agent-request-'))).toEqual([]);
+});
+
+it('keeps a published agent window busy until its opening action has actually completed',async()=>{
+  const f=await fixture();await f.press('create');const id=(await f.receipts()).find(row=>row.action==='create').result.id;await writeFile(join(f.cwd,'overview-gate'),'');
+  await f.host.submit('/agents');await expect.poll(async()=>(await f.receipts()).some(row=>row.kind==='overview-published')).toBe(true);
+  const overview=f.surface('plugin-agent-hub-agents');expect(overview.snapshot().busy).toBe(true);
+  await f.action('plugin-agent-hub-agent-'+id,'history:'+id);expect(f.surface('plugin-agent-hub-history-'+id)).toBeDefined();
+  const oldMain=f.host.core,blocked=await oldMain.host.emit('service.session.control',{action:'resume',id:oldMain.sessionId});
+  expect(blocked.value).toEqual({deny:'Wait until current operations finish'});expect(f.host.core).toBe(oldMain);
+  await writeFile(join(f.cwd,'overview-release'),'');await expect.poll(()=>overview.snapshot().busy).toBe(false);
+  const resumed=await oldMain.host.emit('service.session.control',{action:'resume',id:oldMain.sessionId});
+  expect(resumed.faults).toEqual([]);expect(resumed.value).toEqual({value:true});expect(f.host.core).not.toBe(oldMain);
 });
 
 it('retains the current agent-hub opening intent and lets newer navigation win a delayed publication',async()=>{

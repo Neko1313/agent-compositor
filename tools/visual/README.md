@@ -534,6 +534,17 @@ ordering with the bundled idle and thinking animations. This verifies the
 emitted image protocol. Physical terminals and multiplexer passthrough need
 separate checks.
 
+That two-state command uses the standalone preview, not the configured
+application's plugin activity mapping. Configured media additionally carries
+the selected producer's compact presentation and explicit expanded/compact
+visibility over a negotiated optional native capability. Renderer tests exercise
+the actual SDK and delayed native-media delivery, including legacy peers and
+pixel disposal when a composer hides. These tests do not establish GPU display,
+all activity states or physical SIXEL support. Native acceptance must use a
+pinned complete archive, original source-frame hashes and actual terminal
+captures, input and resize receipts. Companion commands can run immediately
+during held Main work, so native pause/resume checks need no model request.
+
 ## Render performance
 
 `npm run visual:performance -- --motion` runs the actual application in the

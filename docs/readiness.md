@@ -7,6 +7,42 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+Source checkpoint `235abdd` passes CI 43647694838, documentation 43647694790
+and plugin preparation 43647694862. Actual downloaded artifacts contain 2526
+passing tests plus five optional skips on Node 26, 2515 plus sixteen skips on
+Node 22, 88 source UI checks, 20 successful PTY exits and 32 plugin certificates.
+Its installed-CLI synthetic Responses cases separately prove natural-exit drain
+and cancellation accounting, with zero external HTTP; their failed plugin grades
+remain truthful because the scripted actor delivered no plugin.
+
+The installed `2ca0b69` runtime additionally passes a finite six-check Linux/Kitty
+complex-grapheme and real OS-window resize flow. Native cursor positions,
+Backspace/undo, preserved drafts, submission, 852 unchanged input bytes and
+natural PTY/TTY cleanup are verified. The first failed attempt forwarded a stale
+size in its relay; it remains failed. The corrected relay observes the public
+TTY resize event and preserves the original business expectations.
+
+The following media repair adds compact producer status, visibility and clock
+recovery, immediate companion controls, cancellation fences and capability-based
+Kitty/SIXEL selection. Its 90 focused source tests include actual SDK rendering,
+modern and legacy delayed-media delivery and hidden-pixel disposal. Original
+assets are unchanged. A new archive and physical all-state/compositing checks
+remain separate requirements; this source result does not close those gates.
+
+The first full media run passes 2553 tests with five optional skips and fails
+one public-render test's expected dispatch count. A controlled real-host trace
+reproduces the fourth dispatch when a pending layout save completes during
+the fake-clock test; the physical painter limit remains two and stale output
+is rejected. The original full run has no scheduling trace, so its precise
+ordering is not established. The test now drains actual layout persistence
+before measuring explicit invalidations, retaining all capacity, authority and
+final-publication assertions. Fresh standalone full verification passes 2554
+tests plus five optional skips in 276 files, with no unhandled errors and all
+1030 tracked/nonignored source files unchanged during the run. New archive and
+physical media verification remain pending.
+
+### Retained source and archive history
+
 The local `2ca0b69` checkpoint passes the full standalone suite: 2386 tests plus three
 optional skips in 266 files, with no unhandled errors. Whole-workspace types,
 generation, documentation, marketplace validation and all 32 mandatory plugin

@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {decodeLine,encodeMessage,nativeStateMessage,nativeInputMessage,nativeReceiptMessage,nativeMediaMessage,
-  nativeProtocolElements,type NativeStateMessage,type NativeOperation} from '../src/index.js';
+  COMPOSER_MEDIA_STATUS,nativeProtocolElements,type NativeStateMessage,type NativeOperation} from '../src/index.js';
 
 function scene():NativeStateMessage {
   return {type:'native-state',epoch:'binding-1',revision:3,state:{
@@ -120,4 +120,19 @@ it('keeps native pixels on the separate negotiated media lane with exact dimensi
   expect(nativeMediaMessage.safeParse({...message,dimensions:{width:0,height:4}}).success).toBe(false);
   expect(nativeStateMessage.safeParse({...scene(),state:{...scene().state,composerMedia:message.frame}}).success).toBe(false);
   expect(nativeMediaMessage.parse({type:'native-media',epoch:'binding-1',revision:2,dimensions:{width:8,height:4}}).frame).toBeUndefined();
+});
+
+it('adds bounded optional composer status without changing legacy message shapes or required capabilities',()=>{
+  expect(nativeProtocolElements).not.toContain(COMPOSER_MEDIA_STATUS);
+  const legacy={type:'native-media' as const,epoch:'binding-1',revision:2,dimensions:{width:18,height:6}};
+  expect(decodeLine(encodeMessage(legacy))).toEqual(legacy);
+  const status={...legacy,presentation:{label:'Thinking 窗',alt:'Original Ghost',hasImage:true}};
+  expect(decodeLine(encodeMessage(status))).toEqual(status);
+  for(const presentation of [{label:'x'.repeat(513),hasImage:true},{alt:'x'.repeat(513),hasImage:false},{hasImage:'true'},
+    {hasImage:true,producer:()=>{}},{label:'Ready'}])expect(nativeMediaMessage.safeParse({...legacy,presentation}).success).toBe(false);
+  expect(nativeMediaMessage.safeParse({...legacy,presentation:{label:'x'.repeat(512),alt:'x'.repeat(512),hasImage:false}}).success).toBe(true);
+  const input={type:'native-input' as const,epoch:'binding-1',id:1,target:'@media',operation:{kind:'media-active' as const,enabled:true,active:false}};
+  expect(decodeLine(encodeMessage(input))).toEqual(input);
+  expect(decodeLine(encodeMessage({...input,operation:{...input.operation,expanded:false}}))).toEqual({...input,operation:{...input.operation,expanded:false}});
+  expect(nativeInputMessage.safeParse({...input,operation:{...input.operation,expanded:'false'}}).success).toBe(false);
 });

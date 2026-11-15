@@ -201,6 +201,12 @@ functions, permissions and private controller leases; OpenTUI keeps its resident
 widgets. Input receipts confirm admission without waiting for a model turn.
 See the [protocol contract](../../docs/03-contracts.md#native-presentation-profile).
 
+Composer media keeps a compact producer status without replacing the draft.
+Expanded native images use negotiated Kitty or SIXEL support; SIXEL requires
+current pixel geometry. Reduced motion, unsupported graphics and small panes
+retain text without block-art conversion. `/mascot` controls run immediately
+while the model works. See [companion playback](../../plugins/mascot/README.md#playback-and-commands).
+
 Portable appearance updates colors, title borders/controls, role labels, welcome,
 optional hints and current Main tool details in place. Enable `ui-theme` for
 `/theme slate|amber|mono`; its choice survives reload/restart. Private editor and

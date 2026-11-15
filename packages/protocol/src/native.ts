@@ -5,6 +5,8 @@ import {questionnaireSchema,uiAppearanceSchema,uiFormSchema,uiTextViewSchema} fr
 export const NATIVE_PRESENTATION='native-presentation-v1';
 export const NATIVE_INPUT='native-input-v1';
 export const nativeProtocolElements=[NATIVE_PRESENTATION,NATIVE_INPUT] as const;
+/** Optional media metadata; never required from existing native peers. */
+export const COMPOSER_MEDIA_STATUS='composer-media-status-v1';
 
 const uint=z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const id=z.string().min(1).max(256);
@@ -132,7 +134,7 @@ export const nativeOperationSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('surface-change'),field:z.string().min(1).max(64),value:z.string().max(4000),revision:uint}).strict(),
   z.object({kind:z.literal('public-measure'),metrics:nativeMeasurementSchema}).strict(),
   z.object({kind:z.literal('public-press'),action:z.string().min(1).max(64),revision:uint}).strict(),
-  z.object({kind:z.literal('media-active'),enabled:z.boolean(),active:z.boolean()}).strict(),
+  z.object({kind:z.literal('media-active'),enabled:z.boolean(),active:z.boolean(),expanded:z.boolean().optional()}).strict(),
   z.object({kind:z.literal('ctrl-c')}).strict(),
 ]);
 export const nativeInputMessage=z.object({type:z.literal('native-input'),epoch:id,id:uint,target:port,revision:uint.optional(),operation:nativeOperationSchema}).strict();
@@ -143,7 +145,9 @@ export const nativeReceiptMessage=z.object({type:z.literal('native-receipt'),epo
 const mediaFrame=z.object({width:z.number().int().min(1).max(512),height:z.number().int().min(1).max(512),
   rgba:z.string().max(1398104).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/),
 }).strict().refine(value=>value.rgba.length/4*3-(value.rgba.endsWith('==')?2:value.rgba.endsWith('=')?1:0)===value.width*value.height*4,'RGBA length must match dimensions');
-export const nativeMediaMessage=z.object({type:z.literal('native-media'),epoch:id,revision:uint,dimensions,frame:mediaFrame.optional()}).strict();
+export const nativeMediaPresentationSchema=z.object({label:label.optional(),alt:label.optional(),hasImage:z.boolean()}).strict();
+export const nativeMediaMessage=z.object({type:z.literal('native-media'),epoch:id,revision:uint,dimensions,frame:mediaFrame.optional(),
+  presentation:nativeMediaPresentationSchema.optional()}).strict();
 
 export type NativeState=z.infer<typeof nativeStateSchema>;
 export type NativeSession=z.infer<typeof nativeSessionSchema>;

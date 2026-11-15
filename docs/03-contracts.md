@@ -199,6 +199,32 @@ including when the host and renderer share a process.
 | host → renderer | `native-receipt` | Accepted or rejected input admission, with optional controller ticket or navigation decision |
 | host → renderer | `native-media` | Separate bounded RGBA frames and cell dimensions for subscribed composer media |
 
+The optional `composer-media-status-v1` element adds selected-producer
+presentation (`label`, `alt`, `hasImage`) to `native-media` and an `expanded`
+flag to media subscription input. Both peers must advertise it before either
+new field is sent. A peer without the element keeps the original strict packet
+shape. This does not change the mandatory native profile or protocol version.
+Presentation labels and alt text are bounded to 512 characters; raster limits
+remain unchanged. Metadata is revisioned and revoked with the same connection
+epoch as pixels.
+
+An absent presentation is unknown, as with a legacy peer, rather than proof of
+a text-only producer. Only explicit `hasImage:false` describes that case. A
+normal unsubscribe drops cached RGBA; bounded presentation can remain for a
+later subscription on the same connection. Epoch and connection revocation
+clear both; renegotiating the optional capability clears presentation metadata.
+Hidden frontend components also release their pixel snapshot before reopening.
+
+A compact subscription receives presentation updates without RGBA frames and
+reports one visible status row with zero image columns. Any expanded subscriber
+keeps the selected producer's full image visibility; hidden subscriptions do
+not keep its clock running. Removing or unloading a replacement producer
+reports the newly selected producer's visibility before it resumes. Presentation
+is private frontend data, like raster frames, not a model message or public hook
+property.
+Without the optional element, a legacy host may still send RGBA to a compact
+frontend; the old protocol has no expanded/compact subscription distinction.
+
 The [schemas](../packages/protocol/src/native.ts) describe data only. The host
 retains Core objects, plugin functions, controller factories, private checkpoints
 and leases. A renderer is a trusted private presentation endpoint: visible

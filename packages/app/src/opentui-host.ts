@@ -133,7 +133,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const placementAdmissions = new Map<string, string>();
   const reloadDetached = new Map<string, string>();
   const composerViews = new Map<string, {owner: string; view: UiTextView}>();
-  const mediaListeners = new Set<Parameters<ComposerMedia['subscribe']>[1]>();
+  const mediaListeners = new Set<{fn:Parameters<ComposerMedia['subscribe']>[1];expanded:boolean}>();
   const visibility = new Map<string, string>();
   const registryListeners = new Set<() => void>();
   const windowListeners = new Set<() => void>();
@@ -364,13 +364,20 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     return raster ? {width: raster.width, height: raster.height, rgba: new Uint8Array(Buffer.from(raster.rgba, 'base64'))} : undefined;
   }
   const composerMedia: ComposerMedia = {
+    presentation() {
+      const view = [...composerViews.values()].at(-1)?.view;
+      return {label:view?.attachment?.label,alt:view?.raster?.alt,hasImage:Boolean(view?.raster)};
+    },
     dimensions() {
       const attachment = [...composerViews.values()].at(-1)?.view.attachment;
       return {width: attachment?.width ?? 8, height: attachment?.rows ?? 4};
     },
-    subscribe(_active, fn) {mediaListeners.add(fn); fn(mediaFrame()); reportVisibility(); return () => {mediaListeners.delete(fn); reportVisibility();};},
+    subscribe(_active, fn, options) {
+      const item={fn,expanded:options?.expanded!==false};mediaListeners.add(item);fn(item.expanded?mediaFrame():undefined);reportVisibility();
+      return () => {mediaListeners.delete(item);reportVisibility();};
+    },
   };
-  function mediaChanged() {for (const fn of mediaListeners) fn(mediaFrame());}
+  function mediaChanged() {for (const item of mediaListeners) item.fn(item.expanded?mediaFrame():undefined);}
   function reportVisible(id: string, owner: string, attached: boolean, visible: boolean, columns: number, rows: number) {
     if (!active) return;
     const value = {site: 'plugin:' + owner + '/' + id.slice(('plugin-' + owner + '-').length), attached, visible, columns, rows};
@@ -382,11 +389,12 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   function reportVisibility() {
     if (!active || !core) return;
     const state = layout.snapshot();
+    const expanded = [...mediaListeners].some(item=>item.expanded);
     for (const [id, contribution] of composerViews) {
       const selected = id === [...composerViews.keys()].at(-1) && mediaListeners.size > 0;
       reportVisible(id, contribution.owner, true, selected,
-        selected ? contribution.view.attachment?.width ?? 0 : 0,
-        selected ? contribution.view.attachment?.rows ?? 4 : 0);
+        selected&&expanded ? contribution.view.attachment?.width ?? 0 : 0,
+        selected ? expanded ? contribution.view.attachment?.rows ?? 4 : 1 : 0);
     }
     for (const [id, surface] of surfaceMap) {
       if (!id.startsWith('plugin-' + surface.owner + '-')) continue;
@@ -996,6 +1004,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         reportVisible(id, owner, false, false, 0, 0); composerViews.delete(id);
       }
       mediaChanged();
+      reportVisibility();
       for (const op of operations.values()) if (op.owner === owner) op.controller.abort();
       for (const surface of [...surfaceMap.values()]) if (surface.owner === owner) invalidate(surface);
       if (!reloading) for (const [id, plugin] of placementAdmissions) if (plugin === owner) {
@@ -1005,7 +1014,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     }
     if (event.event === 'ui.surfaceRemoved') {
       const media = composerViews.get(String(event.input.id));
-      if (media) {reportVisible(String(event.input.id), media.owner, false, false, 0, 0); composerViews.delete(String(event.input.id)); mediaChanged();}
+      if (media) {reportVisible(String(event.input.id), media.owner, false, false, 0, 0); composerViews.delete(String(event.input.id)); mediaChanged();reportVisibility();}
       const surface = surfaceMap.get(String(event.input.id));
       if (surface) invalidate(surface);
     }
@@ -1026,7 +1035,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         reportVisibility();
         return;
       }
-      if (composerViews.delete(id)) mediaChanged();
+      if (composerViews.delete(id)) {mediaChanged();reportVisibility();}
       let surface = surfaceMap.get(id);
       if (surface && surface.owner !== owner) return;
       const created = !surface;

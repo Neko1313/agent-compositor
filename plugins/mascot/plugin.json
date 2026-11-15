@@ -9,6 +9,7 @@
   "commands": [
     {
       "name": "/mascot",
+      "execution": "immediate",
       "description": "Show, hide or pause the animated companion",
       "usage": "/mascot [on|off|pause|resume|pet|status|reload]"
     }

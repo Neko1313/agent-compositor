@@ -1,4 +1,4 @@
-import {answerHello,hello,parseSemVer,nativeProtocolElements,nativeStateMessage,nativeInputMessage,nativeReceiptMessage,nativeMediaMessage,
+import {answerHello,hello,parseSemVer,COMPOSER_MEDIA_STATUS,nativeProtocolElements,nativeStateMessage,nativeInputMessage,nativeReceiptMessage,nativeMediaMessage,
   type NativeState,type NativeSession,type NativeSurface,type NativeOperation,type NativeReceiptMessage,type WireMessage} from '@agent-compositor/protocol';
 import type {ConversationSession,ConversationSnapshot} from './session.js';
 import type {ConversationWindow,ConversationWindowRegistry} from './conversation-windows.js';
@@ -51,7 +51,7 @@ type Pending={target:string;resolve:(receipt:NativeReceiptMessage|undefined)=>vo
 /** Data-only local ports. Receipts acknowledge admission, never model completion. */
 export function createNativePresentationClient(send:(message:WireMessage)=>void):NativePresentationClient {
   const localHello=hello('renderer',{surfaces:['terminal'],sites:['conversation','tools','help','status','plugin:*'],
-    elements:['Text','Box','Layout','Pointer',...nativeProtocolElements],encodings:['jsonl']});
+    elements:['Text','Box','Layout','Pointer',...nativeProtocolElements,COMPOSER_MEDIA_STATUS],encodings:['jsonl']});
   let closed=false,sentHello=false,peerHello=false,acknowledged=false,negotiated=false,allowEpoch=false,epoch='',stateRevision=-1,mediaRevision=-1,nextId=0;
   let initialized=false,resolveReady!:()=>void,rejectReady!:(reason:Error)=>void;
   const ready=new Promise<void>((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
@@ -67,8 +67,9 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
   const sessions=new Map<string,SessionEntry>(),surfaces=new Map<string,SurfaceEntry>(),publicEntries=new Map<string,PublicEntry>();
   let publicIds=new Map<string,PublicEntry>();
   type MediaFrame={width:number;height:number;rgba:Uint8Array};
-  const mediaListeners=new Set<{active:boolean;listener:(frame:MediaFrame|undefined)=>void}>();
-  let dimensions={width:8,height:4},mediaFrame:MediaFrame|undefined,mediaEnabled=false,mediaActive=false;
+  const mediaListeners=new Set<{active:boolean;expanded:boolean;listener:(frame:MediaFrame|undefined)=>void}>();
+  let dimensions={width:8,height:4},mediaFrame:MediaFrame|undefined,mediaEnabled=false,mediaActive=false,mediaExpanded=false,mediaStatus=false;
+  let mediaPresentation:Extract<WireMessage,{type:'native-media'}>['presentation'];
 
   function idle(){if(!pending.size){for(const done of waiters)done();waiters.clear();}}
   function settle(id:number,receipt?:NativeReceiptMessage){const entry=pending.get(id);if(!entry)return;
@@ -233,17 +234,26 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     dimensions=next.composerMedia??{width:8,height:4};
     for(const value of changes)value.notify();
   }
-  function updateMedia(){const enabled=mediaListeners.size>0,active=enabled&&[...mediaListeners].some(value=>value.active);
-    if(enabled===mediaEnabled&&active===mediaActive)return;mediaEnabled=enabled;mediaActive=active;
+  function mediaOperation(enabled:boolean,active:boolean,expanded:boolean):NativeOperation{
+    return {kind:'media-active',enabled,active,...(mediaStatus?{expanded}:{})};
+  }
+  function notifyMedia(){for(const item of mediaListeners)item.listener(item.expanded?mediaFrame:undefined);}
+  function updateMedia(){const enabled=mediaListeners.size>0,active=enabled&&[...mediaListeners].some(value=>value.active),expanded=enabled&&[...mediaListeners].some(value=>value.expanded);
+    const changed=enabled!==mediaEnabled||active!==mediaActive||mediaStatus&&expanded!==mediaExpanded;
+    mediaEnabled=enabled;mediaActive=active;mediaExpanded=expanded;
+    // Keep bounded status across effect resubscription while the next frame is
+    // in transit. Hidden pixels are released; epoch changes and close revoke both.
     if(!enabled)mediaFrame=undefined;
-    fire('@media',{kind:'media-active',enabled,active});}
+    if(changed)fire('@media',mediaOperation(enabled,active,expanded));}
   const client:NativePresentationClient={
     ready,hello(){if(closed||sentHello)return;sentHello=true;send(localHello);},
     receive(message){if(closed)return;
       if(message.type==='hello'){
         const ack=answerHello(localHello,message),supported=message.role==='core'&&nativeProtocolElements.every(value=>message.capabilities.elements.includes(value));
         const ok=ack.ok&&supported&&Number(ack.version?.split('.')[1])>=7;
-        if(ok){peerHello=true;negotiated=acknowledged;allowEpoch=true;}
+        if(ok){peerHello=true;negotiated=acknowledged;allowEpoch=true;
+          const nextStatus=message.capabilities.elements.includes(COMPOSER_MEDIA_STATUS);
+          if(mediaStatus!==nextStatus){mediaStatus=nextStatus;mediaPresentation=undefined;notifyMedia();}}
         send(ok?ack:{type:'hello-ack',ok:false,reason:'Native presentation and input v1 are required'});
         if(!ok){rejectReady(new Error('Native presentation negotiation failed'));client.close();return;}
         return;
@@ -259,10 +269,10 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
         const next=parsed.data;if(retired.has(next.epoch))return;
         const changedEpoch=next.epoch!==epoch;
         if(changedEpoch){if(!allowEpoch)return;if(epoch)retired.add(epoch);revoke();sessions.clear();surfaces.clear();publicEntries.clear();tracks.clear();
-          epoch=next.epoch;stateRevision=-1;mediaRevision=-1;mediaFrame=undefined;allowEpoch=false;}
+          epoch=next.epoch;stateRevision=-1;mediaRevision=-1;mediaFrame=undefined;mediaPresentation=undefined;allowEpoch=false;}
         if(next.revision<=stateRevision)return;stateRevision=next.revision;
         initialized=true;apply(freeze(next.state));
-        resolveReady();if(changedEpoch&&mediaEnabled)fire('@media',{kind:'media-active',enabled:mediaEnabled,active:mediaActive});return;
+        resolveReady();if(changedEpoch){notifyMedia();if(mediaEnabled)fire('@media',mediaOperation(mediaEnabled,mediaActive,mediaExpanded));}return;
       }
       if(message.type==='native-receipt'){
         const parsed=nativeReceiptMessage.safeParse(message);if(parsed.success&&parsed.data.epoch===epoch)settle(parsed.data.id,parsed.data);return;
@@ -271,13 +281,14 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
         const parsed=nativeMediaMessage.safeParse(message);if(!parsed.success||parsed.data.epoch!==epoch||parsed.data.revision<=mediaRevision)return;
         const value=parsed.data;mediaRevision=value.revision;dimensions=value.dimensions;
         if(!mediaListeners.size)return;
+        mediaPresentation=mediaStatus&&value.presentation?freeze(value.presentation):undefined;
         mediaFrame=value.frame?{width:value.frame.width,height:value.frame.height,rgba:Uint8Array.from(atob(value.frame.rgba),char=>char.charCodeAt(0))}:undefined;
-        for(const item of mediaListeners)item.listener(mediaFrame);
+        notifyMedia();
       }
     },
     close(){if(closed)return;
-      if(mediaEnabled)fire('@media',{kind:'media-active',enabled:false,active:false});
-      closed=true;revoke();tracks.clear();mediaFrame=undefined;for(const item of mediaListeners)item.listener(undefined);mediaListeners.clear();
+      if(mediaEnabled)fire('@media',mediaOperation(false,false,false));
+      closed=true;revoke();tracks.clear();mediaFrame=undefined;mediaPresentation=undefined;dimensions={width:8,height:4};notifyMedia();mediaListeners.clear();
       rejectReady(new Error('Native presentation closed before initial state'));},
     sessions:()=>canonical,conversationWindows:windows,surfaces:surfaceList,
     windowLayout:{snapshot:layout.snapshot,subscribe:layout.subscribe,resize:(width,height)=>fire('@layout',{kind:'layout-resize',width,height}),act:action=>fire('@layout',{kind:'layout-action',action})},
@@ -291,8 +302,8 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
       changeQuery:(text,revision)=>{if(navigation.snapshot().revision===revision)fire('@navigation',{kind:'navigation-query',text,revision},revision);},
       select:(id,revision)=>{if(navigation.snapshot().revision===revision)fire('@navigation',{kind:'navigation-select',id,revision},revision);}},
     appearance,publicRender:{slot:id=>publicIds.get(id)?.source},
-    composerMedia:{dimensions:()=>dimensions,subscribe(active,listener){if(closed){listener(undefined);return()=>{};}
-      const item={active,listener};mediaListeners.add(item);listener(mediaFrame);updateMedia();return()=>{mediaListeners.delete(item);updateMedia();};}},
+    composerMedia:{dimensions:()=>dimensions,presentation:()=>mediaPresentation,subscribe(active,listener,options){if(closed){listener(undefined);return()=>{};}
+      const item={active,listener,expanded:options?.expanded!==false};mediaListeners.add(item);listener(item.expanded?mediaFrame:undefined);updateMedia();return()=>{mediaListeners.delete(item);updateMedia();};}},
     onCtrlC(){if(closed)return 'exit';const result=request('@host',{kind:'ctrl-c'});
       const outcome=(value:NativeReceiptMessage|undefined)=>value?.status==='accepted'&&value.ctrlC==='exit'?'exit' as const:'handled' as const;
       return result instanceof Promise?result.then(outcome):outcome(result);},

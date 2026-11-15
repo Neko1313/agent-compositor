@@ -58,6 +58,9 @@ it('bounds physically pending painter calls while superseding SDK authority and 
     await gate;return {tree: {lines: [{text: 'PAINTER_' + number, action: 'paint-' + number}]}};
   }});
   const source = f.slot('session');f.focus('session');
+  // Real layout persistence publishes an invalidation when it settles. Drain
+  // that setup work before measuring only the explicit fake-clock churn.
+  await expect.poll(() => f.layout.snapshot().saving).toBe(false);
   vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']});
   try {
     // Drive the actual Runtime's 100ms retirement window, below the painter's

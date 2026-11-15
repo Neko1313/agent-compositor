@@ -46,6 +46,12 @@ profiles automatically. Unsupported builds/settings stay in status mode.
 - `/mascot status`: show frame count, average **source** fps and image-slot state.
 - `/mascot reload`: reread configuration and the pack.
 
+These are immediate user controls. They run while an agent is working without
+queueing a prompt, interrupting its turn or making a model request. The prompt
+handler is also retained for the legacy dispatch path.
+Controls preserve their order for the same companion. Cancellation revokes later
+UI and timer work; an already completed settings write is not rolled back.
+
 GIF and APNG retain source frame timing and loop counts. The player uses elapsed
 source time, skips late frames instead of accumulating rendering delay, freezes
 when hidden/compact, and disposes timers on unload. Protected human dialogs and
@@ -53,6 +59,17 @@ slash completion keep their input space. NO_COLOR, TERM=dumb and pause stop
 motion; activity/status changes and transient expiry still work. The text layer
 permits up to 60 redraws/s, while pixel-only updates use the native image path.
 This is not a guarantee of 60 visible fps in every terminal or connection.
+
+The configured OpenTUI frontend selects Kitty or SIXEL only after actual terminal
+capability detection. SIXEL also requires queried pixel geometry, which is
+refreshed after resize. Unsupported protocols, tmux/screen, constrained panes,
+`AGENT_GRAPHICS=off`, reduced motion and `NO_COLOR` retain the selected producer's
+compact status instead of substituting block artwork. Pixel subscriptions stop
+in compact mode; activity labels and transient expiry still update. A hidden
+composer yields its media subscription to the visible editor. Removing a selected
+replacement contribution resumes the previous producer without another focus or
+layout action. Physical SIXEL and multiplexer behavior need their own terminal
+verification; negotiated support alone is not a native rendering certificate.
 
 The old Ghost source has six frames at 180 ms each (about 5.6 fps). A new renderer
 cannot manufacture missing motion. Supply a higher-frame-rate APNG/GIF for a
@@ -105,7 +122,8 @@ The host owns drafts, focus, submission and dialogs. Native pixels occupy only
 the reserved art rectangle, never the editable text. Slots use stable producer
 registration order: the latest contribution is selected, older producers get
 `ui.visibility` with `visible:false`, and resume when selected again. Image
-motion only runs when the slot is expanded (>=60 columns, >=24 rows). Text-only
+motion only runs when the slot is expanded (Ink: >=60 columns, >=24 terminal rows;
+OpenTUI: >=60 columns and >=20 rows of pane content). Text-only
 attachments remain supported. Plugin `ui.reaction` events and tool/subagent
 activity still select states without influencing the observed action.
 

@@ -1,5 +1,84 @@
 # Project memory
 
+## Media full-suite synchronization diagnosis — 2026-11-15
+
+The previous goal turn produced a status report and a controlled diagnosis that
+changes the next action. The first media full run remains FAILED: 2553 pass,
+five optional skips, one public-host dispatch-count assertion (four versus
+three); all 1030 workspace source files stayed unchanged. Preserve
+dist/opentui-media-first-full-failure-20261115 and the original full receipt/log.
+The independent real-host probe at dist/opentui-media-painter-diagnosis-20261115
+holds an actual committed layout save's return, then releases it after painter3
+starts. Save-only publish(false) invalidates its authority and admits painter4
+after an obsolete painter settles. Actual maximum physical occupancy stays two,
+all dispatch faults are empty, stale3 cannot paint and current4 publishes exactly.
+This proves the mechanism, not the original untraced full run's precise timing.
+Review SHA b99fcbca876c2859ef7c679f4f9d27efd8273e021e6cc619e997022030d39ab6.
+
+The maintained test now awaits actual layout.saving=false after setup focus and
+before fake timers/measurement, using the existing layout-test primitive. Its
+strict two-slot, three expected measured dispatches, stale-effect and exact
+current-result/publication assertions are unchanged. No production scheduling
+or capacity policy changed. Focused public-host12 and the fresh standalone full
+suite pass:2554 tests plus five optional skips in276 files, no unhandled errors,
+32.768s, all1030 tracked/nonignored source files unchanged during execution.
+Receipt dist/headless-opentui-media-drained-full-ci-receipt.json and log
+/home/neko/.cache/ac-tmp/compositor-opentui-media-drained-full-test-ci-20261115.log
+SHA a8f0a26241984354d08a22065cfb1b642a498073d9eea07a748d7d4b16db15bf.
+Only these documentation results were added after that source snapshot. A new
+immutable archive/native media gate is still required. The complete 1.0 scope
+and existing spending ceiling remain active; no paid calls were made.
+
+## OpenTUI media fallback and lifetime repair — 2026-11-15
+
+The previous goal turn was PROGRESS: saved-profile adapter235abdd3fa64780cf62fec81ed99b7472846b2c7
+is pushed and qualified by actual sourceCI43647694838, docs43647694790 and
+plugin preparation43647694862. Node26 passes2526+5skip, Node22 2515+16skip,
+270files;88sourceUI/20PTY0/32certificates. Summary
+ dist/development-responses-source-235abdd/source-audit-summary.json
+SHA9c418236706b957247939e630fb085b066607953b80b00f467adafd5959dcdb1.
+The separate installed2ca complex-grapheme/native resize flow passes6/6 with
+5nativePNGs,35editorreceipts,852byte-identical stdin/server bytes, real
+110x36→56x20→110x36 and naturalPTY0/TTYrestoration. Its review is
+ dist/opentui-native-kitty-complex-resize-corrected-235abdd-20261115/independent-review.json
+SHA2bfbcd195ff7c290b6898c46be27d59588d848a96890ecd83cc5f1b88f285ed0.
+The original2/6 relay failure stays failed and all56rawfiles stay unchanged.
+No source/native/archive qualification is rebound across commits.
+
+Current media work repairs actual gaps: portable producer label/alt fallback,
+compact metadata-only subscriptions, previous producer clock resume after
+remove/unload, actual-capability Kitty/SIXEL selection with fresh SIXEL geometry,
+and one media owner for the visible native/custom editor. Optional
+composer-media-status-v1 negotiates metadata/expanded fields without changing
+strict legacy packet shapes or the mandatory0.7 profile. Missing presentation
+means unknown; it is never fabricated from an absent frame. Ordinary unsubscribe
+drops RGBA and may keep bounded metadata; epoch/close revoke both. Hidden Ghost
+snapshots release pixels so reopening cannot paint a previous frame.
+
+Mascot controls now use immediate command.invoke while Main works, preserve
+per-companion order, and fence later UI/timer work after operation cancellation.
+An already committed settings write is retained, not rolled back. The new real
+cancel regression fails on the entry-only guard (7late UI entries and1timer)
+and passes the post-await fences. Earlier incomplete root test fixtures did not
+start Core/use canonical storage; their failures remain diagnostic evidence,
+not product failures. Final joint focused run passes90tests in11files; actual
+SDK/client tests retain modern/legacy resubscribe and hidden-pixel RED evidence.
+The first joint78 accidentally omitted ghost.test.ts via a wrong.tsx filter;
+final90 explicitly includes all intended files. Source bytes are now frozen
+for root generation/docs/full verification and a distinct archive/native gate.
+
+Original10APNGs remain unchanged:60distinct228x228RGBA frames at180ms, binary
+alpha, independently decoded by Pillow. Prepared native plan proposes14checks,
+17captures,8scripted loopback requests and90seconds, using real Core actions for
+all10states plus native backgrounds/resize/producer replacement. No new media
+archive or physical run is yet qualified. Native idle/thinking proof uses older
+2ed9 bytes; installedbd7 text proof is not graphics evidence. Preserve those
+identities. All this work uses fake providers/private fixtures with0paid calls,
+no real profile/key/ledger reads or spending expansion. The budget decision is
+pending. Full1.0 scope remains active, including broader native media/GIF/SIXEL/
+tmux/video, daily/default OpenTUI, CPU onboarding, real development/plugin delivery,
+sustained recovery/trust and final exact release qualification/publication.
+
 ## Saved-profile Responses development adapter — 2026-11-15
 
 The preceding status-only root turn made no implementation progress; this

@@ -29,12 +29,15 @@ class Companion {
   revision = 0;
   timer?: ReturnType<typeof setTimeout>;
   warned = new Set<string>();
+  private commandTail: Promise<void> = Promise.resolve();
   constructor(public $: any) {}
-  async init() {
+  async init(signal?: AbortSignal) {
+    signal?.throwIfAborted();
     try {
       const value = this.$.storage?.config
         ? await this.$.storage.config("mascot.json")
         : JSON.parse(await this.$.fs.read(FILE));
+      signal?.throwIfAborted();
       if (!value || typeof value !== "object" || Array.isArray(value))
         throw Error("Expected object");
       for (const flag of ["enabled", "paused", "restoreInk"])
@@ -66,14 +69,15 @@ class Companion {
       this.config = value;
 
     } catch (e) {
+      signal?.throwIfAborted();
       if ((e as any).code !== "ENOENT")
         await this.$.ui.notify(`mascot: ${String(e)}`, "warn");
     }
-
+    signal?.throwIfAborted();
     this.pack = new AnimationPack(this.$.session.cwd,this.config);
     this.timeline = new Timeline();
     this.activity = new Activity(this.config);
-    if (this.config.enabled !== false) await this.show();
+    if (this.config.enabled !== false) await this.show(signal);
   }
   stop() {
     clearTimeout(this.timer);
@@ -84,8 +88,10 @@ class Companion {
     this.disposed = true;
     this.stop();
   }
-  async save() {
+  async save(signal?: AbortSignal) {
+    signal?.throwIfAborted();
     await this.$.fs.write(FILE, JSON.stringify(this.config, null, 2));
+    signal?.throwIfAborted();
   }
   async event(name: string, event: any) {
     this.activity.accept(name, event);
@@ -93,7 +99,8 @@ class Companion {
     if (this.timer && this.activity.current() === this.state) return;
     if (this.config.enabled !== false && this.attached) await this.show();
   }
-  async show() {
+  async show(signal?: AbortSignal) {
+    signal?.throwIfAborted();
     this.stop();
     if (this.disposed || this.config.enabled === false || !this.attached)
       return;
@@ -104,9 +111,12 @@ class Companion {
     }
     let frames:AnimationFrames;
     try{frames=await this.pack.load(state);}catch(error){
+      signal?.throwIfAborted();
       if(!this.warned.has(state)){this.warned.add(state);await this.$.ui.notify(`mascot: ${state}: ${String(error)}`,"warn");}
+      signal?.throwIfAborted();
       try{frames=await this.pack.load("idle");}catch{frames=[];}
     }
+    signal?.throwIfAborted();
     if(revision!==this.revision||this.disposed)return;
     this.timeline.select(frames);
     this.timeline.play(this.visible&&this.motion&&!this.config.paused);
@@ -117,6 +127,7 @@ class Companion {
       ...(frame?{raster:{width:frame.width,height:frame.height,rgba:frame.rgba,alt:labels[state]}}:{}),
       lines:[],
     },{focus:false});
+    signal?.throwIfAborted();
     if(revision!==this.revision||this.disposed||!this.visible)return;
     const remaining=(this.activity.transient?.until??0)-Date.now();
     const active=this.motion&&!this.config.paused&&!sample.done;
@@ -125,13 +136,22 @@ class Companion {
     this.timer=setTimeout(()=>{void this.show().catch(()=>{});},Math.max(1,delay));
     this.timer.unref?.();
   }
-  async command(command: string) {
+  command(command: string, signal?: AbortSignal): Promise<void> {
+    const work = this.commandTail.then(async () => {
+      signal?.throwIfAborted();
+      if (!this.disposed) await this.applyCommand(command, signal);
+    });
+    this.commandTail = work.catch(() => {});
+    return work;
+  }
+  private async applyCommand(command: string, signal?: AbortSignal) {
     if(command==="status"){
       try{
       const frames=await this.pack.load(this.activity.current());
+      signal?.throwIfAborted();
       const duration=frames.reduce((sum,frame)=>sum+frame.delay,0);
       await this.$.ui.notify(`Ghost: ${frames.length} source frames, ${(frames.length*1000/duration).toFixed(1)} fps average; ${this.imageVisible?"image slot visible":"compact status only"}; ${this.config.paused?"pause: on":"pause: off"}`,"info");
-      }catch(error){await this.$.ui.notify(`Ghost: ${String(error)}`,"warn");}
+      }catch(error){signal?.throwIfAborted();await this.$.ui.notify(`Ghost: ${String(error)}`,"warn");}
       return;
     }
     if (command === "off") {
@@ -139,14 +159,15 @@ class Companion {
       this.timeline.play(false);
       this.stop();
       await this.$.ui.remove("companion");
-      await this.save();
+      await this.save(signal);
       return;
     }
     if (command === "reload") {
       this.stop();
       this.warned.clear();
       this.attached = true;
-      await this.init();
+      await this.init(signal);
+      signal?.throwIfAborted();
       if (this.config.enabled === false) await this.$.ui.remove("companion");
       return;
     }
@@ -160,8 +181,8 @@ class Companion {
     if(command==="on")this.timeline=new Timeline();
     this.config.enabled = true;
     this.attached = true;
-    await this.save();
-    await this.show();
+    await this.save(signal);
+    await this.show(signal);
   }
 }
 async function initialize(_: unknown, $: any) {
@@ -173,10 +194,14 @@ async function initialize(_: unknown, $: any) {
 const hooks: Record<string, any> = {
   "session.start": initialize,
   "session.reload": initialize,
+  "command.invoke": async (e: {name: string; args: string}, $: any) => {
+    if (e.name !== "/mascot") return;
+    await instances.get($.session.id)?.command(e.args.trim().split(/\s+/)[0] || "on", $.signal);
+  },
   "prompt.submit": async (e: { text: string }, $: any) => {
     if (!/^\/mascot(?:\s|$)/.test(e.text.trim())) return;
     const instance = instances.get($.session.id);
-    await instance?.command(e.text.trim().split(/\s+/)[1] ?? "on");
+    await instance?.command(e.text.trim().split(/\s+/)[1] ?? "on", $.signal);
     return { drop: "mascot: handled" };
   },
   "ui.visibility": async (e: any, $: any) => {
@@ -200,7 +225,8 @@ const hooks: Record<string, any> = {
           ? instance.config.paused
             ? "resume"
             : "pause"
-          : e.key
+          : e.key,
+        $.signal
       );
   },
 };

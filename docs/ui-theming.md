@@ -337,6 +337,15 @@ Unsupported image terminals and constrained viewports retain a compact status.
 Protected dialogs/completions keep their input space. The draft and input
 handler are never replaced by decorative content.
 
+The configured OpenTUI frontend retains `attachment.label` and `raster.alt` in
+that compact presentation, including pause and error state. It subscribes to
+metadata without image pixels while compact, so the producer can stop animation
+without losing status updates. A custom editor and the hidden standard editor
+never own two concurrent attachment subscriptions. Native Kitty/SIXEL selection
+uses actual capabilities and current pixel geometry; tmux/screen and unsupported
+graphics retain text. Explicit `AGENT_GRAPHICS=off` and reduced motion also keep
+the status.
+
 Multiple producers use stable registration order with the latest selected;
 normal `ui.visibility` events suspend earlier/compact animations. Unload or
 `$.ui.remove` detaches the contribution. The contract has no mascot-specific

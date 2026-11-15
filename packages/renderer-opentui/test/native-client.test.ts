@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {decodeLine,encodeMessage,hello,nativeProtocolElements,type NativeState,type NativeInputMessage,type NativeReceiptMessage,type WireMessage} from '@agent-compositor/protocol';
+import {decodeLine,encodeMessage,hello,COMPOSER_MEDIA_STATUS,nativeProtocolElements,type NativeState,type NativeInputMessage,type NativeReceiptMessage,type WireMessage} from '@agent-compositor/protocol';
 import {createNativePresentationClient} from '../src/native-client.js';
 
 function initial():NativeState {
@@ -10,14 +10,14 @@ function initial():NativeState {
       locations:{session:1},axis:'horizontal',fullscreen:false,compact:false,pointer:'default'},
     navigation:{revision:1,mode:'normal',query:'',entries:[]},appearance:{revision:1,appearance:{}}};
 }
-const coreHello=()=>hello('core',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements],encodings:['jsonl']});
-function transport(options:{deferred?:boolean;state?:NativeState;consume?:(input:NativeInputMessage)=>boolean}={}){
+const coreHello=(mediaStatus=false)=>hello('core',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,...(mediaStatus?[COMPOSER_MEDIA_STATUS]:[])],encodings:['jsonl']});
+function transport(options:{deferred?:boolean;state?:NativeState;mediaStatus?:boolean;consume?:(input:NativeInputMessage)=>boolean}={}){
   let state=options.state??initial(),epoch='epoch-one',revision=0;
   const inputs:NativeInputMessage[]=[],outgoing:WireMessage[]=[];
   const client=createNativePresentationClient(message=>{
     // Every direction uses the real codec: no functions or shared DTO aliases.
     const decoded=decodeLine(encodeMessage(message));outgoing.push(decoded);
-    if(decoded.type==='hello'){receive(coreHello());receive({type:'hello-ack',ok:true,version:'0.7.0'});publish();}
+    if(decoded.type==='hello'){receive(coreHello(options.mediaStatus));receive({type:'hello-ack',ok:true,version:'0.7.0'});publish();}
     if(decoded.type==='native-input'){inputs.push(decoded);if(!options.deferred)receipt(decoded.id,{consumed:options.consume?.(decoded)??false});}
   });
   function receive(message:WireMessage){client.receive(decodeLine(encodeMessage(message)));}
@@ -238,6 +238,60 @@ describe('native presentation client',()=>{
     const afterHidden:(unknown)[]=[];const stopAgain=t.client.composerMedia.subscribe(false,value=>afterHidden.push(value));expect(afterHidden).toEqual([undefined]);
     t.receive(coreHello());t.setEpoch('epoch-two');t.publish(initial());expect(t.inputs.at(-1)!.operation).toEqual({kind:'media-active',enabled:true,active:false});
     stopAgain();t.client.close();
+  });
+
+  it('negotiates compact status, aggregates expansion, and never delivers pixels to compact subscribers',()=>{
+    const t=transport({mediaStatus:true}),compact:(unknown)[]=[],expanded:(unknown)[]=[],status:(unknown)[]=[];
+    const stop=t.client.composerMedia.subscribe(false,frame=>{compact.push(frame);status.push(t.client.composerMedia.presentation?.());},{expanded:false});
+    expect(t.inputs.at(-1)!.operation).toEqual({kind:'media-active',enabled:true,active:false,expanded:false});
+    t.receive({type:'native-media',epoch:'epoch-one',revision:1,dimensions:{width:18,height:6},presentation:{label:'Thinking 窗',alt:'Original Ghost',hasImage:true}});
+    expect(compact).toEqual([undefined,undefined]);expect(status.at(-1)).toEqual({label:'Thinking 窗',alt:'Original Ghost',hasImage:true});
+    const stopExpanded=t.client.composerMedia.subscribe(true,frame=>expanded.push(frame));
+    expect(t.inputs.at(-1)!.operation).toEqual({kind:'media-active',enabled:true,active:true,expanded:true});
+    t.receive({type:'native-media',epoch:'epoch-one',revision:2,dimensions:{width:18,height:6},presentation:{label:'Searching',hasImage:true},frame:{width:1,height:1,rgba:'/wAA/w=='}});
+    expect(compact.every(value=>value===undefined)).toBe(true);expect(expanded.at(-1)).toMatchObject({width:1,height:1,rgba:new Uint8Array([255,0,0,255])});
+    stopExpanded();expect(t.inputs.at(-1)!.operation).toEqual({kind:'media-active',enabled:true,active:false,expanded:false});
+    t.receive({type:'native-media',epoch:'epoch-one',revision:3,dimensions:{width:18,height:6},presentation:{label:'Done!',hasImage:true}});
+    expect(status.at(-1)).toEqual({label:'Done!',hasImage:true});expect(t.client.composerMedia.dimensions?.()).toEqual({width:18,height:6});
+    stop();expect(t.inputs.at(-1)!.operation).toEqual({kind:'media-active',enabled:false,active:false,expanded:false});
+    expect(t.client.composerMedia.presentation?.()).toEqual({label:'Done!',hasImage:true});
+    t.client.close();expect(t.client.composerMedia.presentation?.()).toBeUndefined();
+  });
+
+  it('retains bounded status across last-unsubscribe without retaining its image pixels',()=>{
+    const t=transport({mediaStatus:true}),frames:(unknown)[]=[];
+    const stop=t.client.composerMedia.subscribe(false,frame=>frames.push(frame));
+    t.receive({type:'native-media',epoch:'epoch-one',revision:1,dimensions:{width:18,height:6},
+      presentation:{label:'Ready',alt:'Original Ghost',hasImage:true},frame:{width:1,height:1,rgba:'/wAA/w=='}});
+    expect(frames.at(-1)).toMatchObject({rgba:new Uint8Array([255,0,0,255])});stop();
+    const presentation=t.client.composerMedia.presentation?.();
+    expect(presentation).toEqual({label:'Ready',alt:'Original Ghost',hasImage:true});
+    const resumed:(unknown)[]=[];
+    const stopAgain=t.client.composerMedia.subscribe(false,frame=>resumed.push(frame));
+    expect(resumed).toEqual([undefined]);expect(t.client.composerMedia.presentation?.()).toBe(presentation);
+    stopAgain();t.client.close();expect(t.client.composerMedia.presentation?.()).toBeUndefined();
+  });
+
+  it('keeps exact legacy media messages and ignores unnegotiated presentation fields',()=>{
+    const t=transport(),frames:(unknown)[]=[];
+    const stop=t.client.composerMedia.subscribe(false,value=>frames.push(value),{expanded:false});
+    expect(t.inputs.at(-1)!.operation).toEqual({kind:'media-active',enabled:true,active:false});
+    t.receive({type:'native-media',epoch:'epoch-one',revision:1,dimensions:{width:8,height:4},frame:{width:1,height:1,rgba:'/wAA/w=='},presentation:{label:'Unnegotiated',hasImage:true}});
+    expect(frames).toEqual([undefined,undefined]);expect(t.client.composerMedia.presentation?.()).toBeUndefined();
+    stop();expect(t.inputs.at(-1)!.operation).toEqual({kind:'media-active',enabled:false,active:false});t.client.close();
+  });
+
+  it('revokes media status on epoch replacement and close without accepting retired metadata',()=>{
+    const t=transport({mediaStatus:true}),status:(unknown)[]=[];
+    t.client.composerMedia.subscribe(false,()=>status.push(t.client.composerMedia.presentation?.()),{expanded:false});
+    t.receive({type:'native-media',epoch:'epoch-one',revision:1,dimensions:{width:18,height:6},presentation:{label:'Old producer',hasImage:true}});
+    expect(status.at(-1)).toEqual({label:'Old producer',hasImage:true});
+    t.receive(coreHello(true));t.setEpoch('epoch-two');t.publish(initial());expect(status.at(-1)).toBeUndefined();
+    expect(t.inputs.at(-1)!.operation).toEqual({kind:'media-active',enabled:true,active:false,expanded:false});
+    t.receive({type:'native-media',epoch:'epoch-one',revision:999,dimensions:{width:18,height:6},presentation:{label:'Retired',hasImage:true}});
+    expect(t.client.composerMedia.presentation?.()).toBeUndefined();
+    t.receive({type:'native-media',epoch:'epoch-two',revision:1,dimensions:{width:18,height:6},presentation:{label:'New producer',hasImage:false}});
+    expect(status.at(-1)).toEqual({label:'New producer',hasImage:false});t.client.close();expect(status.at(-1)).toBeUndefined();
   });
 
   it('fails negotiation/close safely, settles pending admissions and never retargets old callbacks',async()=>{

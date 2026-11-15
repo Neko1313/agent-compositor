@@ -305,7 +305,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
             onPaste={event => { if (!isActive() || editing || selected.snapshot().editor) event.preventDefault(); }}
             onContentChange={() => setImmediate(Boolean(selected.isImmediateCommand?.(editor.current?.plainText ?? '')))}
             keyBindings={editorKeys} onSubmit={send} />
-        <Ghost media={composerMedia} enabled={!editing && focused && animations && wide && height >= 20} active={state.running} />
+        <Ghost media={composerMedia} enabled={!editing && !state.editor && focused} expanded={animations && wide && height >= 20} active={state.running} />
         {focused && <box height={1} paddingX={1} backgroundColor={canSend ? color.selectionBackground : color.panel}
           onMouseDown={event => {
             handleActionMouseDown(event, Boolean(messageInput()), send);
@@ -325,7 +325,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
             focused={focused&&!editing&&state.editor.available} isActive={ownsEditor}
             isVisible={()=>!editing&&isVisible()}/>
         </box>
-        <Ghost media={composerMedia} enabled={!editing&&focused&&animations&&wide&&height>=20} active={state.running}/>
+        <Ghost media={composerMedia} enabled={!editing&&focused} expanded={animations&&wide&&height>=20} active={state.running}/>
       </box>}
       {focused && <box flexDirection="row" columnGap={1} height={1}>
         {presentation.hints&&<text flexGrow={1} truncate fg={color.muted}>{editing ? 'Alt+I draft' + (state.controller?' · Ctrl+C cancel request':'') + (state.running && selected.interrupt ? ' · Ctrl+X stop agent' : '') : state.editor?selectedHint:width >= fullHint.length + 2 ? fullHint : inputHint}</text>}

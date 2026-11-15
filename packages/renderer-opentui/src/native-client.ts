@@ -1,4 +1,4 @@
-import {answerHello,hello,parseSemVer,COMPOSER_MEDIA_STATUS,NATIVE_STEER,nativeProtocolElements,nativeStateMessage,nativeInputMessage,nativeReceiptMessage,nativeMediaMessage,
+import {answerHello,hello,parseSemVer,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,nativeProtocolElements,nativeStateMessage,nativeInputMessage,nativeReceiptMessage,nativeMediaMessage,
   type NativeState,type NativeSession,type NativeSurface,type NativeOperation,type NativeReceiptMessage,type WireMessage} from '@agent-compositor/protocol';
 import type {ConversationSession,ConversationSnapshot} from './session.js';
 import type {ConversationWindow,ConversationWindowRegistry} from './conversation-windows.js';
@@ -51,7 +51,7 @@ type Pending={target:string;resolve:(receipt:NativeReceiptMessage|undefined)=>vo
 /** Data-only local ports. Receipts acknowledge admission, never model completion. */
 export function createNativePresentationClient(send:(message:WireMessage)=>void):NativePresentationClient {
   const localHello=hello('renderer',{surfaces:['terminal'],sites:['conversation','tools','help','status','plugin:*'],
-    elements:['Text','Box','Layout','Pointer',...nativeProtocolElements,COMPOSER_MEDIA_STATUS,NATIVE_STEER],encodings:['jsonl']});
+    elements:['Text','Box','Layout','Pointer',...nativeProtocolElements,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK],encodings:['jsonl']});
   let closed=false,sentHello=false,peerHello=false,acknowledged=false,negotiated=false,allowEpoch=false,epoch='',stateRevision=-1,mediaRevision=-1,nextId=0;
   let initialized=false,resolveReady!:()=>void,rejectReady!:(reason:Error)=>void;
   const ready=new Promise<void>((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});

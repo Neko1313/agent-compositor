@@ -13,8 +13,9 @@ async function fixture(){
  const enqueue=(key:string,text=key)=>core.host.emit('service.agent.enqueue',{plugin:'owner',key,text});return{core,provider,enqueue,starts:()=>starts};
 }
 it('pauses a queued automatic wake before its idle timer starts a model',async()=>{
- const f=await fixture();expect(await f.enqueue('wake','Accepted automatic work')).toMatchObject({value:{value:{queued:true}}});
- f.core.interrupt();expect(f.core.getState()).toBe('interrupted');
+ const f=await fixture(),notices:string[]=[];f.core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='ui.notification')notices.push(String(event.input.message));});
+ expect(await f.enqueue('wake','Accepted automatic work')).toMatchObject({value:{value:{queued:true}}});
+ f.core.interrupt();expect(f.core.getState()).toBe('interrupted');expect(notices).toContain('Automatic follow-up paused. Send a message to continue.');
  await new Promise(resolve=>setTimeout(resolve,50));expect(f.provider.requests).toHaveLength(0);
  await f.core.submit('Resume explicitly');expect(f.provider.requests).toHaveLength(2);
  expect(f.provider.requests[1].messages.at(-1)?.content).toBe('Accepted automatic work');

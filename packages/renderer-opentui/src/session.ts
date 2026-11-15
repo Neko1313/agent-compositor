@@ -16,6 +16,7 @@ export interface ConversationApproval {
 export interface ConversationSnapshot {
   messages: readonly Message[];
   running: boolean;
+  pending?: boolean;
   error?: string;
   notice?: string;
   approval?: ConversationApproval;

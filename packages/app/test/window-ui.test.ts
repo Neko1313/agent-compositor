@@ -353,3 +353,14 @@ it('returns an unaccepted queued message to an empty default editor', async () =
   await expect.poll(()=>f.screens.get('input')??'').toContain('Return to editor');
   expect(f.screens.get('session')).toContain('restored to the input');f.provider.release();
 });
+
+it('interrupts admitted work waiting behind a lifecycle barrier before treating Ctrl+C as exit', async () => {
+  let blocked=true;const f=setup([],{isWorkBlocked:()=>blocked});
+  f.send('Queued while blocked');await expect.poll(()=>f.ui.core.hasInterruptibleWork).toBe(true);
+  expect(f.ui.core.getState()).toBe('idle');f.key('c',['ctrl']);
+  expect(f.messages.some(message=>message.type==='bye')).toBe(false);
+  expect(f.ui.core.hasInterruptibleWork).toBe(false);
+  expect(f.screens.get('session')).toContain('Queued messages cancelled');
+  blocked=false;f.ui.core.resumePendingWork();await new Promise(resolve=>setTimeout(resolve,30));expect(f.provider.requests).toHaveLength(0);
+  f.key('c',['ctrl']);expect(f.messages.some(message=>message.type==='bye')).toBe(true);
+});

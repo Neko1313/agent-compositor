@@ -124,6 +124,13 @@ try {
   if(conversationHeaders!==1)throw Error(`Expected one conversation view after /chat and reload, found ${conversationHeaders}`);
   await shot('19-queued-after-plugin-reload.png');
   report.checks.push('A prompt submitted after a plugin file change stays queued and visible until reload, reaches the scripted provider, and /chat keeps a single conversation view');
+  await submitFromInput('/extensions remove todos --project');await wait('Removed todos');
+  await submitFromInput('CANCEL_PENDING_CHECK');await page.waitForFunction(()=>visual.text().includes('CANCEL_PENDING_CHECK')&&visual.text().includes('1 queued'));
+  await page.keyboard.press('Control+c');await wait('Queued messages cancelled');await shot('20-cancel-pending-without-exit.png');
+  if(await page.evaluate(()=>visual.text().includes('CANCEL_SHOULD_NOT_RUN')))throw Error('Cancelled message reached the provider');
+  await submitFromInput('/reload');await page.waitForFunction(()=>{const lines=visual.text().split('\n'),last=lines.findLastIndex(line=>line.includes('/reload'));return last>=0&&lines.slice(last+1).some(line=>line.includes('Reloaded '));});
+  if(await page.evaluate(()=>visual.text().includes('CANCEL_SHOULD_NOT_RUN')))throw Error('Cancelled message ran after reload');
+  report.checks.push('Ctrl+C cancels a prompt waiting behind plugin changes without closing the app or running it after reload');
   report.ok=report.errors.length===0;
 } catch(error){report.errors.push(String(error));await page?.screenshot({path:resolve(output,'failure.png')}).catch(()=>{});}
 finally{

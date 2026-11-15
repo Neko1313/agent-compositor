@@ -319,7 +319,7 @@ export class AppUI {
   }
   private editorIntent(result:unknown):void {
     const intent=result as UiEditorIntent|undefined;if(!intent)return;
-    if(intent.type==='interrupt'){if(this.core.getState()==='running')this.core.interrupt();else this.close();return;}
+    if(intent.type==='interrupt'){if(this.core.hasInterruptibleWork){this.core.interrupt();this.status='Interrupted';this.draw();}else this.close();return;}
     if(intent.type==='scroll'&&Number.isFinite(intent.rows)){this.offset=Math.max(0,this.offset+intent.rows);return;}
     if((intent.type==='submit'||intent.type==='steer')&&typeof intent.text==='string'&&intent.text.trim()) {
       const text=intent.text;this.transcript.push({kind:'user',text});
@@ -1204,9 +1204,9 @@ export class AppUI {
         this.draw();
         return;
       }
-      if (this.core.getState() === "running") {
+      if (this.core.hasInterruptibleWork) {
         this.core.interrupt();
-        this.draw();
+        this.status="Interrupted";this.draw();
       } else this.close();
       return;
     }

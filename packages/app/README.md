@@ -100,10 +100,11 @@ to the agent state. Resizing reflows the visible conversation.
   indices.
 - PageUp/PageDown scroll the conversation.
 - Y/N answers tool permission requests (once per call).
-- Ctrl+C interrupts work; when idle it exits.
+- Ctrl+C interrupts active or queued work; with no interruptible work it exits.
 - `/reload` reloads disk plugins between turns, resetting plugin state.
 
-Interrupting work cancels ordinary queued messages. After reopening a session,
+Interrupting work cancels ordinary queued messages, including messages waiting
+for plugin changes. The app remains open; a second Ctrl+C exits if no work remains. After reopening a session,
 `/recover` lists newer user messages recorded in the journal without a recorded
 submission. New, queued and steering messages wait for the recovery intent write before
 acceptance when persistent storage is configured. Use

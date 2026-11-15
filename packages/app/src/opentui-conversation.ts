@@ -81,6 +81,7 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Conv
     currentCalls();return conversation(core.getMessages(), toolStates);
   };
   let state: ConversationSnapshot = {messages: project(), running: core.getState() === 'running',
+    pending:core.getState()!=='running'&&core.hasInterruptibleWork,
     approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.(), controller: inbox?.controllerSnapshot?.()};
   let committed = state.messages;
   let streaming = '';
@@ -88,7 +89,7 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Conv
   let disconnected = false;
   function update(next: ConversationSnapshot) {
     if (disconnected) return;
-    state = {...next, notice, approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.(), controller: inbox?.controllerSnapshot?.()};
+    state = {...next, pending:core.getState()!=='running'&&core.hasInterruptibleWork, notice, approval: inbox?.snapshot(), interaction: inbox?.interactionSnapshot?.(), controller: inbox?.controllerSnapshot?.()};
     for (const listener of listeners) listener();
   }
   const offInbox = inbox?.subscribe(() => update(state));

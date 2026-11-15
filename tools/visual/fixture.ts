@@ -28,7 +28,10 @@ const recoveryProvider={name:'recovery-proof',async *complete(req:any){
 const marketplaceScript = new ScriptedProvider([{text:'AGENT_BUSY: the model is still working.',hold:true},{toolCalls:[{name:'ask_user',args:{question:'AGENT_QUESTION: choose when to continue',options:['Continue','Cancel']}}]},{text:'AGENT_DONE: question answered.'}]);
 const marketplaceProvider = {name:'marketplace-proof',async *complete(req:any){
   const latest = req.messages.filter((message:any)=>message.role==='user').at(-1);
-  if(JSON.stringify(latest?.content).includes('BARRIER_PENDING_CHECK')) {
+  if(JSON.stringify(latest?.content).includes('CANCEL_PENDING_CHECK')) {
+    yield {type:'text_delta' as const,text:'CANCEL_SHOULD_NOT_RUN'};
+    yield {type:'finish' as const,reason:'stop' as const};
+  } else if(JSON.stringify(latest?.content).includes('BARRIER_PENDING_CHECK')) {
     yield {type:'text_delta' as const,text:'BARRIER_COMPLETED_CHECK'};
     yield {type:'finish' as const,reason:'stop' as const};
   } else yield* marketplaceScript.complete(req);

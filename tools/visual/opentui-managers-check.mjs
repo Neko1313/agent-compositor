@@ -225,6 +225,15 @@ try{
   report.loadedReceipt=nextLoaded;report.savedRule=rule;
   report.checks.push('Actual CLI restart resumes the same session, loads the explicitly enabled package and restores its saved placement rule; Todos opens on workspace 3 and Main retains the previous answer');
   await noListenerWarnings();
+  await command('/extensions remove local-flow-probe --project');await wait('Removed local-flow-probe');
+  const requestsBeforeCancel=(await completions()).length;
+  await main();await type('APP_RESTORED');await key('Enter');await wait('Message queued while plugins change');await wait('Main · Queued');await capture('07-pending-before-stop');
+  await key('Control+c');await wait('Queued messages cancelled');
+  assert.equal(ptyExit,undefined,'First Ctrl+C must cancel pending input instead of exiting');
+  await capture('08-cancel-pending');await command('/reload');
+  await observe(layout,value=>!value.registered.includes('plugin-local-flow-probe-proof'),'Reload must remove the uninstalled plugin surface');
+  assert.equal((await completions()).length,requestsBeforeCancel,'Cancelled prompt must not reach the provider after reload');
+  report.checks.push('Ctrl+C cancels a queued prompt during pending plugin changes without exiting or running it after reload');
   await main();await key('Control+c');await observe(async()=>ptyExit,value=>value===0,'Actual CLI must exit cleanly');report.ptyExitCode=ptyExit;
   assert.deepEqual(report.errors,[]);report.ok=true;
 }catch(error){report.errors.push(error instanceof Error?error.stack:String(error));if(page){await writeFile(join(output,'failure.txt'),await page.evaluate(()=>window.visual?.text()??'').catch(()=>''));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});}

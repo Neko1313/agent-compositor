@@ -207,6 +207,11 @@ The broker deduplicates in-flight input IDs; an unaccepted input remains editabl
 in the frontend. Layout and other independent inputs remain available while a
 receipt is pending.
 
+The optional `native-pending-work-v1` capability adds a `pending` conversation
+state for admitted work waiting before a model turn. It lets the frontend show
+queued work and offer Stop while the Core is idle. Legacy peers receive the
+original strict snapshot without that field.
+
 The optional `composer-media-status-v1` element adds selected-producer
 presentation (`label`, `alt`, `hasImage`) to `native-media` and an `expanded`
 flag to media subscription input. Both peers must advertise it before either

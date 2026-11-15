@@ -349,6 +349,16 @@ it('applies selected editor interrupt to the running Core and requests exit only
   expect(f.host.core.getState()).toBe('interrupted');expect(f.host.session.snapshot().interaction).toBeUndefined();expect(exits).toBe(0);
   await editorInput(f, {kind: 'key', key: 'f4'});expect(exits).toBe(1);
 });
+it('uses the selected editor interrupt to cancel blocked queued work before exiting', async () => {
+  let exits=0;const base=editorFactory();
+  const f=await controllerFixture({editor:(request,context)=>{
+    const instance=base(request,context);return {...instance,handle:input=>input.kind==='key'&&input.key==='f4'?{type:'interrupt'}:instance.handle(input)};
+  }},{onExit:()=>{exits++;}});
+  (f.host.core as any).options.isWorkBlocked=()=>true;
+  await f.host.core.submit('Waiting for plugins');expect(f.host.core.hasInterruptibleWork).toBe(true);
+  await editorInput(f,{kind:'key',key:'f4'});expect(exits).toBe(0);expect(f.host.core.hasInterruptibleWork).toBe(false);
+  await editorInput(f,{kind:'key',key:'f4'});expect(exits).toBe(1);
+});
 async function controllerLauncher(f: Awaited<ReturnType<typeof fixture>>, handler: (event: any, $: any) => unknown) {
   f.host.core.host.registerPlugin({name: 'controller-requester', version: '1.0.0', trust: 'trusted', hookTimeouts: {'ui.press': 15000}}, {'ui.press': handler});
   await f.host.core.host.emit('service.ui.view', {plugin: 'controller-requester', id: 'launcher', title: 'Controller launcher',

@@ -37,3 +37,8 @@ it('uses constant public status and host navigation defaults rather than private
   expect(publicStatusView(state, 3, true, {hints: false}, 38).lines[1].text).toBe('');
   expect(publicStatusView(state, 3, true, {}, 38).lines[1].text).toBe('Zoomed · Alt+W f tiles');
 });
+
+it('reports queued work instead of idle when a model turn is blocked', () => {
+  const view=publicStatusView({messages:[],running:false,pending:true},1,false,{},120);
+  expect(view.lines[0]).toEqual({text:'Queued · WS 1',tone:'accent'});
+});

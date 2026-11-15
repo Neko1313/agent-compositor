@@ -752,6 +752,10 @@ export class AgentCore {
   getState(): CoreState {
     return this.state;
   }
+  /** @internal A first interrupt stops running or admitted-but-not-started work. */
+  get hasInterruptibleWork():boolean {
+    return this.state==='running'||(this.state==='idle'&&(this.promptQueue.length>0||Boolean(this.draining)));
+  }
   get failure(): string | undefined {
     return this.lastTurnError;
   }
@@ -1248,12 +1252,17 @@ export class AgentCore {
     this.queuePause.abort();this.queuePause=new AbortController();
     this.promptCancellation++;
     // Ordinary queued prompts are cancelled; accepted plugin wakes stay paused.
-    for(const entry of this.promptQueue)if(!entry.owner){entry.cancel();if(entry.recoveryId)this.recoveringInputs.delete(entry.recoveryId);}
+    const cancelled=this.promptQueue.filter(entry=>!entry.owner);
+    for(const entry of cancelled){entry.cancel();if(entry.recoveryId)this.recoveringInputs.delete(entry.recoveryId);}
     this.promptQueue = this.promptQueue.filter(entry => entry.owner);
+    if(cancelled.length&&!this.closed)this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'session-manager',message:'Queued messages cancelled. They may be reviewed after reopening the session with /recover.',level:'info'}});
     this.parkUnappliedSteers();
     clearTimeout(this.queueTimer);this.queueTimer=undefined;
     if (this.state !== "running") {
-      if(this.promptQueue.length&&!this.closed){this.interruptedByUser=true;this.state="interrupted";}
+      if(this.promptQueue.length&&!this.closed){
+        this.interruptedByUser=true;this.state="interrupted";
+        this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'agent-hub',message:'Automatic follow-up paused. Send a message to continue.',level:'info'}});
+      }
       return;
     }
     this.interruptedByUser = true;

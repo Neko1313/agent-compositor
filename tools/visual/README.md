@@ -89,7 +89,9 @@ register the catalog, install a package inactive, explicitly enable it and queue
 reload. The plugin's own storage receipt and pane establish when it actually
 loads. The scenario also keeps a deliberately closed plugin window closed across
 reload, exercises private placement Apply/Save rule/Cancel and restores the saved
-rule after a real CLI restart. `/windows` must remain private host navigation without a
+rule after a real CLI restart. It also checks that Ctrl+C cancels a prompt waiting
+for plugin changes without closing the app or executing the prompt after reload.
+`/windows` must remain private host navigation without a
 model request. No fixture permission rules or live model services are used.
 Artifacts default to `dist/visual-opentui-managers/`; inspect the PNGs and report.
 Set `VISUAL_EXECUTABLE` to an executable inside a complete extracted archive for

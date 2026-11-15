@@ -248,3 +248,13 @@ it('negotiates native steering without exposing the new method to legacy peers',
   const modern=await fixture();modern.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-steer-v1'],encodings:['jsonl']}));
   expect(modern.state().state.sessions[0].methods).toContain('steer');
 });
+
+it('negotiates queued-work state without changing legacy native snapshots',async()=>{
+  const legacy=await fixture();legacy.negotiate();(legacy.host.core as any).options.isWorkBlocked=()=>true;
+  await legacy.host.core.submit('Legacy pending');
+  expect(legacy.state().state.sessions[0].snapshot).not.toHaveProperty('pending');
+  const modern=await fixture();modern.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-pending-work-v1'],encodings:['jsonl']}));
+  (modern.host.core as any).options.isWorkBlocked=()=>true;await modern.host.core.submit('Modern pending');
+  expect(modern.state().state.sessions[0].snapshot.pending).toBe(true);
+  modern.host.core.interrupt();expect(modern.state().state.sessions[0].snapshot.pending).toBe(false);
+});

@@ -1441,7 +1441,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         },
         changed, captureIntent: () => {layout.markWindowIntent();return layout.windowIntentRevision;},
         send: (intent, windowIntent) => sendEditor(owner, intent, windowIntent),
-        interrupt: () => {if (active && core === owner) {if (owner.getState() === 'running') owner.interrupt();else options.onExit?.();}},
+        interrupt: () => {if (active && core === owner) {if (owner.hasInterruptibleWork) owner.interrupt();else options.onExit?.();}},
       });
       changed();
     };

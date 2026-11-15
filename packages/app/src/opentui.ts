@@ -58,7 +58,7 @@ export async function runOpenTui(app:BuiltApp,stdin:NodeJS.ReadStream,stdout:Nod
         const main=current.mainSession(focused),mainController=main?.snapshot().controller;
         if(mainController){main?.cancelController?.(mainController.id);return 'handled';}
         if(current.cancelOperation(focused))return 'handled';
-        if(current.core.getState()==='running'){current.core.interrupt();return 'handled';}
+        if(current.core.hasInterruptibleWork){current.core.interrupt();return 'handled';}
         return 'exit';
       },
     },message=>{queue.push(decodeLine(encodeMessage(message)));wake?.();wake=undefined;});

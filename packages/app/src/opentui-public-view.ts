@@ -51,7 +51,7 @@ export function publicToolsView(messages: readonly Message[], metrics: PublicRen
 
 export function publicWaiting(state: ConversationSnapshot | undefined): string {
   return state?.approval || state?.controller?.kind === 'approval' ? 'Approval needed'
-    : state?.interaction || state?.controller ? 'Answer needed' : state?.running ? 'Working' : 'Ready';
+    : state?.interaction || state?.controller ? 'Answer needed' : state?.running ? 'Working' : state?.pending ? 'Queued' : 'Ready';
 }
 
 export function publicStatusView(state: ConversationSnapshot | undefined, workspace: number, fullscreen: boolean,

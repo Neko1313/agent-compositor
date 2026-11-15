@@ -26,9 +26,9 @@ type Dependencies={
 
 /** A deterministic first-run guide. Nothing is installed, activated or queried by showing it. */
 export function setupGuide(storage:ProjectStorage,deps:Dependencies){
- type GuideState={visible:boolean;revision:number;changed:string[];notes:string[]};
+ type GuideState={visible:boolean;revision:number;changed:string[];notes:string[];showStatus:boolean};
  const file=join(storage.paths.home,'setup.json'),sessions=new Map<string,GuideState>();
- const guide=($:HooksApi)=>{let value=sessions.get($.session.id);if(!value){value={visible:false,revision:0,changed:[],notes:[]};sessions.set($.session.id,value);}return value;};
+ const guide=($:HooksApi)=>{let value=sessions.get($.session.id);if(!value){value={visible:false,revision:0,changed:[],notes:[],showStatus:false};sessions.set($.session.id,value);}return value;};
  const state=async():Promise<{status?:'complete'|'skipped';invalid?:boolean}>=>{
   let text:string;
   try{text=await readFile(file,'utf8');}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return{};throw error;}
@@ -43,7 +43,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
  const show=async($:HooksApi,focus=true)=>{
   const current=guide($);current.visible=true;const revision=++current.revision,[model,saved]=await Promise.all([deps.model(),state()]);
   if(!current.visible||current.revision!==revision||sessions.get($.session.id)!==current||$.signal.aborted)return;
-  const waiting=pending(),enabled=deps.enabled();
+  const waiting=pending(),enabled=deps.enabled(),loaded=deps.loaded();
   await $.ui.view('setup','Get started',{hint:'No model is needed for this guide. You choose what to configure and install.',lines:[
    {text:'Connect a model, choose tools, then start a task.',bold:true},
    ...(saved.invalid?[{text:'Saved setup status is invalid. Finish or skip to replace it.',tone:'warning' as const}]:[]),
@@ -51,6 +51,8 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
    {text:'[ Set up model ]',action:'model',tone:'accent'},
    {text:`Tools: ${deps.loaded().filter(name=>suggestions.some(item=>item.name===name)).length} suggested plugins active`},
    {text:'[ Choose recommended tools ]',action:'tools'},
+   {text:current.showStatus?'[ Hide tool status ]':'[ View tool status ]',action:'status'},
+   ...(current.showStatus?suggestions.map(item=>({text:`${item.label}: ${loaded.includes(item.name)?enabled.includes(item.name)?'active':'active until reload':enabled.includes(item.name)?'selected; apply changes':'not active'}`,tone:'muted' as const})):[]),
    ...(waiting.length?[{text:`Apply pending tools: ${waiting.join(', ')}`,tone:'warning' as const},{text:'[ Apply plugin changes ]',action:'navigate:reload'}]:[]),
    {text:'[ Start chatting ]',action:'finish',tone:'accent'},
    {text:'[ Skip for now ]',action:'skip'},
@@ -99,6 +101,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
    try{
     if(event.key==='model')await deps.configure($);
     else if(event.key==='tools')await tools($);
+    else if(event.key==='status')current.showStatus=!current.showStatus;
     else if(event.key==='finish'||event.key==='skip'){
      if(event.key==='finish'){const model=await deps.model();$.signal.throwIfAborted();if(!model.configured){await $.ui.notify('Set up a model or choose Skip for now.','warn');return;}}
      if(event.key==='finish'&&pending().length){await $.ui.notify('Apply plugin changes before starting, or choose Skip for now.','warn');await show($,false);return;}

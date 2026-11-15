@@ -21,6 +21,8 @@ try{
  const shot=async label=>{await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));await page.screenshot({path:join(output,label+'.png')});report.screenshots.push(label+'.png');await writeFile(join(output,label+'.txt'),await text());};
  const transport=async()=>JSON.parse(await readFile(join(output,'onboarding-transport.json'),'utf8'));
  await wait('Get started');await wait('Set up model');assert.equal((await transport()).requests,0);await shot('00-first-launch');report.checks.push('setup.automatic','setup.no-model-needed');
+ await click('View tool status');await wait('Resource monitor: not active');await shot('00a-tool-status');
+ await click('Hide tool status');await page.waitForFunction(()=>!visual.text().includes('Resource monitor: not active'));assert.equal((await transport()).requests,0);report.checks.push('setup.live-tool-status');
  await click('Skip for now');await page.waitForFunction(()=>!visual.text().includes('Get started'));
  const restart=async()=>{const generation=await page.evaluate(()=>visual.generation);await page.getByRole('button',{name:'Restart session'}).click();await page.waitForFunction(generation=>visual.generation>generation,generation);await wait(native?'Message Main':'Describe your task');};
  await restart();assert.ok(!(await text()).includes('Get started'));assert.equal((await transport()).requests,0);report.checks.push('setup.skip-persisted');
@@ -47,6 +49,8 @@ try{
  if(!native){for(let i=0;i<7;i++)await page.keyboard.press('Tab');await page.keyboard.press('Enter');}
  else await click('Install and enable');
  await wait('Apply pending tools: project-checks');await shot('02-selected-tools');
+ await click('View tool status');await wait('Project checks: selected; apply changes');await shot('02-selected-status');
+ await click('Hide tool status');await page.waitForFunction(()=>!visual.text().includes('Project checks: selected; apply changes'));report.checks.push('setup.pending-tool-status');
  const selection=JSON.parse(await readFile(join(identity.state,'extensions-state.json'),'utf8'));
  assert.ok(selection.installed['project-checks'],'The chosen plugin must actually be installed');
  const installed=JSON.parse(await readFile(join(selection.bindings['project-checks'],'plugin.json'),'utf8'));assert.equal(installed.name,'project-checks');
@@ -64,7 +68,9 @@ try{
  await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');for(let i=0;i<4;i++)await page.keyboard.press('Tab');await wait('Resource monitor');await page.keyboard.press('Space');await page.keyboard.press('Tab');await wait('Side conversation');await wait('agent-hub');if(process.env.VISUAL_ONBOARDING_NO_HUB){await wait('unavailable');report.checks.push('setup.unavailable-agent-hub');}await page.keyboard.press('Space');await page.keyboard.press('Tab');await wait('auto-approve');await wait('/auto on');const rows=(await text()).split('\n'),autoRow=rows.findIndex(row=>row.includes('auto-approve'));assert.ok(autoRow>=0);assert.match(rows.slice(autoRow,autoRow+3).join('\n'),/\[ \] Disabled/);await page.keyboard.press('Space');await shot('01b-more-recommendations');report.checks.push('setup.focused-recommendation-hint');if(native)await page.keyboard.press('Alt+Enter');else{await page.keyboard.press('Tab');await page.keyboard.press('Enter');}await wait('Apply pending tools:');
  const additions=JSON.parse(await readFile(join(identity.state,'extensions-state.json'),'utf8'));assert.ok(additions.installed.resources);assert.ok(additions.installed.btw);assert.ok(additions.installed['auto-approve']);report.checks.push('setup.additional-recommendations');
  await focusInput();await page.keyboard.type('UNSENT_SETUP_DRAFT');await wait('UNSENT_SETUP_DRAFT');
- await click('Apply plugin changes ]');await wait('Tools: 4 suggested plugins active');assert.equal((await transport()).requests,0);report.checks.push('setup.install-enable-reload');
+ await click('Apply plugin changes ]');await wait('Tools: 4 suggested plugins active');
+ await click('View tool status');await wait('Project checks: active');await shot('02c-active-status');await click('Hide tool status');
+ assert.equal((await transport()).requests,0);report.checks.push('setup.install-enable-reload','setup.active-tool-status');
  const credentials=await readFile(join(identity.home,'credentials.json'),'utf8');assert.ok(credentials.includes('PRIVATE_FIRST_RUN_KEY'));assert.equal((await stat(join(identity.home,'credentials.json'))).mode&0o077,0);assert.ok(!(await readFile(join(identity.state,'providers.json'),'utf8')).includes('PRIVATE_FIRST_RUN_KEY'));report.checks.push('setup.private-credential-storage');
  const resize=async(cols,rows)=>{const before=await page.evaluate(()=>visual.frames);await page.evaluate(({cols,rows})=>visual.terminal.resize(cols,rows),{cols,rows});await page.waitForFunction(before=>visual.frames>before,before);await wait('Start chatting');};
  await resize(60,24);await shot('03-setup-narrow');await resize(100,30);await wait('Connect a model, choose tools, then start a task.');

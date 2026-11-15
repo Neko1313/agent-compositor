@@ -87,6 +87,9 @@ plugin changes, use `/auto on` to enable model-assisted review and `/auto off`
 to return to manual approvals. Reviews use a model and uncertain or high-risk
 actions can still require your decision. See [auto review](agent-features.md#auto-review).
 Only checked additions are installed if needed and enabled for the project.
+**View tool status** shows which suggested plugins are currently active, have
+been selected but need changes applied, remain active until reload, or are not
+active. The list reflects application state and does not contact a model.
 Downloads may be needed, and existing installations, versions and active plugins
 are retained. The guide does not change explicit plugin restrictions or tool
 permissions. Restricted recommendations are unchecked, explain the relevant

@@ -31,6 +31,23 @@ it('shows a local guide without mutations, supports skipping and keeps manual se
  }finally{await f.close();}
 });
 
+it('shows live tool activation and pending changes without invoking a model or plugin management',async()=>{
+ const f=await fixture();try{
+  f.setEnabled(['project-checks','web']);f.setLoaded(['test-reports','web']);
+  await f.press('status');
+  let lines=f.views.at(-1).lines.map((line:any)=>line.text);
+  expect(lines).toContain('Project checks: selected; apply changes');
+  expect(lines).toContain('Test reports: active until reload');
+  expect(lines).toContain('Web research: active');
+  expect(lines).toContain('Resource monitor: not active');
+  expect(f.operations).toEqual([]);
+  f.setLoaded(['project-checks','web']);await (f.guide.plugin.hooks['session.reload'] as any)({},f.api);
+  lines=f.views.at(-1).lines.map((line:any)=>line.text);
+  expect(lines).toContain('Project checks: active');expect(lines).toContain('Test reports: not active');
+  await f.press('status');expect(f.views.at(-1).lines.some((line:any)=>line.text==='Web research: active')).toBe(false);
+ }finally{await f.close();}
+});
+
 it.each(['goal','tools'])('does not install or enable anything when the %s form returns its cancel action',async stage=>{
  const f=await fixture();try{
   f.api.ui.form=async(form:any)=>{

@@ -51,6 +51,8 @@ queueing a prompt, interrupting its turn or making a model request. The prompt
 handler is also retained for the legacy dispatch path.
 Controls preserve their order for the same companion. Cancellation revokes later
 UI and timer work; an already completed settings write is not rolled back.
+Pause freezes source time when its control starts, before settings are saved;
+activity changes and transient expiry continue while saving is in progress.
 
 GIF and APNG retain source frame timing and loop counts. The player uses elapsed
 source time, skips late frames instead of accumulating rendering delay, freezes

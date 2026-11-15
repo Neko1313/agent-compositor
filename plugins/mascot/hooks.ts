@@ -171,7 +171,11 @@ class Companion {
       if (this.config.enabled === false) await this.$.ui.remove("companion");
       return;
     }
-    if (command === "pause") this.config.paused = true;
+    if (command === "pause") {
+      this.config.paused = true;
+      // Freeze source time before persistence without cancelling transient expiry.
+      this.timeline.play(false);
+    }
     else if (command === "resume") this.config.paused = false;
     else if (command === "pet") this.activity.flash("done");
     else if (command && command !== "on") {

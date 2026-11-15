@@ -89,7 +89,10 @@ crash, running stages are marked pending and the run is paused; resume is explic
 Completed stages are reused, not checked against subsequent repository edits.
 When an ownership lock belongs to a live or unverified process, another
 instance retains the recorded running state instead of claiming interruption;
-control that workflow in its owner or refresh after it exits.
+the workflow view identifies the unverified owner and hides controls that
+cannot operate on it. Control that workflow in its owner or refresh after it exits.
+Refresh can update externally owned workflows while this instance runs other
+workflows; locally active runs retain their in-memory state.
 Interrupted operations may have external side effects: inspect them before
 retrying. Start a fresh run after material changes invalidate old results.
 If another process owns a workflow, or saving a retry or resume fails, the

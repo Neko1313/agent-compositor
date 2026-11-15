@@ -22,14 +22,14 @@ const pagination=(count:number,page:number)=>{
   ...(current+1<pages?[{text:'[ Next page ]',action:'next'}]:[]),
  ]};
 };
-function stageDetails(stage:Stage):UiTextView['lines']{
+function stageDetails(stage:Stage,unverifiedOwner=false):UiTextView['lines']{
  return[
   {text:`Stage: ${title(stage.title,stage.id)}`.slice(0,10000),bold:true},
   {text:`ID: ${stage.id}`},{text:`Agent: ${stage.agentId??'not started'}`},
   ...chunks(`Depends on: ${(stage.dependsOn??[]).join(', ')||'none'}`),
   {text:`Profile: ${stage.profile??'workflow default'} · Attempts: ${stage.attempts??0} · ${stage.tokens??0} accounted tokens`},
   ...(stage.activity?[{text:`${stage.status==='running'?'Activity':'Last activity'}: ${stage.activity}`.slice(0,10000)}]:[]),
-  ...(['failed','stopped'].includes(stage.status??'')?[{text:'[ Retry selected stage ]',action:'retry',tone:'accent' as const}]:[]),
+  ...(!unverifiedOwner&&['failed','stopped'].includes(stage.status??'')?[{text:'[ Retry selected stage ]',action:'retry',tone:'accent' as const}]:[]),
   {text:'Prompt',bold:true},...chunks(stage.prompt),
   {text:stage.error?'Error':'Output',bold:true},
   ...chunks(stage.error??stage.output??(stage.status==='skipped'?'No output: stage skipped.':'Waiting for a result')),
@@ -37,7 +37,8 @@ function stageDetails(stage:Stage):UiTextView['lines']{
 }
 
 /** Match the engine's recovery rules in both semantic and legacy views. */
-export function workflowControls(run:Run):UiTextView['lines']{
+export function workflowControls(run:Run,unverifiedOwner=false):UiTextView['lines']{
+ if(unverifiedOwner)return [{text:'Owner active or unverified. Control it there, or refresh after it exits.',tone:'warning'}];
  if(run.status==='completed')return [];
  const hasFailedStage=run.stages.some(stage=>stage.status==='failed');
  return [
@@ -49,7 +50,7 @@ export function workflowControls(run:Run):UiTextView['lines']{
 }
 
 /** Pure semantic views; the plugin owns navigation and the engine owns execution. */
-export function workflowView(runs:Run[],state:WorkflowViewState,withTabs=false):UiTextView{
+export function workflowView(runs:Run[],state:WorkflowViewState,withTabs=false,unverifiedOwners:ReadonlySet<string>=new Set()):UiTextView{
  const common:UiTextView['lines']=[{text:'Dynamic workflows',bold:true},{text:'[ Refresh ]',action:'refresh'}];
  const run=runs.find(run=>run.id===state.runId);
  if(state.mode==='stages'&&run){
@@ -59,13 +60,13 @@ export function workflowView(runs:Run[],state:WorkflowViewState,withTabs=false):
    {text:`${run.title} · ${run.status}`,bold:true},
    {text:`${run.stages.reduce((n,stage)=>n+(stage.tokens??0),0)} accounted tokens · ${run.concurrency} workers max`,tone:'muted'},
    ...(run.error?chunks(run.error).map(line=>({...line,tone:'warning' as const})):[]),
-   ...workflowControls(run),
+   ...workflowControls(run,unverifiedOwners.has(run.id)),
    ...page.lines,
   ],table:{columns:[{label:'Stage',width:26},{label:'State',width:12},{label:'Attempt',width:7},{label:'Tokens',width:10}],rows:run.stages.slice(page.start,page.start+PAGE_SIZE).map(stage=>({
    id:stage.id,cells:[title(stage.title,stage.id).slice(0,500),stage.status??'pending',String(stage.attempts??0),String(stage.tokens??0)],
    action:stageAction(stage.id),expanded:state.stageId===stage.id,
    tone:stage.status==='failed'?'danger':stage.status==='running'?'accent':undefined,
-   details:state.stageId===stage.id?stageDetails(stage):[{text:'Open this stage to inspect its prompt and result.'}],
+   details:state.stageId===stage.id?stageDetails(stage,unverifiedOwners.has(run.id)):[{text:'Open this stage to inspect its prompt and result.'}],
   })),empty:'No stages.'}};
  }
  const visible=runs.filter(run=>state.filter==='all'||(state.filter==='running'?run.status==='running':['failed','paused','stopped'].includes(run.status)));
@@ -83,6 +84,7 @@ export function workflowView(runs:Run[],state:WorkflowViewState,withTabs=false):
   tone:run.status==='failed'?'danger':run.status==='running'?'accent':undefined,
   details:[{text:`Workflow: ${run.title}`,bold:true},{text:`ID: ${run.id}`},
    {text:`${run.stages.reduce((sum,stage)=>sum+(stage.tokens??0),0)} accounted tokens · ${run.concurrency} workers max`},
+   ...(unverifiedOwners.has(run.id)?[{text:'Owner active or unverified. Control it there, or refresh after it exits.',tone:'warning' as const}]:[]),
    ...(run.error?chunks(run.error).map(line=>({...line,tone:'warning' as const})):[]),
    {text:'[ Inspect stages ]',action:'inspect:'+run.id,tone:'accent'},
   ],

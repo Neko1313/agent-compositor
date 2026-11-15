@@ -122,6 +122,10 @@ it('directs failed workflows to stage retry instead of offering a resume that th
  expect(workflowControls({...run,status:'paused',stages:[{...run.stages[0],status:'pending'}]}).some(line=>line.action==='resume')).toBe(true);
  expect(workflowControls({...run,status:'running'}).some(line=>line.action==='pause')).toBe(true);
  expect(workflowControls({...run,status:'completed'})).toEqual([]);
+ const remote=uiTextViewSchema.parse(workflowView([run],{...initialViewState,mode:'stages',runId:'one',stageId:'a'},false,new Set(['one'])));
+ expect(remote.lines.some(line=>line.text.includes('Owner active or unverified'))).toBe(true);
+ expect(remote.lines.some(line=>line.action==='resume'||line.action==='stop')).toBe(false);
+ expect(remote.table!.rows[0].details!.some(line=>line.action==='retry')).toBe(false);
 });
 it('wakes the originating agent on workflow completion without parent polling and permits foreground chat',async()=>{
  const f=await setup();const result=await f.core.invokeTool('workflow_run',{action:'start',stages:[{id:'a',prompt:'WORKER'}]});expect(result.ok).toBe(true);

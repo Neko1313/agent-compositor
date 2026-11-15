@@ -71,6 +71,7 @@ export class WorkflowEngine {
     }>();
     private writes = new Map<string, Promise<void>>();
     private versions = new Map<string,string>();
+    private unverifiedOwners = new Set<string>();
     private admissions = new Set<Promise<void>>();
     private leases = new Map<string, import('node:fs/promises').FileHandle>();
     private listeners = new Set<() => Promise<void> | void>();
@@ -101,7 +102,10 @@ export class WorkflowEngine {
                 continue;
             if (run.id !== name.slice(0, -5))
                 continue;
-            if ((run.status === 'running' || (run.status === 'paused' && run.stages.some(s => s.status === 'running'))) && !await this.lockBlocksRecovery(run.id)) {
+            const interrupted=run.status === 'running' || (run.status === 'paused' && run.stages.some(s => s.status === 'running'));
+            const ownerBlocks=run.status!=='completed'&&await this.lockBlocksRecovery(run.id);
+            if(ownerBlocks)this.unverifiedOwners.add(run.id);
+            if (interrupted && !ownerBlocks) {
                 run.status = 'paused';
                 for (const s of run.stages)
                     if (s.status === 'running') {
@@ -115,6 +119,7 @@ export class WorkflowEngine {
         }
         catch { /* Ignore corrupt runs; never start work while loading. */ }
     } })(); }
+    hasUnverifiedOwner(id:string){return this.unverifiedOwners.has(id);}
     onChange(fn: () => Promise<void> | void) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
     private async persist(run: Run) {
         run.updatedAt = new Date().toISOString();
@@ -158,8 +163,19 @@ export class WorkflowEngine {
         const actual=await readFile(join(this.root(),id+'.json'),'utf8');
         if(actual!==this.versions.get(id))throw Error('Workflow changed in another process; refresh before changing it');
     }
-    async refresh() { if (this.active.size || this.admissions.size)
-        return; this.ready = undefined; this.runs.clear();this.versions.clear(); await this.load(); }
+    async refresh() {
+        await this.load();if(this.closed||this.admissions.size)return;
+        const versionsBefore=new Map(this.versions),snapshot=new WorkflowEngine(this.ctx);
+        await snapshot.load();if(this.closed||this.admissions.size)return;
+        const unchanged=(id:string)=>!this.active.has(id)&&this.versions.get(id)===versionsBefore.get(id);
+        for(const id of this.runs.keys())if(unchanged(id)&&!snapshot.runs.has(id)){
+            this.runs.delete(id);this.versions.delete(id);this.unverifiedOwners.delete(id);this.contexts.delete(id);
+        }
+        for(const [id,run] of snapshot.runs)if(unchanged(id)){
+            this.runs.set(id,run);this.versions.set(id,snapshot.versions.get(id)!);
+            if(snapshot.unverifiedOwners.has(id))this.unverifiedOwners.add(id);else this.unverifiedOwners.delete(id);
+        }
+    }
     private validate(stages: Stage[], max = 100) {
         if (!Array.isArray(stages) || !stages.length || stages.length > max || !Number.isInteger(max) || max > 500 || max < 1)
             throw Error('Workflow requires 1..maxStages stages (max 500)');
@@ -361,6 +377,7 @@ export class WorkflowEngine {
                 try{
                     if(this.closed)throw Error('Workflow engine closed');
                     await this.requireCurrent(id);
+                    if(this.hasUnverifiedOwner(id))throw Error('Workflow owner was active or unverified; refresh before controlling it');
                     const before=structuredClone(run);
                     try{run.status='stopped';for(const s of run.stages)if(s.status==='pending')s.status='stopped';await this.persist(run);}
                     catch(error){for(const key of Object.keys(run))delete (run as any)[key];Object.assign(run,before);throw error;}
@@ -397,6 +414,7 @@ export class WorkflowEngine {
             try {
                 if(this.closed)throw Error('Workflow engine closed');
                 await this.requireCurrent(run.id);
+                if(this.hasUnverifiedOwner(run.id))throw Error('Workflow owner was active or unverified; refresh before controlling it');
                 if(target){target.status='pending';target.error=undefined;}
                 else for(const s of run.stages)if(s.status==='stopped')s.status='pending';
                 this.contexts.set(run.id,context);run.ownerSessionId=context.sessionId;

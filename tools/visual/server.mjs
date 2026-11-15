@@ -124,6 +124,13 @@ if(process.env.VISUAL_ONBOARDING){
  await writeFile(join(output,'onboarding-identity.json'),JSON.stringify({cwd:paths.project,home:paths.home,state:paths.state}));
  await writeFile(join(output,'onboarding-transport.json'),JSON.stringify({requests:0}));
 }
+if(process.env.VISUAL_WORKFLOW_EXTERNAL){
+ const paths=storagePaths(cwd,{...process.env,HOME:workspaceHome,AGENT_HOME:join(workspaceHome,'.agent-compositor')});
+ const dir=join(paths.state,'workflows','runs'),id='11111111-1111-4111-8111-111111111111',now=new Date().toISOString();
+ await mkdir(dir,{recursive:true});
+ await writeFile(join(dir,id+'.json'),JSON.stringify({id,title:'External workflow proof',status:'running',stages:[{id:'a',title:'External stage',prompt:'fixture',status:'running',attempts:1}],concurrency:1,maxStages:100,maxTokensPerStage:1000,maxTokensTotal:2000,tokensCharged:0,stageTimeoutMs:60000,createdAt:now,updatedAt:now,completion:'none'}));
+ await writeFile(join(dir,id+'.lock'),JSON.stringify({pid:process.pid}));
+}
 if(process.env.VISUAL_EXECUTABLE&&process.env.VISUAL_HARNESS){
  if(process.env.VISUAL_PLUGIN_DIR)throw Error('Native workflow proof uses the bundled package; candidate overrides require the source-host scenario');
  const directory=join(cwd,'plugins/harness-proof');await mkdir(directory,{recursive:true});

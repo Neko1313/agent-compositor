@@ -530,6 +530,10 @@ OpenTUI. This is a controlled loader failure, not a marketplace availability tes
 uses a scripted provider to fail a workflow stage, verifies the recovery guidance
 and executes the selected-stage retry through the real Ink view. The retry fails
 again by design; the persisted attempt count verifies it actually ran.
+`VISUAL_OUTPUT=dist/workflow-owner node tools/visual/workflow-owner-check.mjs`
+seeds an isolated running journal with a lock owned by the bench process. It
+checks the owner warning, hidden controls and recovery after the synthetic lock
+is removed; it does not run a real external workflow process.
 
 `VISUAL_OUTPUT=dist/btw-proof node tools/visual/plugin-check.mjs btw` checks the
 actual side-conversation flow: opening while the main model is held, inline

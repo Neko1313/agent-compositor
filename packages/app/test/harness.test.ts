@@ -263,7 +263,7 @@ describe('harness failure boundaries',()=>{
    const file=join(cwd,'.agent-compositor','workflows','runs',run.id+'.json');
    await vi.waitFor(async()=>expect(JSON.parse(await readFile(file,'utf8')).stages[0].status).toBe('running'));
    await observer.load();const before=structuredClone(observer.runs.get(run.id)),disk=await readFile(file,'utf8');
-   expect(before?.status).toBe('running');expect(before?.stages[0].status).toBe('running');expect(before?.error??'').not.toContain('Recovered');
+   expect(before?.status).toBe('running');expect(before?.stages[0].status).toBe('running');expect(before?.error??'').not.toContain('Recovered');expect(observer.hasUnverifiedOwner(run.id)).toBe(true);
    await expect(observer.control(run.id,'pause')).rejects.toThrow('owned by a running process');
    await expect(observer.control(run.id,'stop')).rejects.toThrow('owned by a running process');
    expect(observer.runs.get(run.id)).toEqual(before);expect(await readFile(file,'utf8')).toBe(disk);
@@ -272,7 +272,7 @@ describe('harness failure boundaries',()=>{
    await expect(observer.control(run.id,'stop')).rejects.toThrow('changed in another process');
    await expect(observer.control(run.id,'resume')).rejects.toThrow('changed in another process');
    expect(observer.runs.get(run.id)).toEqual(before);expect(await readFile(file,'utf8')).toBe(completed);
-   await observer.refresh();expect(observer.runs.get(run.id)?.status).toBe('completed');
+   await observer.refresh();expect(observer.runs.get(run.id)?.status).toBe('completed');expect(observer.hasUnverifiedOwner(run.id)).toBe(false);
   }finally{release();await owner.close();await observer.close();}
  });
  it('does not claim crash recovery while a workflow lock is unreadable',async()=>{
@@ -282,10 +282,40 @@ describe('harness failure boundaries',()=>{
    const run=await owner.start({completion:'none',stages:[{id:'a',prompt:'work'}]});await owner.wait(run.id);
    const root=join(cwd,'.agent-compositor','workflows','runs'),file=join(root,run.id+'.json'),lock=join(root,run.id+'.lock');
    const saved=JSON.parse(await readFile(file,'utf8'));saved.status='running';saved.stages[0].status='running';await writeFile(file,JSON.stringify(saved));await writeFile(lock,'{');
-   await observer.load();expect(observer.runs.get(run.id)?.status).toBe('running');expect(observer.runs.get(run.id)?.tokensCharged).toBe(saved.tokensCharged);
+   await observer.load();expect(observer.runs.get(run.id)?.status).toBe('running');expect(observer.hasUnverifiedOwner(run.id)).toBe(true);expect(observer.runs.get(run.id)?.tokensCharged).toBe(saved.tokensCharged);
    await expect(observer.control(run.id,'stop')).rejects.toThrow('lock is unreadable');
-   await rm(lock);await observer.refresh();expect(observer.runs.get(run.id)?.status).toBe('paused');
+   await rm(lock);await expect(observer.control(run.id,'stop')).rejects.toThrow('refresh before controlling it');
+   expect(JSON.parse(await readFile(file,'utf8')).status).toBe('running');
+   await observer.refresh();expect(observer.runs.get(run.id)?.status).toBe('paused');expect(observer.hasUnverifiedOwner(run.id)).toBe(false);
   }finally{await owner.close();await observer.close();}
+ });
+ it('refreshes external workflow state while a local workflow continues running',async()=>{
+  const cwd=await temp();let releaseExternal!:()=>void,releaseLocal!:()=>void;
+  const externalGate=new Promise<void>(resolve=>{releaseExternal=resolve;}),localGate=new Promise<void>(resolve=>{releaseLocal=resolve;});
+  const external=new WorkflowEngine({cwd,request:async()=>{await externalGate;return{output:'external done',tokens:1} as any;}});
+  const local=new WorkflowEngine({cwd,request:async()=>{await localGate;return{output:'local done',tokens:1} as any;}});
+  try{
+   const other=await external.start({completion:'none',stages:[{id:'a',prompt:'external'}]});
+   await vi.waitFor(()=>expect(external.runs.get(other.id)?.stages[0].status).toBe('running'));
+   await local.load();expect(local.hasUnverifiedOwner(other.id)).toBe(true);
+   const own=await local.start({completion:'none',stages:[{id:'b',prompt:'local'}]});
+   await vi.waitFor(()=>expect(local.runs.get(own.id)?.stages[0].status).toBe('running'));
+   releaseExternal();expect((await external.wait(other.id))?.status).toBe('completed');
+   await local.refresh();expect(local.runs.get(other.id)?.status).toBe('completed');expect(local.hasUnverifiedOwner(other.id)).toBe(false);
+   expect(local.runs.get(own.id)?.status).toBe('running');releaseLocal();expect((await local.wait(own.id))?.status).toBe('completed');
+  }finally{releaseExternal();releaseLocal();await external.close();await local.close();}
+ });
+ it('does not replace a local completion with a snapshot read before it finished',async()=>{
+  const cwd=await temp();let releaseWorker!:()=>void,releaseRefresh!:()=>void,readSnapshot!:()=>void;
+  const worker=new Promise<void>(resolve=>{releaseWorker=resolve;}),gate=new Promise<void>(resolve=>{releaseRefresh=resolve;}),read=new Promise<void>(resolve=>{readSnapshot=resolve;});
+  const engine=new WorkflowEngine({cwd,request:async()=>{await worker;return{output:'done',tokens:1} as any;}});
+  const original=WorkflowEngine.prototype.load;
+  try{
+   const run=await engine.start({completion:'none',stages:[{id:'a',prompt:'work'}]});await vi.waitFor(()=>expect(engine.runs.get(run.id)?.stages[0].status).toBe('running'));
+   const spy=vi.spyOn(WorkflowEngine.prototype,'load').mockImplementation(function(this:WorkflowEngine){const result=original.call(this);return this===engine?result:result.then(async()=>{readSnapshot();await gate;});});
+   const refreshing=engine.refresh();await read;releaseWorker();expect((await engine.wait(run.id))?.status).toBe('completed');
+   releaseRefresh();await refreshing;spy.mockRestore();expect(engine.runs.get(run.id)?.status).toBe('completed');
+  }finally{releaseWorker();releaseRefresh();vi.restoreAllMocks();await engine.close();}
  });
 });
 

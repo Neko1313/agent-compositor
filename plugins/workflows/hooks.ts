@@ -109,7 +109,8 @@ async function show($:HooksApi,focus=false){
     if(!current($,token))return;
     if($.state.get('legacyView')||!engine.runs.size)return showLegacy($,token);
     if(!$.ui.supports?.('table'))return showText($,token);
-    await publish($,token,workflowView([...engine.runs.values()].reverse(),viewState($),$.ui.supports?.('tabs')===true),{site:'inspector',size:.4,focus});
+    const unverifiedOwners=new Set([...engine.runs.keys()].filter(id=>engine.hasUnverifiedOwner(id)));
+    await publish($,token,workflowView([...engine.runs.values()].reverse(),viewState($),$.ui.supports?.('tabs')===true,unverifiedOwners),{site:'inspector',size:.4,focus});
   });
   owner.tail=work.catch(()=>{});
   await work;
@@ -129,9 +130,9 @@ async function showText($:HooksApi,token:RenderToken){
     {text:`${run.title} · ${run.status}`,bold:true,tone:run.status==='completed'?'success':'text'},
     {text:`${run.stages.reduce((n,s)=>n+(s.tokens??0),0)} accounted tokens · ${run.concurrency} workers max`,tone:'muted'},
     ...(run.error?[{text:run.error,tone:'warning'}]:[]),
-    ...workflowControls(run),
+    ...workflowControls(run,engine.hasUnverifiedOwner(run.id)),
     ...run.stages.map(s=>({text:`${s.status==='completed'?'✓':s.status==='failed'?'!':s.status==='running'?'●':'○'} ${s.title??s.id} · ${s.status} · attempt ${s.attempts??0} · ${s.tokens??0} tokens${s.status==='running'&&s.activity?' · '+s.activity:''}`,action:'stage:'+s.id,selected:s.id===selected})),
-    ...(stage?[{text:'',},{text:`Stage: ${stage.title??stage.id}`,bold:true},{text:`Agent: ${stage.agentId??'not started'}`,tone:'muted'},{text:`Depends on: ${(stage.dependsOn??[]).join(', ')||'none'}`,tone:'muted'},...(['failed','stopped'].includes(stage.status!)?[{text:'[ Retry selected stage ]',action:'retry',tone:'accent'}]:[]),{text:stage.prompt},{text:stage.error??stage.output??'Waiting for a result',tone:stage.error?'danger':'text'}]:[]),
+    ...(stage?[{text:'',},{text:`Stage: ${stage.title??stage.id}`,bold:true},{text:`Agent: ${stage.agentId??'not started'}`,tone:'muted'},{text:`Depends on: ${(stage.dependsOn??[]).join(', ')||'none'}`,tone:'muted'},...(!engine.hasUnverifiedOwner(run.id)&&['failed','stopped'].includes(stage.status!)?[{text:'[ Retry selected stage ]',action:'retry',tone:'accent'}]:[]),{text:stage.prompt},{text:stage.error??stage.output??'Waiting for a result',tone:stage.error?'danger':'text'}]:[]),
     {text:'[ Legacy Python journals ]',action:'legacy',tone:'muted'},
   ];
   await publish($,token,{lines},{site:'inspector',size:.4,focus:false});

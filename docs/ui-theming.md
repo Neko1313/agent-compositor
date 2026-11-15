@@ -30,6 +30,8 @@ receives a valid OSC 11 reply, including when graphics are disabled. Terminals
 that do not answer retain the dark defaults. Explicit plugin colors keep their
 usual precedence; plugins supplying custom colors should select contrasting
 foreground and background pairs for the terminals they support.
+The default RGB text colors are also adjusted for the reported background;
+limited terminal color palettes can approximate them and reduce contrast.
 For an Ink terminal that cannot report its background, set
 `AGENT_TERMINAL_BACKGROUND=light` or `AGENT_TERMINAL_BACKGROUND=dark` before
 launching. This explicitly selects the default palette for that process;

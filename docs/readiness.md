@@ -422,6 +422,10 @@ terminal background reply indicates a light background. Follow-up captures for
 white and dark backgrounds are under `dist/sixel-xterm-research/setup-corrupt-ink/`
 and `setup-corrupt-ink-dark/`. This source check does not establish behavior for
 every light terminal, missing background replies, or custom plugin palettes.
+Intermediate and saturated RGB backgrounds now receive adjusted default text
+colors, with contrast checks against the reported RGB value. A gray XTerm using
+its limited ANSI palette still mapped some bold text to low-contrast gray; the
+RGB calculations do not establish readability after terminal color reduction.
 
 ### Accepted usability work — 2026-11-13
 

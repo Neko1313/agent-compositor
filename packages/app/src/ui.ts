@@ -35,6 +35,7 @@ import {
 import {
   clean,
   appearanceFrom,
+  isLightBackground,
   gridFrom,
   viewRows,
   rowActions,
@@ -85,6 +86,7 @@ export class AppUI {
   private appearances = new AppearanceContributions();
   private theme = appearanceFrom([]);
   private lightTerminal = false;
+  private terminalBackground?: readonly [number,number,number];
   private viewCache = new Map<string, { key: string; rows?: Row[]; view?: UiTextView }>();
   private hitRows = new Map<string, Row[]>();
   private savedLayout = "";
@@ -658,10 +660,11 @@ export class AppUI {
     this.draw();
   }
   setTerminalBackground(rgb: readonly [number,number,number]): void {
-    const light = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) >= 160;
-    if (light === this.lightTerminal) return;
+    const light = isLightBackground(rgb);
+    if (this.terminalBackground?.every((value,index)=>value===rgb[index])) return;
+    this.terminalBackground = [...rgb];
     this.lightTerminal = light;
-    this.theme = appearanceFrom([this.appearances.snapshot()], light);
+    this.theme = appearanceFrom([this.appearances.snapshot()], light,this.terminalBackground);
     this.viewCache.clear();
     this.draw();
   }
@@ -806,7 +809,7 @@ export class AppUI {
           if (!publication.accepted) return;
           showTools = publication.showTools;
         }
-        this.theme = appearanceFrom([this.appearances.snapshot()],this.lightTerminal);
+        this.theme = appearanceFrom([this.appearances.snapshot()],this.lightTerminal,this.terminalBackground);
         this.viewCache.clear();
         if (showTools !== undefined) {
           if (showTools)
@@ -1640,7 +1643,7 @@ export class AppUI {
             text: m.content,
           }));
         this.appearances.clear();
-        this.theme = appearanceFrom([],this.lightTerminal);
+        this.theme = appearanceFrom([],this.lightTerminal,this.terminalBackground);
         this.viewCache.clear();
         this.status = "Ready";
         const chatTitle=String(args.name??next.sessionId.slice(0,8)).replace(/[\x00-\x1f\x7f]/g,' ').slice(0,80);

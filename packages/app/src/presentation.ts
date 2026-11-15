@@ -37,6 +37,23 @@ export const LIGHT_APPEARANCE: typeof DEFAULT_APPEARANCE = {
     titleBackground: '#e2e9ed', selectionBackground: '#244f64', selectionText: '#ffffff',
   },
 };
+type Background = readonly [number,number,number];
+function luminance(rgb:Background):number {
+  const linear=rgb.map(value=>{const v=value/255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;});
+  return 0.2126*linear[0]+0.7152*linear[1]+0.0722*linear[2];
+}
+export function isLightBackground(rgb:Background):boolean {return luminance(rgb)>0.179;}
+function readable(color:string,background:Background,title:Background,light:boolean,minimum:number):string {
+  const original=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16));
+  const target=light?0:255;
+  const contrast=(a:Background,b:Background)=>{const x=luminance(a),y=luminance(b);return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05);};
+  const at=(amount:number)=>original.map(value=>Math.round(value+(target-value)*amount)) as [number,number,number];
+  const meets=(rgb:Background)=>contrast(rgb,background)>=minimum&&contrast(rgb,title)>=minimum;
+  if(meets(at(0)))return color;
+  let low=0,high=1;
+  for(let i=0;i<10;i++){const mid=(low+high)/2;if(meets(at(mid)))high=mid;else low=mid;}
+  return '#'+at(high).map(value=>value.toString(16).padStart(2,'0')).join('');
+}
 export type Appearance = typeof DEFAULT_APPEARANCE;
 export type Tone = NonNullable<UiTextView["lines"][number]["tone"]>;
 export type Row = UiTextView["lines"][number] & { cells?: Grid[number];actions?:{start:number;end:number;action?:string;selected?:boolean;focused?:boolean;disabled?:boolean}[] };
@@ -55,9 +72,14 @@ export interface TranscriptBlock {
 
 /** Contributions replace per plugin; later publishers win per field. */
 export function appearanceFrom(
-  contributions: Iterable<UiAppearance>, light = false
+  contributions: Iterable<UiAppearance>, light = false, background?:Background
 ): Appearance {
   const result: Appearance = structuredClone(light ? LIGHT_APPEARANCE : DEFAULT_APPEARANCE), patch = mergeAppearance(contributions);
+  if(background){
+    const title=[1,3,5].map(i=>parseInt(result.colors.titleBackground.slice(i,i+2),16)) as [number,number,number];
+    for(const key of ['text','muted','accent','success','warning','danger','border'] as const)
+      result.colors[key]=readable(result.colors[key],background,title,light,key==='border'?3:4.5);
+  }
   Object.assign(result.colors, patch.colors);
   Object.assign(result.chrome, patch.chrome);
   Object.assign(result.presentation, patch.presentation);

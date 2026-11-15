@@ -4,7 +4,7 @@ import { hello, type WireMessage } from "@agent-compositor/protocol";
 import { uiAppearanceSchema, uiTextViewSchema } from "@agent-compositor/events";
 import themeHooks from "../../../plugins/ui-theme/hooks.js";
 import { AppUI } from "../src/ui.js";
-import { appearanceFrom, clean, gridFrom, transcriptRows, wrap, textRows, viewRows,rowActions,actionAt } from "../src/presentation.js";
+import { appearanceFrom, isLightBackground, clean, gridFrom, transcriptRows, wrap, textRows, viewRows,rowActions,actionAt } from "../src/presentation.js";
 
 function setup(provider = new ScriptedProvider([])) {
   const ui = new AppUI(approve => new AgentCore({ cwd: process.cwd(), provider, onApproval: approve }));
@@ -18,6 +18,19 @@ function setup(provider = new ScriptedProvider([])) {
 const manifest = (name: string) => ({ name, version: "1.0.0", trust: "trusted" as const });
 
 describe("pluggable presentation", () => {
+  it('keeps default foregrounds readable on intermediate and colored terminal backgrounds',()=>{
+    const luminance=(rgb:readonly number[])=>rgb.map(value=>{const v=value/255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((sum,value,index)=>sum+value*[.2126,.7152,.0722][index],0);
+    const rgb=(hex:string)=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
+    const contrast=(a:readonly number[],b:readonly number[])=>{const x=luminance(a),y=luminance(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+    for(const bg of [[0,0,0],[119,119,119],[160,160,160],[255,0,0],[255,255,255]] as const){
+      const theme=appearanceFrom([],isLightBackground(bg),bg);
+      for(const key of ['text','muted','accent','success','warning','danger'] as const){
+        expect(contrast(rgb(theme.colors[key]),bg),`${key} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(rgb(theme.colors[key]),rgb(theme.colors.titleBackground)),`${key} on title`).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(contrast(rgb(theme.colors.border),bg)).toBeGreaterThanOrEqual(3);
+    }
+  });
   it('adapts defaults to terminal background while keeping plugin colors authoritative', async () => {
     const {ui,messages}=setup();
     ui.core.host.registerPlugin(manifest('theme'),{});
@@ -29,6 +42,13 @@ describe("pluggable presentation", () => {
     ui.setTerminalBackground([0,0,0]);expect(chrome()?.accent).toBe('#aa22bb');
     ui.core.host.unregisterPlugin('theme');
     expect(chrome()?.accent).toBe(appearanceFrom([]).colors.accent);
+    ui.close();
+  });
+  it('updates colors when the background changes within the same light range',()=>{
+    const {ui,messages}=setup();
+    const accent=()=>messages.filter(m=>m.type==='layout').at(-1)?.frames[0].chrome?.accent;
+    ui.setTerminalBackground([160,160,160]);const medium=accent();
+    ui.setTerminalBackground([255,255,255]);expect(accent()).not.toBe(medium);
     ui.close();
   });
   it("starts with a readable conversation and no empty tools pane", () => {

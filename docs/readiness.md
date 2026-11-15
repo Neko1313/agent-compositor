@@ -7,6 +7,14 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+The [workflow ownership regression](../packages/app/test/harness.test.ts) now
+uses a separate OS process to hold an actual workflow lease. An observer cannot
+pause or stop its active run or overwrite its completed journal from a stale
+snapshot. A second case kills the owner, observes a paused recovery without an
+automatic retry, and resumes explicitly. Both use scripted workers and local
+temporary files; they do not establish multi-hour recovery, real-model quality,
+or cross-machine coordination.
+
 Build-only [run `43724725266` for `69078aa`](https://github.com/Neko1313/agent-compositor/actions/runs/43724725266)
 passed source verification and all four Linux/macOS x64/ARM64 jobs, including
 the previously failing Intel Main-copy scenario; publication was skipped. The

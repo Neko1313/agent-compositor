@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdtemp, mkdir, rm, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 import { WorkflowEngine } from '../../../plugins/workflows/engine.js';
 import { discoverCapabilities, ProviderRouter } from '@agent-compositor/provider';
 import { AgentCore, ScriptedProvider, AGENT_INSTRUCTIONS } from '@agent-compositor/core';
@@ -305,6 +306,43 @@ describe('harness failure boundaries',()=>{
    expect(local.runs.get(own.id)?.status).toBe('running');releaseLocal();expect((await local.wait(own.id))?.status).toBe('completed');
   }finally{releaseExternal();releaseLocal();await external.close();await local.close();}
  });
+ it('preserves a live workflow owned by a separate OS process',async()=>{
+  const cwd=await temp(),messages:any[]=[];let output='',errors='';
+  const child=spawn(process.execPath,['--import','tsx',join(process.cwd(),'packages/app/test/fixtures/workflow-owner-child.ts'),cwd],{
+   cwd:process.cwd(),env:{PATH:process.env.PATH,HOME:cwd,LANG:'C.UTF-8'},stdio:['pipe','pipe','pipe'],
+  });
+  const exited=new Promise<{code:number|null;signal:NodeJS.Signals|null}>((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>resolve({code,signal}));});
+  child.stdout.setEncoding('utf8');child.stdout.on('data',(chunk:string)=>{output+=chunk;let end:number;while((end=output.indexOf('\n'))>=0){const line=output.slice(0,end);output=output.slice(end+1);if(line)messages.push(JSON.parse(line));}});
+  child.stderr.setEncoding('utf8');child.stderr.on('data',(chunk:string)=>{errors+=chunk;});
+  const observer=new WorkflowEngine({cwd,request:async()=>{throw Error('observer must not execute work');}});
+  try{
+   await vi.waitFor(()=>expect(messages.some(message=>message.ready)).toBe(true),{timeout:10000,interval:20});
+   const ready=messages.find(message=>message.ready);expect(ready.pid).not.toBe(process.pid);
+   const file=join(cwd,'.agent-compositor','workflows','runs',ready.id+'.json'),before=await readFile(file,'utf8');
+   await observer.load();expect(observer.runs.get(ready.id)?.status).toBe('running');expect(observer.hasUnverifiedOwner(ready.id)).toBe(true);
+   await expect(observer.control(ready.id,'pause')).rejects.toThrow('owned by a running process');
+   await expect(observer.control(ready.id,'stop')).rejects.toThrow('owned by a running process');expect(await readFile(file,'utf8')).toBe(before);
+   child.stdin.end('finish\n');const result=await exited;expect(result,errors).toEqual({code:0,signal:null});expect(messages.some(message=>message.finished==='completed')).toBe(true);
+   await expect(observer.control(ready.id,'stop')).rejects.toThrow('changed in another process');
+   await observer.refresh();expect(observer.runs.get(ready.id)).toMatchObject({status:'completed',stages:[{output:'completed by owner'}]});expect(observer.hasUnverifiedOwner(ready.id)).toBe(false);
+  }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGTERM');await exited.catch(()=>{});}await observer.close();}
+ },15000);
+ it('recovers a killed owner only after an explicit resume',async()=>{
+  const cwd=await temp(),messages:any[]=[];let output='',calls=0;
+  const child=spawn(process.execPath,['--import','tsx',join(process.cwd(),'packages/app/test/fixtures/workflow-owner-child.ts'),cwd],{
+   cwd:process.cwd(),env:{PATH:process.env.PATH,HOME:cwd,LANG:'C.UTF-8'},stdio:['pipe','pipe','pipe'],
+  });
+  const exited=new Promise<{code:number|null;signal:NodeJS.Signals|null}>((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>resolve({code,signal}));});
+  child.stdout.setEncoding('utf8');child.stdout.on('data',(chunk:string)=>{output+=chunk;let end:number;while((end=output.indexOf('\n'))>=0){const line=output.slice(0,end);output=output.slice(end+1);if(line)messages.push(JSON.parse(line));}});child.stderr.resume();
+  const observer=new WorkflowEngine({cwd,request:async()=>{calls++;return{output:'resumed explicitly',tokens:1} as any;}});
+  try{
+   await vi.waitFor(()=>expect(messages.some(message=>message.ready)).toBe(true),{timeout:10000,interval:20});const ready=messages.find(message=>message.ready);
+   child.kill('SIGKILL');expect(await exited).toEqual({code:null,signal:'SIGKILL'});
+   await observer.load();expect(observer.runs.get(ready.id)).toMatchObject({status:'paused',stages:[{status:'pending',error:expect.stringContaining('side effects')}]});
+   expect(observer.hasUnverifiedOwner(ready.id)).toBe(false);expect(calls).toBe(0);
+   await observer.control(ready.id,'resume');expect((await observer.wait(ready.id))?.status).toBe('completed');expect(calls).toBe(1);
+  }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}await observer.close();}
+ },15000);
  it('does not replace a local completion with a snapshot read before it finished',async()=>{
   const cwd=await temp();let releaseWorker!:()=>void,releaseRefresh!:()=>void,readSnapshot!:()=>void;
   const worker=new Promise<void>(resolve=>{releaseWorker=resolve;}),gate=new Promise<void>(resolve=>{releaseRefresh=resolve;}),read=new Promise<void>(resolve=>{readSnapshot=resolve;});

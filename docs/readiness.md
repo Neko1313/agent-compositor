@@ -307,6 +307,17 @@ and image deletion on hiding. This is not installed-archive, resize, screen or
 cross-terminal coverage. Evidence is retained in
 `dist/tmux-research-20261115/plugin-raster-20261115-on-v2/` and
 `dist/tmux-research-20261115/plugin-raster-20261115-off/`.
+At `9802f1b`, a further source run used an isolated plugin and actual terminal
+input to replace a red raster with green, resize from 110×36 to 80×24 and back
+while retaining a Main draft, close the chart in Arrange mode, and reopen it
+through the window finder. Screen captures show the old pixels disappear on
+close and the current image return on reopening. The app exited normally and
+the private display was cleaned up. The 80×24 and restored checks waited for
+matching Kitty and tmux geometry and complete application frames. Evidence is
+in `dist/tmux-research-20261115/plugin-raster-window-close-9802f1b-v3/`.
+Two earlier close attempts timed out on the test's focus observation; the second
+capture shows the focused narrow title was truncated. This is one terminal and
+synthetic plugin, not proof of other terminals or packaged-archive behavior.
 
 ## Plugin development and interface usability
 

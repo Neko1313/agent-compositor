@@ -1,7 +1,7 @@
 import {randomBytes} from 'node:crypto';
 import {inflateSync} from 'node:zlib';
 import {describe,expect,it} from 'vitest';
-import {TmuxFeatureProbe,tmuxDeleteImage,tmuxFeatureQuery,tmuxFeatureReply,tmuxImageColor,tmuxPlaceholderRows,tmuxVirtualImage,tmuxVirtualImageBatch,tmuxWriteAtomic} from '../src/tmux-image-codec.js';
+import {TmuxFeatureProbe,TmuxFramePlayer,tmuxDeleteImage,tmuxFeatureQuery,tmuxFeatureReply,tmuxImageColor,tmuxPlaceholderRows,tmuxVirtualImage,tmuxVirtualImageBatch,tmuxWriteAtomic} from '../src/tmux-image-codec.js';
 
 const unwrap=(data:Buffer)=>{
   const text=data.toString('utf8');expect(text.startsWith('\x1bPtmux;')).toBe(true);expect(text.endsWith('\x1b\\')).toBe(true);
@@ -71,5 +71,44 @@ describe('tmux Kitty virtual image codec',()=>{
     const negative=new TmuxFeatureProbe({...sink,write:()=>true},33,1000),response=negative.start();
     expect(negative.accept('\x1b_Gi=33,e=T,U=0;OK\x1b\\')).toBe(true);expect(await response).toBe(false);
     expect(()=>new TmuxFeatureProbe(sink,0)).toThrow(RangeError);
+  });
+  it('coalesces pending frames and deletes only the owned image on disposal',async()=>{
+    let release!:()=>void,calls=0,painted=0;const gate=new Promise<void>(resolve=>{release=resolve;}),writes:Uint8Array[]=[];
+    const sink={maxAtomicWriteBytes:100000n,write:(bytes:Uint8Array)=>{if(++calls===1)return false;writes.push(bytes);return true;},idle:()=>gate};
+    const errors:unknown[]=[],player=new TmuxFramePlayer(sink,42,2,2,()=>painted++,error=>errors.push(error));
+    const frame=(red:number)=>({width:1,height:1,rgba:Uint8Array.of(red,0,0,255)});
+    const first=frame(1);player.present(first);await Promise.resolve();first.rgba[0]=99;player.present(frame(2));player.present(frame(3));release();await player.idle();
+    expect(writes.map(value=>Buffer.from(value))).toEqual([tmuxVirtualImageBatch(frame(1),42,2,2),tmuxVirtualImageBatch(frame(3),42,2,2)]);
+    expect(painted).toBe(2);expect(errors).toEqual([]);await player.dispose();
+    expect(Buffer.from(writes.at(-1)!)).toEqual(tmuxDeleteImage(42));expect(writes).toHaveLength(3);
+    await player.dispose();expect(writes).toHaveLength(3);expect(()=>player.present(frame(4))).toThrow('closed');
+  });
+  it('cancels a blocked unadmitted frame without deleting an unowned image',async()=>{
+    let writes=0;const sink={maxAtomicWriteBytes:100000n,write:()=>{writes++;return false;},idle:()=>new Promise<void>(()=>{})};
+    const errors:unknown[]=[],player=new TmuxFramePlayer(sink,42,2,2,()=>{},error=>errors.push(error));
+    player.present({width:1,height:1,rgba:Uint8Array.of(1,2,3,255)});await Promise.resolve();await player.dispose();
+    expect(writes).toBe(1);expect(errors).toEqual([]);
+  });
+  it('permits retrying deletion after temporary output failure',async()=>{
+    let allow=true;const accepted:Uint8Array[]=[];
+    const sink={maxAtomicWriteBytes:100000n,write:(bytes:Uint8Array)=>{if(!allow)return false;accepted.push(bytes);return true;},idle:async()=>{}};
+    const player=new TmuxFramePlayer(sink,42,2,2,()=>{},()=>{});
+    player.present({width:1,height:1,rgba:Uint8Array.of(1,2,3,255)});await player.idle();allow=false;
+    await expect(player.dispose()).rejects.toThrow('remained unavailable');allow=true;await player.dispose();
+    expect(Buffer.from(accepted.at(-1)!)).toEqual(tmuxDeleteImage(42));expect(accepted).toHaveLength(2);
+  });
+  it('does not lose a frame queued as the previous pump completes',async()=>{
+    const accepted:Uint8Array[]=[];let player!:TmuxFramePlayer,frames=0;
+    const sink={maxAtomicWriteBytes:100000n,write:(bytes:Uint8Array)=>{accepted.push(bytes);return true;},idle:async()=>{}};
+    player=new TmuxFramePlayer(sink,42,2,2,()=>{if(++frames===1)queueMicrotask(()=>player.present({width:1,height:1,rgba:Uint8Array.of(2,0,0,255)}));},()=>{});
+    player.present({width:1,height:1,rgba:Uint8Array.of(1,0,0,255)});await player.idle();
+    expect(frames).toBe(2);expect(accepted).toHaveLength(2);await player.dispose();
+  });
+  it('cleans up when disposal re-enters during successful output admission',async()=>{
+    let player!:TmuxFramePlayer,closing!:Promise<void>,calls=0;const accepted:Uint8Array[]=[];
+    const sink={maxAtomicWriteBytes:100000n,write:(bytes:Uint8Array)=>{accepted.push(bytes);if(++calls===1)closing=player.dispose();return true;},idle:async()=>{}};
+    player=new TmuxFramePlayer(sink,42,2,2,()=>{},()=>{});
+    player.present({width:1,height:1,rgba:Uint8Array.of(1,2,3,255)});await Promise.resolve();await closing;
+    expect(accepted).toHaveLength(2);expect(Buffer.from(accepted[1])).toEqual(tmuxDeleteImage(42));
   });
 });

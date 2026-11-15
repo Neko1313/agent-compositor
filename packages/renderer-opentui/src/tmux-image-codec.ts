@@ -8,6 +8,11 @@ const placeholder='\u{10eeee}';
 const maximumPixels=1024*1024;
 const imageId=(id:number)=>Number.isInteger(id)&&id>0&&id<=0xffffff;
 const rectangle=(columns:number,rows:number)=>Number.isInteger(columns)&&columns>=1&&columns<=20&&Number.isInteger(rows)&&rows>=1&&rows<=8;
+type ImageFrame={width:number;height:number;rgba:Uint8Array};
+function validFrame(frame:ImageFrame):boolean {
+  return Number.isSafeInteger(frame.width)&&Number.isSafeInteger(frame.height)&&frame.width>=1&&frame.height>=1&&
+    frame.width*frame.height<=maximumPixels&&frame.rgba.byteLength===frame.width*frame.height*4;
+}
 
 /** tmux consumes one escape layer; never send raw graphics control bytes. */
 export function tmuxWrap(sequence:string):Buffer {
@@ -46,10 +51,9 @@ export function tmuxImageColor(id:number):string {
 }
 
 /** Every chunk is independently wrapped and bounded for tmux's input parser. */
-export function tmuxVirtualImage(frame:{width:number;height:number;rgba:Uint8Array},id:number,columns:number,rows:number):Buffer[] {
+export function tmuxVirtualImage(frame:ImageFrame,id:number,columns:number,rows:number):Buffer[] {
   if(!imageId(id)||!rectangle(columns,rows))throw RangeError('Invalid Kitty placement');
-  if(!Number.isSafeInteger(frame.width)||!Number.isSafeInteger(frame.height)||frame.width<1||frame.height<1||
-    frame.width*frame.height>maximumPixels||frame.rgba.byteLength!==frame.width*frame.height*4)throw RangeError('Invalid RGBA frame');
+  if(!validFrame(frame))throw RangeError('Invalid RGBA frame');
   const data=deflateSync(frame.rgba).toString('base64'),chunks:Buffer[]=[];
   for(let offset=0;offset<data.length;offset+=4096){
     const more=offset+4096<data.length?1:0;
@@ -60,7 +64,7 @@ export function tmuxVirtualImage(frame:{width:number;height:number;rgba:Uint8Arr
 }
 
 /** Submit this batch atomically to NativeSession so other output cannot split an upload. */
-export function tmuxVirtualImageBatch(frame:{width:number;height:number;rgba:Uint8Array},id:number,columns:number,rows:number):Buffer {
+export function tmuxVirtualImageBatch(frame:ImageFrame,id:number,columns:number,rows:number):Buffer {
   return Buffer.concat(tmuxVirtualImage(frame,id,columns,rows));
 }
 
@@ -123,6 +127,57 @@ export class TmuxFeatureProbe {
     this.finish?.(tmuxFeatureReply(sequence,this.id));return true;
   }
   dispose(){this.closed=true;this.finish?.(false);this.controller.abort();}
+}
+
+/** Single in-flight upload and one newest pending frame; the caller owns disposal. */
+export class TmuxFramePlayer {
+  private readonly controller=new AbortController();
+  private pending?:ImageFrame;
+  private running?:Promise<void>;
+  private closing?:Promise<void>;
+  private closed=false;
+  private owned=false;
+  constructor(private readonly sink:TmuxOutputSink,private readonly id:number,private readonly columns:number,private readonly rows:number,
+    private readonly onFrame:()=>void,private readonly onError:(error:unknown)=>void){
+    if(!imageId(id)||!rectangle(columns,rows))throw RangeError('Invalid Kitty placement');
+  }
+  present(frame:ImageFrame):void {
+    if(this.closed)throw Error('Kitty frame player is closed');
+    if(!validFrame(frame))throw RangeError('Invalid RGBA frame');
+    this.pending={width:frame.width,height:frame.height,rgba:Uint8Array.from(frame.rgba)};
+    this.schedule();
+  }
+  private schedule():void {
+    if(this.running||this.closed||!this.pending)return;
+    // Publish the owned task before calling the sink, which may re-enter the
+    // player or synchronously trigger disposal.
+    const task=Promise.resolve().then(()=>this.pump());this.running=task;
+    void task.then(()=>{if(this.running===task)this.running=undefined;this.schedule();},error=>{
+      if(this.running===task)this.running=undefined;
+      if(!this.closed){this.pending=undefined;this.onError(error);}
+    });
+  }
+  private async pump():Promise<void>{
+    while(!this.closed&&this.pending){
+      const frame=this.pending;this.pending=undefined;
+      const batch=tmuxVirtualImageBatch(frame,this.id,this.columns,this.rows);
+      await tmuxWriteAtomic(this.sink,batch,this.controller.signal);
+      this.owned=true;
+      if(!this.closed)this.onFrame();
+    }
+  }
+  async idle():Promise<void>{while(this.running)await this.running;}
+  dispose():Promise<void>{
+    if(this.closing)return this.closing;
+    this.closed=true;this.pending=undefined;this.controller.abort();
+    const closing=(async()=>{
+      try{await this.running;}catch{}
+      if(this.owned){await tmuxWriteAtomic(this.sink,tmuxDeleteImage(this.id));this.owned=false;}
+    })();
+    this.closing=closing;
+    void closing.catch(()=>{if(this.closing===closing)this.closing=undefined;});
+    return closing;
+  }
 }
 
 /** Remove only this image and its virtual placements, never another client's. */

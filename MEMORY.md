@@ -75,6 +75,23 @@ reply and rendered/moved/deleted the multi-chunk fixture, while disabled
 passthrough timed out to the fixture's text fallback. These still do not enable
 the helper in the application or establish Ghost animation and lifecycle.
 
+`probe-ghost-frames/` uses the actual mascot decoder and the unmodified bundled
+`idle.apng` (SHA256 `68a9f4d0e86389f863786eecfdd33a32504683b708d8944e4f5defc2e3940941`)
+with the new codec through real OpenTUI, tmux and Kitty. The fixture manually
+advanced from frame 0 to frame 1, retained both captures and verified a changed
+image-region hash, then deleted the image while leaving placeholder cells.
+The captures were inspected. This is not timed playback, the full application,
+all animation states, a resize test or a shipping renderer.
+
+The internal `TmuxFramePlayer` now bounds outstanding work to one upload and
+one latest pending frame, admits each upload atomically and deletes its owned
+image on disposal. Tests exercise coalescing, cancellation under backpressure,
+retry of failed deletion and a frame submitted during pump completion. The
+separate `probe-ghost-player-final/` fixture used this player and the actual bundled
+idle frames through OpenTUI, tmux and Kitty; manually advancing one frame and
+deleting it changed the observed pixels as expected. The player is not wired
+to the composer; timed playback and real application lifecycle remain open.
+
 ## Media candidate timing regression and causal repair — 2026-11-15
 
 This goal turn makes concrete progress: source bf5e61b2ac83b2af4186cd313673182fa113e131

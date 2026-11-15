@@ -43,7 +43,7 @@ import {
   type ToolContext,
   type ToolSpec,
 } from "@agent-compositor/tools";
-import { replayTranscript } from "./resume.js";
+import { replayTranscript, recoverQueuedInputs } from "./resume.js";
 import type { AgentTurnContext, AgentToolBatchContext, TurnOutcome, SessionJournal } from "./customization.js";
 import { askTool, askQuestionsTool, taskTool, SUBAGENT_SYSTEM_PROMPT } from "./tools/index.js";
 import type {
@@ -219,7 +219,8 @@ export class AgentCore {
   private contextSource = "fallback";
   private contextWindow = 32768;
   private outputLimit?:number;
-  private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string}[]=[];
+  private recoveredInputs:{id:string;text:string}[]=[];
+  private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string}[]=[];
   private backgroundReceipts=new Set<string>();
   private queueTimer?:ReturnType<typeof setTimeout>;
   private draining?:Promise<void>;
@@ -1196,8 +1197,9 @@ export class AgentCore {
     if(cancellation!==this.promptCancellation)return;
     if(source==='user'&&this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
     if(this.options.isWorkBlocked?.()){
-      this.promptQueue.push({text,source});admitted?.('queued');
-      await this.emit('prompt.queued',{text,depth:this.promptQueue.length});
+      const recoveryId=source==='user'?randomUUID():undefined;
+      this.promptQueue.push({text,source,recoveryId});admitted?.('queued');
+      await this.emit('prompt.queued',{text,depth:this.promptQueue.length},undefined,recoveryId?{recoveryId}:undefined);
       this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'extension-manager',message:'Message queued while plugins change. Apply /reload if the change requires it.',level:'info'}});
       return;
     }
@@ -1210,12 +1212,13 @@ export class AgentCore {
       return this.submitInput(text,source,admitted);
     }
     if (this.state === "running") {
-      this.promptQueue.push({text,source});
+      const recoveryId=source==='user'?randomUUID():undefined;
+      this.promptQueue.push({text,source,recoveryId});
       admitted?.('queued');
       await this.emit("prompt.queued", {
         text,
         depth: this.promptQueue.length,
-      });
+      },undefined,recoveryId?{recoveryId}:undefined);
       return;
     }
     await this.runTurn(text,source,undefined,admitted);
@@ -1275,15 +1278,16 @@ export class AgentCore {
         0
       );
     core.messages = replayTranscript(events, opts.systemPrompt);
+    core.recoveredInputs = recoverQueuedInputs(events);
     return core;
   }
 
   // ---- the turn engine -----------------------------------------------------
 
-  private runTurn(text: string,source:"user"|"agent"="user",origin?:"harness",admitted?:InputAdmitted): Promise<void> {
+  private runTurn(text: string,source:"user"|"agent"="user",origin?:"harness",admitted?:InputAdmitted,recoveryId?:string): Promise<void> {
     const run=(async()=>{
       this.inputSource=source;
-      try {await this.runTurnUnchecked(text,origin,admitted);}
+      try {await this.runTurnUnchecked(text,origin,admitted,recoveryId);}
       catch(error){
         this.lastTurnError=String(error);
         if(this.journalFailure){this.promptQueue=[];this.steerQueue=[];}
@@ -1295,7 +1299,7 @@ export class AgentCore {
     this.activeTurn=run;
     return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
   }
-  private async runTurnUnchecked(text: string,origin?:"harness",admitted?:InputAdmitted): Promise<void> {
+  private async runTurnUnchecked(text: string,origin?:"harness",admitted?:InputAdmitted,recoveryId?:string): Promise<void> {
     if(this.journalFailure)throw this.journalFailure;
     const turnId = randomUUID();
     this.currentTurnId = turnId;
@@ -1313,7 +1317,7 @@ export class AgentCore {
     this.inPromptHook = true;
     let submitted: unknown;
     try {
-      submitted = await this.emit("prompt.submit", { text },undefined,{...(origin?{origin}:{}),turnId});
+      submitted = await this.emit("prompt.submit", { text },undefined,{...(origin?{origin}:{}),turnId,...(recoveryId?{recoveryId}:{})});
     } finally {
       this.inPromptHook = false;
     }
@@ -1845,11 +1849,14 @@ export class AgentCore {
         if(next.owner&&!this.host.hasPlugin(next.owner,'trusted'))continue;
         if(next.owner)while(this.promptQueue[0]?.owner===next.owner&&next.text.length+this.promptQueue[0].text.length<4096)next.text+='\n\n'+this.promptQueue.shift()!.text;
         // Queue ownership distinguishes host follow-ups from initial delegated tasks.
-        await this.runTurn(next.text,next.source,next.owner?"harness":undefined);
+        await this.runTurn(next.text,next.source,next.owner?"harness":undefined,undefined,next.recoveryId);
       }
     })().finally(()=>{this.draining=undefined;});
     return this.draining;
   }
+
+  /** @internal Inputs needing explicit review after session recovery; never run automatically. */
+  getRecoveredInputs():readonly {id:string;text:string}[]{return this.recoveredInputs.map(input=>({...input}));}
 
   /** @internal Retry accepted background work after a host lifecycle barrier. */
   resumePendingWork():void{this.scheduleQueue();}
@@ -2336,7 +2343,7 @@ export class AgentCore {
     input: Record<string, unknown>,
     signal?:AbortSignal,
     // Host provenance is journal metadata, not a plugin-writable prompt field.
-    journalMeta?:{origin?:"harness";turnId?:string}
+    journalMeta?:{origin?:"harness";turnId?:string;recoveryId?:string}
   ): Promise<unknown> {
     const operation=this.userOperation.getStore();
     if(operation)input={...input,operationId:operation.id};

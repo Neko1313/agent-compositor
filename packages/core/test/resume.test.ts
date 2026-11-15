@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentCore, replayTranscript, ScriptedProvider } from "../src/index.js";
 import type { SessionEvent } from "@agent-compositor/session";
 import { TokenBudget } from "@agent-compositor/context";
@@ -187,5 +187,45 @@ describe("AgentCore.resume + compaction in the loop", () => {
       expect(results[0]).toMatchObject({toolCallId:"pending"});
       expect(results[0].content).toContain("did not execute");
     } finally {await core.close();}
+  });
+});
+
+describe('queued user input recovery evidence', () => {
+  it('records distinct host IDs and identifies only inputs without a committed submission', async () => {
+    const journal: SessionEvent[] = [];
+    const sessions = {create: async () => {}, append: async (_id: string, events: SessionEvent[]) => {journal.push(...events);}};
+    let blocked = true;
+    const provider = new ScriptedProvider([{text:'done'}]);
+    const core = new AgentCore({cwd:process.cwd(),provider,sessions,isWorkBlocked:()=>blocked});
+    await core.submit('same text');await core.submit('same text');
+    const queued = journal.filter(event=>event.type==='prompt.queued');
+    expect(queued).toHaveLength(2);
+    expect(typeof queued[0].recoveryId).toBe('string');expect(queued[0].recoveryId).not.toBe(queued[1].recoveryId);
+    const snapshot=structuredClone(journal);
+    const recovered=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([]),sessions},snapshot);
+    expect(recovered.getRecoveredInputs()).toEqual(queued.map(event=>({id:event.recoveryId,text:'same text'})));
+    expect(recovered.getMessages().some(message=>message.content==='same text')).toBe(false);
+    blocked=false;core.resumePendingWork();
+    await vi.waitFor(()=>expect(journal.filter(event=>event.type==='prompt.submit')).toHaveLength(2));
+    const submitted=journal.filter(event=>event.type==='prompt.submit');
+    expect(submitted.map(event=>event.recoveryId)).toEqual(queued.map(event=>event.recoveryId));
+    const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([]),sessions},structuredClone(journal));
+    expect(resumed.getRecoveredInputs()).toEqual([]);
+    await core.close();await recovered.close();await resumed.close();
+  });
+
+  it('correlates records irrespective of order and ignores ambiguous legacy and plugin records', async () => {
+    const events: SessionEvent[] = [
+      {type:'prompt.submit',text:'already started',recoveryId:'completed'},
+      {type:'prompt.dropped',text:'handled',recoveryId:'dropped'},
+      {type:'prompt.queued',text:'already started',recoveryId:'completed'},
+      {type:'prompt.queued',text:'handled',recoveryId:'dropped'},
+      {type:'prompt.queued',text:'legacy or plugin message'},
+      {type:'prompt.queued',text:'review only',recoveryId:'pending'},
+    ];
+    const core=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},events);
+    expect(core.getRecoveredInputs()).toEqual([{id:'pending',text:'review only'}]);
+    expect(core.getMessages().some(message=>message.content==='review only')).toBe(false);
+    await core.close();
   });
 });

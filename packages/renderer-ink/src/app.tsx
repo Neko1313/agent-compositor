@@ -9,24 +9,29 @@ import type { StyledCell } from "./cell.js";
 import type { SurfaceDecl } from "./state.js";
 
 /** Ink Text props from a segment style. `inverse` is renderer-local (cursor). */
-function styleProps(style: Omit<StyledCell, "ch">) {
+function blackInAnsi16(color:string|undefined):boolean {
+  if(color==='black')return true;
+  return !!color&&/^#[0-9a-f]{6}$/i.test(color)&&[1,3,5].every(i=>parseInt(color.slice(i,i+2),16)<128);
+}
+function styleProps(style: Omit<StyledCell, "ch">,lowColorLight:boolean) {
+  const underlineBold=!!style.bold&&lowColorLight&&blackInAnsi16(style.fg);
   return {
     ...(style.fg ? { color: style.fg } : {}),
     ...(style.bg ? { backgroundColor: style.bg } : {}),
-    ...(style.bold ? { bold: true } : {}),
+    ...(style.bold && !underlineBold ? { bold: true } : {}),
     ...(style.dim ? { dimColor: true } : {}),
     ...(style.italic ? { italic: true } : {}),
-    ...(style.underline ? { underline: true } : {}),
+    ...(style.underline || underlineBold ? { underline: true } : {}),
     ...(style.inverse ? { inverse: true } : {}),
   };
 }
 
-function SegmentRow({ segments, height, width }: { segments: Segment[]; height: number; width?:number }) {
+function SegmentRow({ segments, height, width, lowColorLight }: { segments: Segment[]; height: number; width?:number;lowColorLight:boolean }) {
   return (
     <Box height={height} width={width}>
       <Text wrap="truncate-end">
         {segments.map((s, i) => (
-          <Text key={i} {...styleProps(s.style)}>{literalCellText(s.text)}</Text>
+          <Text key={i} {...styleProps(s.style,lowColorLight)}>{literalCellText(s.text)}</Text>
         ))}
       </Text>
     </Box>
@@ -56,7 +61,7 @@ function SurfaceView({
       borderColor={drop ? chrome?.warning ?? "yellow" : focused || hovered ? chrome?.accent ?? "cyan" : chrome?.border ?? "gray"}
     >
       {!isBar && decl.title ? <Box height={1} flexDirection="row">
-        <Box flexGrow={1} flexShrink={1} overflow="hidden"><Text bold={focused || hovered} color={focused || hovered ? chrome?.accent : chrome?.muted}
+        <Box flexGrow={1} flexShrink={1} overflow="hidden"><Text {...styleProps({fg:focused || hovered ? chrome?.accent : chrome?.muted,bold:focused||hovered},store.lowColorLight)}
           backgroundColor={chrome?.titleBackground} wrap="truncate">{literalCellText(` ${drop ? `Drop ${drop === "center" ? "to swap" : drop} · ${decl.title}` : decl.title}`).padEnd(Math.max(0, (width ?? 0) - (controls ? 8 : 2)))}</Text></Box>
         {controls && (width ?? 0) >= 14 ? <Text color={focused ? chrome?.accent ?? "cyan" : chrome?.muted ?? "gray"}
           backgroundColor={chrome?.titleBackground}>{focused || hovered || chrome?.controls !== "focus" ? "[F][x]" : "      "}</Text> : null}
@@ -67,6 +72,7 @@ function SurfaceView({
           key={row}
           segments={grid.segments(row, grid.cursor)}
           height={1}
+          lowColorLight={store.lowColorLight}
           width={width ? Math.max(1,width-(isBar?0:decl.id==="plugin-placement"?2:4)) : undefined}
         />
       ))}

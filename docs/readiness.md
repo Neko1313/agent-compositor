@@ -424,8 +424,10 @@ and `setup-corrupt-ink-dark/`. This source check does not establish behavior for
 every light terminal, missing background replies, or custom plugin palettes.
 Intermediate and saturated RGB backgrounds now receive adjusted default text
 colors, with contrast checks against the reported RGB value. A gray XTerm using
-its limited ANSI palette still mapped some bold text to low-contrast gray; the
-RGB calculations do not establish readability after terminal color reduction.
+its limited ANSI palette mapped bold black text to low-contrast gray. On light
+16-color terminals Ink now substitutes underlining for bold black; the same
+XTerm fixture showed a readable heading. Other ANSI palettes and custom themes
+remain separate compatibility cases.
 
 ### Accepted usability work — 2026-11-13
 

@@ -32,6 +32,9 @@ usual precedence; plugins supplying custom colors should select contrasting
 foreground and background pairs for the terminals they support.
 The default RGB text colors are also adjusted for the reported background;
 limited terminal color palettes can approximate them and reduce contrast.
+On a light background with 16-color output, Ink renders bold text that maps to
+ANSI black with an underline instead: some terminals brighten bold black to a
+low-contrast gray. Other colors and higher color depths keep bold styling.
 For an Ink terminal that cannot report its background, set
 `AGENT_TERMINAL_BACKGROUND=light` or `AGENT_TERMINAL_BACKGROUND=dark` before
 launching. This explicitly selects the default palette for that process;

@@ -31,9 +31,10 @@ The standard `visual:check` smoke uses its source ScriptedProvider and rejects
 which configures its isolated loopback approval/question fixtures. Actual-app
 OpenTUI scenarios below also accept a complete relocated native archive.
 
-`npm run visual:ink-background` runs the source Ink frontend in three isolated
+`npm run visual:ink-background` runs the source Ink frontend in six isolated
 PTY sessions. It checks automatic light/dark terminal reports and verifies that
 explicit background preferences remain authoritative after a conflicting reply.
+It also checks emphasis in automatic and forced 16-color light and dark modes.
 The browser emulates the terminal reports; the report and screenshots do not
 establish native support for OSC 11 in any particular terminal.
 

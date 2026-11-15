@@ -32,6 +32,7 @@ export async function runTui(app: BuiltApp, stdin: NodeJS.ReadStream, stdout: No
   try {
     renderer = await runInkRenderer({ source, send: message => ui.receive(message), stdin, stdout,
       hostControlsExit: true, exit: () => {},
+      terminalBackground: forcedBackground ? background : undefined,
       onTerminalBackground: forcedBackground ? undefined : color => ui.setTerminalBackground(color) });
     await renderer.waitUntilExit;
   } finally {

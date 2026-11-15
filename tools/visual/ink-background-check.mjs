@@ -12,18 +12,29 @@ const runtime=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR','PYTHON'].flat
 let browser;
 async function scenario(mode){
  const dir=join(output,mode);await mkdir(dir,{recursive:true});
- const env={...runtime,VISUAL_OUTPUT:dir,AGENT_GRAPHICS:'off',FORCE_COLOR:'3',COLORTERM:'truecolor',TERM:'xterm-256color',...(mode==='auto'?{}:{AGENT_TERMINAL_BACKGROUND:mode})};
+ const low=mode.startsWith('low-'),preference=low?mode.slice(4):mode;
+ const env={...runtime,VISUAL_OUTPUT:dir,AGENT_GRAPHICS:'off',FORCE_COLOR:low?'1':'3',COLORTERM:low?'':'truecolor',TERM:low?'xterm':'xterm-256color',...(preference==='auto'?{}:{AGENT_TERMINAL_BACKGROUND:preference})};
  const server=spawn('bun',['tools/visual/server.mjs'],{cwd:root,env,stdio:['ignore','pipe','inherit']});
  const ended=new Promise(resolve=>server.once('close',resolve));let page;
  try{
   const url=await new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()=>reject(Error('Visual server startup timed out')),15000);server.stdout.on('data',chunk=>{data+=chunk;const match=data.match(/VISUAL_URL=(http[^\s]+)/);if(match){clearTimeout(timer);resolve(match[1]);}});server.once('error',error=>{clearTimeout(timer);reject(error);});ended.then(code=>{clearTimeout(timer);reject(Error('Visual server exited '+code));});});
   page=await browser.newPage({viewport:{width:1200,height:850}});page.on('pageerror',error=>report.errors.push(String(error)));await page.goto(url);
   await page.waitForFunction(()=>visual.text().includes('What would you like'),null,{timeout:15000});
-  const sample=()=>page.evaluate(()=>{const b=visual.terminal.buffer.active;for(let y=0;y<visual.terminal.rows;y++){const line=b.getLine(b.viewportY+y),x=(line?.translateToString(true)??'').indexOf('What would you like');if(x>=0){const c=line.getCell(x);return{color:c.getFgColor(),rgb:c.isFgRGB()};}}return null;});
+  const sample=()=>page.evaluate(()=>{const b=visual.terminal.buffer.active;for(let y=0;y<visual.terminal.rows;y++){const line=b.getLine(b.viewportY+y),x=(line?.translateToString(true)??'').indexOf('What would you like');if(x>=0){const c=line.getCell(x);return{color:c.getFgColor(),rgb:c.isFgRGB(),bold:!!c.isBold(),underline:!!c.isUnderline()};}}return null;});
   const waitColor=async color=>page.waitForFunction(expected=>{const b=visual.terminal.buffer.active;for(let y=0;y<visual.terminal.rows;y++){const line=b.getLine(b.viewportY+y),x=(line?.translateToString(true)??'').indexOf('What would you like');if(x>=0)return line.getCell(x).getFgColor()===expected;}return false;},color,{timeout:5000});
-  const initial=await sample();assert.ok(initial?.rgb,'Expected RGB terminal foreground');report.colors[mode]={initial:initial.color};
+  const initial=await sample();assert.ok(initial,'Expected the greeting cell');assert.equal(Boolean(initial.rgb),!low,'Unexpected terminal color mode');report.colors[mode]={initial:initial.color};
   const ansi=await readFile(join(dir,'terminal.ansi'),'utf8');
-  if(mode==='auto'){
+  if(low){
+   if(preference==='auto'){
+    assert.ok(ansi.includes('\x1b]11;?\x1b\\'),'Expected an automatic background query');
+    await page.evaluate(()=>visual.terminal.input('\x1b]11;rgb:a0a0/a0a0/a0a0\x07'));
+    await page.waitForFunction(()=>{const b=visual.terminal.buffer.active;for(let y=0;y<visual.terminal.rows;y++){const line=b.getLine(b.viewportY+y),x=(line?.translateToString(true)??'').indexOf('What would you like');if(x>=0){const c=line.getCell(x);return !c.isBold()&&!!c.isUnderline();}}return false;},null,{timeout:5000});
+   }
+   const cell=await sample();
+   if(preference==='dark')assert.equal(cell.bold,true,'Dark terminal must retain bold text');
+   else{assert.equal(cell.bold,false,'Light low-color terminal must not brighten black bold text');assert.equal(cell.underline,true,'Emphasis must remain visible');}
+   report.checks.push(mode+' preserves readable emphasis in a 16-color terminal');
+  }else if(mode==='auto'){
    assert.ok(ansi.includes('\x1b]11;?\x1b\\'),'Expected an automatic background query');
    await page.evaluate(()=>visual.terminal.input('\x1b]11;rgb:ffff/ffff/ffff\x07'));
    await waitColor(0x202a33);report.colors[mode].afterLight=(await sample()).color;
@@ -39,9 +50,9 @@ async function scenario(mode){
    assert.equal((await sample()).color,expected,'Forced palette changed after a conflicting terminal report');
    report.checks.push(mode+' preference works without a reply and ignores a conflicting reply');
   }
-  await page.evaluate(mode=>{visual.terminal.options.theme={background:mode==='light'?'#ffffff':'#101417',foreground:mode==='light'?'#202a33':'#dce5e9'};},mode);
+  await page.evaluate(light=>{visual.terminal.options.theme={background:light?'#ffffff':'#101417',foreground:light?'#202a33':'#dce5e9'};},preference==='light'||mode==='low-auto');
   await page.locator('#terminal').screenshot({path:join(dir,'screen.png')});report.screenshots.push(mode+'/screen.png');
  }catch(error){await page?.screenshot({path:join(dir,'failure.png')}).catch(()=>{});throw error;}
  finally{await page?.close();if(server.exitCode===null){server.kill('SIGTERM');await ended;}}
 }
-try{browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});for(const mode of ['auto','light','dark'])await scenario(mode);report.ok=report.errors.length===0;}catch(error){report.errors.push(String(error));}finally{await browser?.close();await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}
+try{browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});for(const mode of ['auto','light','dark','low-auto','low-light','low-dark'])await scenario(mode);report.ok=report.errors.length===0;}catch(error){report.errors.push(String(error));}finally{await browser?.close();await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(!report.ok)process.exitCode=1;}

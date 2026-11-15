@@ -12,6 +12,7 @@ import { RendererState } from "./state.js";
 export class RendererStore {
   suspend?: (callback: () => Promise<void>) => Promise<void>;
   readonly state = new RendererState();
+  lowColorLight = false;
   private readonly listeners = new Set<() => void>();
 
   apply(msg: WireMessage): boolean {
@@ -24,6 +25,11 @@ export class RendererStore {
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  setLowColorLight(value:boolean):void {
+    if(value===this.lowColorLight)return;
+    this.lowColorLight=value;this.notify();
   }
 
   private notify(): void {
@@ -49,6 +55,7 @@ export interface InkRendererOptions {
   exit?: (code: number) => void;
   graphics?: GraphicsMode;
   onTerminalBackground?: (rgb: readonly [number,number,number]) => void;
+  terminalBackground?: 'light' | 'dark';
 }
 
 export interface InkRendererHandle {
@@ -80,6 +87,9 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
 
   const stdin = opts.stdin ?? process.stdin;
   const stdout = opts.stdout ?? process.stdout;
+  const depth=(stdout as NodeJS.WriteStream).getColorDepth?.()??1;
+  const lowColor=depth===4;
+  store.setLowColorLight(lowColor&&opts.terminalBackground==='light');
   const mouseEnabled = !!(opts.hostControlsExit && (stdin as NodeJS.ReadStream).isTTY && (stdout as NodeJS.WriteStream).isTTY);
   const graphics = new TerminalGraphics(text => stdout.write(text));
   const mouse = mouseEnabled ? mouseInput(stdin, data => {
@@ -89,7 +99,13 @@ export async function runInkRenderer(opts: InkRendererOptions): Promise<InkRende
   }, (control, payload) => {
     if(control==='background'){
       const color=terminalBackground(payload);
-      if(color)opts.onTerminalBackground?.(color);
+      if(color){
+        if(!opts.terminalBackground){
+          const linear=color.map(value=>{const v=value/255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;});
+          store.setLowColorLight(lowColor&&(0.2126*linear[0]+0.7152*linear[1]+0.0722*linear[2])>0.179);
+        }
+        opts.onTerminalBackground?.(color);
+      }
     }
     const before=`${graphics.cell.width}:${graphics.cell.height}:${graphics.background}`;
     graphics.response(control,payload);

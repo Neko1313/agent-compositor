@@ -602,7 +602,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       events.length > 0
         ? AgentCore.resume(coreOptions, events)
         : new AgentCore(coreOptions);
-    cores.add(core);harnesses.set(core,harness);sessionPlugins.set(core,sessionPlugin);
+    cores.add(core);void core.whenClosed.then(()=>cores.delete(core));harnesses.set(core,harness);sessionPlugins.set(core,sessionPlugin);
     const agentControl=coreOptions.services?.['service.agent.control'];
     if(agentControl)core.runtime.setResolver('service.agent.control',agentControl,{settleOnCancel:true,preserveResultOnCancel:true});
     hub?.bind({approve:onApproval,ask:onAsk,inputSource:()=>core.isUserInvocation?"user":"agent",resolveWorkspace:value=>core.workspace.resolve(value,{directory:true}),workspace:()=>core.workspace.list().filter(entry=>entry.path!==core.workspace.root)});
@@ -618,17 +618,23 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     return createCore(approve, ask, { id: meta.id, events: session.events });
   };
   const reloadPlugins = async (core: AgentCore): Promise<string> => {
-    if (core.getState() === "running" || core.hasActiveOperations)
-      return "Wait until the current turn finishes before /reload.";
+    if (core.isClosed) throw Error('Cannot reload a closed session');
+    if ([...cores].some(item=>item.isClosed||item.getState() === "running" || item.hasActiveOperations))
+      return "Wait until all sessions finish before /reload.";
     await extensions.applyPending();
     await extensions.refresh();
     const next = await loadPluginsFromDisk([...new Set([...dirs,...extensions.boundDirectories()])], disabled(), extensions.enabled(), accepts);
     next.plugins = next.plugins.filter(
       (p) => !config.config.disabledPlugins?.includes(p.manifest.name)
     );
-    await store.replaceWith(()=>prepareRepository(next.plugins),()=>{core.replacePlugins(
+    let targets:AgentCore[]=[];
+    await store.replaceWith(()=>prepareRepository(next.plugins),()=>{
+      targets=[...cores];
+      if(!targets.includes(core)||targets.some(item=>item.isClosed||item.getState()==='running'||item.hasActiveOperations))
+        throw Error('Wait until all sessions finish before /reload.');
+      for(const target of targets)target.replacePlugins(
       [
-        ...(hostEnabled("agent-harness",next.plugins) && harnesses.get(core) ? [harnesses.get(core)!.plugin] : []),
+        ...(hostEnabled("agent-harness",next.plugins) && harnesses.get(target) ? [harnesses.get(target)!.plugin] : []),
         ...next.plugins.map((p) => ({
           manifest: p.manifest,
           hooks: p.hooks,
@@ -636,7 +642,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
           events: p.events,
           controllers:p.controllers,
         })),
-        ...[controls,setup.plugin,sessionPlugins.get(core)!,extensions.plugin,market.plugin,auth.plugin,...(hub?[hub.plugin]:[])]
+        ...[controls,setup.plugin,sessionPlugins.get(target)!,extensions.plugin,market.plugin,auth.plugin,...(hub?[hub.plugin]:[])]
           .filter(plugin=>hostEnabled(plugin.manifest.name,next.plugins)),
       ],
       next.plugins.flatMap((p) => p.tools) as NonNullable<
@@ -653,13 +659,13 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     if (Object.keys(mcpServers).length)
       storage.contributions["mcp.json"] = { mcpServers };
     else delete storage.contributions["mcp.json"];
-    await core.host.emit("session.reload", {
+    await Promise.all(targets.map(target=>target.host.emit("session.reload", {
       plugins: plugins.map((p) => ({
         name: p.manifest.name,
         version: p.manifest.version,
         tier: p.tier,
       })),
-    });
+    })));
     return `Reloaded ${plugins.length} plugins. ${next.errors
       .map((e) => e.error)
       .join("; ")}`;

@@ -80,6 +80,9 @@ Core embedders have equivalent `AgentCoreOptions.tools`, `controlTools`,
 `toolNames`, `toolOverrides` and `plugins` controls. A concrete model adapter and
 the disk `SessionStore` are optional. `SessionJournal` is a structural interface;
 the selected streaming service may provide the model instead.
+`core.isClosed` becomes true when teardown starts; `core.whenClosed` resolves
+after teardown settles, even if `close()` rejects. Await `close()` itself to
+observe teardown errors.
 
 Interactive hosts can call `core.dispatchInput(text, intent)` with `intent` set
 to `"submit"` (the default) or `"steer"`. It returns two promises: `admitted`

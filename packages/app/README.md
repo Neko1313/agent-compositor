@@ -565,6 +565,10 @@ held in this app session so its loaded package files stay unchanged. Choose
 **Apply plugin changes** or `/reload` to apply them: if busy, the status shows
 **plugins pending**, and application waits for the current turn and queued
 prompts to finish. Reload errors are reported; retry after resolving them.
+For multiple live cores owned by the same application, reload requires all to
+be idle and updates each core's plugin composition. If another session is
+busy, retry after it finishes. Independently built agent applications have their
+own lifecycle and configuration.
 Closing the app discards unapplied deferred file operations. Saved installation
 and activation choices survive restart. A cancelled management caller also
 discards its own unapplied deferred file operations; replacing a queued action

@@ -9,6 +9,31 @@ const roots:string[]=[],apps:Awaited<ReturnType<typeof buildApp>>[]=[];
 afterEach(async()=>{for(const a of apps.splice(0))await a.close();for(const r of roots.splice(0))await rm(r,{recursive:true,force:true});});
 async function fixture(){const root=await mkdtemp(join(tmpdir(),'ac-policy-'));roots.push(root);const cwd=join(root,'project'),home=join(root,'home'),source=join(cwd,'plugins/probe');await mkdir(source,{recursive:true});await mkdir(home);await writeFile(join(source,'plugin.json'),JSON.stringify({name:'probe',version:'1.0.0',trust:'trusted'}));await writeFile(join(source,'hooks.ts'),`import{writeFileSync}from'node:fs';writeFileSync(${JSON.stringify(join(root,'imported'))},'IMPORTED');export default{};`);return{root,cwd,home};}
 async function app(f:Awaited<ReturnType<typeof fixture>>,cwd=f.cwd){const a=await buildApp({cwd,env:{HOME:f.home},provider:new ScriptedProvider([]),agentHub:false});apps.push(a);return a;}
+it('reloads a plugin into all live cores of the same application',async()=>{
+ const f=await fixture();await writeFile(join(f.cwd,'plugins/probe/tools.ts'),`export default[{name:'probe_value',description:'Probe',parameters:{type:'object'},describe:()=>({tool:'probe_value',readOnly:true}),execute:async()=>({ok:true,data:'available'})}];`);
+ await writeFile(join(f.cwd,'plugins/probe/hooks.ts'),`import{writeFileSync}from'node:fs';import{join}from'node:path';export default{'session.reload':async(_,$)=>writeFileSync(join(${JSON.stringify(f.root)},$.session.id),'reloaded')};`);
+ const a=await app(f),first=a.createCore(async()=>true),second=a.createCore(async()=>true);
+ expect((await first.invokeTool('extension_control',{action:'enable',name:'probe',scope:'project'})).ok).toBe(true);
+ await a.reloadPlugins(first);
+ expect(first.getToolNames()).toContain('probe_value');expect(second.getToolNames()).toContain('probe_value');
+ expect(await readFile(join(f.root,first.sessionId),'utf8')).toBe('reloaded');expect(await readFile(join(f.root,second.sessionId),'utf8')).toBe('reloaded');
+});
+it('waits for another live core and ignores it after close before reloading',async()=>{
+ const f=await fixture(),provider=new ScriptedProvider([{text:'working',hold:true}]);
+ const a=await buildApp({cwd:f.cwd,env:{HOME:f.home},provider,agentHub:false});apps.push(a);
+ const first=a.createCore(async()=>true),second=a.createCore(async()=>true);
+ expect((await first.invokeTool('extension_control',{action:'enable',name:'probe',scope:'project'})).ok).toBe(true);
+ const running=second.submit('Hold this session');
+ try{
+  await expect.poll(()=>provider.requests.length).toBe(1);
+  expect(await a.reloadPlugins(first)).toContain('Wait until');
+  expect(first.host.hasPlugin('probe')).toBe(false);expect(second.host.hasPlugin('probe')).toBe(false);
+ }finally{provider.release();await running;}
+ await a.reloadPlugins(first);expect(first.host.hasPlugin('probe')).toBe(true);expect(second.host.hasPlugin('probe')).toBe(true);
+ await second.close();await second.whenClosed;
+ expect((await first.invokeTool('extension_control',{action:'disable',name:'probe',scope:'project'})).ok).toBe(true);
+ expect(await a.reloadPlugins(first)).toContain('Reloaded 0 plugins');expect(first.host.hasPlugin('probe')).toBe(false);
+});
 it('defaults to no executable plugins, retains offline default market and does not import inactive modules',async()=>{
  const f=await fixture(),a=await app(f),core=a.createCore(async()=>true);expect(a.plugins).toEqual([]);
  await expect(readFile(join(f.root,'imported'))).rejects.toMatchObject({code:'ENOENT'});

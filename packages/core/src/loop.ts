@@ -222,6 +222,10 @@ export class AgentCore {
   private activeTurn?:Promise<void>;
   private closed=false;
   private closePromise?:Promise<void>;
+  private resolveClosed!:()=>void;
+  /** Resolves after close has settled, including a failed teardown. */
+  readonly whenClosed=new Promise<void>(resolve=>{this.resolveClosed=resolve;});
+  get isClosed():boolean{return this.closed;}
   private readonly closeCancellation=new AbortController();
   private resetBackground:Promise<unknown>=Promise.resolve();
   private resettingBackground=false;
@@ -1694,7 +1698,7 @@ export class AgentCore {
         try {await this.stopShells();} finally {this.host.close();await this.host.closeProcesses();this.options.plugins=[];}
       }
     });
-    void work.then(unbind,unbind);return work;
+    void work.then(()=>{unbind();this.resolveClosed();},()=>{unbind();this.resolveClosed();});return work;
   }
 
   // ---- subagents (the task tool / service.agent.spawn) --------------------

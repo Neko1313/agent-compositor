@@ -4,6 +4,17 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {AgentCore,ScriptedProvider,type CoreHumanRequestContext} from '../src/index.js';
 
+it('reports closing immediately and resolves whenClosed only after teardown settles',async()=>{
+  let release!:()=>void,entered!:()=>void,settled=false;
+  const gate=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{entered=resolve;});
+  const core=new AgentCore({cwd:process.cwd(),provider:new ScriptedProvider([]),plugins:[{manifest:{name:'slow-close',version:'1.0.0',trust:'trusted'},hooks:{'session.end':async()=>{entered();await gate;}}}]});
+  void core.whenClosed.then(()=>{settled=true;});
+  expect(core.isClosed).toBe(false);const closing=core.close();
+  try{expect(core.isClosed).toBe(true);await started;expect(settled).toBe(false);}
+  finally{release();await closing;await core.whenClosed;}
+  expect(settled).toBe(true);
+});
+
 it('stores one close promise before human-lifetime abort subscribers can reenter',async()=>{
   let context!:CoreHumanRequestContext,reentered:Promise<void>|undefined,ends=0;
   const core=new AgentCore({cwd:process.cwd(),provider:new ScriptedProvider([]),rules:[{tool:'ask_user',decision:'allow'}],

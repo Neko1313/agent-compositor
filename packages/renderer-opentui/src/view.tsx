@@ -184,9 +184,9 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
   const publicState=usePublicRenderSnapshot(publicRender);
   const editor = useRef<TextareaRenderable>(null);
+  const pendingSend=useRef<ConversationSession|undefined>(undefined);
   const history = useRef<ScrollBoxRenderable>(null);
   const [inputMode, setInputMode] = useState<{id: string; epoch:string|number; editing: boolean}>();
-  const [immediate, setImmediate] = useState(false);
   const [editorWidth,setEditorWidth]=useState(Math.max(1,width-2));
   const owner=useRef({});
   const currentInput=useRef({inputMode,isActive});
@@ -212,9 +212,9 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   const wide = width >= 60;
   const editorHeight = height >= 20 ? 4 : 2;
   const busy = state.running || controllerBlocksInput(state.controller) || Boolean(state.approval) || state.interaction?.kind === 'question';
-  const canSend = !busy || immediate;
+  const canSend = true;
   const inputHint = state.controller ? 'Alt+I answer · Ctrl+J newline' : state.interaction ? 'Alt+I answer or draft · Ctrl+J newline' : state.approval ? 'PgUp/PgDn details · Ctrl+J newline' :
-    busy ? 'Draft while running · Ctrl+J newline' : 'Enter send · Ctrl+J newline';
+    busy ? `Enter queue${selected.steer?' · Tab steer':''} · Ctrl+J newline` : 'Enter send · Ctrl+J newline';
   const fullHint = state.controller ? `${inputHint} · Ctrl+C cancel request`
     : state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
   const admission=state.editor?.admission?.status;
@@ -253,26 +253,29 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   function messageInput() {
     const input = editor.current;
     const current = selected.snapshot();
-    if (!isActive() || editing || current.editor || !input) return;
+    if (!isActive() || editing || current.editor || !input || pendingSend.current===selected) return;
     const text = input.plainText;
     if (!text.trim()) return;
-    if ((current.running || controllerBlocksInput(current.controller) || current.approval || current.interaction?.kind === 'question') && !selected.isImmediateCommand?.(text)) return;
     return {input, text};
   }
-  function send() {
+  function send(intent:'submit'|'steer'='submit') {
     const pending = messageInput();
     if (!pending) return;
     const {input, text} = pending;
-    const result=selected.submit(text);
+    pendingSend.current=selected;
+    let result:void|boolean|Promise<boolean>;
+    try{result=intent==='steer'?selected.steer?.(text)??false:selected.submit(text);}
+    catch{if(pendingSend.current===selected)pendingSend.current=undefined;return;}
     const accepted=(value:void|boolean)=>{
       if(value===false)return;
       // The wire admission queue holds later input until this receipt. Also
       // protect callers without that queue from clearing a newer native draft.
-      if(input.plainText===text&&selected.isCurrent?.()!==false){input.setText('');setImmediate(false);}
+      if(input.plainText===text&&selected.isCurrent?.()!==false){input.setText('');}
       if(isActive())input.focus();
     };
-    if(result&&typeof result==='object')void result.then(value=>flushSync(()=>accepted(value)));
-    else accepted(result);
+    const finish=()=>{if(pendingSend.current===selected)pendingSend.current=undefined;};
+    if(result&&typeof result==='object')void result.then(value=>flushSync(()=>accepted(value)),()=>{}).finally(finish);
+    else {accepted(result);finish();}
   }
 
   return (
@@ -301,14 +304,18 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
             height={editorHeight} flexGrow={1} flexBasis={0} minWidth={1} wrapMode="word"
             textColor={textColor} focusedTextColor={textColor} cursorColor={textColor}
             placeholder={`Message ${selected.label}…`} placeholderColor={color.muted}
-            onKeyDown={key => { if (!isActive() || editing || selected.snapshot().editor) key.preventDefault(); }}
+            onKeyDown={key => {
+              if (!isActive() || editing || selected.snapshot().editor) {key.preventDefault();return;}
+              if(key.name==='tab'&&!key.ctrl&&!key.meta&&!key.shift&&selected.steer&&messageInput()){
+                key.preventDefault();if(!key.repeated)send('steer');
+              }
+            }}
             onPaste={event => { if (!isActive() || editing || selected.snapshot().editor) event.preventDefault(); }}
-            onContentChange={() => setImmediate(Boolean(selected.isImmediateCommand?.(editor.current?.plainText ?? '')))}
-            keyBindings={editorKeys} onSubmit={send} />
+            keyBindings={editorKeys} onSubmit={()=>send()} />
         <Ghost media={composerMedia} enabled={!editing && !state.editor && focused} expanded={animations && wide && height >= 20} active={state.running} />
         {focused && <box height={1} paddingX={1} backgroundColor={canSend ? color.selectionBackground : color.panel}
           onMouseDown={event => {
-            handleActionMouseDown(event, Boolean(messageInput()), send);
+            handleActionMouseDown(event, Boolean(messageInput()), ()=>send());
           }}>
           <text selectable={false} fg={canSend ? color.selectionText : color.muted}
             attributes={TextAttributes.BOLD}>Send</text>

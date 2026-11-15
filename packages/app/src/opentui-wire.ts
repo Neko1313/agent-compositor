@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {answerHello,hello,COMPOSER_MEDIA_STATUS,nativeStateSchema,parseSemVer,type HelloAckMessage,type HelloMessage,type WireMessage} from '@agent-compositor/protocol';
+import {answerHello,hello,COMPOSER_MEDIA_STATUS,NATIVE_STEER,nativeStateSchema,parseSemVer,type HelloAckMessage,type HelloMessage,type WireMessage} from '@agent-compositor/protocol';
 import type {ControllerInput,ControllerView,ConversationSession,PublicRenderSlotSource,UiSurfaceSource,WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {createOpenTuiHost} from './opentui-host.js';
 import type {UiTextView} from '@agent-compositor/events';
@@ -9,8 +9,8 @@ type NativeReceipt=Extract<WireMessage,{type:'native-receipt'}>;
 type NativeState=Extract<WireMessage,{type:'native-state'}>;
 type Host=ReturnType<typeof createOpenTuiHost>;
 type Port={kind:'session';source:ConversationSession}|{kind:'surface';source:UiSurfaceSource}|{kind:'public';source:PublicRenderSlotSource};
-const elements=['Text','Box','Layout','Pointer','native-presentation-v1','native-input-v1',COMPOSER_MEDIA_STATUS];
-const sessionMethods=['submit','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction','controllerInput','controllerViewport','cancelController','editorInput','editorViewport'] as const;
+const elements=['Text','Box','Layout','Pointer','native-presentation-v1','native-input-v1',COMPOSER_MEDIA_STATUS,NATIVE_STEER];
+const sessionMethods=['submit','steer','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction','controllerInput','controllerViewport','cancelController','editorInput','editorViewport'] as const;
 const surfaceMethods=['press','change','answerApproval','answerInteraction','cancelInteraction','answerForm','cancelForm','controllerInput','controllerViewport','cancelController'] as const;
 function hasAction(view:UiTextView|undefined,action:string){
   return Boolean(view&&(view.lines.some(line=>line.action===action)||view.tabs?.some(tab=>!tab.disabled&&tab.action===action)
@@ -29,7 +29,8 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
   const epoch=randomUUID(),localHello=hello('core',{surfaces:['terminal'],sites:[],elements,encodings:['jsonl']});
   const tokens=new WeakMap<object,string>(),subscriptions=new Map<object,()=>void>(),globalSubscriptions:(()=>void)[]=[];
   const receipts=new Map<number,{input:string;receipt:NativeReceipt}>();
-  let serial=0,revision=0,mediaRevision=0,highestInput=-1,active=true,negotiated=false,mediaStatus=false,publishing=false,dirty=false;
+  const pendingReceipts=new Map<number,string>();
+  let serial=0,revision=0,mediaRevision=0,highestInput=-1,active=true,negotiated=false,mediaStatus=false,steering=false,publishing=false,dirty=false;
   let receivedAck:HelloAckMessage|undefined,negotiatedVersion:string|undefined;
   let ports=new Map<string,Port>(),lastState='',offMedia:(()=>void)|undefined;
   function transmit(message:WireMessage){
@@ -52,7 +53,7 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
         const source=window.session,port=token(source);watch(source);nextPorts.set(port,{kind:'session',source});
         return {port,id:source.id,conversationId:source.conversationId,generation:source.generation,paneId:source.paneId,
           label:source.label,current:source.isCurrent?.()!==false,snapshot:source.snapshot(),
-          methods:sessionMethods.filter(method=>typeof source[method]==='function')};
+          methods:sessionMethods.filter(method=>(method!=='steer'||steering)&&typeof source[method]==='function')};
       });
       const surfaces=options.host.surfaces.snapshot().map(source=>{
         const port=token(source);watch(source);nextPorts.set(port,{kind:'surface',source});
@@ -91,7 +92,7 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
     receipts.set(message.id,{input:JSON.stringify(message),receipt:value});if(receipts.size>512)receipts.delete(receipts.keys().next().value!);
     transmit(value);
   }
-  function invoke(message:NativeInput):Partial<NativeReceipt>{
+  function invoke(message:NativeInput):Partial<NativeReceipt>|Promise<Partial<NativeReceipt>>{
     const op=message.operation,target=message.target;
     if(target==='@layout'){
       if(op.kind==='layout-resize'){options.layout.resize(op.width,op.height);return {};}
@@ -133,7 +134,13 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
     if(port.kind==='session'&&port.source.isCurrent?.()===false)return {status:'rejected'};
     if(port.kind==='session'){
       const session=port.source;
-      if(op.kind==='submit')return {status:session.submit(op.text)===false?'rejected':'accepted'};
+      if(op.kind==='submit'||op.kind==='steer'){
+        if(op.kind==='steer'&&!steering)return {status:'rejected'};
+        const operation=op.kind==='steer'?session.steer:session.submit;if(!operation)return {status:'rejected'};
+        const result=operation.call(session,op.text);
+        if(result instanceof Promise)return result.then(value=>({status:value===false?'rejected':'accepted'}));
+        return {status:result===false?'rejected':'accepted'};
+      }
       if(op.kind==='interrupt'&&normal&&focused&&session.interrupt){session.interrupt();return {};}
       if(op.kind==='editor-input'&&normal&&focused&&session.snapshot().editor?.id===op.id&&session.editorInput){
         const revision=inputRevision(op.input,session.snapshot().editor!,op.revision);
@@ -179,6 +186,7 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
       const supported=remote.role==='renderer'&&['native-presentation-v1','native-input-v1'].every(element=>remote.capabilities.elements.includes(element));
       negotiated=ack.ok&&supported&&Number(ack.version?.split('.')[1])>=7&&(!receivedAck||receivedAck.version===ack.version);
       mediaStatus=negotiated&&remote.capabilities.elements.includes(COMPOSER_MEDIA_STATUS);
+      steering=negotiated&&remote.capabilities.elements.includes(NATIVE_STEER);
       negotiatedVersion=negotiated?ack.version:undefined;
       transmit(negotiated?ack:{type:'hello-ack',ok:false,reason:'Native presentation and input v1 are required'});
       if(!active)return;
@@ -200,14 +208,22 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
     const previous=receipts.get(message.id);if(previous){
       transmit(previous.input===JSON.stringify(message)?previous.receipt:{type:'native-receipt',epoch,id:message.id,status:'rejected'});return;
     }
-    if(message.id<=highestInput){transmit({type:'native-receipt',epoch,id:message.id,status:'rejected'});return;}
+    const pending=pendingReceipts.get(message.id);if(pending!==undefined){
+      if(pending!==JSON.stringify(message))transmit({type:'native-receipt',epoch,id:message.id,status:'rejected'});return;
+    }
+    if(message.id<=highestInput||pendingReceipts.size>=512){transmit({type:'native-receipt',epoch,id:message.id,status:'rejected'});return;}
     highestInput=message.id;
-    try{receipt(message,invoke(message));}catch{receipt(message,{status:'rejected'});}
+    try{
+      const result=invoke(message);
+      if(result instanceof Promise){pendingReceipts.set(message.id,JSON.stringify(message));
+        void result.then(value=>receipt(message,value),()=>receipt(message,{status:'rejected'})).finally(()=>pendingReceipts.delete(message.id));
+      }else receipt(message,result);
+    }catch{receipt(message,{status:'rejected'});}
   }
   function close(){
-    if(!active)return;active=false;mediaStatus=false;offMedia?.();offMedia=undefined;
+    if(!active)return;active=false;mediaStatus=false;steering=false;offMedia?.();offMedia=undefined;
     for(const off of globalSubscriptions.splice(0))off();
-    for(const off of subscriptions.values())off();subscriptions.clear();ports.clear();receipts.clear();
+    for(const off of subscriptions.values())off();subscriptions.clear();ports.clear();receipts.clear();pendingReceipts.clear();
   }
   return {epoch,hello:()=>transmit(localHello),receive,close};
 }

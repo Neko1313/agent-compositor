@@ -26,6 +26,12 @@ modern emoji as one cell and can leave stale glyphs after valid cursor updates.
 The raw-ANSI regression checks both profiles against the same writes. This does
 not establish support for every extended emoji or grapheme-cluster sequence.
 
+`node tools/visual/opentui-recovery-check.mjs` runs the actual OpenTUI CLI
+against an isolated loopback provider, verifies that unapplied steering survives
+restart and retries only after a user command. Set `VISUAL_OPENTUI_QUEUE=1` to
+check the Enter-to-queue path instead. The scenarios use a controlled provider,
+not a native terminal or paid model.
+
 `node tools/visual/queue-failure-check.mjs` runs the Ink app with an isolated
 journal denial. It verifies that an unaccepted queued message returns to the
 editor. Set `VISUAL_INPUT_WRITE_FAIL=1` to check the first user turn instead.

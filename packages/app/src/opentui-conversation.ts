@@ -98,6 +98,11 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Conv
       update(state);
       return;
     }
+    if(event.kind==='catalog'&&(event.event==='prompt.queued'||event.event==='prompt.steer')){
+      const text=clean(String(event.input.text??'')).replace(/\s+/g,' ').trim();
+      notice=`${event.event==='prompt.queued'?'Queued':'Steering queued'}: ${text.slice(0,160)}${text.length>160?'…':''}`;
+      update(state);return;
+    }
     if (event.kind === 'text') {
       streaming += event.delta;
       update({messages: [...committed, {role: 'assistant', text: streaming}], running: true});
@@ -132,6 +137,7 @@ export function connectConversation(core: AgentCore, label: string, inbox?: Conv
         update({messages: committed, running: true});
         break;
       case 'turn.step':
+        if(notice?.startsWith('Steering queued:'))notice=undefined;
         committed = project();
         streaming = '';
         update({messages: committed, running: true});

@@ -7,6 +7,8 @@ export const NATIVE_INPUT='native-input-v1';
 export const nativeProtocolElements=[NATIVE_PRESENTATION,NATIVE_INPUT] as const;
 /** Optional media metadata; never required from existing native peers. */
 export const COMPOSER_MEDIA_STATUS='composer-media-status-v1';
+/** Optional native steering; legacy peers retain their strict method set. */
+export const NATIVE_STEER='native-steer-v1';
 
 const uint=z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const id=z.string().min(1).max(256);
@@ -49,7 +51,7 @@ export const nativeConversationSnapshotSchema=z.object({messages:z.array(message
   editor:nativeEditorSchema.optional(),
 }).strict();
 
-export const nativeSessionMethods=['submit','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction',
+export const nativeSessionMethods=['submit','steer','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction',
   'controllerInput','controllerViewport','cancelController','editorInput','editorViewport'] as const;
 export const nativeSurfaceMethods=['press','change','answerApproval','answerInteraction','cancelInteraction','answerForm','cancelForm',
   'controllerInput','controllerViewport','cancelController'] as const;
@@ -115,7 +117,7 @@ export const nativeMeasurementSchema=z.object({columns:cells,rows:cells,visible:
 // validates it against the originally admitted request before any effect.
 const answer=z.json();
 export const nativeOperationSchema=z.discriminatedUnion('kind',[
-  z.object({kind:z.literal('submit'),text:z.string()}).strict(),z.object({kind:z.literal('interrupt')}).strict(),
+  z.object({kind:z.literal('submit'),text:z.string()}).strict(),z.object({kind:z.literal('steer'),text:z.string()}).strict(),z.object({kind:z.literal('interrupt')}).strict(),
   z.object({kind:z.literal('approval'),id,allow:z.boolean()}).strict(),
   z.object({kind:z.literal('interaction'),id,value:answer}).strict(),z.object({kind:z.literal('cancel-interaction'),id}).strict(),
   z.object({kind:z.literal('controller-input'),id,input:nativeControllerInputSchema,revision:uint}).strict(),

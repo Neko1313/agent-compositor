@@ -201,7 +201,8 @@ OpenTUI editors, questions and plugin views. From source use
 `bun packages/app/src/bin.ts --renderer opentui`. Providers, private credentials,
 session resume and plugin management use the same services as the default Ink
 frontend. Settings forms run in separate windows while Main remains active or
-waits for a human answer. This is distinct from `npm run opentui:preview`, which
+waits for a human answer. In Main, Enter queues a follow-up while the agent runs;
+Tab sends steering when the selected session supports it. This is distinct from `npm run opentui:preview`, which
 uses isolated deterministic demonstration sessions.
 
 The application host and native frontend exchange versioned JSONL messages,

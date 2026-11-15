@@ -199,6 +199,14 @@ including when the host and renderer share a process.
 | host → renderer | `native-receipt` | Accepted or rejected input admission, with optional controller ticket or navigation decision |
 | host → renderer | `native-media` | Separate bounded RGBA frames and cell dimensions for subscribed composer media |
 
+When both peers advertise `native-steer-v1`, a session may advertise `steer`
+as an optional method. A peer sends the `steer` operation only for an
+advertised session. Legacy peers never receive the new method or operation. `submit` and `steer` receipts reflect
+the Core admission result, which can arrive asynchronously after journal writes.
+The broker deduplicates in-flight input IDs; an unaccepted input remains editable
+in the frontend. Layout and other independent inputs remain available while a
+receipt is pending.
+
 The optional `composer-media-status-v1` element adds selected-producer
 presentation (`label`, `alt`, `hasImage`) to `native-media` and an `expanded`
 flag to media subscription input. Both peers must advertise it before either

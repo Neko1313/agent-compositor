@@ -71,7 +71,7 @@ describe('negotiated native presentation data',()=>{
 describe('native input and admission receipts',()=>{
   it('round-trips every broker operation with explicit JSON data only',()=>{
     const operations:NativeOperation[]=[
-      {kind:'submit',text:'Draft 😀'},{kind:'interrupt'},{kind:'approval',id:'approval-1',allow:false},
+      {kind:'submit',text:'Draft 😀'},{kind:'steer',text:'Correction'},{kind:'interrupt'},{kind:'approval',id:'approval-1',allow:false},
       {kind:'interaction',id:'question-1',value:{answers:[{id:'choice',selected:['Production']}]}},{kind:'cancel-interaction',id:'question-1'},
       {kind:'controller-input',id:'controller-1',revision:3,input:{kind:'text',text:'q',paste:true}},
       {kind:'controller-viewport',id:'controller-1',columns:38,rows:8},{kind:'cancel-controller',id:'controller-1'},

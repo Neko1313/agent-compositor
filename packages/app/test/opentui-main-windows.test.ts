@@ -190,7 +190,7 @@ it('rejects native submission during a held replacement startup while retaining 
   expect(port.submit('UNSENT_DURING_STARTUP')).toBe(false);
   expect(f.provider.requests).toHaveLength(1);expect(f.host.core.getMessages().some(message => message.content.includes('UNSENT_DURING_STARTUP'))).toBe(false);
   release();await switching;f.focus('window-1');
-  expect(port.submit('Admitted after startup')).toBe(true);
+  expect(await port.submit('Admitted after startup')).toBe(true);
   await expect.poll(() => port.snapshot().messages.at(-1)).toEqual({role: 'assistant', text: 'Second reply'});
   expect(f.provider.requests).toHaveLength(2);
   expect(JSON.stringify(f.provider.requests)).not.toContain('UNSENT_DURING_STARTUP');
@@ -205,9 +205,9 @@ it('rejects native text after replacement startup failure but keeps explicit rel
   const port = f.host.session;expect(port.isCurrent!()).toBe(true);
   expect(port.submit('UNSENT_AFTER_STARTUP_FAILURE')).toBe(false);
   expect(port.snapshot().notice).toContain('Retry /reload');expect(f.provider.requests).toHaveLength(1);
-  expect(port.submit('/reload')).toBe(true);
+  expect(await port.submit('/reload')).toBe(true);
   await expect.poll(() => port.snapshot().notice).toMatch(/^Reloaded /);
-  expect(port.submit('After explicit recovery')).toBe(true);
+  expect(await port.submit('After explicit recovery')).toBe(true);
   await expect.poll(() => port.snapshot().messages.at(-1)).toEqual({role: 'assistant', text: 'Second reply'});
   expect(JSON.stringify(f.provider.requests)).not.toContain('UNSENT_AFTER_STARTUP_FAILURE');
 });

@@ -313,7 +313,11 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         submit(text: string) {
           if (!inputActive() || switching || !text.trim()) return false;
           if (reloadFailed && text.trim().split(/\s+/)[0] !== '/reload') {notice(retryMessage());return false;}
-          binding.conversation.submit(text);return true;
+          return sendEditor(binding.owner,{type:'submit',text},layout.windowIntentRevision).then(result=>result!==false);
+        },
+        steer(text:string) {
+          if(!inputActive()||switching||!text.trim())return false;
+          return sendEditor(binding.owner,{type:'steer',text},layout.windowIntentRevision).then(result=>result!==false);
         },
         isImmediateCommand: (text: string) => current() && immediate(text),
         interrupt() {if (inputActive()) binding.owner.interrupt();},

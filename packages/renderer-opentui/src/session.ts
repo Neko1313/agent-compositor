@@ -39,6 +39,7 @@ export interface ConversationSession {
   snapshot(): ConversationSnapshot;
   subscribe(callback: () => void): () => void;
   submit(text: string): void|boolean|Promise<boolean>;
+  steer?(text: string): void|boolean|Promise<boolean>;
   isImmediateCommand?(text: string): boolean;
   interrupt?(): void;
   answerApproval?(id: string, allow: boolean): void;

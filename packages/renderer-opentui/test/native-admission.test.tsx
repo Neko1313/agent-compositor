@@ -147,6 +147,26 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     expect(f.test.captureCharFrame()).toContain('Help_😀窗');
   });
 
+  it('does not send the same native draft twice while admission is pending',async()=>{
+    const f=await fixture(true);f.holdWhen(input=>input?.operation.kind==='submit');
+    await f.test.mockInput.pasteBracketedText('ONE_TASK');await f.until(()=>f.editor().plainText==='ONE_TASK');
+    f.packet('\r\r');await f.until(()=>f.held.length===1);f.release();
+    await f.until(()=>f.provider.requests.length===1&&!f.client.pending());
+    expect(f.inputs.filter(value=>value.operation.kind==='submit')).toHaveLength(1);
+    expect(f.provider.requests).toHaveLength(1);
+  });
+
+  it('retains the native draft when Core cannot journal the new input',async()=>{
+    const f=await fixture();
+    f.host.core.runtime.setResolver('service.session.append',async({sessionId,cwd,event,data}:any)=>{
+      if(event==='prompt.input.intent')return {deny:'fixture disk unavailable'};
+      await f.app.store.create(cwd,{id:sessionId});await f.app.store.append(sessionId,[{type:event,...data}],cwd);return {value:true};
+    });
+    await f.test.mockInput.pasteBracketedText('KEEP_NATIVE_DRAFT');await f.until(()=>f.editor().plainText==='KEEP_NATIVE_DRAFT');
+    f.packet('\r');await f.until(()=>f.inputs.some(value=>value.operation.kind==='submit')&&!f.client.pending());
+    expect(f.editor().plainText).toBe('KEEP_NATIVE_DRAFT');expect(f.provider.requests).toHaveLength(0);
+  });
+
   it('retains rejected draft and subsequent typing through a genuine failed replacement startup',async()=>{
     const f=await fixture();await f.host.submit('Seed');const resume=f.app.resume;
     f.app.resume=async(...args)=>{const next=await resume(...args);next.start=async()=>{throw Error('Controlled startup failure');};return next;};

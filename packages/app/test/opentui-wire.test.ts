@@ -30,7 +30,7 @@ async function fixture(provider=new ScriptedProvider([]),controllers?:Partial<Re
     const message:NativeInputMessage={type:'native-input',epoch:broker.epoch,id:++id,target,operation,...extra};receive(message);
     return {message,receipt:messages.slice().reverse().find(value=>value.type==='native-receipt'&&value.id===message.id)};
   };
-  return {cwd,host,layout,provider,messages,broker,receive,negotiate,state,input};
+  return {cwd,app,host,layout,provider,messages,broker,receive,negotiate,state,input};
 }
 
 it.each(['form','editor'] as const)('keeps relative %s input on its live lease while fencing painted targets, fields, focus and retired identities',async kind=>{
@@ -144,7 +144,8 @@ it('accepts a zero-based first protocol input and rejects a changed duplicate',a
 it('acknowledges submission before model completion and keeps navigation independent of the held turn',async()=>{
   const provider=new ScriptedProvider([{text:'HELD_MAIN',hold:true},{text:'Done'}]),f=await fixture(provider);cleanup.push(()=>provider.release());
   f.negotiate();const main=f.state().state.sessions[0];
-  expect(f.input(main.port,{kind:'submit',text:'Main work'}).receipt).toMatchObject({status:'accepted'});
+  const submitted=f.input(main.port,{kind:'submit',text:'Main work'});
+  await expect.poll(()=>f.messages.find(value=>value.type==='native-receipt'&&value.id===submitted.message.id)).toMatchObject({status:'accepted'});
   await expect.poll(()=>provider.requests.length).toBe(1);expect(f.host.core.getState()).toBe('running');
   expect(f.input('@navigation',{kind:'navigation-handle',input:{kind:'key',key:'f2'}}).receipt).toMatchObject({status:'accepted',consumed:true});
   expect(f.state().state.navigation?.mode).toBe('finder');
@@ -221,4 +222,29 @@ it('rejects an action when all real UI operation slots are occupied',async()=>{
   await expect.poll(()=>calls).toBe(4);
   expect(press()).toMatchObject({status:'rejected'});expect(calls).toBe(4);
   expect(f.state().state.sessions[0].snapshot.notice).toBe('Four interface operations are already active');
+});
+
+it('waits for journal acceptance and deduplicates a repeated in-flight native submit',async()=>{
+ const provider=new ScriptedProvider([{text:'Done'}]),f=await fixture(provider);f.negotiate();const main=f.state().state.sessions[0];
+ let release!:()=>void,entered!:()=>void,writes=0;
+ const held=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{entered=resolve;});
+ f.host.core.runtime.setResolver('service.session.append',async({sessionId,cwd,event,data}:any)=>{
+  if(event==='prompt.input.intent'){writes++;entered();await held;}
+  await f.app.store.create(cwd,{id:sessionId});await f.app.store.append(sessionId,[{type:event,...data}],cwd);return {value:true};
+ });
+ const submitted=f.input(main.port,{kind:'submit',text:'One task'});await started;
+ expect(submitted.receipt).toBeUndefined();f.receive(submitted.message);
+ expect(f.messages.some(value=>value.type==='native-receipt'&&value.id===submitted.message.id)).toBe(false);
+ expect(writes).toBe(1);expect(provider.requests).toHaveLength(0);
+ expect(f.input('@navigation',{kind:'navigation-handle',input:{kind:'key',key:'f2'}}).receipt).toMatchObject({status:'accepted'});
+ release();await expect.poll(()=>f.messages.find(value=>value.type==='native-receipt'&&value.id===submitted.message.id)).toMatchObject({status:'accepted'});
+ await expect.poll(()=>provider.requests.length).toBe(1);expect(writes).toBe(1);
+});
+
+it('negotiates native steering without exposing the new method to legacy peers',async()=>{
+  const legacy=await fixture();legacy.negotiate();const oldSession=legacy.state().state.sessions[0];
+  expect(oldSession.methods).not.toContain('steer');
+  expect(legacy.input(oldSession.port,{kind:'steer',text:'FORGED'}).receipt).toMatchObject({status:'rejected'});
+  const modern=await fixture();modern.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-steer-v1'],encodings:['jsonl']}));
+  expect(modern.state().state.sessions[0].methods).toContain('steer');
 });

@@ -7,6 +7,15 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+An installed Linux x64 OpenTUI `/btw` probe reproduced a stale side Reply field:
+the draft reached private storage after switching to a held Main, but reopening
+the side window showed the prior empty value. Agent-hub now republishes its
+current draft after a valid input change. The same controlled flow passes on
+source and a locally rebuilt binary, including window closure and restart;
+reports are `dist/visual-opentui-btw-native-audit-c2fd409/` and
+`dist/visual-opentui-btw-native-agent-fix/`. This is one loopback-provider
+scenario, not proof for physical terminals or other platforms.
+
 An isolated browser-backed PTY check on a locally installed Linux x64 binary
 from `c2fd409` created two managed agents, retained separate drafts across
 restart, and exercised delayed and conflicting field updates. Its loopback

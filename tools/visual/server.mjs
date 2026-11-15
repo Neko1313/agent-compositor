@@ -34,6 +34,7 @@ if(process.env.VISUAL_PERFORMANCE)await writeFile(join(output,'terminal.events.j
 await mkdir(join(cwd, 'plugins'));
 for (const name of ['todos', 'slash-commands', 'ui-theme']) await cp(join(root, 'plugins', name), join(cwd, 'plugins', name), { recursive: true });
 if(process.env.VISUAL_OPENTUI_APP&&!process.env.VISUAL_EXECUTABLE)await cp(join(root,'plugins/network-proxy'),join(cwd,'plugins/network-proxy'),{recursive:true});
+if(process.env.VISUAL_OPENTUI_BTW&&!process.env.VISUAL_EXECUTABLE)await cp(join(root,'plugins/btw'),join(cwd,'plugins/btw'),{recursive:true});
 await mkdir(join(cwd, '.agent-compositor'));
 if(process.env.VISUAL_GIT_FIXTURE){
   const git=(...args)=>{
@@ -181,7 +182,7 @@ async function start(ws) {
   if(process.env.VISUAL_OPENTUI_APP){
     const sessions=appStarts?(await readdir(join(appLaunch.state,'sessions'))).filter(name=>name.endsWith('.jsonl')):[];
     let resumeId=sessions[0]?.slice(0,-6);
-    if(appStarts&&(process.env.VISUAL_OPENTUI_CONVERSATION_COPIES||process.env.VISUAL_OPENTUI_RENDER||process.env.VISUAL_OPENTUI_AGENT_DRAFTS)){
+    if(appStarts&&(process.env.VISUAL_OPENTUI_CONVERSATION_COPIES||process.env.VISUAL_OPENTUI_RENDER||process.env.VISUAL_OPENTUI_AGENT_DRAFTS||process.env.VISUAL_OPENTUI_BTW)){
       const current=JSON.parse(await readFile((appLaunch.conversationCopies??appLaunch.render?.shared??appLaunch.child).active,'utf8'));
       if(typeof current.id!=='string'||!sessions.includes(current.id+'.jsonl'))throw Error('Actual copy fixture startup must identify an existing journal');
       resumeId=current.id;
@@ -223,7 +224,7 @@ async function start(ws) {
 async function stop() { if (!active) return; const previous = active; active = undefined; previous.proc.kill(); await previous.proc.exited; }
 const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(process.env.PORT ?? 0),
-  ...((process.env.VISUAL_ONBOARDING_CANCEL||process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT||process.env.VISUAL_OPENTUI_PROCESS_KILL)?{idleTimeout:120}:{}),
+  ...((process.env.VISUAL_ONBOARDING_CANCEL||process.env.VISUAL_OPENTUI_RECOVERY_INTERRUPT||process.env.VISUAL_OPENTUI_PROCESS_KILL||process.env.VISUAL_OPENTUI_BTW)?{idleTimeout:120}:{}),
   async fetch(request, server) {
     const url = new URL(request.url);
     if(process.env.VISUAL_ONBOARDING_CANCEL&&url.pathname.startsWith(`/setup-cancel/${token}/archive/`)){
@@ -241,6 +242,16 @@ const server = Bun.serve({
       const prompt=body.messages?.filter(message=>message.role==='user').at(-1)?.content??'';
       const credential=authorization==='Bearer '+appUiKey?'ui':authorization==='Bearer '+appBootKey?'bootstrap':'unexpected';
       appReceipt({kind:'completion',number:++appRequests,model:body.model,credential,authorizationHash:new Bun.CryptoHasher('sha256').update(authorization).digest('hex'),body});
+      if(process.env.VISUAL_OPENTUI_BTW){
+        if(appRequests>8||credential==='unexpected')return new Response('Unexpected isolated side-chat request',{status:400});
+        if(prompt==='BTW_MAIN_HOLD'){
+          const frame=`data: ${JSON.stringify({choices:[{delta:{content:'BTW_MAIN_WORKING'},finish_reason:null}]})}\n\n`;
+          return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(frame));request.signal.addEventListener('abort',()=>{appReceipt({kind:'btw-main-aborted'});try{controller.close();}catch{}},{once:true});}}),{headers:{'content-type':'text/event-stream'}});
+        }
+        if(!['BTW_SIDE_QUESTION','BTW_SIDE_FOLLOWUP'].includes(prompt))return new Response('Unexpected side-chat prompt',{status:400});
+        const content=prompt==='BTW_SIDE_QUESTION'?'BTW_SIDE_ANSWER':'BTW_SIDE_FOLLOWUP_ANSWER';
+        return new Response(`data: ${JSON.stringify({choices:[{delta:{content},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
+      }
       if(process.env.VISUAL_OPENTUI_CHILD){
         if(appRequests>80||credential==='unexpected')return new Response('Unexpected isolated child request',{status:400});
         return childModelResponse(prompt,body);
@@ -438,7 +449,7 @@ if(process.env.VISUAL_OPENTUI_APP){
   ...(editor?[editor.provider,editor.requester,'extension-manager',...(editor.selectedProvider?[editor.selectedProvider]:[])]:[]),
   ...(workspaceControllers?[workspaceControllers.provider,workspaceControllers.requester,workspaceControllers.observer,'extension-manager']:[]),
   ...(conversationCopies?[conversationCopies.provider,conversationCopies.requester,conversationCopies.observer,'extension-manager',...(conversationCopies.selectedProvider?[conversationCopies.selectedProvider]:[])]:[]),
-  ...(appearance?appearance.plugins:[]),...(publicRender?publicRender.plugins:[]),...(child?child.plugins:[])],
+  ...(appearance?appearance.plugins:[]),...(publicRender?publicRender.plugins:[]),...(child?child.plugins:[]),...(process.env.VISUAL_OPENTUI_BTW?['btw']:[])],
   ...((controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender||child)?{ui:{controllers:(controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender??child).selected}}:{}),
   ...((cancellation||requests||controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender||child)?{permissions:{rules:(cancellation??requests??controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender??child).rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false,...(child?{tools:['task','ask_user','ask_questions','write','agent_control','extension_control'],builtinTools:['write'],controlTools:['task','ask_user','ask_questions']}: {})},compaction:{enabled:false}}));
  await writeFile(join(paths.state,'providers.json'),JSON.stringify({profiles:{bootstrap:{type:'openai-compat',baseUrl,model:'app-start',contextWindow:65536,timeoutMs:300000}}}));

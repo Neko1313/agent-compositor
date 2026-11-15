@@ -177,8 +177,8 @@ has its own message field: Enter sends a follow-up without queuing behind the
 main turn. Ctrl+C stops the focused agent; closing the pane preserves its work.
 `/btw` reopens the last side conversation for this project after closure or restart,
 or opens an empty conversation if none exists. Alt+i followed by `/chat` returns
-to the main conversation. Pane drafts survive closure within the current process;
-only committed messages survive restart. These agents share the project workspace
+to the main conversation. Side-agent Reply drafts survive switching, closure and
+restart when private draft storage is available. These agents share the project workspace
 and permissions and have independent token/step limits, not isolated worktrees.
 The former isolated notification is available as `/btw --once <question>` without
 tools or transcript context. Side-conversation opening requires catalog 0.26 and

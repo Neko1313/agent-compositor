@@ -624,7 +624,8 @@ export async function agentManager(
       },
       'ui.change':async(e)=>{
         const prefix='plugin-agent-hub-agent-';if(!e.site.startsWith(prefix))return;
-        const id=e.site.slice(prefix.length);if(entries.has(id)&&e.id===`message-${draftIds.get(id)??0}`)drafts.set(id,e.value);
+        const id=e.site.slice(prefix.length),entry=entries.get(id);
+        if(entry&&e.id===`message-${draftIds.get(id)??0}`){drafts.set(id,e.value);await paint(entry);}
       },
     },
   };

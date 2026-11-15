@@ -66,6 +66,7 @@ describe("independent agents, authentication and extensions", () => {
       await change(two,'Second task');await press(two,'enter');await vi.waitFor(()=>expect(provider.requests).toHaveLength(2));
       expect(provider.requests[1].messages.some(message=>message.content==='First task'||message.content==='FIRST_RESULT')).toBe(false);
       await change(one,'FIRST_DRAFT');await change(two,'SECOND_DRAFT');
+      expect(views.get(site(one)).input.value).toBe('FIRST_DRAFT');expect(views.get(site(two)).input.value).toBe('SECOND_DRAFT');
       await press(two,'conversation:'+one);expect(views.get(site(one)).input.value).toBe('FIRST_DRAFT');
       await press(one,'conversation:'+two);expect(views.get(site(two)).input.value).toBe('SECOND_DRAFT');
       await press(two,'conversation:overview');expect(views.get('plugin-agent-hub-agents').table).toBeDefined();

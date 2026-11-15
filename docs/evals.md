@@ -859,6 +859,27 @@ libraries required newer glibc and libstdc++ versions. The captured error is
 `dist/cpu-dispatch-container.stderr`. This single host build does not establish
 relocatability, portability, model quality, or a product-ready runtime.
 
+Another experimental build used GCC 12.2 and glibc 2.36 in a Debian 12
+container, the same source revision and CPU-variant options. Build-time
+networking was disconnected after installing the compiler. Setting
+`CMAKE_BUILD_WITH_INSTALL_RPATH=ON` and `CMAKE_INSTALL_RPATH=$ORIGIN` removed
+the trailing empty search-path element from the original build; `readelf`
+reported exactly `$ORIGIN` for the executable and each built shared library.
+The relocated directory ran the three-turn 2B fixture in a separate unmodified
+Debian 12 slim image with no network, read-only engine/model mounts and a
+non-root user. All responses were valid JSON in 4.792, 7.092 and 9.733 seconds;
+the reported CPU features included AVX2. The final answer incorrectly said
+`test-reports` is necessary to run tests. The executable SHA-256 is
+`4baf65098f8aa01c30a1825fce98c52ba83c339450ef3356ba0ffc6a4a4d65dd`;
+file hashes and the report are in `dist/onboarding-bookworm-inference/`.
+The image digest was
+`d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20`.
+This confirms one relocated Linux x64 container and host, not older CPUs,
+other distributions, macOS, ARM64, backend authenticity or trustworthy
+onboarding. Dynamic backend discovery still searches the working directory;
+the diagnostic's private directory remains necessary. The build identifies its
+own commit as unknown because Git was absent inside the build container.
+
 ## Offline CPU development diagnostic
 
 With `ollama` on PATH and an existing local model cache, run:

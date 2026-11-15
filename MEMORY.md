@@ -25,6 +25,13 @@ ran the known 2B dialogue locally, but its GCC 16/glibc 2.44 host libraries
 failed to load in Debian 12 and the binary has an absolute build runpath. Its
 answers still misdescribed available plugin-state inspection. Evidence and
 limits are in docs/evals.md; this is not a portable onboarding runtime.
+A separate GCC 12/glibc 2.36 variant built in Debian 12, with only `$ORIGIN`
+in the final executable and shared-library RUNPATHs, was relocated and ran the
+2B three-turn fixture in a clean network-disabled Debian 12 container as a
+non-root user. The host selected AVX2; the model still incorrectly claimed
+test-reports is required to run tests. Reports and file hashes are in
+dist/onboarding-bookworm-inference/. This is not verification on old CPUs,
+other platforms, backend integrity or product-quality onboarding.
 
 ## Dependency advisory — 2026-11-16
 

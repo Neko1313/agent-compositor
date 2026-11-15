@@ -23,6 +23,12 @@ it('keeps running/terminal metadata and custom metadata exact, rather than infer
 it('leaves background launch receipts and nonstandard result shapes on the legacy path',()=>{
  for(const value of [null,[],{shellId:'shell-1',started:true},{stdout:12,stderr:''},{stdout:'Only stdout'}])expect(commandModelText(value)).toBeUndefined();
 });
+it('keeps both streams and exit status when either contains a large Unicode log',()=>{
+ const value={stdout:'start 😀\n'+'😀'.repeat(40000)+'\nend stdout',stderr:'failure begins\n'+'x'.repeat(100000)+'\nstack final',exitCode:1};
+ const text=commandModelText(value)!,meta=header(text);
+ expect(meta.result.exitCode).toBe(1);expect(meta.presentation.stdoutOmittedBytes).toBeGreaterThan(0);expect(meta.presentation.stderrOmittedBytes).toBeGreaterThan(0);
+ expect(text).toContain('start 😀');expect(text).toContain('end stdout');expect(text).toContain('failure begins');expect(text).toContain('stack final');expect(text).not.toContain('�');expect(Buffer.byteLength(text)).toBeLessThan(128*1024);
+});
 it('attaches presentation to exec and exec_output while preserving structured data and launch shape',async()=>{
  const data={stdout:'\x1b[31mFailure\x1b[0m\n',stderr:'details\n',exitCode:1,durationMs:3};
  let response:unknown=data;

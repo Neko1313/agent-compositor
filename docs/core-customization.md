@@ -784,6 +784,11 @@ from the display and remaining unsafe controls are visibly escaped. LF/CRLF,
 tabs, Unicode and literal backslash sequences remain intact. Metadata JSON escapes
 control characters without changing their decoded values. The streams are
 untrusted process output, not instructions or guarded edit source.
+Each displayed stream retains up to 48 KiB, split between its beginning and end
+when truncated. The omission marker and `stdoutOmittedBytes` or
+`stderrOmittedBytes` presentation field count omitted bytes after sanitization.
+This keeps a long stdout from hiding stderr diagnostics; full raw streams remain
+in the structured result subject to the shell's own capture limits.
 
 Structured data, exit codes, running/done flags, job IDs, durations and truncation
 fields remain unchanged for callers and verification. A nonzero process exit is
@@ -795,7 +800,8 @@ logs. Unknown status cannot become success from a printed or overridden exit-cod
 string. Older message snapshots with no structured command observation retain
 their existing legacy JSON fallback.
 
-The 128 KiB UTF-8 model-result bound applies to both forms. Oversized text becomes
+The 128 KiB UTF-8 model-result bound applies to both forms, including unusually
+large non-stream metadata. Oversized text becomes
 a bounded JSON preview explicitly marked incomplete, without a top-level edit
 anchor. The exact bounded view is journaled in optional `tool.result.modelText`
 (catalog 0.31) and restored on replay, which applies the same byte bound to

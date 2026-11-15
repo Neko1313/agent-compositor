@@ -25,11 +25,18 @@ it('takes receipt exit status from structured output, never a spoofed log or mod
  const records=f.journal.map(event=>event.type==='tool.result'?{...event,modelText:'{"exitCode":0}'}:event);
  const replay=replayTranscript(records);expect((compactionEvidence(replay,1024)!.metadata!.compositorEvidence as any).observations).toContainEqual({tool:'exec',command:'npm test',exitCode:7});
 });
-it('bounds oversized command presentation and retains raw status in compaction evidence',async()=>{
- const f=await fixture({stdout:'x'.repeat(150000),stderr:'',exitCode:2,durationMs:1}),bounded=JSON.parse(f.sent);
- expect(bounded.truncated).toBe(true);expect(Buffer.byteLength(f.sent)).toBeLessThan(128*1024);
+it('bounds oversized command presentation while retaining stderr and raw status',async()=>{
+ const f=await fixture({stdout:'x'.repeat(150000),stderr:'ACTIONABLE_FAILURE',exitCode:2,durationMs:1});
+ expect(f.sent).toContain('stdoutOmittedBytes');expect(f.sent).toContain('ACTIONABLE_FAILURE');expect(Buffer.byteLength(f.sent)).toBeLessThan(128*1024);
  expect((f.journal.find(event=>event.type==='tool.result')!.output as any).stdout).toHaveLength(150000);
  expect((compactionEvidence(f.core.getMessages(),1024)!.metadata!.compositorEvidence as any).observations).toContainEqual({tool:'exec',command:'npm test',exitCode:2});
+});
+it('delivers diagnostics from an actual failed command after a large stdout',async()=>{
+ const command=`node -e 'process.stdout.write("x".repeat(150000));process.stderr.write("REAL_TEST_FAILURE");process.exit(1)'`;
+ const provider=new ScriptedProvider([{toolCalls:[{name:'exec',args:{command}}]},{text:'The command failed.'}]);
+ const core=new AgentCore({cwd:process.cwd(),provider,onApproval:async()=>true});cores.push(core);
+ await core.submit('Run the check');const result=provider.requests[1].messages.find(message=>message.role==='tool')!.content;
+ expect(result).toContain('REAL_TEST_FAILURE');expect(result).toContain('"exitCode":1');expect(result).toContain('stdoutOmittedBytes');expect(Buffer.byteLength(result)).toBeLessThan(128*1024);
 });
 it('keeps old journal output on its original JSON replay path',()=>{
  const data={stdout:'\x1b[31mOld\x1b[0m\n',stderr:'',exitCode:3};

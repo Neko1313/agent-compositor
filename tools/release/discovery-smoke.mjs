@@ -12,13 +12,19 @@ import {readModelResult} from './model-read.mjs';
 /** Probe the installed tool schemas and real discovery/read services without source injection. */
 export async function smokeDiscovery(binary,output,options={}){
  const root=await realpath(await mkdtemp(join(tmpdir(),'compositor-discovery-smoke-'))),cwd=join(root,...(options.ignoredParent?['hidden','project']:['project'])),home=join(root,'home'),errors=[];
- let server,requests=0,execution,readRejected=false,emptyHint=false,discovered=false,readCorrect=false,noOpRejected=false,editSchema=false,editTarget,semanticResult,semanticCorrect=!options.ignoredParent;
+ let server,requests=0,execution,readRejected=false,emptyHint=false,discovered=false,readCorrect=false,noOpRejected=false,editSchema=false,editTarget,semanticResult,semanticCorrect=!options.ignoredParent,excludesCorrect=!options.ignoredParent;
  const original='export const amount = 18;\n';
  try{
   await mkdir(cwd,{recursive:true});await mkdir(home);
-  if(options.ignoredParent){await promisify(execFile)('git',['init','-q',root],{env:{...process.env,HOME:home,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}});await writeFile(join(root,'.gitignore'),'hidden/\n');}
+  if(options.ignoredParent){
+   const gitOptions={env:{...process.env,HOME:home,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}};
+   await promisify(execFile)('git',['init','-q',root],gitOptions);await writeFile(join(root,'.gitignore'),'hidden/\nhidden/project/parent-secret.ts\n');await writeFile(join(root,'hidden/.gitignore'),'project/ancestor-secret.ts\n');
+   await writeFile(join(root,'.git/info/exclude'),'hidden/project/info-secret.ts\n');
+   await writeFile(join(root,'global-ignore'),'/hidden/project/global-secret.ts\n');
+   await promisify(execFile)('git',['-C',root,'config','core.excludesFile',join(root,'global-ignore')],gitOptions);
+  }
   await writeFile(join(cwd,'actual.mjs'),original);await writeFile(join(cwd,'user-draft.txt'),'PRESERVED');
-  if(options.ignoredParent){await mkdir(join(cwd,'.agent-compositor'),{recursive:true});await writeFile(join(cwd,'.agent-compositor/callix.json'),JSON.stringify({background:false}));await writeFile(join(cwd,'.agentignore'),'secret.ts\n');await writeFile(join(cwd,'probe.ts'),'export function visible_probe(): number { return 42; }\n');await writeFile(join(cwd,'secret.ts'),'export function hidden_probe(): number { return 0; }\n');}
+  if(options.ignoredParent){await mkdir(join(cwd,'.agent-compositor'),{recursive:true});await writeFile(join(cwd,'.agent-compositor/callix.json'),JSON.stringify({background:false}));await writeFile(join(cwd,'.agentignore'),'secret.ts\n');await writeFile(join(cwd,'probe.ts'),'export function visible_probe(): number { return 42; }\n');await writeFile(join(cwd,'secret.ts'),'export function hidden_probe(): number { return 0; }\n');await writeFile(join(cwd,'info-secret.ts'),'export function info_probe(): number { return 0; }\n');await writeFile(join(cwd,'global-secret.ts'),'export function global_probe(): number { return 0; }\n');await writeFile(join(cwd,'parent-secret.ts'),'export function parent_probe(): number { return 0; }\n');await writeFile(join(cwd,'ancestor-secret.ts'),'export function ancestor_probe(): number { return 0; }\n');}
   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['callix'],agent:{tools:['read','edit','glob','grep',...(options.ignoredParent?['code_query']:[])],builtinTools:['read','edit'],controlTools:[],skills:false,projectContext:false,fileReferences:false},compaction:{enabled:false},permissions:{rules:[{tool:'edit',path:cwd+'/**',decision:'allow'}]}}));
   server=createServer(async(req,res)=>{try{
    if(req.url==='/v1/models'){res.setHeader('content-type','application/json');res.end(JSON.stringify({data:[{id:'packed-discovery-probe',context_window:16384}]}));return;}
@@ -33,7 +39,7 @@ export async function smokeDiscovery(binary,output,options={}){
    if(!editSchema)errors.push('Model edit schema must require target, oldText and newText without legacy selectors');
    const last=body.messages.filter(message=>message.role==='tool').at(-1)?.content;
    if(requests===2){const result=JSON.parse(last);emptyHint=result.matches.length===0&&String(result.hint??'').includes('glob')&&String(result.hint??'').includes('shorter literal');if(!emptyHint)errors.push('Empty text result lacks factual discovery guidance');}
-   if(requests===3){const result=JSON.parse(last);discovered=result.files.includes('actual.mjs');if(!discovered)errors.push('Glob did not return the actual project path');}
+   if(requests===3){const result=JSON.parse(last);discovered=result.files.includes('actual.mjs');if(!discovered)errors.push('Glob did not return the actual project path');if(options.ignoredParent){excludesCorrect=['info-secret.ts','global-secret.ts','parent-secret.ts','ancestor-secret.ts'].every(file=>!result.files.includes(file));if(!excludesCorrect)errors.push('Glob exposed an enclosing Git exclusion');}}
    if(requests===4){readRejected=last.includes('read.offset')&&last.includes('1-based');if(!readRejected)errors.push('Invalid read pagination lacks a clear error');}
    if(requests===5){
     const {content,...metadata}=readModelResult(last);
@@ -46,7 +52,7 @@ export async function smokeDiscovery(binary,output,options={}){
     if(!readCorrect)errors.push('Valid ranged read lost exact content or untruncated metadata');
    }
    if(requests===6){noOpRejected=last.includes('edit.newText is identical to edit.oldText')&&last.includes('unchanged')&&last.includes('No file was read or changed.');if(!noOpRejected)errors.push('Edit that leaves the actual file unchanged was accepted');}
-   if(requests===7){const result=JSON.parse(last);semanticResult=result;semanticCorrect=Array.isArray(result.symbols)&&result.symbols.some(symbol=>symbol.name==='visible_probe')&&!result.symbols.some(symbol=>symbol.name==='hidden_probe');if(!semanticCorrect)errors.push('Semantic search failed to find the visible symbol or included the ignored one');}
+   if(requests===7){const result=JSON.parse(last);semanticResult=result;semanticCorrect=Array.isArray(result.symbols)&&result.symbols.some(symbol=>symbol.name==='visible_probe')&&!result.symbols.some(symbol=>['hidden_probe','info_probe','global_probe','parent_probe','ancestor_probe'].includes(symbol.name));if(!semanticCorrect)errors.push('Semantic search failed to find the visible symbol or included the ignored one');}
    res.writeHead(200,{'content-type':'text/event-stream'});
    const frame=(delta,finish_reason='stop')=>'data: '+JSON.stringify({choices:[{delta,finish_reason}]})+'\n\n';
    const call=(name,args)=>frame({tool_calls:[{index:0,id:'discovery-'+requests,type:'function',function:{name,arguments:JSON.stringify(args)}}]},'tool_calls');
@@ -60,7 +66,7 @@ export async function smokeDiscovery(binary,output,options={}){
   let result;try{result=JSON.parse(execution.stdout);}catch{errors.push('Native discovery output was not JSON');}
   const preserved=(await readFile(join(cwd,'actual.mjs'),'utf8'))===original&&(await readFile(join(cwd,'user-draft.txt'),'utf8'))==='PRESERVED';
   const executable={path:resolve(binary),sha256:createHash('sha256').update(await readFile(binary)).digest('hex')};
-  const report={executable,ignoredParent:Boolean(options.ignoredParent),ok:errors.length===0&&requests===(options.ignoredParent?7:6)&&semanticCorrect&&execution.code===0&&execution.stderr===''&&!result?.error&&result?.response==='DISCOVERY_RECOVERY_OK'&&preserved&&emptyHint&&discovered&&readRejected&&readCorrect&&noOpRejected&&editSchema,requests,semanticCorrect,semanticResult,emptyHint,discovered,readRejected,readCorrect,noOpRejected,editSchema,preserved,errors,execution,paidRequests:0};
+  const report={executable,ignoredParent:Boolean(options.ignoredParent),ok:errors.length===0&&requests===(options.ignoredParent?7:6)&&semanticCorrect&&excludesCorrect&&execution.code===0&&execution.stderr===''&&!result?.error&&result?.response==='DISCOVERY_RECOVERY_OK'&&preserved&&emptyHint&&discovered&&readRejected&&readCorrect&&noOpRejected&&editSchema,requests,semanticCorrect,semanticResult,excludesCorrect,emptyHint,discovered,readRejected,readCorrect,noOpRejected,editSchema,preserved,errors,execution,paidRequests:0};
   if(output)await writeFile(output,JSON.stringify(report,null,2)+'\n');assert.ok(report.ok,'Installed discovery probe failed: '+JSON.stringify(report));return report;
  }finally{if(server){server.closeAllConnections();await new Promise(done=>server.close(()=>done()));}await rm(root,{recursive:true,force:true});}
 }

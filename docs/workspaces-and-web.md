@@ -21,7 +21,10 @@ Double-quoted references accept JSON escapes. Single quotes also support spaces.
 under the project's ignore rules and loads its applicable project instructions.
 If the selected root itself is ignored by an enclosing Git repository, discovery
 starts at that root and still applies its local, repository/global and agent
-ignore rules; tracked files remain visible.
+ignore rules; tracked files remain visible. Specific ancestor `.gitignore`,
+repository and global exclusions are applied conservatively to untracked files,
+even if a different rule would re-include one. An ancestor `.gitignore` rule
+that hides the selected root itself is lifted for this discovery.
 The editor completes local, absolute and home paths. Tab accepts a suggestion;
 Enter submits a typed reference unless a suggestion was explicitly selected.
 Completing a directory lets you continue its path. Browsing completion suggestions

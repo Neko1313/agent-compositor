@@ -243,7 +243,12 @@ File search respects Git inventory and agent ignores, and uses nested gitignore
 rules outside Git. When the selected project root is itself ignored by an
 ancestor repository, untracked discovery starts at the selected root while its
 own Git ignore rules, repository/global Git excludes and agent ignores still
-apply; tracked files remain included. Escaping symlinks, deleted entries, binary and oversized text
+apply; tracked files remain included. Repository/global excludes and specific
+ancestor `.gitignore` rules are also checked against the enclosing path. Rules
+that hide the selected root itself are lifted from ancestor `.gitignore` files;
+other exclusions are conservative and can hide an untracked file even if a
+different rule would re-include it.
+Escaping symlinks, deleted entries, binary and oversized text
 files are excluded. Regex search streams ripgrep in argument-safe batches;
 literal search has no ripgrep dependency. Search scanning is bounded to 32 MiB
 and approximately 10 seconds, with `scanLimited` requiring a narrower scope.

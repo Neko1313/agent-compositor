@@ -187,7 +187,8 @@ response guidance and preserves project/user files. Each native job runs it
 both normally and with the explicitly selected project inside a parent
 repository's ignored directory. The latter adds a semantic query that must find
 a visible symbol and exclude an `.agentignore` symbol, using seven bounded
-loopback completions instead of six. Its report is
+loopback completions instead of six. It also checks path-specific ancestor,
+repository and global exclusions in both file and semantic results. Its report is
 `dist/release/discovery-ignored-smoke-PLATFORM.json`. Both reports identify the
 executable by SHA-256. The probes establish packaged tool behavior, not live
 model coding quality.

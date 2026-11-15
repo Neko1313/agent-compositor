@@ -7,6 +7,17 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+The ignored-parent discovery fix introduced a separate exclusion regression:
+re-rooting Git could expose files covered by path-specific enclosing ignore
+rules. An installed Linux x64 probe reproduced this in both glob and semantic
+search. The revised implementation retains specific ancestor `.gitignore`,
+repository and global exclusions, including when the selected root is reached
+through a symlink; conservative filtering can hide additional untracked files.
+The same installed probe passes locally after rebuilding; reports are
+`dist/ignored-all-excludes-before-fix-20261116.json` and
+`dist/ignored-all-excludes-native-final-20261116.json`. Other platforms and
+public release artifacts have not been verified for this change.
+
 An unknown model tool call previously disappeared from provider context after
 session resume. Journal-only call metadata now preserves the original arguments
 and rejection, including for calls omitted by a batch strategy. Source regressions

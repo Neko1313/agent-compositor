@@ -1,8 +1,8 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readdir, realpath, readFile, stat, mkdtemp, rm } from 'node:fs/promises';
-import { resolve, join, dirname, sep } from 'node:path';
-import {tmpdir} from 'node:os';
+import { resolve, join, dirname, relative, sep } from 'node:path';
+import {homedir,tmpdir} from 'node:os';
 import ignore from 'ignore';
 import {encodeReadCursor,readHash,readPageEnd,type ReadCursor} from './read-cursor.js';
 import type {ReadArgs} from './tools/fs.js';
@@ -37,10 +37,43 @@ export async function projectFiles(root: string, limit = 20000): Promise<string[
             try {
                 const temporary = await mkdtemp(join(tmpdir(), 'compositor-project-index-'));
                 try {
-                    const untracked = await exec('git', ['--work-tree', resolve(root), 'ls-files', '--others', '--exclude-standard', '-z'], {
-                        cwd: root, env: {...process.env, GIT_INDEX_FILE: join(temporary, 'index')}, maxBuffer: 8 * 1024 * 1024, timeout: 10000,
+                    const selectedRoot=await realpath(root);
+                    const untracked = await exec('git', ['--work-tree', selectedRoot, 'ls-files', '--others', '--exclude-standard', '-z'], {
+                        cwd: selectedRoot, env: {...process.env, GIT_INDEX_FILE: join(temporary, 'index')}, maxBuffer: 8 * 1024 * 1024, timeout: 10000,
                     });
-                    files.push(...untracked.stdout.split('\0').filter(Boolean));
+                    // Git resolves repository and global exclude patterns from
+                    // the work-tree root. Re-rooting can otherwise reveal a
+                    // path-specific exclude from the enclosing repository.
+                    const gitValue = (value:string) => value.replace(/\r?\n$/, '');
+                    const top = await realpath(gitValue((await exec('git', ['rev-parse', '--show-toplevel'], {cwd:selectedRoot, timeout:10000})).stdout));
+                    const prefix = relative(top, selectedRoot).split(sep).join('/');
+                    if (prefix === '..' || prefix.startsWith('../')) throw Error('Project is outside Git work tree');
+                    const info = gitValue((await exec('git', ['rev-parse', '--git-path', 'info/exclude'], {cwd:selectedRoot, timeout:10000})).stdout);
+                    let global: string;
+                    try {global=gitValue((await exec('git', ['config', '--path', '--get', 'core.excludesFile'], {cwd:selectedRoot, timeout:10000})).stdout);}
+                    catch (error) {
+                        if ((error as {code?:unknown}).code !== 1) throw error;
+                        global=join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'git', 'ignore');
+                    }
+                    const optional = async (file:string) => {try{return await readFile(file, 'utf8');}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return '';throw error;}};
+                    const repositoryExcludes=ignore().add(await optional(resolve(selectedRoot,info)));
+                    const globalExcludes=ignore().add(global ? await optional(resolve(selectedRoot,global)) : '');
+                    const parts=prefix ? prefix.split('/') : [];
+                    const ancestors=await Promise.all(parts.map(async (_part,index)=>{
+                        const localRoot=parts.slice(index).join('/');
+                        const text=await optional(join(top,...parts.slice(0,index),'.gitignore'));
+                        // Lift only rules that hide the selected root itself;
+                        // keep more specific exclusions from each ancestor.
+                        const rules=text.split(/\r?\n/).filter(rule=>
+                            !rule || rule.startsWith('#') || rule.startsWith('!') || !ignore().add(rule).ignores(localRoot+'/'));
+                        return {localRoot,policy:ignore().add(rules)};
+                    }));
+                    files.push(...untracked.stdout.split('\0').filter(file=>{
+                        if(!file)return false;
+                        const enclosingPath=prefix ? prefix+'/'+file : file;
+                        return !repositoryExcludes.ignores(enclosingPath) && !globalExcludes.ignores(enclosingPath) &&
+                            !ancestors.some(layer=>layer.policy.ignores(layer.localRoot+'/'+file));
+                    }));
                 } finally {await rm(temporary, {recursive: true, force: true}).catch(()=>{});}
             } catch { /* Keep the original Git inventory rather than bypassing its ignore policy. */ }
         }

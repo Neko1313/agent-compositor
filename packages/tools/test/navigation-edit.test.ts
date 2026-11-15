@@ -114,16 +114,20 @@ describe('bounded project search', () => {
     it('finds an explicitly selected project inside an ignored parent while respecting local and global ignores', async () => {
         const outer=await temp(),cwd=join(outer,'hidden','project');await mkdir(cwd,{recursive:true});
         const git=(...args:string[])=>execFileSync('git',args,{cwd:outer,env:{...process.env,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}});
-        git('init','-q');await writeFile(join(outer,'.gitignore'),'hidden/\n');await writeFile(join(outer,'shared.txt'),'parent\n');git('add','shared.txt');
-        const globalIgnore=join(outer,'global-ignore');await writeFile(globalIgnore,'global.secret\n');git('config','core.excludesFile',globalIgnore);
+        git('init','-q');await writeFile(join(outer,'.gitignore'),'hidden/\nhidden/project/parent.secret\n');await writeFile(join(outer,'hidden/.gitignore'),'project/ancestor.secret\n');await writeFile(join(outer,'shared.txt'),'parent\n');git('add','shared.txt');
+        const globalIgnore=join(outer,'global-ignore');await writeFile(globalIgnore,'global.secret\n/hidden/project/anchored.secret\n!/hidden/project/info.secret\n');git('config','core.excludesFile',globalIgnore);
+        await writeFile(join(outer,'.git/info/exclude'),'hidden/project/info.secret\n');
         await writeFile(join(cwd,'.gitignore'),'*.log\nlocal.secret\n');await writeFile(join(cwd,'.agentignore'),'agent.secret\n');
-        for(const file of ['actual.mjs','shared.txt','tracked.log','local.secret','global.secret','agent.secret'])await writeFile(join(cwd,file),'needle\n');
+        for(const file of ['actual.mjs','shared.txt','tracked.log','local.secret','global.secret','agent.secret','info.secret','anchored.secret','parent.secret','ancestor.secret'])await writeFile(join(cwd,file),'needle\n');
         git('add','-f','hidden/project/tracked.log');
         const files=await projectFiles(cwd);
         expect(files).toContain('actual.mjs');expect(files).toContain('shared.txt');expect(files).toContain('tracked.log');
-        expect(files).not.toContain('local.secret');expect(files).not.toContain('global.secret');expect(files).not.toContain('agent.secret');
+        expect(files).not.toContain('local.secret');expect(files).not.toContain('global.secret');expect(files).not.toContain('agent.secret');expect(files).not.toContain('info.secret');expect(files).not.toContain('anchored.secret');expect(files).not.toContain('parent.secret');expect(files).not.toContain('ancestor.secret');
+        const alias=join(outer,'shortcut');await symlink(cwd,alias);const aliased=await projectFiles(alias);
+        expect(aliased).toContain('actual.mjs');for(const secret of ['local.secret','global.secret','agent.secret','info.secret','anchored.secret','parent.secret','ancestor.secret'])expect(aliased).not.toContain(secret);
         expect((await queryProject({cwd,action:'glob',pattern:'**/*.mjs'})).files).toContain('actual.mjs');
-        expect((await queryProject({cwd,action:'grep',pattern:'needle'})).matches.map((item:any)=>item.path)).toContain('actual.mjs');
+        const matches=(await queryProject({cwd,action:'grep',pattern:'needle'})).matches.map((item:any)=>item.path);
+        expect(matches).toContain('actual.mjs');expect(matches).not.toContain('info.secret');expect(matches).not.toContain('anchored.secret');expect(matches).not.toContain('parent.secret');expect(matches).not.toContain('ancestor.secret');
     });
 
     it('honors nested ignore/negation rules outside git and handles filenames with spaces', async () => {

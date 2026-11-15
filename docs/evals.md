@@ -669,6 +669,10 @@ and cause a nonzero exit. Two threads, zero GPU layers, 2048 context tokens and
 64 output tokens per case are requested. The executable is not sandboxed: use
 only a trusted runtime, and do not infer network isolation from its environment.
 Pins cover the named executable and model, not its dynamically linked libraries.
+The three CPU diagnostics start the engine in a new private output/home directory
+instead of the caller's project, with a restricted environment that omits backend
+loader overrides. This reduces exposure to project-local backend discovery; it
+does not verify dynamically loaded libraries or confine the executable.
 
 This is a small, known-case research fixture, not an onboarding feature or a
 general quality benchmark. JSON validity does not establish semantic correctness,
@@ -788,6 +792,28 @@ the same relocated executable exited 127 because `libssl.so.3` was missing;
 diagnostic is `dist/llama-release-probe/upstream-container.stderr`. This does
 not establish the behavior of other distributions or upstream releases.
 
+The same relocated executable (SHA-256
+`7119bef261611b26f326f7c4da4dc3fdeb7bb28e2faf1ec392bda7b21215ef52`)
+also loaded an unrelated, deliberately harmless `libggml-cpu-cwdprobe.so` from
+its current working directory before failing to open a nonexistent model. Its
+constructor wrote a marker in the isolated fixture directory; the matching
+source and output are in `dist/cpu-backend-cwd-probe/`. Starting the executable
+from a separate empty working directory did not produce a marker there. Source
+inspection of the separate `e574a17` checkout shows that dynamic backend discovery
+enumerates both the executable directory and the current directory, and can
+also load a path from `GGML_BACKEND_PATH`. A future integration must not start
+this engine in an untrusted project directory: it needs a private working
+directory, a controlled environment, and verified engine and backend files.
+The empty-directory experiment alone does not establish a sandbox, rule out
+other loader paths or verify other engine versions and platforms.
+After changing the maintained diagnostics to use a private working directory,
+the real b12005 engine and cached Qwen3.5 0.8B model completed the three-turn
+fixture while the caller directory contained the same probe library; neither
+the caller nor private directory acquired a marker. All three outputs were
+valid JSON but described the user in the third person instead of answering.
+The report is `dist/cpu-diagnostic-real-quiet-cwd/report.json`. This is one
+Linux x64 run and does not establish conversational quality or containment.
+
 As a separate source experiment, clean llama.cpp revision
 `e574a17b062be51b98e239ccd3d3743e3d902333` was built with GCC 16.2.1,
 `BUILD_SHARED_LIBS=OFF`, `GGML_NATIVE=OFF`, `GGML_OPENMP=OFF`,
@@ -816,6 +842,22 @@ turn in 4.293 seconds on the same host. The failed report is retained at
 timings are not a benchmark, and disabling build flags is not proof of
 compatibility with older CPUs or kernels. The slow result leaves both a
 portable engine and a usable low-end onboarding experience unresolved.
+
+A separate shared-library build from `e574a17` enabled `GGML_BACKEND_DL` and
+`GGML_CPU_ALL_VARIANTS`, with native tuning, OpenMP and OpenSSL disabled. On
+the development Linux x64 host its 34 MiB build directory selected an AVX2
+backend, and the same 2B synthetic three-turn dialogue returned valid JSON in
+3.689, 6.801 and 9.025 seconds. The answers still incorrectly suggested the
+user could not inspect plugin state; they do not qualify the assistant. The
+executable SHA-256 was
+`275cfd12d38b0d8e21cf1091b3e5a40cc36051206e33982a8fd27797e8997639`;
+the report is `dist/onboarding-dispatch-2b-20261116/report.json`. This build
+uses an absolute build-directory runpath and has not been tested on a baseline
+CPU. In the same Debian 12 image, with the build directory mounted read-only
+and networking disabled, it exited before inference because its host-built
+libraries required newer glibc and libstdc++ versions. The captured error is
+`dist/cpu-dispatch-container.stderr`. This single host build does not establish
+relocatability, portability, model quality, or a product-ready runtime.
 
 ## Offline CPU development diagnostic
 

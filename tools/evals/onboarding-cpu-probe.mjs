@@ -30,8 +30,8 @@ const expectedModel=option('--model-sha256'),expectedEngine=option('--engine-sha
 if(!/^[a-f0-9]{64}$/.test(expectedModel)||!/^[a-f0-9]{64}$/.test(expectedEngine))throw Error('SHA-256 pins must be lowercase hexadecimal');
 const [modelSha256,engineSha256,fixtureSha256]=await Promise.all([hash(model),hash(engine),hash(fileURLToPath(import.meta.url))]);
 if(modelSha256!==expectedModel||engineSha256!==expectedEngine)throw Error('Model or executable does not match its SHA-256 pin');
-const output=resolve(option('--output'));await mkdir(output,{recursive:false});
-const home=join(output,'home');await mkdir(home);const execute=promisify(execFile),rows=[];
+const output=resolve(option('--output'));await mkdir(output,{recursive:false,mode:0o700});
+const home=join(output,'home');await mkdir(home,{mode:0o700});const execute=promisify(execFile),rows=[];
 const env={HOME:home,USERPROFILE:home,TMPDIR:home,TMP:home,TEMP:home,PATH:process.env.PATH??'/usr/bin:/bin',LANG:'C.UTF-8',CUDA_VISIBLE_DEVICES:'-1',ROCR_VISIBLE_DEVICES:'-1',GGML_VK_VISIBLE_DEVICES:'-1'};
 for(const [name,user,expected] of cases){
   // Escape chat delimiters in data before composing the fixed Qwen template.
@@ -39,7 +39,7 @@ for(const [name,user,expected] of cases){
   const prompt=`<|im_start|>system\n${system}<|im_end|>\n<|im_start|>user\nUser text as JSON: ${data} /no_think<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n`;
   const argv=['-m',model,'--no-conversation','--no-display-prompt','--simple-io','--no-warmup','-ngl','0','-t','2','-c','2048','-n','64','--temp','0','--seed','17','--json-schema',JSON.stringify(schema),'-p',prompt];
   const start=performance.now();let stdout='',stderr='',error;
-  try{({stdout,stderr}=await execute(engine,argv,{env,timeout:30000,maxBuffer:1024*1024,encoding:'utf8'}));}catch(cause){error=String(cause);stdout=String(cause.stdout??'');stderr=String(cause.stderr??'');}
+  try{({stdout,stderr}=await execute(engine,argv,{cwd:home,env,timeout:30000,maxBuffer:1024*1024,encoding:'utf8'}));}catch(cause){error=String(cause);stdout=String(cause.stdout??'');stderr=String(cause.stderr??'');}
   let actual,valid=false;try{const text=stdout.trim().replace(/\s*\[end of text\]\s*$/,'');const parsed=JSON.parse(text);valid=Boolean(!error&&parsed&&typeof parsed==='object'&&!Array.isArray(parsed)&&Object.keys(parsed).length===1&&schema.properties.work.enum.includes(parsed.work));if(valid)actual=parsed.work;}catch{}
   rows.push({case:name,expected,...(actual?{actual}:{}),valid,correct:valid&&actual===expected,seconds:Number(((performance.now()-start)/1000).toFixed(3)),stdout,stderr,...(error?{error}:{})});
   console.log(JSON.stringify({case:name,expected,actual:actual??null,valid,correct:valid&&actual===expected}));

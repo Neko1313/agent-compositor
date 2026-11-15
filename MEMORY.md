@@ -1,5 +1,31 @@
 # Project memory
 
+## CPU backend loading boundary — 2026-11-16
+
+The relocated official llama.cpp b12005 experimental executable loaded a
+harmless `libggml-cpu-cwdprobe.so` from its current directory before attempting
+to open a nonexistent model; its constructor created a local marker. Starting
+in a separate empty directory produced no marker there. The fixture and outputs
+are under dist/cpu-backend-cwd-probe/ and dist/cpu-backend-safe-work/; the
+executable SHA-256 is 7119bef261611b26f326f7c4da4dc3fdeb7bb28e2faf1ec392bda7b21215ef52.
+An independently inspected e574a17 checkout searches executable and working
+directories and reads GGML_BACKEND_PATH. A future integration must use an
+isolated working directory, controlled environment and verified engine and
+backend files; this observation does not prove a sandbox or apply to every
+release. The engine is not currently part of the shipped onboarding flow.
+The three maintained CPU diagnostics now start in a newly created mode-0700
+output/home rather than the caller's project and retain their restricted
+environment. Fake-engine checks cover all three; the real b12005 and cached
+0.8B model completed three synthetic turns from a probe-containing caller
+without loading the probe. Its answers still failed conversational review.
+Evidence: dist/cpu-diagnostic-real-quiet-cwd/report.json. Engine-side shared
+libraries remain unpinned and neither executable nor network is sandboxed.
+An additional e574a17 shared-library all-CPU-variants build selected AVX2 and
+ran the known 2B dialogue locally, but its GCC 16/glibc 2.44 host libraries
+failed to load in Debian 12 and the binary has an absolute build runpath. Its
+answers still misdescribed available plugin-state inspection. Evidence and
+limits are in docs/evals.md; this is not a portable onboarding runtime.
+
 ## Dependency advisory — 2026-11-16
 
 `npm audit --omit=dev` on 447e6fd reported five low findings in one

@@ -213,7 +213,9 @@ raw keystroke diagnostic and must never be used with real secrets.
 
 Trusted plugins can request the same native form with `$.ui.form(request)`.
 The request contains a title, optional description, text/password/url/select/
-toggle fields and actions. It returns `{action, values}` or `null` on cancel.
+toggle fields and actions. It returns `{action, values}` or `null` on cancel,
+including when a selected form controller returns its `cancel` action.
+Cancellation does not require completed fields and discards their values.
 Password fields cannot declare a nonempty initial value. The host owns the
 modal, masking, scrolling and draft lifecycle. Set an appropriate manifest
 `hookTimeouts` budget (the built-in editors use 300000 ms) when awaiting input. Headless hosts reject forms

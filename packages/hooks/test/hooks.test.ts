@@ -359,6 +359,13 @@ describe("HooksHost / $ API", () => {
 
 describe('private local settings callbacks',()=>{
   const form={title:'Key',fields:[{id:'token',label:'Token',type:'password' as const}],actions:[{id:'save',label:'Save'}]};
+  it('normalizes a selected form controller cancel action to the documented null result',async()=>{
+    const cancellable={...form,actions:[...form.actions,{id:'cancel',label:'Cancel'}]};let received:unknown='unset';
+    host.setFormHandler(async()=>({action:'cancel',values:{token:'private-fake-value'}}));
+    host.registerPlugin(manifest('settings'),{'ui.press':async(_,$)=>{received=await $.ui.form(cancellable);}});
+    const result=await host.emit('ui.press',{site:'settings',key:'current'});
+    expect(result.faults).toHaveLength(0);expect(received).toBeNull();
+  });
   it('owns each registration separately when the same handler function is rebound',async()=>{
     const handler=async()=>({action:'save',values:{token:'private-rebound-key'}});
     const first=host.setFormHandler(handler),second=host.setFormHandler(handler);

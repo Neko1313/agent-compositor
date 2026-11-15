@@ -490,7 +490,8 @@ export class HooksHost {
           stateGuard("ui.form");
           if (this.pluginTrust.get(plugin) !== "trusted") throw new Error("Only trusted plugins may request local forms");
           if (!this.formHandler) throw new Error("Forms require an interactive UI");
-          return runScoped(() => this.formHandler!(plugin, uiFormSchema.parse(request), signal));
+          const result = await runScoped(() => this.formHandler!(plugin, uiFormSchema.parse(request), signal));
+          return result?.action === 'cancel' ? null : result;
         },
         supports:feature=>feature==='table'||feature==='tabs'||feature==='input-submit',
         view: async (id, title, view, placement) => {

@@ -45,7 +45,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
     const forSetup=simple;
     let initial:any=existing?router.profiles[existing]:undefined;
     let id=existing??'';let scope='project';let pendingKey='';let clearKey=false;
-    if(!initial){const preset=await $.ui.form({title:'Add provider',fields:[{id:'preset',label:'Provider',type:'select',value:'ollama',options:Object.entries(presets).map(([value,p])=>({value,label:p.label}))}],actions:[{id:'next',label:'Continue'},{id:'cancel',label:'Cancel'}]});if(!preset)return;const p=presets[String(preset.values.preset) as keyof typeof presets];initial={...p};id=String(preset.values.preset);}
+    if(!initial){const preset=await $.ui.form({title:'Add provider',fields:[{id:'preset',label:'Provider',type:'select',value:'ollama',options:Object.entries(presets).map(([value,p])=>({value,label:p.label}))}],actions:[{id:'next',label:'Continue'},{id:'cancel',label:'Cancel'}]});if(!preset||preset.action!=='next')return;const p=presets[String(preset.values.preset) as keyof typeof presets];initial={...p};id=String(preset.values.preset);}
     let message='API keys are stored privately in your user credentials file. Blank key keeps the current key.';
     while(true){
       const fields:Parameters<HooksApi['ui']['form']>[0]['fields']=[
@@ -62,7 +62,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
         {id:'reasoningEffort',label:'Reasoning effort',type:'select',value:initial.reasoningEffort??'',options:reasoningOptions(String(initial.type??'openai-compat') as ProviderProfile['type'],initial.reasoningEffort),hint:'Support depends on the selected model. Provider default omits the setting.'},
        ];
       const result=await $.ui.form({title:existing?`Edit provider · ${existing}`:'New provider connection',description:message,fields:simple?fields.filter(field=>['id','baseUrl','model','key','scope'].includes(field.id)):fields,actions:[{id:'save',label:'Save profile'},{id:'discover',label:'Test & discover models'},...(simple?[{id:'advanced',label:'Advanced settings'}]:[]),{id:'cancel',label:'Cancel'}]});
-      if(!result)return;const v=result.values;id=String(v.id).trim();scope=String(v.scope);clearKey=v.clearKey===true;
+      if(!result||result.action==='cancel')return;const v=result.values;id=String(v.id).trim();scope=String(v.scope);clearKey=v.clearKey===true;
       if(v.key)pendingKey=String(v.key);
       initial={...initial,...v};delete initial.key;
       if(result.action==='advanced'){simple=false;continue;}
@@ -109,7 +109,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
     if(kind==='remove'){
       if(name==='default')throw Error('The default profile cannot be removed');
       const result=await $.ui.form({title:`Remove profile · ${name}`,description:'This removes the connection for this project. Stored credentials are retained for other projects.',fields:[{id:'confirm',label:'Remove this profile',type:'toggle',value:false}],actions:[{id:'remove',label:'Remove profile'},{id:'cancel',label:'Cancel'}]});
-      if(result?.values.confirm){await saveProfile(name,null,'project');delete router.profiles[name];if(router.credentialProfile===name)await choose('default',$);await show($);}return;
+      if(result?.action==='remove'&&result.values.confirm){await saveProfile(name,null,'project');delete router.profiles[name];if(router.credentialProfile===name)await choose('default',$);await show($);}return;
     }
     await auth.refresh(name,$.signal);
     const models=await availableModels(router.profiles[name],fetcher,$.signal);
@@ -117,7 +117,7 @@ export function modelControls(router:ProviderRouter,storage:ProjectStorage,auth:
     const selected=await pickModel(models,router.profiles[name].model,$);if(selected){await choose(name,$);router.select(selected);await atomicJson(join(storage.paths.state,'model.json'),{profile:name,model:selected});await $.ui.notify(`Model: ${selected}`);await show($);}
   };
   return {configureSetup:async($,existing)=>{
-    if(existing.length){const selected=await $.ui.form({title:'Choose a connection',fields:[{id:'profile',label:'Profile',type:'select',value:existing.includes(router.credentialProfile)?router.credentialProfile:existing[0],options:[...existing.map(value=>({value,label:value})),{value:'__new__',label:'Add a new provider'}]}],actions:[{id:'choose',label:'Continue'},{id:'cancel',label:'Cancel'}]});if(!selected)return;if(selected.values.profile!=='__new__'){await choose(String(selected.values.profile),$);return;}}
+    if(existing.length){const selected=await $.ui.form({title:'Choose a connection',fields:[{id:'profile',label:'Profile',type:'select',value:existing.includes(router.credentialProfile)?router.credentialProfile:existing[0],options:[...existing.map(value=>({value,label:value})),{value:'__new__',label:'Add a new provider'}]}],actions:[{id:'choose',label:'Continue'},{id:'cancel',label:'Cancel'}]});if(!selected||selected.action!=='choose')return;if(selected.values.profile!=='__new__'){await choose(String(selected.values.profile),$);return;}}
     await edit(undefined,$,true);
   },manifest:{name:'model-selector',version:'1.1.0',trust:'trusted',hookTimeouts:{'ui.press':300000,'prompt.submit':300000}},hooks:{
     'prompt.submit':async(e,$)=>{const[command,...rest]=e.text.trim().split(/\s+/);if(!['/model','/models','/providers','/settings'].includes(command))return;try{if(command==='/model'&&rest.length)await choose(rest.join(' '),$);else await show($);}catch(error){await $.ui.notify((error as Error).message,'error');}return{drop:'model-selector: handled'};},

@@ -127,7 +127,10 @@ describe('provider connection settings',()=>{
   const root=await temp(),storage=new ProjectStorage(root,{HOME:root});await storage.init();let configured:any;let view:any;
   const $:any={storage,ui:{form:async()=>({action:'save',values:{enabled:true,url:'http://127.0.0.1:7890',username:'proxy-user',password:'proxy-test-secret',clearPassword:false,models:true,tools:false,noProxy:'localhost, .internal',scope:'project'}}),view:async(_id:any,_title:any,value:any)=>{view=value;},notify:async()=>{}},emit:async(_event:any,{config}:any)=>{configured=config;const url=new URL(config.url);url.username='';url.password='';return{value:{...config,url:url.href}};}};
   await proxy['prompt.submit']({text:'/proxy configure'},$);expect(configured.url).toContain('proxy-test-secret');expect(configured.tools).toBe(false);expect(JSON.stringify(view)).not.toContain('proxy-test-secret');expect((await stat(join(storage.paths.state,'proxy.json'))).mode&0o777).toBe(0o600);
-  $.ui.form=async()=>null;await proxy['prompt.submit']({text:'/proxy configure'},$);
+  const saved=await readFile(join(storage.paths.state,'proxy.json'),'utf8');
+  $.ui.form=async()=>({action:'cancel',values:{enabled:false,url:'',username:'',password:'',clearPassword:true,models:false,tools:false,noProxy:'',scope:'project'}});
+  await proxy['prompt.submit']({text:'/proxy configure'},$);
+  expect(await readFile(join(storage.paths.state,'proxy.json'),'utf8')).toBe(saved);
  });
 });
 
@@ -203,6 +206,8 @@ describe('settings controller lifecycle',()=>{
   const root=await temp(),app=await buildApp({cwd:root,env:{HOME:root},provider:new ScriptedProvider([])}),core=app.createCore(async()=>false);
   let result:any=null;core.host.setFormHandler(async()=>result);
   await core.host.emit('prompt.submit',{text:'/login default'});
+  await expect(readFile(join(app.storage.paths.home,'credentials.json'))).rejects.toThrow();
+  result={action:'cancel',values:{key:'must-not-be-saved'}};await core.host.emit('prompt.submit',{text:'/login default'});
   await expect(readFile(join(app.storage.paths.home,'credentials.json'))).rejects.toThrow();
   result={action:'save',values:{key:'login-form-test-key'}};await core.host.emit('prompt.submit',{text:'/login default'});
   expect(await readFile(join(app.storage.paths.home,'credentials.json'),'utf8')).toContain('login-form-test-key');

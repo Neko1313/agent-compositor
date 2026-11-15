@@ -34,11 +34,19 @@ try{
  await page.keyboard.press('Tab');await page.keyboard.press('Tab');await click('Save profile');await wait('Model selected: compatible');
  if(native)await page.waitForFunction(()=>{const text=visual.text();return !text.includes('· Form')&&text.includes('Get started · focused')&&visual.terminal.modes?.synchronizedOutputMode!==true;});
  assert.equal((await transport()).requests,0);report.checks.push('setup.profile-saved','setup.key-masked');
+ const identity=JSON.parse(await readFile(join(output,'onboarding-identity.json'),'utf8'));
+ const extensionState=()=>readFile(join(identity.state,'extensions-state.json'),'utf8').catch(error=>{if(error.code==='ENOENT')return '';throw error;});
+ const beforeCancel=await extensionState();
+ await click('Choose recommended tools');await wait('Choose your work');await click('Cancel');
+ await page.waitForFunction(()=>!visual.text().includes('Choose your work'));await wait('Choose recommended tools');
+ assert.equal(await extensionState(),beforeCancel);
+ await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');
+ if(native)await click('Cancel');else await page.keyboard.press('Escape');await page.waitForFunction(()=>!visual.text().includes('Choose optional tools'));await wait('Choose recommended tools');
+ assert.equal(await extensionState(),beforeCancel);assert.equal((await transport()).requests,0);report.checks.push('setup.cancel-forms-no-effects');
  await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');await shot('01a-recommendations');
  if(!native){for(let i=0;i<7;i++)await page.keyboard.press('Tab');await page.keyboard.press('Enter');}
  else await click('Install and enable');
  await wait('Apply pending tools: project-checks');await shot('02-selected-tools');
- const identity=JSON.parse(await readFile(join(output,'onboarding-identity.json'),'utf8'));
  const selection=JSON.parse(await readFile(join(identity.state,'extensions-state.json'),'utf8'));
  assert.ok(selection.installed['project-checks'],'The chosen plugin must actually be installed');
  const installed=JSON.parse(await readFile(join(selection.bindings['project-checks'],'plugin.json'),'utf8'));assert.equal(installed.name,'project-checks');

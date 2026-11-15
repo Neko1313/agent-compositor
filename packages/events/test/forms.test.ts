@@ -24,3 +24,9 @@ it('does not echo a submitted secret in validation errors', () => {
   catch (error) { expect(String(error)).not.toContain(secret); return; }
   throw Error('Expected invalid URL rejection');
 });
+
+it('accepts an advertised cancel without validating or exposing incomplete private fields',()=>{
+ const cancellable={...request,actions:[...request.actions,{id:'cancel',label:'Cancel'}]};
+ expect(validateUiFormResult(cancellable,{action:'cancel',values:{endpoint:'not-a-url',token:'private-unsubmitted',active:'invalid'}})).toEqual({action:'cancel',values:{}});
+ expect(()=>validateUiFormResult(request,{action:'cancel',values:{}})).toThrow();
+});

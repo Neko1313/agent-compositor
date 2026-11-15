@@ -12,6 +12,7 @@ This plugin is available through the default `agent-compositor` marketplace.
 Installation does not enable it. Install in the chosen scope first to pin its
 version independently of the host, then enable explicitly with
 `/extensions enable network-proxy --project` (or `--user`), then `/reload`.
+Cancel in the proxy settings form leaves the saved configuration unchanged.
 
 ## Develop
 

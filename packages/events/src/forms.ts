@@ -22,6 +22,9 @@ export function validateUiFormResult(request: UiForm, value: unknown): UiFormRes
   if (!result || !request.actions.some(action => action.id === result.action)
     || !result.values || typeof result.values !== 'object' || Array.isArray(result.values))
     throw Error('Invalid form action or values');
+  // Cancel discards the draft and must remain available even when required
+  // fields are incomplete. Never return private values from a cancelled form.
+  if (result.action === 'cancel') return {action: 'cancel', values: {}};
   const values: UiFormResult['values'] = {};
   for (const field of request.fields) {
     const entry = result.values[field.id];

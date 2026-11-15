@@ -47,7 +47,7 @@ async function configure($:any){
       {id:'noProxy',label:'Bypass hosts',type:'text',value:(config.noProxy??['localhost','127.0.0.1','::1']).join(', '),hint:'Comma-separated hosts, .domain suffixes or *.'},
       {id:'scope',label:'Save for',type:'select',value:scope,options:[{value:'project',label:'This project (private user storage)'},{value:'global',label:'All projects'}]},
     ],actions:[{id:'save',label:'Save and apply'},{id:'cancel',label:'Cancel'}]});
-    if(!result)return;
+    if(!result||result.action!=='save')return;
     const v=result.values;scope=String(v.scope);username=String(v.username);
     if(v.password)password=String(v.password);if(v.clearPassword)password='';
     try{

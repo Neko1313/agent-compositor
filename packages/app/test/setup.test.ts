@@ -7,6 +7,7 @@ import {ProviderRouter} from '@agent-compositor/provider';
 import {setupGuide} from '../src/setup.js';
 import {modelControls} from '../src/models.js';
 import {buildApp} from '../src/build.js';
+import {validateUiFormResult} from '@agent-compositor/events';
 
 async function fixture(failInstall=false){
  const root=await mkdtemp(join(tmpdir(),'setup-guide-')),storage=new ProjectStorage(root,{HOME:root});await storage.init();
@@ -28,6 +29,38 @@ it('shows a local guide without mutations, supports skipping and keeps manual se
   await (f.guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);await f.press('model');await f.press('finish');
   expect(JSON.parse(await readFile(join(f.storage.paths.home,'setup.json'),'utf8')).status).toBe('complete');
  }finally{await f.close();}
+});
+
+it.each(['goal','tools'])('does not install or enable anything when the %s form returns its cancel action',async stage=>{
+ const f=await fixture();try{
+  f.api.ui.form=async(form:any)=>{
+   f.forms.push(form);
+   const values=Object.fromEntries(form.fields.map((field:any)=>[field.id,field.value]));
+   const action=form.title==='Choose your work'?(stage==='goal'?'cancel':'next'):'cancel';
+   return validateUiFormResult(form,{action,values});
+  };
+  await f.press('tools');
+  expect(f.forms).toHaveLength(stage==='goal'?1:2);
+  expect(f.operations).toEqual([]);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('selected for this project'))).toBe(false);
+ }finally{await f.close();}
+});
+
+it.each(['goal','tools'])('keeps the project unchanged when the real form handler cancels %s',async stage=>{
+ const root=await mkdtemp(join(tmpdir(),'setup-cancel-action-'));
+ const app=await buildApp({cwd:root,env:{HOME:root},pluginDirs:[]});
+ try{
+  const core=app.createCore(async()=>false),services:any[]=[];let forms=0;
+  core.subscribe(event=>{if(event.kind==='catalog'&&event.event==='service.extension.control')services.push(event.input);});
+  await core.start();
+  core.host.setFormHandler(async(_plugin,form)=>{
+   forms++;const values=Object.fromEntries(form.fields.map(field=>[field.id,field.value]));
+   return validateUiFormResult(form,{action:forms===1&&stage==='tools'?'next':'cancel',values});
+  });
+  const result=await core.host.emit('ui.press',{site:'plugin-setup-guide-setup',key:'tools'});
+  expect(result.faults).toEqual([]);expect(forms).toBe(stage==='goal'?1:2);expect(services).toEqual([]);
+  await expect(readFile(join(root,'agent-compositor.json'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
+ }finally{await app.close();await rm(root,{recursive:true,force:true});}
 });
 
 it('recovers from invalid saved setup state without overwriting it until the user chooses',async()=>{
@@ -234,6 +267,24 @@ it('reuses the provider editor with five fields, private key handling and no con
   await controls.configureSetup(api,[]);expect(forms[1].fields.map((field:any)=>field.id)).toEqual(['id','baseUrl','model','key','scope']);
   expect(keys).toEqual([['first-setup','PRIVATE_SETUP_FIXTURE']]);expect(router.model).toBe('fixture-model');expect(fetches).toBe(0);expect(views).toEqual([]);
   expect(await readFile(join(storage.paths.state,'providers.json'),'utf8')).not.toContain('PRIVATE_SETUP_FIXTURE');
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
+it('does not switch, save or remove a provider when a custom form returns cancel',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'setup-provider-cancel-'));try{
+  const storage=new ProjectStorage(root,{HOME:root});await storage.init();
+  const router=new ProviderRouter({default:{baseUrl:'http://127.0.0.1:11434/v1',model:'default-model',apiKey:''},saved:{baseUrl:'http://127.0.0.1:8080/v1',model:'saved-model',apiKey:''}});
+  const keys:any[]=[],controls=modelControls(router,storage,{setKey:async(...args)=>{keys.push(args);},refresh:async()=>{}},async()=>{throw Error('Unexpected connection request');});
+  let forms=0;const api:any={signal:new AbortController().signal,ui:{notify:async()=>{},view:async()=>{},form:async(form:any)=>{forms++;return{action:'cancel',values:Object.fromEntries(form.fields.map((field:any)=>[field.id,field.value??'']))};}}};
+  await controls.configureSetup(api,['saved']);expect(forms).toBe(1);expect(router.credentialProfile).toBe('default');
+  await (controls.hooks['ui.press'] as any)({site:'plugin-model-selector-models',key:'add'},api);expect(forms).toBe(2);
+  api.ui.form=async(form:any)=>form.title==='Add provider'?{action:'next',values:{preset:'compatible'}}:
+   {action:'cancel',values:{id:'cancelled',baseUrl:'http://127.0.0.1:8080/v1',model:'cancelled-model',key:'not-saved',scope:'project'}};
+  await (controls.hooks['ui.press'] as any)({site:'plugin-model-selector-models',key:'add'},api);
+  api.ui.form=async(form:any)=>({action:'cancel',values:{confirm:true}});
+  await (controls.hooks['ui.press'] as any)({site:'plugin-model-selector-models',key:'remove:saved'},api);
+  expect(router.profiles.saved).toBeDefined();expect(keys).toEqual([]);
+  await expect(readFile(join(storage.paths.state,'providers.json'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
  }finally{await rm(root,{recursive:true,force:true});}
 });
 

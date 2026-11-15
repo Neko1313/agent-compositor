@@ -492,6 +492,8 @@ without stealing focus when Extensions disables a selected plugin, draft retenti
 narrow layout, completion persistence and a first task through a saved local
 endpoint. The guide must make zero completion requests; only the explicit first
 task uses the bounded loopback response. Credentials in this fixture are synthetic.
+Cancelling either recommendation form also preserves the extension state and
+does not contact a model before the normal installation flow continues.
 Set `VISUAL_EXECUTABLE` to the executable from an extracted release archive to
 run the same flow against a compiled app. The bench records actual storage paths
 for both modes; the report identifies source/binary mode and hashes the selected

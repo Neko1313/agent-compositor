@@ -242,14 +242,16 @@ they are not broadcast catalog payloads. Editor and form rendering bypasses
 unrelated `ui.render` hooks. The wire necessarily contains the visible editor
 text; a password controller must render a mask. The host validates form field
 IDs/types, required values, select values and HTTP(S) URL fields before resolving
-the requester. Approval results require a boolean decision and a recognized
+the requester. An advertised `cancel` action discards field values without
+requiring completed fields and resolves `$.ui.form` as `null`. Approval results require a boolean decision and a recognized
 scope; malformed results deny. Question results still pass through the normal
 questionnaire validation in core. Existing permission policy remains binding.
 
 Custom host form handlers can reuse
 `validateUiFormResult(request, value)` from `@agent-compositor/events`. It returns
 only declared fields after validating the action, field types, required values,
-select membership and HTTP(S) URLs. Validation errors contain no submitted values.
+select membership and HTTP(S) URLs. For `cancel`, it returns an empty values
+object before the hook API normalizes the result to `null`. Validation errors contain no submitted values.
 The OpenTUI private adapter gives the selected factory a detached request copy;
 its result validation retains the originally admitted declaration and question
 choices, even if the factory or requester later mutates its own copy.

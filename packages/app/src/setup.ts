@@ -64,12 +64,12 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
   const current=guide($);
   const goal=await $.ui.form({title:'Choose your work',description:'Recommendations are optional. Existing plugins and settings are kept.',fields:[{id:'work',label:'Main use',type:'select',value:'coding',options:[{value:'coding',label:'Code and tests'},{value:'research',label:'Read and research'},{value:'chat',label:'Chat without extra tools'}]}],actions:[{id:'next',label:'Continue'},{id:'cancel',label:'Cancel'}]});
   $.signal.throwIfAborted();
-  if(!goal)return;
+  if(!goal||goal.action!=='next')return;
   const options=suggestions.filter(item=>!deps.enabled().includes(item.name));
   if(!options.length){current.notes=['All suggested tools are already enabled. Existing installations were kept.'];return;}
   const selected=await $.ui.form({title:'Choose optional tools',description:'Checked plugins will be installed if needed and enabled for this project. Downloads may be required. Existing active plugins are kept; manage them in All plugins.',fields:options.map(item=>({id:item.name,label:`${item.label} · ${item.name}`,type:'toggle' as const,value:!deps.activationRestriction(item.name)&&((goal.values.work==='coding'&&item.coding===true)||(goal.values.work==='research'&&item.research===true)),hint:deps.activationRestriction(item.name)??(item.name==='btw'&&!deps.sideConversationAvailable()?'agent-hub is unavailable. Enable it in project configuration and restart; /btw --once still works.':item.reason)})),actions:[{id:'apply',label:'Install and enable selected'},{id:'cancel',label:'Cancel'}]});
   $.signal.throwIfAborted();
-  if(!selected)return;
+  if(!selected||selected.action!=='apply')return;
   const names=options.filter(item=>selected.values[item.name]===true).map(item=>item.name);if(!names.length){current.notes=['No optional tools selected. You can add them later.'];return;}
   current.notes=[];
   const allowed=names.filter(name=>{const restriction=deps.activationRestriction(name);if(restriction)current.notes.push(`${name}: ${restriction}`);return !restriction;});

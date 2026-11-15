@@ -228,7 +228,7 @@ export async function authentication(
   const keyForm = async (name: string, $: any) => {
     if (!profiles[name]) throw new Error('Unknown provider profile');
     const result = await $.ui.form({title:`API key · ${name}`,description:'Stored privately in your user credentials file. The key is never sent as a chat message.',fields:[{id:'key',label:'API key',type:'password',required:true}],actions:[{id:'save',label:'Save API key'},{id:'cancel',label:'Cancel'}]});
-    if (!result) return;
+    if (!result || result.action !== 'save') return;
     if (!Object.hasOwn(original,name)) original[name] = profiles[name].apiKey;
     credentials[name] = {accessToken:String(result.values.key)};
     await save(name); apply(name);

@@ -86,6 +86,32 @@ async function connection(f: Awaited<ReturnType<typeof fixture>>) {
   return {models, form};
 }
 
+it('cancels an incomplete provider form in OpenTUI without saving or contacting the provider',async()=>{
+  const f=await fixture();const {form}=await connection(f);
+  f.answer(form,'cancel',{});
+  await expect.poll(()=>Boolean(f.form())).toBe(false);
+  await expect(readFile(join(f.app.storage.paths.state,'providers.json'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
+  expect(f.requests).toHaveLength(0);
+});
+
+it.each(['goal','tools'])('keeps setup unchanged when an OpenTUI form returns cancel at %s',async stage=>{
+  const f=await fixture({enabledPlugins:['setup-guide','extension-manager','marketplace-manager']});
+  await f.host.submit('/setup');
+  await expect.poll(()=>f.find('plugin-setup-guide-setup')?.snapshot().view?.lines.some(line=>line.action==='tools')).toBe(true);
+  const setup=f.find('plugin-setup-guide-setup')!;setup.press('tools',setup.snapshot().revision);
+  let form=await f.waitForm('Choose your work');
+  f.answer(form,stage==='goal'?'cancel':'next',{work:'coding'});
+  if(stage==='tools'){
+    form=await f.waitForm('Choose optional tools');
+    const values=Object.fromEntries(form.snapshot().form!.request.fields.map(field=>[field.id,field.id==='project-checks']));
+    f.answer(form,'cancel',values);
+  }
+  await expect.poll(()=>Boolean(f.form())).toBe(false);
+  await expect.poll(()=>Boolean(setup.snapshot().busy)).toBe(false);
+  expect((f.events as any[]).filter(event=>event.kind==='catalog'&&event.event==='service.extension.control')).toEqual([]);
+  expect(f.requests).toHaveLength(0);
+});
+
 function focusGate() {
   let release!: () => void, entered = false;
   const ready = new Promise<void>(resolve => {release = resolve;});

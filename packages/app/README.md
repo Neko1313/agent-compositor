@@ -572,7 +572,10 @@ own lifecycle and configuration.
 Running managed agents also defer update, rollback and removal; retry reload
 after they finish. A reload refreshes already loaded idle managed agents using
 each agent application's own configuration; agent actions must be retried if
-requested during that reload.
+requested during that reload or an update, rollback or removal already in progress.
+After an actual file change or a failed file operation whose effects are
+uncertain, apply the plugin changes before sending more work. An update that
+leaves the installed version unchanged needs no reload.
 If an agent's refresh fails, retry `/reload` before sending it more work.
 Closing the app discards unapplied deferred file operations. Saved installation
 and activation choices survive restart. A cancelled management caller also

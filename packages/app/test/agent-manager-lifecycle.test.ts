@@ -51,6 +51,8 @@ it('prevents sending to an agent whose plugin reload failed until a retry succee
   try{await expect(manager.reloadPlugins()).rejects.toThrow('fixture reload failure');}finally{manager.endPluginReload();}
   await expect(manager.control({action:'send',id:record.id,prompt:'Must wait'},channels)).rejects.toThrow('retry /reload');
   expect(provider.requests).toHaveLength(0);
+  expect(manager.beginPluginReload()).toBe(true);manager.endPluginReload(true);
+  await expect(manager.control({action:'send',id:record.id,prompt:'Still waiting'},channels)).rejects.toThrow('retry /reload');
   fail=false;expect(manager.beginPluginReload()).toBe(true);
   try{await manager.reloadPlugins();}finally{manager.endPluginReload();}
   await manager.control({action:'send',id:record.id,prompt:'Continue'},channels);

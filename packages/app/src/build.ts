@@ -437,7 +437,11 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const sessionPlugins=new WeakMap<AgentCore,ReturnType<typeof sessionControls>>();
   const harnesses=new WeakMap<AgentCore,ReturnType<typeof harnessControls>>();
   const cores=new Set<AgentCore>();
-  extensions.setUserRuntime(()=>Boolean(hub?.isBusy())||[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"));
+  extensions.setUserRuntime(()=>Boolean(hub?.isBusy())||[...cores].some(core=>core.getState()==='running'||core.hasActiveOperations),network.fetch("tools"),()=>{
+    if(!hub)return()=>{};
+    if(!hub.beginPluginReload())return;
+    return(unchanged?:boolean)=>hub.endPluginReload(unchanged);
+  });
   const toolOverrides = (source=plugins) => Object.entries(config.config.toolProviders ?? {}).map(([name,owner])=>{
     const tool=source.find(p=>p.manifest.name===owner)?.tools.find(t=>t.name===name);
     if(!tool)throw new Error(`Selected tool provider ${owner} does not supply ${name}`);

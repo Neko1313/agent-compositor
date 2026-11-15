@@ -6,6 +6,46 @@ import {buildApp} from '../src/build.js';
 import {ScriptedProvider} from '@agent-compositor/core';
 const roots:string[]=[],apps:Awaited<ReturnType<typeof buildApp>>[]=[];
 afterEach(async()=>{for(const a of apps.splice(0))await a.close();for(const r of roots.splice(0))await rm(r,{recursive:true,force:true});});
+it.each(['interface','tool'])('does not start a managed agent while an installed plugin update is in flight via %s',async route=>{
+ const{createServer}=await import('node:http'),{execFile}=await import('node:child_process'),{promisify}=await import('node:util'),{createHash}=await import('node:crypto');
+ const root=await mkdtemp(join(tmpdir(),'ac-update-agent-race-'));roots.push(root);
+ const cwd=join(root,'project'),home=join(root,'home'),market=join(root,'market'),plugin=join(root,'source/probe');
+ await mkdir(cwd);await mkdir(home);await mkdir(join(market,'.claude-plugin'),{recursive:true});await mkdir(plugin,{recursive:true});
+ let bytes=Buffer.alloc(0),hold=false,entered!:()=>void,release!:()=>void;
+ const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+ const server=createServer(async(_req,res)=>{if(hold){entered();await gate;}res.end(bytes);});await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const url=`http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/plugin.tar.gz`;
+ async function publish(version:string){
+  await writeFile(join(plugin,'plugin.json'),JSON.stringify({name:'probe',version,main:'hooks.js',trust:'trusted',compositor:{standard:1,apiVersion:1}}));
+  await writeFile(join(plugin,'hooks.js'),'export default {};');
+  const archive=join(root,'plugin.tar.gz');await promisify(execFile)('tar',['--format=ustar','-czf',archive,'-C',join(root,'source'),'probe']);bytes=await readFile(archive);
+  await writeFile(join(market,'.claude-plugin/marketplace.json'),JSON.stringify({name:'race-market',owner:{name:'Fixture'},plugins:[{name:'probe',version,source:{source:'archive',assets:{[`${process.platform}-${process.arch}`]:{url,sha256:createHash('sha256').update(bytes).digest('hex')}}}}]}));
+ }
+ let pending:Promise<unknown>|undefined;
+ try{
+  await publish('1.0.0');const provider=new ScriptedProvider([{text:'after unchanged check'},{text:'after update'}]);
+  const app=await buildApp({cwd,env:{HOME:home},provider});apps.push(app);const main=app.createCore(async()=>true);await main.start();
+  expect((await main.invokeTool('marketplace_control',{action:'add',source:market,scope:'project'})).ok).toBe(true);
+  expect((await main.invokeTool('extension_control',{action:'install',name:'probe@race-market',scope:'project'})).ok).toBe(true);
+  expect((await main.invokeTool('extension_control',{action:'enable',name:'probe',scope:'project'})).ok).toBe(true);await app.reloadPlugins(main);
+  const agent=await main.invokeTool('agent_control',{action:'create',name:'worker',worktree:false});expect(agent.ok).toBe(true);const id=(agent.output as {id:string}).id;
+  const update=()=>route==='interface'?main.host.emit('service.extension.control',{action:'update',name:'probe',scope:'project'}):main.invokeTool('extension_control',{action:'update',name:'probe',scope:'project'});
+  const unchanged=await update();
+  expect(JSON.stringify(unchanged)).toContain('"unchanged":true');
+  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Continue after unchanged update'})).ok).toBe(true);
+  await expect.poll(async()=>{const result=await main.invokeTool('agent_control',{action:'list'});return (result.output as any[]).find(row=>row.id===id)?.state;}).toBe('idle');
+  expect(provider.requests).toHaveLength(1);
+  await publish('1.1.0');hold=true;
+  pending=update();await started;
+  await expect(main.host.emit('service.agent.control',{action:'send',id,prompt:'Must wait for plugin update'})).rejects.toThrow('Plugin reload in progress');
+  expect(provider.requests).toHaveLength(1);
+  release();await pending;pending=undefined;
+  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Must wait for reload'})).error).toContain('retry /reload');
+  expect(await app.reloadPlugins(main)).toContain('Reloaded');
+  expect((await main.invokeTool('agent_control',{action:'send',id,prompt:'Continue after reload'})).ok).toBe(true);
+  await expect.poll(()=>provider.requests.length).toBe(2);
+ }finally{release();await pending?.catch(()=>{});server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+},15000);
 it('locks independent versions, separates install/enable, checks updates, rolls back and rejects mutable versions',async()=>{
  const root=await mkdtemp(join(tmpdir(),'ac-updates-'));roots.push(root);const cwd=join(root,'project'),home=join(root,'home'),market=join(root,'market'),plugin=join(market,'plugins/probe');await mkdir(cwd);await mkdir(home);await mkdir(plugin,{recursive:true});await mkdir(join(market,'.claude-plugin'));
  async function publish(version:string,value=version){

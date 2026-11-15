@@ -443,15 +443,21 @@ export async function extensionManager(
       command: [a.action, a.name ?? "", a.ref ?? "",'--'+(a.scope??(['enable','disable'].includes(a.action)?'project':installed()[String(a.name??'').split('@')[0]]?.scope??'user'))],
     }),
     execute: async (ctx, args) => {
+      const guarded=['update','rollback','remove'].includes((args as any)?.action);
+      const release=guarded?acquireMutation():()=>{};
+      if(!release)return {ok:false,error:'Wait for managed agents or plugin changes to finish'};
+      let unchanged=false;
       try {
-        return { ok: true, data: await control(args, ctx.signal,ctx.fetch) };
+        const data=await control(args, ctx.signal,ctx.fetch);unchanged=data?.unchanged===true;
+        return { ok: true, data };
       } catch (error) {
         return { ok: false, error: String(error) };
-      }
+      } finally {release(unchanged);}
     },
   };
   let runtimeBusy=()=>false;
   let userFetch:typeof fetch=fetch;
+  let acquireMutation:()=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{};
   const pending=new Map<string,{args:any;signal:AbortSignal;forget:()=>void}>();
   const applyPending=async()=>{
     if(runtimeBusy())throw Error('Wait for running agents before applying plugin changes');
@@ -463,7 +469,9 @@ export async function extensionManager(
   };
   const userControl = async (args:any, signal:AbortSignal) => {
     if(signal.aborted)return{ok:false,error:'Plugin operation cancelled'};
-    if(runtimeBusy()&&['update','rollback','remove'].includes(args.action)){
+    const guarded=['update','rollback','remove'].includes(args.action);
+    const release=guarded&&!runtimeBusy()?acquireMutation():undefined;
+    if(guarded&&!release){
       const name=String(args.name??'').split('@')[0],scope=args.scope??installed()[name]?.scope??'user';
       if(!/^[a-z0-9][a-z0-9._-]*$/.test(name)||!['user','project'].includes(scope))return{ok:false,error:'Choose a valid installed plugin and scope'};
       const key=`${scope}:${name}`;
@@ -476,8 +484,10 @@ export async function extensionManager(
       signal.addEventListener('abort',forget,{once:true});
       return {ok:true,data:{name,scope,queued:true}};
     }
-    try { return {ok:true,data:await control(args,signal,userFetch)}; }
+    let unchanged=false;
+    try { const data=await control(args,signal,userFetch);unchanged=data?.unchanged===true;return {ok:true,data}; }
     catch(error) { return {ok:false,error:String(error)}; }
+    finally{release?.(unchanged);}
   };
   const plugin: CorePlugin = {
     manifest: { name: "extension-manager", version: "1.1.0", trust: "trusted",hookTimeouts:{'ui.press':300000,'prompt.submit':300000} },
@@ -536,7 +546,7 @@ export async function extensionManager(
       },
     },
   };
-  return { tool, plugin, userControl, applyPending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch)=>{runtimeBusy=busy;userFetch=fetcher;}, disabled, enabled,activationRestriction,activationScope,selectedPath,projectDirectory,
+  return { tool, plugin, userControl, applyPending, setUserRuntime:(busy:()=>boolean,fetcher:typeof fetch,acquire:()=> ((unchanged?:boolean)=>void)|undefined=()=>()=>{})=>{runtimeBusy=busy;userFetch=fetcher;acquireMutation=acquire;}, disabled, enabled,activationRestriction,activationScope,selectedPath,projectDirectory,
     boundDirectories:()=>enabled().flatMap(name=>{const path=selectedPath(name);return path?[path]:[];}),
     refresh:async()=>{states.user=await read(files.user);states.project=await read(files.project);},
     setAvailable:(read:typeof available)=>{available=read;} };

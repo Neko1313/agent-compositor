@@ -67,6 +67,7 @@ export async function agentManager(
   const loading=new Map<string,Promise<RuntimeEntry>>();
   let pluginReloading=false;
   const pluginReloadErrors=new Map<string,string>();
+  let priorPluginReloadErrors:Map<string,string>|undefined;
   let controlsInFlight=0;
   const isBusy=()=>controlsInFlight>0||loading.size>0||[...entries.values()].some(entry=>entry.core.isClosed||entry.core.getState()==='running'||entry.core.hasActiveOperations);
   let host: HooksApi|undefined, channels: Channels | undefined;
@@ -677,10 +678,14 @@ export async function agentManager(
     beginPluginReload:()=>{
       if(pluginReloading||closePromise||isBusy())return false;
       pluginReloading=true;
+      priorPluginReloadErrors=new Map(pluginReloadErrors);
       for(const entry of entries.values())pluginReloadErrors.set(entry.record.id,'Reload did not complete');
       return true;
     },
-    endPluginReload:()=>{pluginReloading=false;},
+    endPluginReload:(unchanged=false)=>{
+      if(unchanged&&priorPluginReloadErrors){pluginReloadErrors.clear();for(const [id,reason] of priorPluginReloadErrors)pluginReloadErrors.set(id,reason);}
+      priorPluginReloadErrors=undefined;pluginReloading=false;
+    },
     reloadPlugins:async()=>{
       const failures:string[]=[];
       for(const entry of entries.values()){

@@ -178,6 +178,26 @@ describe("edit tool", () => {
     expect(await fs.readFile(path.join(cwd, "f.txt"), "utf8")).toBe("alpha BETA gamma");
   });
 
+  it.each([false,true])('reports an adjacent duplicate from the checkout trajectory without hiding the applied edit, guarded=%s',async guarded=>{
+    const target=path.join(cwd,'checkout.mjs'),header="import {subtotal, discount} from './math.mjs';",line='export function checkout(items, percent=0) { return discount(subtotal(items), percent); }';
+    const original=`${header}\n${line}\n`;await fs.writeFile(target,original);const ctx=makeCtx();
+    const read=await readTool.execute(ctx,{path:'checkout.mjs'});if(!read.ok)throw Error(read.error);
+    const result=await editTool.execute(ctx,{path:'checkout.mjs',oldText:header,newText:`${header}\n${line}`,...(guarded?read.data.edit:{})});
+    expect(result.ok).toBe(true);if(!result.ok)throw Error(result.error);
+    expect(result.data.warning).toContain('duplicated adjacent existing text');
+    expect(JSON.parse(result.modelText!).warning).toBe(result.data.warning);
+    expect(await fs.readFile(target,'utf8')).toBe(`${header}\n${line}\n${line}\n`);expect(ctx.undo.size).toBe(1);
+  });
+
+  it('warns for a duplicated previous block and does not warn for a distinct insertion',async()=>{
+    const block='function existing() { return 123; }\n',target=path.join(cwd,'f.txt');await fs.writeFile(target,`${block}end`);
+    const duplicate=await editTool.execute(makeCtx(),{path:'f.txt',oldText:'end',newText:`${block}end`});
+    expect(duplicate.ok&&duplicate.data.warning).toContain('duplicated adjacent existing text');
+    await fs.writeFile(target,`${block}end`);
+    const distinct=await editTool.execute(makeCtx(),{path:'f.txt',oldText:'end',newText:'function different() { return 456; }\nend'});
+    expect(distinct.ok&&distinct.data.warning).toBeUndefined();
+  });
+
   it("ambiguous match without replaceAll → error value", async () => {
     await seed("one two one");
     const r = await editTool.execute(makeCtx(), { path: "f.txt", oldText: "one", newText: "1" });

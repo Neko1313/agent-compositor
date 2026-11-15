@@ -19,6 +19,22 @@ are retained reports from the workflow, not an independent local verification
 of the distributed binary archives. They qualify neither later changes nor
 physical-terminal coverage or overall 1.0 readiness.
 
+An additional local Qwen3 1.7B checkout diagnostic with the adjacent-duplicate
+edit advisory exhausted all 12 admitted requests and failed the independent
+behavior check. The package file survived, but the model edited the protected
+test fixture. This trajectory did not trigger the advisory, so it gives no
+evidence that the advisory improves model recovery. The separate deterministic
+replay verifies the earlier duplicated-line edit is reported without blocking
+it; it does not establish autonomous development. The isolated server exited;
+the retained report is `dist/local-cpu-checkout-adjacent-warning-20261115/`.
+
+Source [CI for `3f944f8`](https://github.com/Neko1313/agent-compositor/actions/runs/43707381295)
+failed its Node 22 unit lane while waiting for a pending question in the OpenTUI
+host navigation test. The captured log shows the question was not observed
+within the poll deadline; it does not establish whether the cause was scheduling
+or a product defect. This failure remains open pending investigation. Other
+platform or local passes do not turn it into a pass.
+
 At source revision `5133d5b`, the configured OpenTUI CLI passed nine
 browser-backed PTY navigation checks and eight conversation-copy checks.
 These include keyboard retiling, narrow-window layout, closed Main recovery,

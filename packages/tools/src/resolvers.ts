@@ -216,6 +216,19 @@ interface EditPayload {
   expectedHash?:string;range?:{start:number;end:number};strict?:boolean;
 }
 
+// A model may append the next source line to a replacement without realizing
+// that line remains outside oldText. Keep the edit, but expose this exact
+// overlap as an advisory so intentional duplication remains possible.
+function adjacentDuplication(content:string,start:number,oldText:string,newText:string):string|undefined {
+  if(!oldText)return;
+  const addedAfter=newText.startsWith(oldText)?newText.slice(oldText.length):'';
+  const addedBefore=newText.endsWith(oldText)?newText.slice(0,-oldText.length):'';
+  const substantial=(text:string)=>text.includes('\n')&&text.trim().length>=20;
+  if((substantial(addedAfter)&&content.slice(start+oldText.length).startsWith(addedAfter))||
+     (substantial(addedBefore)&&content.slice(0,start).endsWith(addedBefore)))
+    return 'The replacement duplicated adjacent existing text. The edit was applied; inspect the current file and remove the duplicate if it was unintended.';
+}
+
 async function editFile(payload: unknown): Promise<unknown> {
   const p = payload as EditPayload;
   const invalid=editArgumentError(p);if(invalid)throw Error(invalid);
@@ -238,7 +251,8 @@ async function editFile(payload: unknown): Promise<unknown> {
     const changed=!p.oldText?p.newText:p.replaceAll?chunk.split(p.oldText).join(p.newText):chunk.replace(p.oldText,()=>p.newText);
     const next=content.slice(0,p.range.start)+changed+content.slice(p.range.end),hashAfter=createHash('sha256').update(next).digest('hex');
     await writeChanged(next);
-    return{path:p.path,replacements:p.replaceAll?count:1,match:'exact',hashAfter,undo:{oldText:changed,newText:chunk,range:{start:p.range.start,end:p.range.start+changed.length},expectedHash:hashAfter,strict:true}};
+    const warning=!p.replaceAll&&p.oldText?adjacentDuplication(content,p.range.start+chunk.indexOf(p.oldText),p.oldText,p.newText):undefined;
+    return{path:p.path,replacements:p.replaceAll?count:1,match:'exact',hashAfter,...(warning?{warning}:{}),undo:{oldText:changed,newText:chunk,range:{start:p.range.start,end:p.range.start+changed.length},expectedHash:hashAfter,strict:true}};
   }
   const exactCount = countOccurrences(content, p.oldText);
   if (p.replaceAll) {
@@ -259,8 +273,9 @@ async function editFile(payload: unknown): Promise<unknown> {
   }
 
   if (exactCount === 1) {
+    const warning=adjacentDuplication(content,content.indexOf(p.oldText),p.oldText,p.newText);
     await writeChanged(content.replace(p.oldText, () => p.newText));
-    return { path: p.path, replacements: 1, match: "exact" };
+    return { path: p.path, replacements: 1, match: "exact",...(warning?{warning}:{}) };
   }
   if (exactCount > 1)
     throw new Error(

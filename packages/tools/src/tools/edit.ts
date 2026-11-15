@@ -12,6 +12,8 @@ export interface EditOutcome {
   /** how the match was found — exact or whitespace-normalized fallback */
   match: "exact" | "normalized";
   hashAfter?:string;
+  /** Advisory only: the requested replacement repeated adjacent existing text. */
+  warning?:string;
   undo?:Omit<EditArgs,"path">;
 }
 

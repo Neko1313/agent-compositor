@@ -636,6 +636,14 @@ Unguarded whitespace-normalized matching can still use equal literals to change
 different actual spacing. All unchanged file results remain errors. See
 [tool argument admission](core-customization.md#tool-argument-admission).
 
+The default editor adds an advisory `warning` to a successful single exact
+replacement when the added multiline text exactly duplicates a substantial
+block immediately before or after the replaced text. The edit has already been
+applied and its normal undo remains available. Inspect the current file and
+remove the duplicate if unintended; intentional duplication is still allowed.
+This narrow check does not cover every duplicated declaration, normalized
+replacement, insertion or `replaceAll` operation, and is not a syntax check.
+
 A missing hash is reported separately from invalid offsets, including for insertions;
 malformed ranges and missing range hashes fail before approval or file access.
 Offsets are UTF-16 code units, end exclusive, not line numbers. Match errors

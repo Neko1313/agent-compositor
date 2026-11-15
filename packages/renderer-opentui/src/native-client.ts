@@ -57,6 +57,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
   const ready=new Promise<void>((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
   void ready.catch(()=>{});
   const retired=new Set<string>(),pending=new Map<number,Pending>(),waiters=new Set<()=>void>(),tracks=new Map<string,Track>();
+  const surfaceChanges=new Set<object>(),surfaceSerial=new WeakMap<object,number>();
   const layout=store(initialLayout),navigation=store(initialNavigation),appearance=store<AppearanceSnapshot>({revision:0,appearance:{}});
   const windows=store<readonly ConversationWindow[]>([]),surfaceList=store<readonly UiSurfaceSource[]>([]);
   let canonical:readonly ConversationSession[]=[],commands:readonly string[]=[];
@@ -71,7 +72,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
   let dimensions={width:8,height:4},mediaFrame:MediaFrame|undefined,mediaEnabled=false,mediaActive=false,mediaExpanded=false,mediaStatus=false;
   let mediaPresentation:Extract<WireMessage,{type:'native-media'}>['presentation'];
 
-  function idle(){if(!pending.size){for(const done of waiters)done();waiters.clear();}}
+  function idle(){if(!pending.size&&!surfaceChanges.size){for(const done of waiters)done();waiters.clear();}}
   function settle(id:number,receipt?:NativeReceiptMessage){const entry=pending.get(id);if(!entry)return;
     pending.delete(id);entry.resolve(receipt);idle();}
   function revoke(target?:string){for(const [id,entry] of [...pending])if(target===undefined||entry.target===target)settle(id);}
@@ -170,6 +171,29 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     for(const name of Object.keys(optional) as (keyof typeof optional)[])Object.defineProperty(entry.source,name,{enumerable:true,get:()=>has(name)?optional[name]:undefined});
     return entry;
   }
+  function changeSurface(entry:SurfaceEntry,field:string,value:string,revision:number){
+    const sequence=(surfaceSerial.get(entry)??0)+1;surfaceSerial.set(entry,sequence);
+    const initialValue=entry.dto.snapshot.view?.input?.value;
+    const token={};surfaceChanges.add(token);
+    const finish=()=>{surfaceChanges.delete(token);idle();};
+    const attempt=(current:number,retries:number):void=>{
+      const outcome=request(entry.dto.port,{kind:'surface-change',field,value,revision:current},current);
+      const complete=(receipt:NativeReceiptMessage|undefined)=>{
+        const snapshot=entry.dto.snapshot,position=layout.snapshot(),navigationState=navigation.snapshot();
+        if(receipt?.status==='rejected'&&retries>0&&isSurface(entry)&&surfaceSerial.get(entry)===sequence
+          &&snapshot.revision!==current&&snapshot.view?.input?.id===field&&snapshot.view.input.value===initialValue&&!snapshot.controller&&!snapshot.approval&&!snapshot.interaction&&!snapshot.form
+          &&navigationState.mode==='normal'&&!position.gesture&&position.focused===entry.dto.id&&position.frames.some(frame=>frame.surface===entry.dto.id)){
+          attempt(snapshot.revision,retries-1);return;
+        }
+        if(receipt?.status==='rejected'&&isSurface(entry)&&surfaceSerial.get(entry)===sequence&&snapshot.view?.input?.id===field){
+          if(entry.value.set({...entry.value.snapshot(),error:'Input was not saved; check the field and try again.'}))entry.value.notify();
+        }
+        finish();
+      };
+      if(outcome instanceof Promise)void outcome.then(complete).catch(finish);else complete(outcome);
+    };
+    attempt(revision,2);
+  }
   function createSurface(dto:NativeSurface):SurfaceEntry {
     const entry={} as SurfaceEntry;entry.dto=dto;entry.value=store(surfaceSnapshot(dto));
     const has=(name:NonNullable<NativeSurface['methods']>[number])=>entry.dto.methods?.includes(name);
@@ -186,7 +210,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     };
     entry.source={get id(){return entry.dto.id;},snapshot:entry.value.snapshot,subscribe:entry.value.subscribe,
       press:(action,revision)=>{if(isSurface(entry)&&entry.dto.snapshot.revision===revision)fire(entry.dto.port,{kind:'surface-press',action,revision},revision);},
-      change:(field,value,revision)=>{if(isSurface(entry)&&entry.dto.snapshot.revision===revision)fire(entry.dto.port,{kind:'surface-change',field,value,revision},revision);},
+      change:(field,value,revision)=>{if(isSurface(entry)&&entry.dto.snapshot.revision===revision)changeSurface(entry,field,value,revision);},
     };
     for(const name of Object.keys(optional) as (keyof typeof optional)[])Object.defineProperty(entry.source,name,{enumerable:true,get:()=>has(name)?optional[name]:undefined});
     return entry;
@@ -288,7 +312,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     },
     close(){if(closed)return;
       if(mediaEnabled)fire('@media',mediaOperation(false,false,false));
-      closed=true;revoke();tracks.clear();mediaFrame=undefined;mediaPresentation=undefined;dimensions={width:8,height:4};notifyMedia();mediaListeners.clear();
+      closed=true;revoke();surfaceChanges.clear();idle();tracks.clear();mediaFrame=undefined;mediaPresentation=undefined;dimensions={width:8,height:4};notifyMedia();mediaListeners.clear();
       rejectReady(new Error('Native presentation closed before initial state'));},
     sessions:()=>canonical,conversationWindows:windows,surfaces:surfaceList,
     windowLayout:{snapshot:layout.snapshot,subscribe:layout.subscribe,resize:(width,height)=>fire('@layout',{kind:'layout-resize',width,height}),act:action=>fire('@layout',{kind:'layout-action',action})},
@@ -307,7 +331,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     onCtrlC(){if(closed)return 'exit';const result=request('@host',{kind:'ctrl-c'});
       const outcome=(value:NativeReceiptMessage|undefined)=>value?.status==='accepted'&&value.ctrlC==='exit'?'exit' as const:'handled' as const;
       return result instanceof Promise?result.then(outcome):outcome(result);},
-    pending:()=>pending.size>0,settled:()=>pending.size?new Promise<void>(resolve=>waiters.add(resolve)):Promise.resolve(),
+    pending:()=>pending.size>0||surfaceChanges.size>0,settled:()=>pending.size||surfaceChanges.size?new Promise<void>(resolve=>waiters.add(resolve)):Promise.resolve(),
     generation:()=>JSON.stringify([epoch,...canonical.map(value=>[value.conversationId??value.id,value.id,value.generation??value.id])]),
   };
   return client;

@@ -160,8 +160,8 @@ async function start(ws) {
   if(process.env.VISUAL_OPENTUI_APP){
     const sessions=appStarts?(await readdir(join(appLaunch.state,'sessions'))).filter(name=>name.endsWith('.jsonl')):[];
     let resumeId=sessions[0]?.slice(0,-6);
-    if(appStarts&&(process.env.VISUAL_OPENTUI_CONVERSATION_COPIES||process.env.VISUAL_OPENTUI_RENDER)){
-      const current=JSON.parse(await readFile((appLaunch.conversationCopies??appLaunch.render.shared).active,'utf8'));
+    if(appStarts&&(process.env.VISUAL_OPENTUI_CONVERSATION_COPIES||process.env.VISUAL_OPENTUI_RENDER||process.env.VISUAL_OPENTUI_AGENT_DRAFTS)){
+      const current=JSON.parse(await readFile((appLaunch.conversationCopies??appLaunch.render?.shared??appLaunch.child).active,'utf8'));
       if(typeof current.id!=='string'||!sessions.includes(current.id+'.jsonl'))throw Error('Actual copy fixture startup must identify an existing journal');
       resumeId=current.id;
     }else if(appStarts&&process.env.VISUAL_OPENTUI_WORKSPACE_CONTROLLERS){

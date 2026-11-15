@@ -292,7 +292,9 @@ Per-agent conversation tabs preserve separate drafts and histories, provide
 button/Enter submission and navigation through all sixteen allowed agents, and
 restore the selected pane with committed messages after restart. Agent Reply
 drafts are stored privately and survive restart after the debounced save; the
-main editor and private form drafts are not persisted. Saved activity exposes persisted
+main editor and private form drafts are not persisted. A source OpenTUI PTY
+scenario verifies fast switching and restoration of two Reply fields after
+process replacement, without a model request. Saved activity exposes persisted
 prompts, turn lifecycle/usage and tool arguments/results/errors through filtered,
 paginated expandable records read through the configured session repository.
 Linux PTY checks cover an actual read tool call, a held main stream and restored

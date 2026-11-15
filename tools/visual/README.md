@@ -999,3 +999,12 @@ Both paths record thirteen checks,
 including the visual certification requirements, and capture wide/narrow/restart
 screenshots. Source-host artifact certification can select an exact installed
 plugin with `VISUAL_PLUGIN_DIR`; native proof uses bundled code only.
+
+## OpenTUI agent reply recovery
+
+`VISUAL_OUTPUT=dist/visual-opentui-agent-drafts npm run visual:opentui-agent-drafts`
+uses the actual source CLI in an isolated PTY, with two managed agents and no
+model calls. It types independent Reply drafts, switches windows immediately,
+waits for the private state files, restarts and verifies both values. The
+scenario exercises native surface input admission and restart, not external
+terminal compatibility or a packaged distribution.

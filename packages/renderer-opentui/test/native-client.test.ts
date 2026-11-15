@@ -212,6 +212,45 @@ describe('native presentation client',()=>{
     surface.press('run',2);slot.press('extra',4);expect(t.inputs).toHaveLength(4);expect(t.client.publicRender.slot('session')).toBeUndefined();t.client.close();
   });
 
+  it('retries only the latest still-focused surface edit after a revision rejection',async()=>{
+    const state=initial();state.surfaces=[{port:'tools-port',id:'tools',snapshot:{revision:2,title:'Tools',view:{lines:[],input:{id:'reply',value:''}}}}];
+    state.layout.frames=[{surface:'tools',x:0,y:0,width:100,height:30}];state.layout.focused='tools';state.layout.locations={tools:1};
+    const t=transport({state,deferred:true}),surface=t.client.surfaces.snapshot()[0];
+    surface.change('reply','first',2);surface.change('reply','latest',2);expect(t.client.pending()).toBe(true);
+    const next=structuredClone(state);next.surfaces[0].snapshot.revision=3;t.publish(next);
+    t.receipt(t.inputs[0].id,{status:'rejected'});await tick();expect(t.inputs).toHaveLength(2);
+    t.receipt(t.inputs[1].id,{status:'rejected'});await tick();expect(t.inputs).toHaveLength(3);
+    expect(t.inputs[2].operation).toMatchObject({kind:'surface-change',field:'reply',value:'latest',revision:3});
+    let settled=false;void t.client.settled().then(()=>{settled=true;});await tick();expect(settled).toBe(false);
+    t.receipt(t.inputs[2].id);await t.client.settled();expect(settled).toBe(true);
+    surface.change('reply','no retry',3);const changed=structuredClone(next);changed.surfaces[0].snapshot.revision=4;changed.surfaces[0].snapshot.view!.input!.id='replacement';t.publish(changed);
+    t.receipt(t.inputs[3].id,{status:'rejected'});await t.client.settled();expect(t.inputs).toHaveLength(4);t.client.close();
+  });
+  it('bounds retries and reports an edit that remains rejected',async()=>{
+    const state=initial();state.surfaces=[{port:'tools-port',id:'tools',snapshot:{revision:2,title:'Tools',view:{lines:[],input:{id:'reply',value:''}}}}];
+    state.layout.frames=[{surface:'tools',x:0,y:0,width:100,height:30}];state.layout.focused='tools';state.layout.locations={tools:1};
+    const t=transport({state,deferred:true}),surface=t.client.surfaces.snapshot()[0];surface.change('reply','value',2);
+    for(let index=0;index<3;index++){
+      const next=structuredClone(state);next.surfaces[0].snapshot.revision=3+index;t.publish(next);
+      t.receipt(t.inputs[index].id,{status:'rejected'});await tick();
+    }
+    await t.client.settled();expect(t.inputs).toHaveLength(3);expect(surface.snapshot().error).toContain('Input was not saved');expect(t.client.pending()).toBe(false);t.client.close();
+  });
+  it('reports a rejected edit instead of overwriting a producer-replaced field value',async()=>{
+    const state=initial();state.surfaces=[{port:'tools-port',id:'tools',snapshot:{revision:2,title:'Tools',view:{lines:[],input:{id:'reply',value:'original'}}}}];
+    state.layout.frames=[{surface:'tools',x:0,y:0,width:100,height:30}];state.layout.focused='tools';state.layout.locations={tools:1};
+    const t=transport({state,deferred:true}),surface=t.client.surfaces.snapshot()[0];surface.change('reply','user edit',2);
+    const next=structuredClone(state);next.surfaces[0].snapshot.revision=3;next.surfaces[0].snapshot.view!.input!.value='producer replacement';t.publish(next);
+    t.receipt(t.inputs[0].id,{status:'rejected'});await t.client.settled();expect(t.inputs).toHaveLength(1);
+    expect(surface.snapshot().error).toContain('Input was not saved');t.client.close();
+  });
+  it('does not retry an edit after its window loses focus or its port is retired',async()=>{
+    const state=initial();state.surfaces=[{port:'tools-port',id:'tools',snapshot:{revision:2,title:'Tools',view:{lines:[],input:{id:'reply',value:''}}}}];
+    state.layout.frames=[{surface:'tools',x:0,y:0,width:50,height:30},{surface:'session',x:50,y:0,width:50,height:30}];state.layout.focused='tools';state.layout.locations={tools:1,session:1};
+    const t=transport({state,deferred:true}),surface=t.client.surfaces.snapshot()[0];surface.change('reply','private',2);
+    const next=structuredClone(state);next.surfaces[0].snapshot.revision=3;next.layout.focused='session';t.publish(next);t.receipt(t.inputs[0].id,{status:'rejected'});await t.client.settled();expect(t.inputs).toHaveLength(1);
+    next.layout.focused='tools';t.publish(structuredClone(next));surface.change('reply','other',3);next.surfaces=[];t.publish(structuredClone(next));t.receipt(t.inputs[1].id,{status:'rejected'});await t.client.settled();expect(t.inputs).toHaveLength(2);t.client.close();
+  });
   it('preserves private native answer IDs/aliases without leaking non-JSON capabilities',()=>{
     const state=initial();state.sessions[0].snapshot.approval={id:'ask',tool:'exec',reason:'Manual',details:[]};
     const t=transport({state}),main=t.client.sessions()[0];main.answerApproval?.('wrong',true);main.answerApproval?.('ask',true);

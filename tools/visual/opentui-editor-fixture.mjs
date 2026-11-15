@@ -78,7 +78,7 @@ export const controllers={editor:({state,data},ctx)=>{
 `.replace('TRACE_PATH',JSON.stringify(trace)).replace('GATES_PATH',JSON.stringify(gates)));
   await writeFile(join(requests,'plugin.json'),JSON.stringify({name:requester,version:'1.0.0',trust:'trusted',main:'hooks.js',
     commands:[{name:'/editor-probe',description:'Exercise ordinary editor UI operations',execution:'immediate'}],
-    hookTimeouts:{'command.invoke':300000,'ui.press':300000},compositor:{standard:1,apiVersion:1}}));
+    hookTimeouts:{'session.start':300000,'command.invoke':300000,'ui.press':300000},compositor:{standard:1,apiVersion:1}}));
   await writeFile(join(requests,'hooks.js'),String.raw`
 import {watch} from 'node:fs';import {access} from 'node:fs/promises';import {join} from 'node:path';
 const gates=GATES_PATH;
@@ -107,7 +107,7 @@ async function run(mode,$){
   }catch(error){result={ok:false,error:String(error)};}await receipt.storage.set('result-'+mode,result);
 }
 const show=$=>$.ui.view('controls','Editor controls',{lines:modes.map(mode=>({text:'Start '+mode,action:mode}))},{site:'inspector',focus:false});
-export default{'session.start':async(_,$)=>show($),'session.reload':async(_,$)=>{await show($);await $.storage.set('reloaded',(await $.storage.get('reloaded')||0)+1);},
+export default{'session.start':async(event,$)=>{if(event.sessionId==='editor-resume-proof')await gate('resume-start',$.signal);await show($);},'session.reload':async(_,$)=>{await show($);await $.storage.set('reloaded',(await $.storage.get('reloaded')||0)+1);},
   'command.invoke':async(event,$)=>run(event.args.trim(),$),'ui.press':async(event,$)=>{if(modes.includes(event.key))await run(event.key,$);},
   'prompt.submit':event=>event.text==='APP_EDITOR_DROP'?{drop:'Editor fixture handled this accepted prompt'}:undefined};
 `.replace('GATES_PATH',JSON.stringify(gates)));
@@ -120,7 +120,7 @@ export default{'session.start':async(_,$)=>show($),'session.reload':async(_,$)=>
   const state=join(paths.state,'plugin-state',requester),modes=['form','question','hold-1','hold-2','hold-3','hold-4','hold-5','disable-editor'];
   return{composition,provider,requester,trace,resumeId,selectedProvider:selected?.provider,
     selected:{editor:provider,...(selected?.selected??{})},
-    gates:Object.fromEntries(['late','model',...Array.from({length:5},(_,i)=>'hold-'+(i+1))].map(name=>[name,join(gates,name)])),
+    gates:Object.fromEntries(['late','model','resume-start',...Array.from({length:5},(_,i)=>'hold-'+(i+1))].map(name=>[name,join(gates,name)])),
     receipts:Object.fromEntries(modes.map(mode=>[mode,join(state,'result-'+mode+'.json')])),
     calls:Object.fromEntries(modes.map(mode=>[mode,join(state,'calls-'+mode+'.json')])),
     started:Object.fromEntries(modes.filter(mode=>mode.startsWith('hold-')).map(mode=>[mode,join(state,'started-'+mode+'.json')])),

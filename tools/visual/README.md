@@ -192,8 +192,12 @@ following input. Canonical extension reload and chat-history resume carry the
 unsent checkpoint before destructive disposal; a gated old-generation handler
 must lose its capabilities and cannot submit afterward. Disabling the selected
 owner fails closed. This is in-process transfer, not a promise to persist unsent
-drafts across process restart. Finder opens through Alt+W then w while the custom
-Draft owns F2; known-label selection retains the shared exact query/count/native
+drafts across process restart. During a gated resumed-session startup, Main and
+its status bar must both show
+`Restoring`; a submit is rejected with its exact draft and cursor retained, and
+no new model request is sent. After startup, the same flow submits successfully.
+Finder opens through Alt+W then w while the custom Draft owns F2; known-label
+selection retains the shared exact query/count/native
 highlight acknowledgement. External gate files control fixture completion only.
 Private form receipts retain a token hash, and privacy scans exclude the raw
 synthetic keystroke log. Artifacts default to `dist/visual-opentui-editor/` with

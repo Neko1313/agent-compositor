@@ -163,6 +163,10 @@ for(const composition of ['native','selected']){
       await send('/history');await wait('Editor resumed conversation');await replace(draft);await key('Home');await key('ArrowRight');await editor(draft,1);
       await key('F8');await observe(trace,rows=>rows.some(row=>row.id===after.id&&row.event==='late-started'),'Old editor must hold its delayed intent');
       const requestsBeforeResume=(await completions()).length;await finder.pick('Chat history');await setZoom(true);await wait('Editor resumed conversation');await click('Editor resumed conversation');await click('Resume selected chat');
+      await main();await wait('Main · Restoring');await wait('Restoring · WS 1');await capture('04-restoring-startup');
+      await editor(draft,1);await key('F2');await wait('Not sent · draft restored');await editor(draft,1);
+      assert.equal((await completions()).length,requestsBeforeResume);await capture('04-restoring-rejected-draft');
+      await writeFile(launch.editor.gates['resume-start'],'release\n');await wait('Main · Ready');
       await wait('EDITOR_RESUME_HISTORY');await main();await editor(draft,1);const resumed=(await trace()).findLast(row=>row.event==='created');assert.equal(resumed.sessionId,launch.editor.resumeId);
       assert.deepEqual({hash:resumed.hash,length:resumed.length,cursor:resumed.cursor},{hash:hash(draft),length:draft.length,cursor:1});
       await writeFile(launch.editor.gates.late,'release\n');const late=await observe(trace,rows=>rows.some(row=>row.event==='late-returned'&&row.id===after.id),'Old async editor must finish after generation replacement');

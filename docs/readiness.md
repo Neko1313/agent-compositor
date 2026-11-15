@@ -7,6 +7,19 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+At source revision `5133d5b`, the configured OpenTUI CLI passed nine
+browser-backed PTY navigation checks and eight conversation-copy checks.
+These include keyboard retiling, narrow-window layout, closed Main recovery,
+pending questions and approvals, shared drafts, and saved layout after a real
+restart. The reports are in `dist/wm-navigation-5133d5b/` and
+`dist/wm-copies-5133d5b/`; the latter covers native and selected-controller
+compositions separately. The PTYs exited successfully and relevant captures
+were inspected. These use scripted providers on Linux; they do not establish
+daily usability, other terminal protocols or exact-head release qualification.
+The earlier build-only [run for `3ba17ac`](https://github.com/Neko1313/agent-compositor/actions/runs/43694419977)
+completed all four native build jobs; publication was skipped. Its result
+does not qualify the later source revision.
+
 An isolated CPU run of the known `recover-and-preserve-contract` task at
 `08db772` failed after seven local requests: Qwen3 1.7B invented a source path,
 repeated searches in that missing path, and made no repair. The independent

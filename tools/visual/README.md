@@ -31,6 +31,12 @@ The standard `visual:check` smoke uses its source ScriptedProvider and rejects
 which configures its isolated loopback approval/question fixtures. Actual-app
 OpenTUI scenarios below also accept a complete relocated native archive.
 
+`npm run visual:ink-background` runs the source Ink frontend in three isolated
+PTY sessions. It checks automatic light/dark terminal reports and verifies that
+explicit background preferences remain authoritative after a conflicting reply.
+The browser emulates the terminal reports; the report and screenshots do not
+establish native support for OSC 11 in any particular terminal.
+
 The standard scenario also checks the semantic agent overview: expand by mouse
 and keyboard, click state tabs, switch with Left/Right, resize to stacked narrow fields and enter the
 selected agent's conversation. Screenshots include the expanded and narrow views.

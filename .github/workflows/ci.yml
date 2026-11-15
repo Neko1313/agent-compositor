@@ -51,6 +51,10 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-app
+      - name: Check Ink terminal background selection
+        if: matrix.node == '26'
+        timeout-minutes: 3
+        run: npm run visual:ink-background
       - name: Check actual OpenTUI plugin management and placement
         if: matrix.node == '26'
         timeout-minutes: 7
@@ -135,6 +139,9 @@ jobs:
             reports/coverage/coverage.xml
             reports/certification/
             dist/visual-opentui-ghost/report.json
+            dist/visual-ink-background/report.json
+            dist/visual-ink-background/*/screen.png
+            dist/visual-ink-background/*/failure.png
             dist/visual-opentui-app/
             dist/visual-opentui-managers/
             dist/visual-opentui-navigation/

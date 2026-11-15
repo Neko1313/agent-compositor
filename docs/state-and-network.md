@@ -71,6 +71,10 @@ the submitted text and reference previews.
 
 ## Reasoning effort
 
+Explicit provider profile references resolve only profiles actually configured
+on the router; inherited object properties are not provider profiles. An unknown
+profile is rejected before a model request or a reasoning-setting change.
+
 Open Settings → Models & providers (or `/model`) and choose **Reasoning** under
 the desired profile. It is also available in **Edit connection**. Save for this
 project or all projects; project settings override global defaults. The active

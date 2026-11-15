@@ -32,6 +32,7 @@ export async function authentication(
   const original = Object.fromEntries(
     Object.entries(profiles).map(([name, p]) => [name, p.apiKey])
   );
+  const knownProfile=(name:string)=>Object.hasOwn(profiles,name)&&!!profiles[name];
   const save = async (name: string) => {
     const credential = credentials[name];
     const operation = (credentialWrites.get(file) ?? Promise.resolve())
@@ -54,13 +55,14 @@ export async function authentication(
     await operation;
   };
   const apply = (name: string) => {
-    if (!profiles[name]) throw new Error("Unknown provider profile");
+    if (!knownProfile(name)) throw new Error("Unknown provider profile");
     profiles[name].apiKey = credentials[name]?.accessToken ?? original[name];
     if (router.credentialProfile === name) router.select(router.active);
   };
   for (const name of Object.keys(profiles))
     if (credentials[name]?.accessToken) apply(name);
   const oauth = (name: string) => {
+    if (!knownProfile(name)) throw new Error('Unknown provider profile');
     const value = (profiles[name] as any)?.oauth;
     if (!value?.clientId || !value.tokenEndpoint)
       throw new Error(
@@ -122,6 +124,7 @@ export async function authentication(
     apply(name);
   };
   const refresh = async (name: string, signal: AbortSignal) => {
+    if (!knownProfile(name)) throw new Error('Unknown provider profile');
     await reload(name);
     const value = credentials[name];
     if (!value?.expiresAt || value.expiresAt > Date.now() + 30000) return;
@@ -226,7 +229,7 @@ export async function authentication(
       { site: "inspector", focus: false }
     );
   const keyForm = async (name: string, $: any) => {
-    if (!profiles[name]) throw new Error('Unknown provider profile');
+    if (!knownProfile(name)) throw new Error('Unknown provider profile');
     const result = await $.ui.form({title:`API key · ${name}`,description:'Stored privately in your user credentials file. The key is never sent as a chat message.',fields:[{id:'key',label:'API key',type:'password',required:true}],actions:[{id:'save',label:'Save API key'},{id:'cancel',label:'Cancel'}]});
     if (!result || result.action !== 'save') return;
     if (!Object.hasOwn(original,name)) original[name] = profiles[name].apiKey;
@@ -248,6 +251,7 @@ export async function authentication(
       "service.auth.login": async (e, $) => {
         try {
           const name=e.provider ?? router.credentialProfile;
+          if (!knownProfile(name)) throw new Error('Unknown provider profile');
           if (!(profiles[name] as any)?.oauth?.deviceAuthorizationEndpoint) {
             await keyForm(name,$); return {value:{status:credentials[name]?"logged-in":"cancelled",provider:name}};
           }
@@ -272,13 +276,13 @@ export async function authentication(
             if (variable) {
               if (!/^[A-Z_][A-Z0-9_]*$/i.test(variable) || !env[variable])
                 throw new Error("Environment variable is empty or invalid");
-              if (!profiles[name]) throw new Error("Unknown profile");
+              if (!knownProfile(name)) throw new Error("Unknown profile");
               credentials[name] = { accessToken: env[variable]! };
               await save(name);
               apply(name);
             } else await $.auth.login(name);
           } else if (command === "/logout") {
-            if (!profiles[name]) throw new Error("Unknown profile");
+            if (!knownProfile(name)) throw new Error("Unknown profile");
             delete credentials[name];
             await save(name);
             apply(name);
@@ -308,7 +312,7 @@ export async function authentication(
   return {
     plugin,
     setKey: async (name: string, key: string) => {
-      if (!profiles[name]) throw new Error('Unknown provider profile');
+      if (!knownProfile(name)) throw new Error('Unknown provider profile');
       if (!Object.hasOwn(original, name)) original[name] = profiles[name].apiKey;
       if (key) credentials[name] = { accessToken: key };
       else delete credentials[name];

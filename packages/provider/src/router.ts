@@ -25,6 +25,7 @@ export class ProviderRouter implements ModelProvider {
     return this.profileName;
   }
   constructor(readonly profiles: Record<string, ProviderProfile>) {
+    if(!Object.hasOwn(profiles,'default')||!profiles.default)throw Error('Unknown model profile: default');
     this.select("default");
   }
   get name(): string {
@@ -35,7 +36,7 @@ export class ProviderRouter implements ModelProvider {
   }
   get reasoningEffort():string|undefined{return this.selected.reasoningEffort;}
   setReasoningEffort(profile:string,value?:string){
-    if(!this.profiles[profile])throw Error('Unknown provider profile');
+    if(!Object.hasOwn(this.profiles,profile)||!this.profiles[profile])throw Error('Unknown provider profile');
     this.profiles[profile].reasoningEffort=value;
     if(this.profileName!==profile)return;
     this.selected={...this.selected,reasoningEffort:value};
@@ -59,7 +60,7 @@ export class ProviderRouter implements ModelProvider {
   }
   private capabilityCache = new Map<string, {at:number; value:import("@agent-compositor/core").ModelCapabilities}>();
   async capabilities(signal:AbortSignal, profile?:string) {
-    const selected=profile ? this.profiles[profile] : this.selected;
+    const selected=profile ? Object.hasOwn(this.profiles,profile)?this.profiles[profile]:undefined : this.selected;
     if(!selected)throw Error("Unknown model profile");
     const key=JSON.stringify([this.profileName,selected.model,selected.baseUrl,selected.contextWindow,selected.maxOutputTokens,selected.metadataProvider,selected.metadataUrl]);
     const cached=this.capabilityCache.get(key);if(cached&&Date.now()-cached.at<60000)return cached.value;
@@ -67,7 +68,7 @@ export class ProviderRouter implements ModelProvider {
   }
   complete(request: CompletionRequest): AsyncIterable<ProviderEvent> {
     if (!request.profile) return this.provider.complete(request);
-    const profile = this.profiles[request.profile];
+    const profile = Object.hasOwn(this.profiles,request.profile)?this.profiles[request.profile]:undefined;
     if (!profile) throw new Error(`Unknown model profile: ${request.profile}`);
     const provider =
       !profile.type || profile.type === "openai-compat"

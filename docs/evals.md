@@ -784,6 +784,14 @@ preserved, the independent grader failed and the owned CPU server exited.
 Evidence is in `dist/local-cpu-invalid-read-recovery/`. This observation is not
 a controlled quality comparison or a completed development task.
 
+A navigation run at `624c5e4`, with the explicit glob example in the query
+recovery reminder, also failed. It made five admitted requests; a shorter grep
+found both implementation files, but the model ended with a plan to edit and
+test rather than performing those actions. The recorded queries did not form the
+repeated-query streak needed for a reminder, so this run does not test the new example.
+Both protected files remained unchanged, the independent grader failed and the
+owned CPU server exited. Evidence is in `dist/local-cpu-glob-recovery-hint/`.
+
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory
 listing and ordinary project-instruction expansion available to the user. These

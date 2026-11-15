@@ -1528,9 +1528,12 @@ export class AgentCore {
           if(repeated===3){
             const glob=this.executionTools.find(tool=>tool.name==='glob'&&tool.loopGuard==='query');
             const required=glob?.parameters.required,properties=glob?.parameters.properties;
-            const discovery=glob&&Array.isArray(required)&&required.length===1&&required[0]==='pattern'&&
-              properties&&typeof properties==='object'&&!Array.isArray(properties)&&
-              (properties as Record<string,{type?:unknown}>).pattern?.type==='string'
+            const pattern=properties&&typeof properties==='object'&&!Array.isArray(properties)?(properties as Record<string,unknown>).pattern:undefined;
+            const discovery=glob&&glob.parameters.type==='object'&&Array.isArray(required)&&required.length===1&&required[0]==='pattern'&&
+              pattern&&typeof pattern==='object'&&!Array.isArray(pattern)&&(pattern as Record<string,unknown>).type==='string'&&
+              Object.keys(pattern).every(key=>['type','description','title','default','examples'].includes(key))&&
+              Object.keys(glob.parameters).every(key=>['type','properties','required','description','title','additionalProperties','$schema'].includes(key))&&
+              !this.toolArgumentError(glob,{pattern:'**/*'})
               ? ' If a file path is unknown, consider a separate glob call with {"pattern":"**/*"}; normal permissions still apply.' : '';
             this.messages.push({role:'user',origin:'harness',content:'Query recovery: these query results repeat observations already returned. Use the available evidence: open an exact discovered path, correct invalid read arguments, narrow or change the query, or perform the next authorized step.'+discovery+' Do not repeat the same query without a concrete reason. If blocked, report the blocker. Polling tools remain available for genuinely running work.'});
           }

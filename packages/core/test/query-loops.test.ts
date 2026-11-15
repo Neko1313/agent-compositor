@@ -42,6 +42,13 @@ it('does not suggest a glob call whose declared schema needs other arguments',as
  await f.core.submit('Inspect');const reminder=f.provider.requests.flatMap(request=>request.messages).find(message=>message.content.includes('Query recovery:'));
  expect(reminder).toBeDefined();expect(reminder?.content).not.toContain('separate glob call');
 });
+it.each(['schema constraint','validator'])('does not suggest an incompatible glob pattern: %s',async constraint=>{
+ const observe:ToolSpec={name:'observe',description:'Observe',loopGuard:'query',parameters:{type:'object'},describe:()=>({tool:'observe'}),execute:async()=>({ok:true,data:'unchanged'})};
+ const glob:ToolSpec={name:'glob',description:'Custom glob',loopGuard:'query',parameters:{type:'object',properties:{pattern:constraint==='schema constraint'?{type:'string',enum:['src/*']}:{type:'string'}},required:['pattern']},...(constraint==='validator'?{validate:()=> 'Only src/* is accepted'}:{}),describe:()=>({tool:'glob'}),execute:async()=>({ok:true,data:[]})};
+ const f=await fixture([...Array.from({length:5},()=>query()),{text:'Done'}],{tools:[observe,glob]});
+ await f.core.submit('Inspect');const reminder=f.provider.requests.flatMap(request=>request.messages).find(message=>message.content.includes('Query recovery:'));
+ expect(reminder).toBeDefined();expect(reminder?.content).not.toContain('separate glob call');
+});
 it('allows changing query results and unchanged unannotated polling results',async()=>{
  for(const polling of [false,true]){
   let version=0;const f=await fixture([...Array.from({length:9},()=>query()),{text:'Observed'}],{},polling?{loopGuard:undefined}:{execute:async()=>({ok:true,data:{version:++version}})});

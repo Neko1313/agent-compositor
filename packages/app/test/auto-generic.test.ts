@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import review from '../../../plugins/auto-approve/hooks.js';
@@ -186,6 +186,52 @@ it('shares the review budget across tool types and honors immediate disable', as
     expect(f.calls).toHaveLength(1);
     f.state.set('enabled', false);
     expect(await review['service.permission.review']({ tool: 'third_tool', input: {} }, f.$)).toBeUndefined();
+});
+it('reserves the last review once across concurrent independent requests',async()=>{
+    const f=await fixture({maxReviews:1},{approved:true,risk:'low',reason:'Requested check'});
+    let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
+    f.$.model.complete=async(request:any)=>{f.calls.push(request);await held;return JSON.stringify({approved:true,risk:'low',reason:'Requested check'});};
+    const event=(callId:string)=>({tool:'ci_check',callId,input:{callId},context:{task:'Run the requested checks'}});
+    const first=review['service.permission.review'](event('first'),f.$),second=review['service.permission.review'](event('second'),f.$);
+    try{await expect.poll(()=>f.calls.length).toBe(1);release();const results=await Promise.all([first,second]);expect(f.calls).toHaveLength(1);expect(results.filter(result=>result?.value.decision==='allow')).toHaveLength(1);expect(results.filter(result=>result?.value.decision==='ask')).toHaveLength(1);expect(f.state.get('reviews')).toBe(1);}
+    finally{release();await Promise.allSettled([first,second]);}
+});
+it('enforces the shared review limit and writes both decisions through the actual host',async()=>{
+    const cwd=await temp();await mkdir(join(cwd,'.agent-compositor'));await writeFile(join(cwd,'.agent-compositor/auto.json'),JSON.stringify({maxReviews:1}));
+    const provider=new ScriptedProvider([{text:JSON.stringify({approved:true,risk:'low',reason:'Requested check'})}]);
+    const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[join(process.cwd(),'plugins')]});
+    try{const core=app.createCore(async()=>false);await core.submit('/auto on');
+      const event=(callId:string)=>({tool:'ci_check',callId,input:{callId},context:{task:'Run the requested checks'}});
+      const results=await Promise.all([core.host.emit('service.permission.review',event('first')),core.host.emit('service.permission.review',event('second'))]);
+      expect(provider.requests).toHaveLength(1);expect(results.every(result=>result.faults.length===0)).toBe(true);
+      expect(results.map(result=>(result.value as any)?.value?.decision).sort()).toEqual(['allow','ask']);
+      const audit=JSON.parse(await readFile(join(app.storage.paths.state,`approval-audit-${core.sessionId}.json`),'utf8'));
+      expect(audit.map((row:any)=>row.callId).sort()).toEqual(['first','second']);expect(audit.map((row:any)=>row.decision).sort()).toEqual(['allow','ask']);
+    }finally{await app.close();}
+});
+it('serializes parallel audit writes without losing either decision',async()=>{
+    const f=await fixture();let release!:()=>void,started!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});const writes:string[]=[];
+    f.$.fs.write=async(_path:string,text:string)=>{writes.push(text);if(writes.length===1){started();await held;}};
+    const event=(callId:string)=>({tool:'workflow_run',callId,input:{action:'status',id:callId}});
+    const first=review['service.permission.review'](event('first'),f.$);
+    try{await entered;const second=review['service.permission.review'](event('second'),f.$);await new Promise<void>(resolve=>setImmediate(resolve));expect(writes).toHaveLength(1);release();await Promise.all([first,second]);expect(writes).toHaveLength(2);expect(JSON.parse(writes[1]).map((row:any)=>row.callId)).toEqual(['first','second']);}
+    finally{release();await first;}
+});
+it('does not grant queued reviews when auto is disabled during an earlier audit write',async()=>{
+    const f=await fixture({}, {approved:true,risk:'low',reason:'Requested check'});let release!:()=>void,started!:()=>void;
+    const held=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});const writes:string[]=[];
+    f.$.fs.write=async(_path:string,text:string)=>{writes.push(text);if(writes.length===1){started();await held;}};
+    const event=(callId:string)=>({tool:'ci_check',callId,input:{callId},context:{task:'Run checks'}});
+    const first=review['service.permission.review'](event('first'),f.$);let second:Promise<any>|undefined;
+    try{await entered;second=review['service.permission.review'](event('second'),f.$);await expect.poll(()=>f.calls.length).toBe(2);f.state.set('enabled',false);release();const results=await Promise.all([first,second]);expect(results.every(result=>result?.value.decision==='ask')).toBe(true);expect(JSON.parse(writes.at(-1)!).map((row:any)=>row.decision)).toEqual(['ask','ask']);}
+    finally{release();await Promise.allSettled([first,...(second?[second]:[])]);}
+});
+it('does not start or charge a model review after auto is disabled during configuration',async()=>{
+    const f=await fixture();let release!:()=>void,started!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});
+    f.$.storage.config=async()=>{started();await held;return {maxReviews:1};};
+    const pending=review['service.permission.review']({tool:'ci_check',context:{task:'Run tests'}},f.$);
+    try{await entered;f.state.set('enabled',false);release();expect(await pending).toMatchObject({value:{decision:'ask',risk:'unknown'}});expect(f.calls).toHaveLength(0);expect(f.state.get('reviews')).toBeUndefined();}
+    finally{release();await pending;}
 });
 it.each([[false, true], [true, true], [false, false], [true, false]])('routes actual plugin tool calls through auto review and preserves deny=%s, dedicated=%s', async (deny, dedicated) => {
     const cwd = await temp();

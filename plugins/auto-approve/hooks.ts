@@ -84,6 +84,13 @@ async function mode($: any, enabled: boolean) {
         ? "Auto review enabled for this session"
         : "Manual approvals enabled");
 }
+/** Serialize audit publication for this session; failures never grant access. */
+async function withAudit<T>($:any,work:()=>Promise<T>):Promise<T> {
+    const prior:Promise<void>=$.state.get('auditTail')??Promise.resolve();
+    let release!:()=>void;const next=new Promise<void>(resolve=>{release=resolve;});
+    $.state.set('auditTail',next);
+    try{await prior;return await work();}finally{release();}
+}
 export default {
     "command.invoke": async (e: any, $: any) => {
         if (e.name !== '/auto') return;
@@ -119,7 +126,6 @@ export default {
                 const config = $.storage?.config
                     ? await $.storage.config("auto.json")
                     : JSON.parse(await $.fs.read(configFile));
-                const count = $.state.get("reviews") ?? 0;
                 const maxReviews = Number(config.maxReviews ?? 50);
                 if (!Number.isSafeInteger(maxReviews) ||
                     maxReviews < 1 ||
@@ -137,6 +143,9 @@ export default {
                 if (policyReason)
                     throw new Error(policyReason);
                 const payload = JSON.stringify({ tool: e.tool, input: e.input, descriptor: candidate.descriptor, description: e.description, parameters: e.parameters, context: e.context });
+                if (!$.state.get('enabled') || generation !== $.state.get('generation') || $.signal.aborted)
+                    throw new Error('Auto review disabled or cancelled');
+                const count = $.state.get("reviews") ?? 0;
                 if (payload.length > 24000 || count >= maxReviews)
                     throw new Error("Review input or session budget exceeded");
                 $.state.set("reviews", count + 1);
@@ -183,6 +192,7 @@ export default {
                 risk: "unknown",
                 reason: "Auto review disabled or cancelled",
             };
+        return await withAudit($,async()=>{
         const history = [
             ...($.state.get("history") ?? []),
             {
@@ -214,5 +224,6 @@ export default {
             if ($.state.get('historyVisible')) await show($);
         }
         return { value: verdict };
+        });
     },
 };

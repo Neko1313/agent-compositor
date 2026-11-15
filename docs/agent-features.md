@@ -75,6 +75,12 @@ parameter schema, plus bounded task context. Every model-facing tool is eligible
 arbitrary console commands, MCP, workflows and custom plugins are not excluded
 by name. Already permitted actions avoid a paid review; only ask decisions enter
 the reviewer.
+Concurrent reviews reserve the session review count before requesting the model;
+once the limit is reached, additional requests return to manual approval. Audit
+updates for a session are written in order so overlapping reviews do not replace
+one another with an older snapshot. Turning auto off during preparation prevents
+that review from starting a model request; an already admitted request is handled
+by the existing cancellation and late-result checks.
 
 Task context preserves the complete submitted text, including restrictions beyond
 2000 characters, rather than treating attached file contents or a rewritten

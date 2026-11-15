@@ -21,6 +21,8 @@ A separate reviewer profile is optional: set `profile` in scoped `auto.json` to
 use one. An invalid explicit profile returns to manual approval rather than
 silently selecting another provider. Review limits, exact-call context and
 failure behavior are described in the [auto review guide](../../docs/agent-features.md#auto-review).
+Concurrent requests share the review limit, and their audit updates are serialized
+within the session.
 
 The reviewer returns exactly three fields: `approved` (`true`, `false` or `null`),
 `risk` (`low`, `medium`, `high` or `unknown`) and a nonblank `reason`. `true` needs task context and

@@ -107,6 +107,7 @@ jobs:
           tar -xzf "dist/release/compositor-${{ matrix.platform }}.tar.gz" -C "$OPENTUI_INSTALL_DIR"
           VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" VISUAL_OPENTUI_QUEUE=1 VISUAL_OPENTUI_PROCESS_KILL=1 VISUAL_OUTPUT="dist/release/opentui-recovery-sigkill-${{ matrix.platform }}" node tools/visual/opentui-recovery-check.mjs
           VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" VISUAL_OPENTUI_QUEUE=1 VISUAL_OPENTUI_RECOVERY_INTERRUPT=1 VISUAL_OUTPUT="dist/release/opentui-recovery-interrupt-${{ matrix.platform }}" node tools/visual/opentui-recovery-check.mjs
+          VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" VISUAL_OPENTUI_QUEUE=1 VISUAL_OPENTUI_RECOVERY_CURRENT=1 VISUAL_OUTPUT="dist/release/opentui-recovery-current-${{ matrix.platform }}" node tools/visual/opentui-recovery-check.mjs
       - name: Verify relocated OpenTUI plugin management and placement
         timeout-minutes: 7
         shell: bash
@@ -258,6 +259,7 @@ jobs:
             dist/release/opentui-app-${{ matrix.platform }}/
             dist/release/opentui-recovery-sigkill-${{ matrix.platform }}/
             dist/release/opentui-recovery-interrupt-${{ matrix.platform }}/
+            dist/release/opentui-recovery-current-${{ matrix.platform }}/
             dist/release/opentui-managers-${{ matrix.platform }}/
             dist/release/opentui-navigation-${{ matrix.platform }}/
             dist/release/opentui-cancellation-${{ matrix.platform }}/

@@ -36,7 +36,12 @@ against an isolated loopback provider, verifies that unapplied steering survives
 restart and retries only after a user command. `VISUAL_EXECUTABLE` selects a
 relocated installed executable and the report records its SHA-256. The SIGKILL
 and interrupted-retry variants also run against each native release archive. Set `VISUAL_OPENTUI_QUEUE=1` to
-check the Enter-to-queue path instead. Set `VISUAL_OPENTUI_PROCESS_KILL=1`
+check the Enter-to-queue path instead.
+Set `VISUAL_OPENTUI_QUEUE=1` together with `VISUAL_OPENTUI_RECOVERY_CURRENT=1`
+to interrupt a queued message, review it without restarting, and verify that
+only an explicit retry invokes the model. This scenario also runs on each
+installed native release archive and in Node 26 CI.
+Set `VISUAL_OPENTUI_PROCESS_KILL=1`
 to kill the CLI with SIGKILL after its input is persisted and verify explicit
 recovery after a fresh start; the report retains the observed exit code. The
 queued-input variant runs in Node 26 CI. Set
@@ -54,7 +59,9 @@ This is a controlled storage failure, not a native crash test.
 `node tools/visual/recovery-check.mjs` runs the actual Ink application with an
 isolated scripted provider. It queues a user message during a held turn,
 restarts the PTY session, checks the recovery warning and list, and explicitly
-retries the message. Set `VISUAL_STEER_RECOVERY=1` to exercise unapplied steering. The report and screenshots do not prove process-kill or
+retries the message. Set `VISUAL_RECOVERY_CURRENT=1` to interrupt and review an
+accepted queued message without restarting; this variant runs in Node 26 CI.
+Set `VISUAL_STEER_RECOVERY=1` to exercise unapplied steering. The report and screenshots do not prove process-kill or
 native-terminal behavior; older journal entries without IDs remain ambiguous.
 
 The standard `visual:check` smoke uses its source ScriptedProvider and rejects

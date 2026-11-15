@@ -62,6 +62,21 @@ jobs:
           VISUAL_OPENTUI_QUEUE: '1'
           VISUAL_OPENTUI_RECOVERY_INTERRUPT: '1'
         run: node tools/visual/opentui-recovery-check.mjs
+      - name: Check same-session OpenTUI queue recovery
+        if: matrix.node == '26'
+        timeout-minutes: 3
+        env:
+          VISUAL_OPENTUI_QUEUE: '1'
+          VISUAL_OPENTUI_RECOVERY_CURRENT: '1'
+          VISUAL_OUTPUT: dist/visual-opentui-recovery-current
+        run: node tools/visual/opentui-recovery-check.mjs
+      - name: Check same-session Ink queue recovery
+        if: matrix.node == '26'
+        timeout-minutes: 3
+        env:
+          VISUAL_RECOVERY_CURRENT: '1'
+          VISUAL_OUTPUT: dist/visual-ink-recovery-current
+        run: node tools/visual/recovery-check.mjs
       - name: Check OpenTUI recovery after process death
         if: matrix.node == '26'
         timeout-minutes: 3
@@ -167,6 +182,8 @@ jobs:
             dist/visual-ink-background/*/failure.png
             dist/visual-opentui-app/
             dist/visual-opentui-recovery/
+            dist/visual-opentui-recovery-current/
+            dist/visual-ink-recovery-current/
             dist/visual-opentui-recovery-sigkill/
             dist/visual-opentui-managers/
             dist/visual-opentui-navigation/

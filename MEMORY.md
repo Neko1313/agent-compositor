@@ -1,5 +1,17 @@
 # Project memory
 
+## Same-session queued input recovery — 2026-11-16
+
+An interrupted accepted user message in the ordinary queue is now immediately
+available via `/recover` without reopening. It remains cancelled unless the
+user explicitly retries it. Inputs interrupted before admission stay out of
+the current recovery list; a late durable intent can still be found on resume.
+Tests cover repeated interruption, explicit retry, distinct messages and a
+discard across journal replay. Actual source Ink and OpenTUI PTY flows and a
+locally relocated Linux x64 archive pass the same-session scenario; the
+OpenTUI loopback ledger checks no second model request before retry. Other
+platforms, physical terminals and arbitrary crashes remain unverified.
+
 ## CPU backend loading boundary — 2026-11-16
 
 The relocated official llama.cpp b12005 experimental executable loaded a

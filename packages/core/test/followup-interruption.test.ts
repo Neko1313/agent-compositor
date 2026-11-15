@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {AgentCore} from '../src/loop.js';
 import {ScriptedProvider} from '../src/provider.js';
+import {recoverQueuedInputs} from '../src/resume.js';
 const roots:string[]=[],cores:AgentCore[]=[];
 afterEach(async()=>{for(const core of cores.splice(0))await core.close();for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
 async function fixture(){
@@ -40,6 +41,37 @@ it('preserves accepted follow-ups until the host plugin-change barrier is releas
  expect(provider.requests[0].messages.at(-1)?.content).toBe('Keep this work');
  expect(provider.requests[1].messages.at(-1)?.content).toBe('Keep my draft');
 });
+it('offers interrupted accepted user messages for review immediately and only retries on request',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'queue-recovery-current-'));roots.push(cwd);let blocked=true;
+ const journal:any[]=[],provider=new ScriptedProvider([{text:'Recovered'}]);
+ const sessions={create:async()=>{},append:async(_id:string,events:any[])=>{journal.push(...events);}};
+ const core=new AgentCore({cwd,provider,sessions,isWorkBlocked:()=>blocked});cores.push(core);
+ const queued=core.dispatchInput('Review this message');expect(await queued.admitted).toBe('queued');await queued.completion;
+ expect(journal.some(event=>event.type==='prompt.queue.intent'&&event.text==='Review this message')).toBe(true);
+ core.interrupt();const recovered=core.getRecoveredInputs();expect(recovered.map(item=>item.text)).toEqual(['Review this message']);
+ expect(provider.requests).toHaveLength(0);expect(await core.retryRecoveredInput(recovered[0].id)).toBe('queued');
+ expect(core.getRecoveredInputs()).toEqual([]);core.interrupt();expect(core.getRecoveredInputs().map(item=>item.text)).toEqual(['Review this message']);
+ blocked=false;expect(await core.retryRecoveredInput(recovered[0].id)).toBe('submitted');expect(provider.requests).toHaveLength(1);
+ expect(provider.requests[0].messages.at(-1)?.content).toBe('Review this message');expect(core.getRecoveredInputs()).toEqual([]);
+});
+it('keeps a message interrupted before queue admission out of the current recovery list',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'queue-recovery-unaccepted-'));roots.push(cwd);
+ let release!:()=>void,entered!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{entered=resolve;});
+ const sessions={create:async()=>{},append:async(_id:string,events:any[])=>{if(events.some(event=>event.type==='prompt.queue.intent')){entered();await held;}}};
+ const core=new AgentCore({cwd,sessions,isWorkBlocked:()=>true});cores.push(core);
+ const queued=core.dispatchInput('Unaccepted draft');
+ try{await started;core.interrupt();expect(await queued.admitted).toBe(false);expect(core.getRecoveredInputs()).toEqual([]);}
+ finally{release();await queued.completion;}
+ await new Promise<void>(resolve=>setImmediate(resolve));expect(core.getRecoveredInputs()).toEqual([]);
+});
+it('preserves distinct cancelled messages and a discard across journal replay',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'queue-recovery-discard-'));roots.push(cwd);const journal:any[]=[];
+ const core=new AgentCore({cwd,isWorkBlocked:()=>true,sessions:{create:async()=>{},append:async(_id,events)=>{journal.push(...events);}}});cores.push(core);
+ for(const text of ['First queued','Second queued']){const input=core.dispatchInput(text);expect(await input.admitted).toBe('queued');await input.completion;}
+ core.interrupt();const entries=core.getRecoveredInputs();expect(entries.map(entry=>entry.text)).toEqual(['First queued','Second queued']);
+ await core.discardRecoveredInput(entries[0].id);expect(core.getRecoveredInputs().map(entry=>entry.text)).toEqual(['Second queued']);
+ expect(recoverQueuedInputs(journal).map(entry=>entry.text)).toEqual(['Second queued']);
+});
 it('does not let detached reload callbacks keep tool access after lifecycle completion',async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'reload-scope-expiry-'));roots.push(cwd);
  const core=new AgentCore({cwd,isWorkBlocked:()=>true});cores.push(core);let later!:Promise<{ok:boolean;error?:string}>;
@@ -73,7 +105,7 @@ it('cancels a queued prompt without waiting for its held journal write',async()=
  const queued=core.dispatchInput('Cancelled');await queued.admitted;await entered;provider.release();
  await vi.waitFor(()=>expect(core.getState()).toBe('idle'));core.interrupt();
  try {await Promise.race([first,new Promise((_,reject)=>setTimeout(()=>reject(Error('interruption blocked on journal')),500))]);
-  expect(provider.requests).toHaveLength(1);
+  expect(provider.requests).toHaveLength(1);expect(core.getRecoveredInputs().map(input=>input.text)).toEqual(['Cancelled']);
  }finally{releaseWrite();await queued.completion;}
 });
 

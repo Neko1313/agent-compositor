@@ -104,9 +104,11 @@ to the agent state. Resizing reflows the visible conversation.
 - `/reload` reloads disk plugins between turns, resetting plugin state.
 
 Interrupting work cancels ordinary queued messages, including messages waiting
-for plugin changes. The app remains open; a second Ctrl+C exits if no work remains. After reopening a session,
-`/recover` lists newer user messages recorded in the journal without a recorded
-submission. New, queued and steering messages wait for the recovery intent write before
+for plugin changes. Accepted queued messages are immediately available for explicit
+review with `/recover`; none run automatically. The app remains open; a second
+Ctrl+C exits if no work remains. After reopening a session, `/recover` also lists
+newer user messages recorded in the journal without a recorded submission.
+New, queued and steering messages wait for the recovery intent write before
 acceptance when persistent storage is configured. Interrupting an input before
 its intent write completes keeps the draft unaccepted; a late write can still
 make it appear in `/recover` after reopening. Use

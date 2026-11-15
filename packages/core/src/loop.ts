@@ -222,7 +222,7 @@ export class AgentCore {
   private recoveredInputs:{id:string;text:string}[]=[];
   private recoveringInputs=new Set<string>();
   private queuePause=new AbortController();
-  private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string;ready:Promise<void>;cancel:()=>void}[]=[];
+  private promptQueue:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string;accepted:boolean;ready:Promise<void>;cancel:()=>void}[]=[];
   private backgroundReceipts=new Set<string>();
   private queueTimer?:ReturnType<typeof setTimeout>;
   private draining?:Promise<void>;
@@ -1253,9 +1253,15 @@ export class AgentCore {
     this.promptCancellation++;
     // Ordinary queued prompts are cancelled; accepted plugin wakes stay paused.
     const cancelled=this.promptQueue.filter(entry=>!entry.owner);
-    for(const entry of cancelled){entry.cancel();if(entry.recoveryId)this.recoveringInputs.delete(entry.recoveryId);}
+    for(const entry of cancelled){
+      entry.cancel();
+      if(entry.recoveryId){
+        this.recoveringInputs.delete(entry.recoveryId);
+        if(entry.accepted&&!this.recoveredInputs.some(input=>input.id===entry.recoveryId))this.recoveredInputs.push({id:entry.recoveryId,text:entry.text});
+      }
+    }
     this.promptQueue = this.promptQueue.filter(entry => entry.owner);
-    if(cancelled.length&&!this.closed)this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'session-manager',message:'Queued messages cancelled. They may be reviewed after reopening the session with /recover.',level:'info'}});
+    if(cancelled.length&&!this.closed)this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'session-manager',message:'Queued messages cancelled. Accepted messages are available with /recover.',level:'info'}});
     this.parkUnappliedSteers();
     clearTimeout(this.queueTimer);this.queueTimer=undefined;
     if (this.state !== "running") {
@@ -1873,12 +1879,12 @@ export class AgentCore {
   }
   private queuePrompt(input:{text:string;source:"user"|"agent";owner?:string;key?:string;recoveryId?:string},admitted?:InputAdmitted):Promise<void>{
     let cancel!:()=>void;const cancelled=new Promise<void>(resolve=>{cancel=resolve;});
-    const entry={...input,ready:Promise.resolve(),cancel};this.promptQueue.push(entry);
+    const entry={...input,accepted:false,ready:Promise.resolve(),cancel};this.promptQueue.push(entry);
     const depth=this.promptQueue.length;
     const write=(async()=>{
       if(input.recoveryId)await this.persist('prompt.queue.intent',{text:input.text,recoveryId:input.recoveryId});
       if(!this.promptQueue.includes(entry))return;
-      admitted?.('queued');
+      entry.accepted=true;admitted?.('queued');
       await this.emit('prompt.queued',{text:input.text,depth},undefined,input.recoveryId?{recoveryId:input.recoveryId}:undefined);
     })().catch(error=>{
       const index=this.promptQueue.indexOf(entry);if(index>=0)this.promptQueue.splice(index,1);

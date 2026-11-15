@@ -736,6 +736,9 @@ A new or queued user prompt is admitted only after its recovery intent is acknow
 when a persistent journal is configured, the intent supports explicit recovery.
 The prompt cannot start until its later `prompt.queued` write is acknowledged.
 Cancellation can remove a waiting prompt without waiting for that later write.
+An accepted ordinary queued prompt cancelled by interruption is immediately
+available for explicit review with `/recover`; an input interrupted before
+admission stays in the editor instead of appearing in that in-memory list.
 A steering notification is recorded separately from its application at the next
 model step. An accepted steer that did not reach that boundary is offered for
 explicit review with `/recover`, including when the current turn finishes first.

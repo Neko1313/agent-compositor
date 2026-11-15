@@ -708,6 +708,10 @@ npm run eval:local-cpu -- --cache dist/local-qwen-eval/models \
   --preset coding --repeat 2 --output dist/local-cpu-development-fresh
 ```
 
+Use `npm run eval:local-cpu -- --help` to list options without running an
+evaluation. Unknown options, unexpected positional arguments and options
+missing a value are rejected before creating the output directory.
+
 The command verifies the pinned `qwen3:1.7b` manifest and every layer's size/SHA256
 from `tools/evals/local-qwen.json` before starting inference. It does not pull a
 model or accept a cloud stub in place of those layers. Model weights are not
@@ -736,6 +740,16 @@ the stock agent harness. `--preset coding` selects its existing coding instructi
 checks. This focused composition is an explicit experimental configuration, not
 an estimate of the full default tool catalog's quality. Existing callers of
 `runCase` keep their original composition unless they select these options.
+
+On 2026-11-15, two further focused-composition runs at source revision
+`281bafb` both failed the known checkout case. Each made three model requests,
+read a nonexistent `src/main.js`, and completed without a fix or successful
+project check; the independent grader returned 18 instead of 12. The protected
+package and check files remained unchanged. The oracle preflight accepted the
+scripted reference and rejected the absent implementation; the owned CPU server
+exited. Reports are retained in `dist/local-cpu-development/`. This focused
+composition did not expose Callix file-search tools, so the result does not
+evaluate the navigation composition or establish general model quality.
 
 Add `--project-reference` to enable ordinary file-reference expansion and append
 `Project directory: @.` to the case prompt. This uses the same bounded directory

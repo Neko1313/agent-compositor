@@ -1,10 +1,22 @@
 import {afterEach,it,expect,vi} from 'vitest';
-import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
+import {access,mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {verifyLocalCache,localCompletionFetch,type ModelPin} from './local-model.js';
 const roots:string[]=[];afterEach(async()=>{for(const root of roots.splice(0))await rm(root,{recursive:true,force:true});});
+it('shows help and rejects invalid CLI arguments before creating evidence or starting inference',async()=>{
+ const {execFile}=await import('node:child_process'),{promisify}=await import('node:util');
+ const root=await mkdtemp(join(tmpdir(),'cpu-cli-'));roots.push(root);const output=join(root,'must-not-exist');
+ const run=promisify(execFile),prefix=['--import','tsx','tools/evals/local-cpu.ts'];
+ const help=await run(process.execPath,[...prefix,'--help','--output',output],{cwd:process.cwd(),timeout:10000});
+ expect(help.stdout).toContain('Usage: npm run eval:local-cpu');
+ for(const args of [['--output',output,'--bogus'],['--output'],['--output',output,'--repeat'],['--output',output,'extra']]){
+  await expect(run(process.execPath,[...prefix,...args],{cwd:process.cwd(),timeout:10000})).rejects.toMatchObject({code:1});
+  await expect(access(output)).rejects.toMatchObject({code:'ENOENT'});
+ }
+ await expect(access(output)).rejects.toMatchObject({code:'ENOENT'});
+},20000);
 it('verifies pinned cache bytes and refuses cloud stubs or corrupt model layers',async()=>{
  const cache=await mkdtemp(join(tmpdir(),'cpu-cache-'));roots.push(cache);await mkdir(join(cache,'manifests'),{recursive:true});await mkdir(join(cache,'blobs'));
  const bytes='local test model',digest='sha256:'+createHash('sha256').update(bytes).digest('hex');

@@ -2,20 +2,28 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {resolve,join,dirname} from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
+import {parseArgs} from 'node:util';
 import {estimateMessageTokens,estimateTokens} from '../../packages/context/src/index.js';
 import {OpenAICompatProvider} from '../../packages/provider/src/openai-compat.js';
 import {runCase,type EvalCase} from './runner.js';
 import {verifyLocalCache,localModelServer,localCompletionFetch,type ModelPin} from './local-model.js';
-const args=process.argv.slice(2),value=(key:string,fallback:string)=>args.includes(key)?args[args.indexOf(key)+1]:fallback;
-const output=resolve(value('--output','dist/local-cpu-development')),cache=resolve(value('--cache','dist/local-qwen-eval/models'));
-const repeat=Number(value('--repeat','2'));if(!Number.isInteger(repeat)||repeat<1||repeat>5)throw Error('repeat must be 1..5');
+const {values}=parseArgs({options:{
+ help:{type:'boolean',short:'h'},output:{type:'string'},cache:{type:'string'},repeat:{type:'string'},
+ case:{type:'string'},composition:{type:'string'},preset:{type:'string'},'project-reference':{type:'boolean'},
+},strict:true,allowPositionals:false});
+if(values.help){
+ console.log('Usage: npm run eval:local-cpu -- [--cache PATH] [--output PATH] [--case ID] [--repeat 1..5] [--preset coding|general] [--composition focused|navigation] [--project-reference]');
+ process.exit(0);
+}
+const output=resolve(values.output??'dist/local-cpu-development'),cache=resolve(values.cache??'dist/local-qwen-eval/models');
+const repeat=Number(values.repeat??'2');if(!Number.isInteger(repeat)||repeat<1||repeat>5)throw Error('repeat must be 1..5');
 const pin:ModelPin=JSON.parse(await readFile(new URL('./local-qwen.json',import.meta.url),'utf8'));
-const suite=await readFile(new URL('./agent-cases.json',import.meta.url),'utf8'),selected=(JSON.parse(suite) as EvalCase[]).filter(test=>test.id===value('--case','multi-file-bug'));
+const suite=await readFile(new URL('./agent-cases.json',import.meta.url),'utf8'),selected=(JSON.parse(suite) as EvalCase[]).filter(test=>test.id===(values.case??'multi-file-bug'));
 if(selected.length!==1)throw Error('Choose one existing development case');
-const roster=value('--composition','focused');if(!['focused','navigation'].includes(roster))throw Error('composition must be focused or navigation');
-const preset=value('--preset','coding');if(preset!=='coding'&&preset!=='general')throw Error('preset must be general or coding');
+const roster=values.composition??'focused';if(!['focused','navigation'].includes(roster))throw Error('composition must be focused or navigation');
+const preset=values.preset??'coding';if(preset!=='coding'&&preset!=='general')throw Error('preset must be general or coding');
 await mkdir(dirname(output),{recursive:true});await mkdir(output);
-const projectReference=args.includes('--project-reference');
+const projectReference=values['project-reference']??false;
 const composition:{tools:string[];agentHarness:boolean;instructionsPreset:'coding'|'general';fileReferences?:boolean}={tools:['read','write','edit','exec',...(roster==='navigation'?['glob','grep']:[])],agentHarness:true,instructionsPreset:preset,...(projectReference?{fileReferences:true}:{})};
 const promptFor=(test:EvalCase)=>test.prompt+(projectReference?'\nProject directory: @.':'')+'\n/no_think';
 const sourceInputs=Object.fromEntries(await Promise.all(['local-cpu.ts','local-model.ts','local-qwen.json','runner.ts','agent-cases.json'].map(async name=>[name,createHash('sha256').update(await readFile(new URL(name,import.meta.url))).digest('hex')])));

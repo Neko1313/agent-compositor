@@ -250,6 +250,13 @@ A later source-tree OpenTUI run in Kitty 0.50.0 and tmux 3.8 with
 pause/resume, off/on, resized draft restoration and normal exit passed. With
 passthrough disabled it retained the compact status. This is one Linux terminal
 configuration, not installed-archive or cross-platform certification.
+The same physical source flow passed again at `876e2d1`, with normal exit and
+private display cleanup in both passthrough modes. Captures and reports are in
+`dist/tmux-research-20261115/app-tmux-source-876e2d1/` and
+`dist/tmux-research-20261115/app-tmux-disabled-876e2d1/`. Separately, an
+emulated Kitty PTY observed original idle and thinking frame cycles of 1082 ms
+and 1081 ms; this is not a physical screen-frame-rate measurement. The actual
+application appearance scenario also passed on source with a scripted provider.
 Full state transitions, physical compositing, resize,
 fallbacks, broad multiplexer compatibility and video remain open, as do the default frontend switch,
 CPU-assisted onboarding, repeated realistic development,

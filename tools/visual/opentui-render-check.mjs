@@ -5,6 +5,7 @@ import {copyFile,mkdir,readFile,readdir,realpath,writeFile} from 'node:fs/promis
 import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
+import {completeJsonLines} from './jsonl.mjs';
 
 const root=resolve(import.meta.dirname,'../..'),output=resolve(process.env.VISUAL_OUTPUT??'dist/visual-opentui-render');
 const timeout=20_000,hash=value=>createHash('sha256').update(value).digest('hex');
@@ -83,7 +84,7 @@ for(const composition of ['native','selected']){
     const absent=value=>page.waitForFunction(value=>!visual.text().includes(value),value).catch(error=>{throw Error('Terminal retained '+JSON.stringify(value),{cause:error});});
     const paste=text=>page.evaluate(text=>socket.send(JSON.stringify({type:'input',data:'\x1b[200~'+text+'\x1b[201~'})),text);
     const layout=()=>json(join(launch.state,'layout.json'));
-    const records=file=>readFile(file,'utf8').then(value=>value.trim().split('\n').filter(Boolean).map(JSON.parse));
+    const records=file=>readFile(file,'utf8').then(completeJsonLines);
     const trace=()=>records(launch.render.trace),publicTrace=()=>records(launch.render.publicTrace);
     const completions=async()=>(await records(join(directory,'app-http.jsonl'))).filter(row=>row.kind==='completion');
     const check=text=>result.checks.push(text);

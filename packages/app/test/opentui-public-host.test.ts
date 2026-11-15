@@ -176,7 +176,7 @@ it('uses all five real public sites and separate copy identities with exact meas
   expect(f.source('plugin-producer-panel').snapshot().view?.input).toEqual({id: 'search', value: 'PUBLIC_FILTER', label: 'Filter'});
   expect(JSON.stringify(f.calls.map(call => call.input))).not.toContain('IGNORED_OVERRIDE_INPUT');
   const status = f.slot('status');measure(status, 80, 2);await expect.poll(() => status.snapshot().override?.lines[0].text).toBe('OVERRIDE status status');
-  expect(f.calls.at(-1)?.input).toMatchObject({site: 'status', viewport: {columns: 80, rows: 2}, props: {pane: 'status', workspace: 1}});
+  expect(f.calls.filter(call => call.input.props.pane === 'status').at(-1)?.input).toMatchObject({site: 'status', viewport: {columns: 80, rows: 2}, props: {pane: 'status', workspace: 1}});
   expect(new Set(f.calls.map(call => call.input.site))).toEqual(new Set(['conversation', 'tools', 'help', 'plugin:producer/panel', 'status']));
   expect(f.layout.snapshot().locations).toEqual(topology);expect(f.provider.requests).toEqual([]);
 });

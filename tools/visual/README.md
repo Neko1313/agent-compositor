@@ -302,6 +302,8 @@ fallback, asynchronous read-only effect guards and invalidation. Actual resize
 input must leave exactly two unresolved actual painter calls while
 their fixture gates remain closed; aborted consumer promises do not establish
 that limit. Releasing one gate admits only the latest queued public input.
+Concurrent JSONL observation waits for complete newline-terminated records;
+malformed complete records still fail the scenario.
 Actual mouse and keyboard input activates render-added rows/tabs/expanded table details;
 graphics-disabled output must retain the raster's supplied alt text. This
 proves the portable fallback, not physical terminal media support. Main public

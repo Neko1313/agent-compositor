@@ -761,6 +761,50 @@ tests. Reports are `dist/onboarding-multiturn-35-2b-20261116/` and
 `dist/onboarding-multiturn-35-2b-ru-20261116/`. These are two known dialogues,
 not evidence of general model quality or a safe production onboarding flow.
 
+### CPU engine packaging experiment — Linux x64
+
+On 2026-11-16 the official
+[llama.cpp b12005 Linux x64 archive](https://github.com/ggml-org/llama.cpp/releases/tag/b12005)
+matched its published SHA-256
+`fca5e36156c4b6d0eebd98ae807d8baad7684f50c14425cca67cccc94de722f1`.
+Its relocated `llama-completion` and bundled shared libraries ran the known
+0.8B dialogue on the development host. The binary's runpath is `$ORIGIN`, but
+it also needs system libraries. In an existing Debian 12 slim container
+(image SHA-256 `d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20`),
+the same relocated executable exited 127 because `libssl.so.3` was missing;
+`ldd` also reported missing `libcrypto.so.3` and `libgomp.so.1`. The retained
+diagnostic is `dist/llama-release-probe/upstream-container.stderr`. This does
+not establish the behavior of other distributions or upstream releases.
+
+As a separate source experiment, clean llama.cpp revision
+`e574a17b062be51b98e239ccd3d3743e3d902333` was built with GCC 16.2.1,
+`BUILD_SHARED_LIBS=OFF`, `GGML_NATIVE=OFF`, `GGML_OPENMP=OFF`,
+`LLAMA_OPENSSL=OFF` and `CMAKE_EXE_LINKER_FLAGS=-static`. The Linux x64
+executable SHA-256 was
+`6d681b809f2328a8beec7adfe67cb44b7b05edb7b1bbb4dfe06709e3ae2f6fce`.
+It ran the three-turn 2B diagnostic in the same read-only container with Docker
+networking disabled and read-only engine/model mounts. All outputs were valid
+JSON but repeated the quality failures described above; the retained report is
+`dist/onboarding-static-2b-container/report/report.json`. Its `networkSandbox`
+field describes the diagnostic launcher itself; network isolation in this run
+was supplied externally by Docker. The static linker warned that `getaddrinfo`
+and `getpwuid` may require matching glibc libraries if invoked. This build used
+AVX2 and is not qualified for older CPUs, other Linux environments, macOS,
+ARM64, distribution, licensing, or use as a product onboarding engine.
+
+A separate static build from the same source set `GGML_AVX`, `GGML_AVX2`,
+`GGML_SSE42`, `GGML_F16C`, `GGML_FMA` and `GGML_BMI2` to `OFF` and used
+`-march=x86-64 -mtune=generic`. Its executable SHA-256 was
+`4d1a1badc8bab812a3a6f8a65c8005cc62a956a58baf2ad1c9eb63d28644af4c`.
+Its linker also warned about `dlopen` requiring matching glibc libraries.
+The same container diagnostic with the 2B model timed out after 30 seconds on
+the first turn, before producing a valid answer; the AVX2 build answered that
+turn in 4.293 seconds on the same host. The failed report is retained at
+`dist/onboarding-baseline-2b-container/report/report.json`. These single-run
+timings are not a benchmark, and disabling build flags is not proof of
+compatibility with older CPUs or kernels. The slow result leaves both a
+portable engine and a usable low-end onboarding experience unresolved.
+
 ## Offline CPU development diagnostic
 
 With `ollama` on PATH and an existing local model cache, run:

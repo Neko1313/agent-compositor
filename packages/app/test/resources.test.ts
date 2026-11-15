@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {afterEach,describe,it,expect,vi} from 'vitest';
-import {Sampler,chart,chartRaster} from '../../../plugins/resources/metrics.js';
+import {Sampler,SystemSampler,chart,chartRaster} from '../../../plugins/resources/metrics.js';
 import resourcesHooks,{Monitor} from '../../../plugins/resources/hooks.js';
 import {ChildrenCpu,processCounters,snapshotChildren,systemCounters} from '../../../plugins/resources/children.js';
 import {uiTextViewSchema,type UiTextView} from '@agent-compositor/events';
@@ -50,6 +50,50 @@ describe('resources monitor',()=>{
   now=2_000_000_000n;user=2250000;expect(sampler.sample().cpu).toBe(200);
   sampler.reset();now=9_000_000_000n;expect(sampler.sample().cpu).toBeUndefined();
   now=10_000_000_000n;user=-1;expect(()=>sampler.sample()).toThrow('Invalid process counters');
+ });
+ it('measures aggregate system CPU and non-free memory without inventing invalid intervals',()=>{
+  let idle=0,busy=0,count=2,free=400;
+  const sampler=new SystemSampler({cores:()=>Array.from({length:count},()=>({times:{user:busy,nice:0,sys:0,idle,irq:0}})),totalMemory:()=>1000,freeMemory:()=>free});
+  expect(sampler.sample()).toEqual({cpu:undefined,totalMemory:1000,nonFreeMemory:600});
+  busy=30;idle=70;free=250;expect(sampler.sample()).toEqual({cpu:30,totalMemory:1000,nonFreeMemory:750});
+  expect(sampler.sample().cpu).toBeUndefined();count=3;busy=60;idle=140;expect(sampler.sample().cpu).toBeUndefined();
+  busy=10;idle=10;expect(sampler.sample().cpu).toBeUndefined();free=1001;expect(()=>sampler.sample()).toThrow('Invalid system counters');
+  sampler.reset();free=500;expect(sampler.sample().cpu).toBeUndefined();
+ });
+ it('shows and explicitly shares system observations without requesting a model',async()=>{
+  vi.useFakeTimers();let time=0,busy=0,idle=0,latest!:UiTextView;const queued:string[]=[];
+  const system=new SystemSampler({cores:()=>[{times:{user:busy,nice:0,sys:0,idle,irq:0}}],totalMemory:()=>8*1048576,freeMemory:()=>2*1048576});
+  const processSampler=new Sampler({now:()=>BigInt(++time)*1000000000n,cpu:()=>({user:time,system:0}),memory:()=>({rss:1,heapUsed:1,heapTotal:1})});
+  const api={ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{expect(uiTextViewSchema.safeParse(view).success).toBe(true);latest=view;},remove:async()=>{}},
+    emit:async(_event:string,input:{text:string})=>{queued.push(input.text);return {value:{queued:true}};}};
+  const monitor=new Monitor(api,processSampler,undefined,system);
+  try{
+   await monitor.show();await monitor.press('system-cpu');await monitor.press('share');expect(queued).toHaveLength(0);
+   busy=25;idle=75;await vi.advanceTimersByTimeAsync(1000);
+   expect(latest.lines.some(line=>line.text.includes('System CPU: 25.0%'))).toBe(true);await monitor.press('share');
+   expect(queued[0]).toContain('100% is all reported logical cores');expect(queued[0]).toContain('host-wide');
+   await monitor.press('system-memory');expect(latest.lines.some(line=>line.text.includes('6.0 / 8.0 MiB non-free'))).toBe(true);await monitor.press('share');
+   expect(queued[1]).toContain('Total minus free may include caches');expect(queued[1]).not.toContain('not per-agent attribution or machine-wide usage');
+   await monitor.press('pause');await monitor.press('share');expect(queued).toHaveLength(2);
+   await monitor.press('sample');await monitor.press('share');expect(queued).toHaveLength(3);
+   await monitor.visibility({visible:false,attached:true,columns:30});await monitor.visibility({visible:true,attached:true,columns:30});await monitor.press('share');expect(queued).toHaveLength(3);
+  }finally{monitor.dispose();}
+ });
+ it('does not share stale system observations after a sampling failure',async()=>{
+  let broken=false,time=0,busy=0,idle=0,latest!:UiTextView;const queued:string[]=[];
+  const system=new SystemSampler({cores:()=>{if(broken)throw Error('SYSTEM_UNAVAILABLE');return[{times:{user:busy,nice:0,sys:0,idle,irq:0}}];},totalMemory:()=>1024,freeMemory:()=>512});
+  const processSampler=new Sampler({now:()=>BigInt(++time)*1000000000n,cpu:()=>({user:time,system:0}),memory:()=>({rss:1,heapUsed:1,heapTotal:1})});
+  const api={ui:{supports:()=>true,view:async(_id:string,_title:string,view:UiTextView)=>{latest=view;},remove:async()=>{}},
+    emit:async(_event:string,input:{text:string})=>{queued.push(input.text);return {value:{queued:true}};}};
+  const monitor=new Monitor(api,processSampler,undefined,system);
+  try{
+   await monitor.show();await monitor.press('system-cpu');busy=20;idle=80;await monitor.press('sample');await monitor.press('share');expect(queued).toHaveLength(1);
+   broken=true;await monitor.press('sample');expect(latest.lines.some(line=>line.text.includes('SYSTEM_UNAVAILABLE'))).toBe(true);
+   await monitor.press('share');expect(queued).toHaveLength(1);await monitor.press('system-memory');await monitor.press('share');expect(queued).toHaveLength(1);
+   broken=false;await monitor.press('sample');await monitor.press('share');expect(queued).toHaveLength(2);
+   await monitor.press('system-cpu');await monitor.press('share');expect(queued).toHaveLength(2);
+   busy=40;idle=160;await monitor.press('sample');await monitor.press('share');expect(queued).toHaveLength(3);
+  }finally{monitor.dispose();}
  });
  it('estimates child CPU only for matching process identities and marks churn incomplete',()=>{
   const stat='123 (name ) with spaces) S 1 2 3 4 5 6 7 8 9 10 20 30 0 0 0 0 0 0 999';

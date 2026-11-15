@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {Sampler,chart,chartRaster,type Sample} from './metrics.js';
+import {Sampler,SystemSampler,chart,chartRaster,type Sample,type SystemSample} from './metrics.js';
 import {ChildrenCpu,snapshotChildren,type ChildrenSnapshot} from './children.js';
 
 export class Monitor {
@@ -8,7 +8,10 @@ export class Monitor {
   private visible=true;
   private paused=false;
   private columns=60;
-  private metric:'cpu'|'memory'|'children'='cpu';
+  private metric:'cpu'|'memory'|'children'|'system-cpu'|'system-memory'='cpu';
+  private systemSamples:(SystemSample|undefined)[]=[];
+  private systemError?:string;
+  private currentSystem?:SystemSample;
   private graphics=false;
   private error?:string;
   private revision=0;
@@ -24,14 +27,16 @@ export class Monitor {
   private childrenHistory:{cpu?:number;partial:boolean}[]=[];
   private currentChildCpu?:{cpu?:number;partial:boolean};
   private currentProcessCpu?:number;
-  constructor(private readonly $:any,private readonly sampler=new Sampler(),private readonly readChildren=snapshotChildren){}
+  constructor(private readonly $:any,private readonly sampler=new Sampler(),private readonly readChildren=snapshotChildren,private readonly systemSampler=new SystemSampler()){}
   private stop(){clearTimeout(this.timer);this.timer=undefined;this.revision++;}
   private cancelChildren(){this.childrenRevision++;this.childrenController?.abort();this.childrenController=undefined;this.childrenPending=false;this.childrenCpu.reset();this.currentChildCpu=undefined;}
-  private resetSampler(){this.sampler.reset();this.currentProcessCpu=undefined;}
+  private resetSampler(){this.sampler.reset();this.systemSampler.reset();this.currentProcessCpu=undefined;this.currentSystem=undefined;}
   dispose(){this.open=false;this.cancelChildren();this.stop();this.resetSampler();}
   private take(){
     try{const sample=this.sampler.sample();this.currentProcessCpu=sample.cpu;this.samples.push(sample);this.samples=this.samples.slice(-120);this.error=undefined;}
     catch(error){this.error=String(error).slice(0,500);this.resetSampler();}
+    try{const sample=this.systemSampler.sample();this.currentSystem=sample;this.systemSamples.push(sample);this.systemSamples=this.systemSamples.slice(-120);this.systemError=undefined;}
+    catch(error){this.systemError=String(error).slice(0,500);this.systemSampler.reset();this.currentSystem=undefined;this.systemSamples.push(undefined);this.systemSamples=this.systemSamples.slice(-120);}
   }
   private schedule(){
     this.stop();
@@ -51,24 +56,30 @@ export class Monitor {
   private async paint(focus=false){
     if(!this.open||!this.visible)return;
     const latest=this.samples.at(-1),mib=(bytes:number)=>(bytes/1048576).toFixed(1),tabs=this.$.ui.supports?.('tabs')===true;
-    const values=this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576);
-    const unit=this.metric==='memory'?'MiB':'%',floor=this.metric==='memory'?0:100;
+    const system=this.metric==='system-cpu'||this.metric==='system-memory';
+    const values=this.metric==='children'?this.childrenHistory.map(sample=>sample.partial?undefined:sample.cpu):system?this.systemSamples.map(sample=>sample?(this.metric==='system-cpu'?sample.cpu:sample.nonFreeMemory/1048576):undefined):this.samples.map(sample=>this.metric==='cpu'?sample.cpu:sample.rss/1048576);
+    const memory=this.metric==='memory'||this.metric==='system-memory',unit=memory?'MiB':'%',floor=memory?0:100;
+    const labels={cpu:'CPU',memory:'Memory',children:'Child CPU','system-cpu':'System CPU','system-memory':'System memory'} as const;
     await this.$.ui.view('resources','Resources',{
       ...(this.graphics?{raster:{...chartRaster(values,this.columns,floor),alt:'Graphic unavailable; the text chart below shows the same samples.'}}:{}),
-      ...(tabs?{tabs:[{id:'cpu',label:'CPU',action:'cpu',selected:this.metric==='cpu'},{id:'memory',label:'Memory',action:'memory',selected:this.metric==='memory'},{id:'children',label:'Child CPU',action:'child-cpu',selected:this.metric==='children'}]}:{}),
-      scrollKeys:'host',hint:this.graphics?'Process metrics only · PgUp shows graph · Pause freezes samples':'Process metrics only · PgUp/PgDn scroll · Pause freezes samples',
+      ...(tabs?{tabs:[{id:'cpu',label:'CPU',action:'cpu',selected:this.metric==='cpu'},{id:'memory',label:'Memory',action:'memory',selected:this.metric==='memory'},{id:'children',label:'Child CPU',action:'child-cpu',selected:this.metric==='children'},{id:'system-cpu',label:'System CPU',action:'system-cpu',selected:this.metric==='system-cpu'},{id:'system-memory',label:'System memory',action:'system-memory',selected:this.metric==='system-memory'}]}:{}),
+      scrollKeys:'host',hint:this.graphics?'PgUp shows graph · Pause freezes samples':'PgUp/PgDn scroll · Pause freezes samples',
       lines:[
-        {text:`Compositor process · PID ${process.pid}`,bold:true},
-        {text:'Main metrics include in-process agents; exclude child processes.',tone:'muted'},
-        {text:`${this.paused?'Paused':'Live'} · Samples ${this.samples.length}/120 · 1 s target interval`,bold:true},
-        {text:`CPU: ${this.currentProcessCpu===undefined?'waiting for interval':this.currentProcessCpu.toFixed(1)+'%'} · 100% = one core`},
-        {text:latest?`RSS: ${mib(latest.rss)} MiB · JS heap used: ${mib(latest.heapUsed)} MiB`:'No measurements yet.'},
-        ...(this.childrenPending?[{text:'Reading child processes…',tone:'muted' as const}]:this.childrenError?[{text:'Child snapshot failed. Try again.',tone:'danger' as const}]:this.children===null?[{text:'Child snapshots are available on Linux only.',tone:'muted' as const}]:this.children?[{text:`Last child snapshot: ${this.children.count} processes · ${mib(this.children.rss)} MiB RSS${this.children.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
+        {text:system?'System resources':`Compositor process · PID ${process.pid}`,bold:true},
+        ...(!system?[{text:'Main metrics include in-process agents; exclude child processes.',tone:'muted' as const}]:[]),
+        {text:`${this.paused?'Paused':'Live'} · Samples ${system?this.systemSamples.length:this.samples.length}/120 · 1 s target interval`,bold:true},
+        ...(!system?[{text:`CPU: ${this.currentProcessCpu===undefined?'waiting for interval':this.currentProcessCpu.toFixed(1)+'%'} · 100% = one core`},
+          {text:latest?`RSS: ${mib(latest.rss)} MiB · JS heap used: ${mib(latest.heapUsed)} MiB`:'No measurements yet.'},
+          ...(this.childrenPending?[{text:'Reading child processes…',tone:'muted' as const}]:this.childrenError?[{text:'Child snapshot failed. Try again.',tone:'danger' as const}]:this.children===null?[{text:'Child snapshots are available on Linux only.',tone:'muted' as const}]:this.children?[{text:`Last child snapshot: ${this.children.count} processes · ${mib(this.children.rss)} MiB RSS${this.children.partial?' · incomplete':''}`,tone:'muted' as const}]:[])]:[]),
         ...(this.error?[{text:'Sampling failed: '+this.error,tone:'danger' as const},{text:'Use Sample now to retry.',tone:'muted' as const}]:[]),
-        ...(!tabs?[{text:`[ Chart: ${this.metric==='cpu'?'CPU':this.metric==='memory'?'Memory':'Child CPU'} · switch ]`,action:'switch'}]:[]),
+        ...(system?[{text:'System counters describe the host reported by the OS; container limits may differ.',tone:'muted' as const},
+          {text:`System CPU: ${this.currentSystem?.cpu===undefined?'waiting for interval':this.currentSystem.cpu.toFixed(1)+'%'} · 100% = all reported cores`},
+          {text:this.currentSystem?`System memory: ${mib(this.currentSystem.nonFreeMemory)} / ${mib(this.currentSystem.totalMemory)} MiB non-free (may include cache)`:'No current system memory sample.'},
+          ...(this.systemError?[{text:'System sampling failed: '+this.systemError,tone:'danger' as const}]:[])]:[]),
+        ...(!tabs?[{text:`[ Chart: ${labels[this.metric]} · switch ]`,action:'switch'}]:[]),
         ...(this.metric==='children'?[{text:`Child CPU: ${this.currentChildCpu?.cpu===undefined?'waiting for interval':this.currentChildCpu.cpu.toFixed(1)+'%'}${this.currentChildCpu?.partial?' · incomplete':''}`,tone:'muted' as const}]:[]),
         {text:this.graphics?'[ Graphics: on · switch ]':'[ Graphics: off · switch ]',action:this.graphics?'graphics-off':'graphics-on'},
-        {text:this.metric==='cpu'?'CPU history (%)':this.metric==='memory'?'Resident memory history (MiB)':'Child CPU history (%) · approximate',bold:true},
+        {text:this.metric==='cpu'?'CPU history (%)':this.metric==='memory'?'Resident memory history (MiB)':this.metric==='children'?'Child CPU history (%) · approximate':this.metric==='system-cpu'?'System CPU history (%)':'System non-free memory history (MiB)',bold:true},
         ...chart(values,this.columns,unit,floor).map(text=>({text})),
         ...(this.shareStatus?[{text:this.shareStatus,tone:'muted' as const}]:[]),
         {text:'[ Send latest sample to agent ]',action:'share'},
@@ -100,13 +111,20 @@ export class Monitor {
     }else if(this.metric==='cpu'){
       if(this.currentProcessCpu===undefined){this.shareStatus='No process CPU interval to send yet.';await this.paint();return;}
       observation=`Compositor process CPU: ${this.currentProcessCpu.toFixed(1)}% (100% is one core). Includes in-process agents and excludes child processes.`;
-    }else{
+    }else if(this.metric==='memory'){
       if(!latest){this.shareStatus='No memory sample to send yet.';await this.paint();return;}
       observation=`Compositor process RSS: ${(latest.rss/1048576).toFixed(1)} MiB; JavaScript heap used: ${(latest.heapUsed/1048576).toFixed(1)} MiB. Includes in-process agents and excludes child processes.`;
+    }else if(this.metric==='system-cpu'){
+      if(this.currentSystem?.cpu===undefined){this.shareStatus='No system CPU interval to send yet.';await this.paint();return;}
+      observation=`System CPU: ${this.currentSystem.cpu.toFixed(1)}% (100% is all reported logical cores). Host counters; container limits may differ.`;
+    }else{
+      if(!this.currentSystem){this.shareStatus='No current system memory sample to send.';await this.paint();return;}
+      observation=`System non-free memory: ${(this.currentSystem.nonFreeMemory/1048576).toFixed(1)} MiB of ${(this.currentSystem.totalMemory/1048576).toFixed(1)} MiB. Total minus free may include caches; container limits may differ.`;
     }
     this.sharing=true;
     try{
-      const result=await $.emit('service.agent.enqueue',{plugin:'resources',key:`observation:${randomUUID()}`,text:`The user explicitly sent this resource observation for analysis: ${observation} This is a point-in-time measurement, not per-agent attribution or machine-wide usage. ${this.paused?'Sampling is paused, so this observation may be stale.':'This is the latest available sample; sampling can be delayed or stopped by errors.'} Investigate further only as appropriate for the user's task.`});
+      const scope=this.metric==='system-cpu'||this.metric==='system-memory'?'This is a host-wide observation, not per-process or per-agent attribution.':'This is a process observation, not per-agent attribution or machine-wide usage.';
+      const result=await $.emit('service.agent.enqueue',{plugin:'resources',key:`observation:${randomUUID()}`,text:`The user explicitly sent this resource observation for analysis: ${observation} ${scope} ${this.paused?'Sampling is paused, so this observation may be stale.':'This is the latest available sample; sampling can be delayed or stopped by errors.'} Investigate further only as appropriate for the user's task.`});
       if(result?.deny)throw Error(result.deny);
       if(result?.value?.queued!==true)throw Error('Follow-up was not queued');
       this.shareStatus='Resource observation queued for the agent.';
@@ -124,17 +142,18 @@ export class Monitor {
       if(revision+1===this.childrenRevision)await this.paint();
       return;
     }
-    if(!['cpu','memory','child-cpu','switch','pause','sample','clear','graphics-on','graphics-off'].includes(key))return;
+    if(!['cpu','memory','child-cpu','system-cpu','system-memory','switch','pause','sample','clear','graphics-on','graphics-off'].includes(key))return;
     this.stop();
-    if(['cpu','memory','child-cpu','switch','pause','clear'].includes(key))this.cancelChildren();
-    if(key==='cpu'||key==='memory')this.metric=key;
+    if(['cpu','memory','child-cpu','system-cpu','system-memory','switch'].includes(key))this.shareStatus=undefined;
+    if(['cpu','memory','child-cpu','system-cpu','system-memory','switch','pause','clear'].includes(key))this.cancelChildren();
+    if(key==='cpu'||key==='memory'||key==='system-cpu'||key==='system-memory')this.metric=key;
     if(key==='child-cpu')this.metric='children';
-    if(key==='switch')this.metric=this.metric==='cpu'?'memory':this.metric==='memory'?'children':'cpu';
+    if(key==='switch')this.metric=this.metric==='cpu'?'memory':this.metric==='memory'?'children':this.metric==='children'?'system-cpu':this.metric==='system-cpu'?'system-memory':'cpu';
     if(key==='graphics-on')this.graphics=true;
     if(key==='graphics-off')this.graphics=false;
     if(key==='pause'){this.paused=!this.paused;this.resetSampler();}
     if(key==='sample'){this.take();if(this.metric==='children')await this.sampleChildren(true);}
-    if(key==='clear'){this.samples=[];this.childrenHistory=[];this.resetSampler();this.take();}
+    if(key==='clear'){this.samples=[];this.systemSamples=[];this.childrenHistory=[];this.resetSampler();this.take();}
     await this.paint();this.schedule();
   }
   async visibility(event:{visible:boolean;attached:boolean;columns:number}){

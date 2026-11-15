@@ -1,4 +1,4 @@
-# Process resource monitor
+# Resource monitor
 
 `/resources` opens an independent live CPU/memory window. It does not expose an
 agent tool, automatically invoke a model, run a subprocess, or read project files. It stays usable
@@ -9,7 +9,18 @@ CPU is process CPU time divided by elapsed wall time. **100% means one busy core
 multiple cores can exceed 100%. RSS is resident process memory; heap usage is the
 JavaScript heap. Metrics include agents running inside the same process and
 exclude child shell processes, external model servers and other applications.
-They are not per-agent attribution or a machine-wide utilization estimate.
+They are not per-agent attribution.
+
+**System CPU** and **System memory** are separate host-wide charts from the
+operating system's reported counters. System CPU is the change in busy time
+across all reported logical cores divided by total time: 100% means all those
+cores are busy. The first interval, an unchanged counter, a core-count change or
+counter rollback gives a gap rather than an invented zero. These counters may
+describe the host or virtual machine rather than a container's quota; core
+replacement that preserves the same reported order and count may go undetected.
+System memory is total memory minus free memory, labelled **non-free** because it
+may include reclaimable cache and is not memory attributed to applications.
+These estimates are not per-process or per-agent measurements.
 
 On Linux, **Snapshot children** separately measures currently live descendants
 and sums their RSS. **Child CPU** also samples descendants while that tab is
@@ -42,9 +53,10 @@ text alternative. Graphics is off initially and is kept only for the current
 plugin instance; switching it does not ask a model.
 
 **Send latest sample to agent** explicitly queues the latest complete observation
-for the current conversation. CPU and memory describe the Compositor process;
-Child CPU is an approximate descendant interval. The request includes units and
-these limits, not a per-agent or machine-wide diagnosis. A missing CPU interval
+for the current conversation. CPU and Memory describe the Compositor process;
+Child CPU is an approximate descendant interval; System CPU and System memory
+describe OS host counters. The request includes units and these limits, not
+per-agent attribution. A missing CPU interval
 or incomplete child interval is not sent. The agent runs the request after its
 current turn under normal permissions and budgets; interruption pauses queued
 follow-ups until an explicit continuation. Closing or unloading the plugin can
@@ -65,6 +77,9 @@ reading cannot be sent until a new complete interval has been measured after
 resuming, showing the window or returning to the Child CPU tab.
 Process CPU history is also retained, but its current reading is cleared on
 pause, hide, reopen or counter failure; sharing waits for a new interval.
+System CPU follows the same interval reset. System memory requires a fresh sample
+after pause or hide; use Sample now while paused to take one explicitly. Failed
+system readings appear as gaps and cannot be shared.
 
 The plugin uses existing text-view and visibility contracts; the text plot
 remains portable and the optional image uses the host's raster support.

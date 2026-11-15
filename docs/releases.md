@@ -94,6 +94,9 @@ producer registries and managed input across Main resume and shutdown.
 `npm run visual:opentui-btw` checks the side conversation while Main is running,
 including separate drafts, window reopening and restart. Node 26 CI and all
 four native jobs run this scenario and retain its screenshots and report.
+`npm run visual:opentui-resources` checks live system charts and explicit sample
+sharing while Main is running. Node 26 CI and all four native jobs retain the
+report; the native report identifies the executable, renderer and bundled plugin.
 The additional `npm run visual:opentui-editor` gate selects a custom editor in
 two isolated compositions, covering F2/window ownership, real admission and
 recovery, Unicode checkpoints, canonical reload/resume and expired capabilities.

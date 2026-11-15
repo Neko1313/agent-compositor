@@ -855,16 +855,18 @@ recorded as `prompt.dropped`, so new command records cannot become user messages
 after resume. Session list,
 search and mutations still use `service.session.control`/`service.session.store`.
 
-## Independent process resource charts
+## Independent resource charts
 
 Enable the `resources` plugin and run `/resources` to open a live window while an
 agent works. CPU/Memory tabs plot real process samples with labeled scales and
-current RSS/heap values. The optional Graphics control adds a raster plot while
+current RSS/heap values. System CPU and System memory show OS-reported host
+counters; system non-free memory may include cache and container limits can differ.
+The optional Graphics control adds a raster plot while
 keeping the numeric text chart; OpenTUI reveals it when enabled. The plugin
 adds no model tool; opening, sampling and switching charts send no model request.
 Pause/Resume, Sample now and Clear history work independently of agent execution.
 Closing or hiding the window stops sampling; reopening retains this process's
 bounded history, while restart/reload starts fresh. See the
 [resource monitor guide](../plugins/resources/README.md) for measurement scope,
-CPU scaling, sample timing and limits. Child shell processes and external model
-servers are excluded; this is not per-agent or machine-wide attribution.
+CPU scaling, sample timing and limits. Process charts exclude child shell
+processes and external model servers; system charts are not per-agent attribution.

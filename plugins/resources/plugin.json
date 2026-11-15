@@ -4,6 +4,6 @@
   "description": "Independent CPU and memory charts with explicit sample sharing; no automatic model request.",
   "trust": "trusted",
   "capabilities": ["ui"],
-  "commands": [{"name": "/resources", "description": "Open process CPU and memory charts", "ui": {"site": "resources"}}],
+  "commands": [{"name": "/resources", "description": "Open process and system resource charts", "ui": {"site": "resources"}}],
   "compositor": {"standard": 1, "apiVersion": 1}
 }

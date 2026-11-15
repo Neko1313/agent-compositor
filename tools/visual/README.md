@@ -1095,17 +1095,24 @@ is held while the user opens the charts, waits for actual sample growth, pauses
 across a measured observation window, switches tabs by mouse/keyboard, samples
 manually, explicitly queues a selected memory sample while the main turn remains
 held, clears history, scrolls narrow controls, closes/reopens and restarts.
-It also verifies that pausing invalidates the current process CPU interval and,
+It also checks actual system CPU and non-free memory charts and explicitly queues
+a selected system observation. Pausing invalidates the current process CPU interval and,
 on Linux, the current child CPU interval. Neither old interval can be shared;
 chart history is preserved.
 The fixture uses actual process counters, not seeded graph values.
+
+`VISUAL_OUTPUT=dist/opentui-resources npm run visual:opentui-resources` exercises
+the same system charts in the actual OpenTUI app while Main is held by a loopback
+provider. It verifies explicit sharing without a second provider request and
+captures both graphs. `VISUAL_EXECUTABLE` selects a relocated release binary;
+the report records hashes of the executable, renderer and bundled plugin.
 
 For a complete extracted native host, use
 `VISUAL_RESOURCES=1 VISUAL_EXECUTABLE=/path/to/extracted/compositor VISUAL_OUTPUT=dist/native-resources node tools/visual/agent-table-check.mjs`.
 This uses the bundled plugin and one held-main loopback request; resource controls
 do not produce additional model requests while the main turn is held. The queued
 sample is interrupted and the isolated session restarted before it can run.
-Both paths record thirteen checks,
+Both paths record fifteen checks,
 including the visual certification requirements, and capture wide/narrow/restart
 screenshots. Source-host artifact certification can select an exact installed
 plugin with `VISUAL_PLUGIN_DIR`; native proof uses bundled code only.

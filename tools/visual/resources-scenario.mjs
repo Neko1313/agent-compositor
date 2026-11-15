@@ -7,6 +7,7 @@ import {join,dirname} from 'node:path';
 export async function resourcesScenario({page,wait,text,command,click,shot,report,output,native=false}){
  const count=()=>page.evaluate(()=>Number(visual.text().match(/Samples (\d+)\/120/)?.[1]));
  const reveal=async value=>{for(let i=0;i<6&&!(await text()).includes(value);i++){const before=await text();await page.keyboard.press('PageDown');await page.waitForFunction(before=>visual.text()!==before,before);}await wait(value);};
+ const revealTop=async value=>{for(let i=0;i<6&&!(await text()).includes(value);i++){const before=await text();await page.keyboard.press('PageUp');await page.waitForFunction(before=>visual.text()!==before,before);}await wait(value);};
  const full=async()=>{await wait('Resources');await click('Resources');if(!(await text()).includes('FULLSCREEN'))await page.keyboard.press('Alt+f');await page.waitForFunction(()=>visual.text().split('\n')[1]?.includes('Resources'));};
  await wait(native?'0/3 complete':'Describe your task');await command(native?'MAIN_TABLE_TASK':'RESOURCE_MAIN');await wait(native?'MAIN_TABLE_WORKING':'RESOURCE_AGENT_WORKING');
  await command('/resources');await full();await wait('CPU history (%)');
@@ -22,7 +23,13 @@ export async function resourcesScenario({page,wait,text,command,click,shot,repor
   await click('[ Resume ]');await page.waitForFunction(()=>/Child CPU: [0-9]+\.[0-9]+%/.test(visual.text()),undefined,{timeout:15000});
   await click('[ Pause ]');await wait('Paused');await wait('Child CPU: waiting for interval');await reveal('[ Send latest sample to agent ]');await click('[ Send latest sample to agent ]');await wait('No complete child CPU interval to send.');
  }
- await shot('01b-child-cpu');await click('[CPU]');
+ await shot('01b-child-cpu');await click('[System CPU]');await wait('System CPU history (%)');
+ await reveal('[ Resume ]');await click('[ Resume ]');await revealTop('System CPU:');await page.waitForFunction(()=>/System CPU: [0-9]+\.[0-9]+%/.test(visual.text()),undefined,{timeout:15000});
+ assert.ok((await text()).includes('all reported cores'));await shot('01c-system-cpu');
+ await reveal('[ Pause ]');await click('[ Pause ]');await wait('Paused');await click('[System memory]');await revealTop('System non-free memory history (MiB)');
+ await reveal('[ Sample now ]');await click('[ Sample now ]');await revealTop('System memory:');await page.waitForFunction(()=>/System memory: [0-9.]+ \/ [0-9.]+ MiB non-free/.test(visual.text()));
+ await reveal('[ Send latest sample to agent ]');await click('[ Send latest sample to agent ]');await wait('Resource observation queued for the agent.');await shot('01d-system-memory');
+ await click('[CPU]');
  await reveal('[ Clear history ]');await click('[ Clear history ]');await wait('Samples 1/120');
  await page.evaluate(()=>visual.terminal.resize(48,18));await wait('RSS:');await reveal('[ Resume ]');await wait('[ Sample now ]');await shot('02-resources-narrow');
  await page.evaluate(()=>visual.terminal.resize(100,30));await page.keyboard.press('Alt+q');await page.waitForFunction(()=>!visual.text().includes('│ Resources')&&visual.text().split('\n')[1]?.includes('Conversation'));assert.ok((await text()).includes('Working'));
@@ -37,5 +44,5 @@ export async function resourcesScenario({page,wait,text,command,click,shot,repor
   const manifest=JSON.parse(await readFile(join(identity.directory,'plugin.json'),'utf8'));assert.equal(identity.version,manifest.version);
   report.resourcePlugin={...identity,sha256:createHash('sha256').update(await readFile(join(identity.directory,'hooks.js'))).digest('hex')};
   report.transport=JSON.parse(await readFile(join(output,'workflow-transport.json'),'utf8'));assert.deepEqual(report.transport.requests,['main']);assert.equal(report.transport.paidRequests,0);}
- report.checks.push('view.narrow','ui.keyboard','ui.pointer','ui.focus','ui.submit','ui.cancel','ui.restart','resources.live','resources.pause','resources.sample','resources.clear','resources.closed','resources.explicit-agent-share');
+ report.checks.push('view.narrow','ui.keyboard','ui.pointer','ui.focus','ui.submit','ui.cancel','ui.restart','resources.live','resources.pause','resources.sample','resources.clear','resources.closed','resources.explicit-agent-share','resources.system-cpu','resources.system-memory');
 }

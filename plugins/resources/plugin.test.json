@@ -387,6 +387,36 @@
       }
     },
     {
+      "id": "system-counter-intervals",
+      "kind": "deterministic",
+      "requirements": ["view.content"],
+      "setup": "A controlled system counter source reports CPU and memory changes, topology changes and invalid values.",
+      "expect": ["CPU is aggregated across reported cores; non-free memory is total minus free; invalid intervals are gaps."],
+      "forbidden": ["Invented zero values for invalid or missing intervals."],
+      "timeoutMs": 60000,
+      "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor measures aggregate system CPU and non-free memory without inventing invalid intervals"}
+    },
+    {
+      "id": "system-observation-sharing",
+      "kind": "deterministic",
+      "requirements": ["view.content", "view.lifecycle"],
+      "setup": "A monitor uses controlled system counters and an explicit observation queue.",
+      "expect": ["System charts and explicit sharing identify scope and units; pause and hide revoke stale current samples."],
+      "forbidden": ["Automatic model requests or per-agent attribution of host metrics."],
+      "timeoutMs": 60000,
+      "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor shows and explicitly shares system observations without requesting a model"}
+    },
+    {
+      "id": "system-observation-failure",
+      "kind": "deterministic",
+      "requirements": ["view.content", "view.lifecycle"],
+      "setup": "A previously working system counter fails and then recovers.",
+      "expect": ["The error is visible and only newly sampled complete observations can be shared."],
+      "forbidden": ["Sharing a stale host observation as current."],
+      "timeoutMs": 60000,
+      "run": {"runner": "vitest", "file": "packages/app/test/resources.test.ts", "test": "resources monitor does not share stale system observations after a sampling failure"}
+    },
+    {
       "id": "independent-command",
       "kind": "deterministic",
       "requirements": [

@@ -376,12 +376,13 @@ Previous/Next part controls. Refresh history reads the latest saved snapshot.
 History survives restart and uses the configured session backend without a model
 request. PageUp/PageDown scroll; Open conversation returns to the agent's Reply.
 
-With the `resources` plugin enabled, `/resources` opens process CPU and memory
-charts without involving the agent. The window updates while the main model
-works; CPU/Memory tabs, Pause/Resume, Sample now and Clear history are local UI
+With the `resources` plugin enabled, `/resources` opens process and system CPU
+and memory charts without involving the agent. The window updates while the main model
+works; chart tabs, Pause/Resume, Sample now and Clear history are local UI
 controls. Graphics optionally adds an image plot; OpenTUI reveals it when enabled
 and the text chart remains available. Sampling stops when hidden or closed. CPU 100% means one core; RSS/heap
 cover this process, including in-process agents, and exclude child shell processes.
+System CPU uses 100% for all reported cores; system non-free memory may include cache.
 History is bounded and starts fresh after restart. See the
 [plugin guide](../../plugins/resources/README.md) for limits.
 

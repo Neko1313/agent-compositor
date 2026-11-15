@@ -1,5 +1,19 @@
 # Project memory
 
+## System resource charts — 2026-11-16
+
+The `resources` plugin now measures OS-reported aggregate CPU and non-free
+memory alongside its process and child metrics. CPU 100% means all reported
+logical cores; first, zero-delta, topology-change and backward-counter intervals
+are gaps. Non-free memory is total minus free and may include cache. These can
+reflect host rather than container limits. Explicit sharing labels the selected
+scope and refuses stale or unavailable observations; no model request occurs
+for opening or sampling. Controlled counter, failure, lifecycle and sharing
+checks pass. Real Ink and OpenTUI PTY scenarios pass on source and a locally
+relocated Linux x64 archive with a held loopback model; the latter reports the
+plugin hash in `dist/visual-opentui-system-resources-final/report.json`. This
+does not certify other platforms, external providers or per-agent attribution.
+
 ## Linux ARM64 `/btw` candidate failure — 2026-11-16
 
 GitHub reports the earlier build-only run `43759318216` for `c2fd409` succeeded

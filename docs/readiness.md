@@ -744,11 +744,13 @@ Core checks cover owner dispatch, failure isolation, tool permissions, auxiliary
 usage, cancellation, unload and shutdown bounds.
 
 The bundled `resources` plugin provides a standalone non-model window with live
-process CPU/RSS charts, pause/manual sampling and bounded in-memory history.
-It includes in-process agents. On Linux, a separate child CPU chart estimates
+process CPU/RSS and OS-reported system CPU/non-free memory charts, pause/manual
+sampling and bounded in-memory history. System counters may describe the host
+rather than a container's quota, and non-free memory can include cache.
+The process chart includes in-process agents. On Linux, a separate child CPU chart estimates
 the load of surviving descendants and an on-demand snapshot sums their RSS; both
-report incomplete observations and can miss short-lived processes. External
-model servers, per-agent attribution and broader resource integrations remain
+report incomplete observations and can miss short-lived processes. Separate
+attribution for external model servers, per-agent attribution and broader resource integrations remain
 open. An explicit panel action can queue the latest complete selected sample for
 the current agent; sampling and opening the panel do not request a model. Agent
 and workflow views use

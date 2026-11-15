@@ -177,6 +177,16 @@ jobs:
           trap 'rm -rf "$OPENTUI_INSTALL_DIR"' EXIT
           tar -xzf "dist/release/compositor-${{ matrix.platform }}.tar.gz" -C "$OPENTUI_INSTALL_DIR"
           VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" npm run visual:opentui-btw
+      - name: Verify relocated OpenTUI system resource charts
+        timeout-minutes: 7
+        shell: bash
+        env:
+          VISUAL_OUTPUT: dist/release/opentui-resources-${{ matrix.platform }}
+        run: |
+          OPENTUI_INSTALL_DIR="$(mktemp -d "$RUNNER_TEMP/opentui-native.XXXXXX")"
+          trap 'rm -rf "$OPENTUI_INSTALL_DIR"' EXIT
+          tar -xzf "dist/release/compositor-${{ matrix.platform }}.tar.gz" -C "$OPENTUI_INSTALL_DIR"
+          VISUAL_EXECUTABLE="$OPENTUI_INSTALL_DIR/compositor/compositor" npm run visual:opentui-resources
       - name: Check the relocated native selected OpenTUI editor
         timeout-minutes: 7
         shell: bash
@@ -255,6 +265,7 @@ jobs:
             dist/release/opentui-controllers-${{ matrix.platform }}/
             dist/release/opentui-child-${{ matrix.platform }}/
             dist/release/opentui-btw-${{ matrix.platform }}/
+            dist/release/opentui-resources-${{ matrix.platform }}/
             dist/release/opentui-editor-${{ matrix.platform }}/
             dist/release/opentui-workspace-controllers-${{ matrix.platform }}/
             dist/release/opentui-conversation-copies-${{ matrix.platform }}/

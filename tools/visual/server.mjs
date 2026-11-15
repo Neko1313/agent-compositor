@@ -35,6 +35,7 @@ await mkdir(join(cwd, 'plugins'));
 for (const name of ['todos', 'slash-commands', 'ui-theme']) await cp(join(root, 'plugins', name), join(cwd, 'plugins', name), { recursive: true });
 if(process.env.VISUAL_OPENTUI_APP&&!process.env.VISUAL_EXECUTABLE)await cp(join(root,'plugins/network-proxy'),join(cwd,'plugins/network-proxy'),{recursive:true});
 if(process.env.VISUAL_OPENTUI_BTW&&!process.env.VISUAL_EXECUTABLE)await cp(join(root,'plugins/btw'),join(cwd,'plugins/btw'),{recursive:true});
+if(process.env.VISUAL_OPENTUI_RESOURCES&&!process.env.VISUAL_EXECUTABLE)await cp(join(root,'plugins/resources'),join(cwd,'plugins/resources'),{recursive:true});
 await mkdir(join(cwd, '.agent-compositor'));
 if(process.env.VISUAL_GIT_FIXTURE){
   const git=(...args)=>{
@@ -460,7 +461,7 @@ if(process.env.VISUAL_OPENTUI_APP){
   ...(editor?[editor.provider,editor.requester,'extension-manager',...(editor.selectedProvider?[editor.selectedProvider]:[])]:[]),
   ...(workspaceControllers?[workspaceControllers.provider,workspaceControllers.requester,workspaceControllers.observer,'extension-manager']:[]),
   ...(conversationCopies?[conversationCopies.provider,conversationCopies.requester,conversationCopies.observer,'extension-manager',...(conversationCopies.selectedProvider?[conversationCopies.selectedProvider]:[])]:[]),
-  ...(appearance?appearance.plugins:[]),...(publicRender?publicRender.plugins:[]),...(child?child.plugins:[]),...(process.env.VISUAL_OPENTUI_BTW?['btw']:[])],
+  ...(appearance?appearance.plugins:[]),...(publicRender?publicRender.plugins:[]),...(child?child.plugins:[]),...(process.env.VISUAL_OPENTUI_BTW?['btw']:[]),...(process.env.VISUAL_OPENTUI_RESOURCES?['resources']:[])],
   ...((controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender||child)?{ui:{controllers:(controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender??child).selected}}:{}),
   ...((cancellation||requests||controllers||editor||workspaceControllers||conversationCopies||appearance||publicRender||child)?{permissions:{rules:(cancellation??requests??controllers??editor??workspaceControllers??conversationCopies??appearance??publicRender??child).rules}}:{}),agent:{projectContext:false,skills:false,verifyCompletion:false,...(child?{tools:['task','ask_user','ask_questions','write','agent_control','extension_control'],builtinTools:['write'],controlTools:['task','ask_user','ask_questions']}: {})},compaction:{enabled:false}}));
  await writeFile(join(paths.state,'providers.json'),JSON.stringify({profiles:{bootstrap:{type:'openai-compat',baseUrl,model:'app-start',contextWindow:65536,timeoutMs:300000}}}));

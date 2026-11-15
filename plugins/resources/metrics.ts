@@ -1,3 +1,5 @@
+import {cpus,freemem,totalmem} from 'node:os';
+
 export type Sample = {cpu?:number; rss:number; heapUsed:number; heapTotal:number};
 export type Source = {
   now:()=>bigint;
@@ -20,6 +22,40 @@ export class Sampler {
     this.previous={time,cpu:total};
     const cpu=previous?(total-previous.cpu)/(Number(time-previous.time)/1000)*100:undefined;
     return {...memory,cpu};
+  }
+}
+
+export type SystemSample={cpu?:number;totalMemory:number;nonFreeMemory:number};
+export type SystemSource={cores:()=>readonly {times:{user:number;nice:number;sys:number;idle:number;irq:number}}[];totalMemory:()=>number;freeMemory:()=>number};
+const systemSource:SystemSource={cores:cpus,totalMemory:totalmem,freeMemory:freemem};
+
+/** Aggregate host CPU across logical cores; 100% means all reported cores busy. */
+export class SystemSampler {
+  private previous?:readonly {total:number;idle:number}[];
+  constructor(private readonly source:SystemSource=systemSource){}
+  reset(){this.previous=undefined;}
+  sample():SystemSample{
+    const cores=this.source.cores(),totalMemory=this.source.totalMemory(),freeMemory=this.source.freeMemory();
+    if(!cores.length||!Number.isFinite(totalMemory)||totalMemory<=0||!Number.isFinite(freeMemory)||freeMemory<0||freeMemory>totalMemory)
+      throw Error('Invalid system counters');
+    const current=cores.map(({times})=>{
+      const values=[times.user,times.nice,times.sys,times.idle,times.irq];
+      if(!values.every(value=>Number.isFinite(value)&&value>=0))throw Error('Invalid system counters');
+      const total=values.reduce((sum,value)=>sum+value,0);
+      if(!Number.isFinite(total))throw Error('Invalid system counters');
+      return {total,idle:times.idle};
+    });
+    const previous=this.previous;this.previous=current;
+    let cpu:number|undefined;
+    if(previous&&previous.length===current.length){
+      let total=0,idle=0,valid=true;
+      for(let index=0;index<current.length;index++){
+        const dt=current[index].total-previous[index].total,di=current[index].idle-previous[index].idle;
+        if(dt<0||di<0||di>dt)valid=false;total+=dt;idle+=di;
+      }
+      if(valid&&Number.isFinite(total)&&Number.isFinite(idle)&&total>0)cpu=100*(total-idle)/total;
+    }
+    return {cpu,totalMemory,nonFreeMemory:totalMemory-freeMemory};
   }
 }
 

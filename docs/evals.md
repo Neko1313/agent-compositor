@@ -707,6 +707,47 @@ review criteria are retained locally in `dist/onboarding-dialogue-06-v1` and
 `dist/onboarding-dialogue-17-v1`. These known examples show concrete failures,
 not a representative quality score or proof of safe first-run conversation.
 
+`npm run eval:onboarding-multiturn` accepts the same pinned engine, model and
+output arguments and runs one three-turn Russian conversation. Each generated
+answer is passed into the next prompt, escaped as data, together with the fixed
+user turns. Invalid output stops the dialogue. The script exposes no tools or
+setup actions and records the responses for human review; valid JSON and a zero
+exit do not establish truthful answers, recommendations or production quality.
+The synthetic conversation is passed in process arguments and may be visible
+to other local users. The caller-provided executable is not network-sandboxed.
+
+On 2026-11-16, the cached Qwen3 1.7B model returned valid JSON for all three
+turns, but the final answer claimed that the suggested plugins were enabled,
+despite the diagnostic exposing no plugin state or actions. The retained local
+report is `dist/onboarding-multiturn-17-20261116/`. This is one known dialogue,
+not a model-family score; it demonstrates that valid, context-carrying output
+does not establish truthful state reporting.
+The Qwen3 0.6B model also returned valid JSON for each turn, but repeated each
+user message instead of answering it. Its retained local report is
+`dist/onboarding-multiturn-06-20261116/`.
+The [ggml-org Qwen3.5 0.8B Q4_0 model](https://huggingface.co/ggml-org/Qwen3.5-0.8B-GGUF)
+at revision `004fd086eccea9f7cf867aa07ba328773beef81d` (SHA-256
+`57d1997790d1744fba5b40a7317df71ea5e2acee28c47e78f0cce39c0703f8cf`)
+also produced valid JSON for all three turns. With this fixture's fixed Qwen
+prompt, it described the user's requests in the third person rather than
+answering them; it did not assert that plugins had been enabled. The local
+report is `dist/onboarding-multiturn-35-08-20261116/`. A different chat
+template or prompt could produce different results; this is not a general
+assessment of the model.
+An additional local variant removed the JSON quoting and user-data prefix from
+the conversation text, while retaining delimiter escaping. In that variant the
+same model repeated the first clarification on all three turns. The variant and
+its report are retained in `dist/onboarding-multiturn-plain.mjs` and
+`dist/onboarding-multiturn-35-plain-20261116/`; this is not the maintained
+diagnostic or a controlled evaluation of all prompt choices.
+A further uncommitted Russian-instruction variant answered directly and named
+`test-reports` and `project-checks`, and said it could not see the enabled
+state. Its first response also invented a choice between work modes, and its
+later answers repeated generic suggestions. The local variant and report are
+`dist/onboarding-multiturn-ru.mjs` and
+`dist/onboarding-multiturn-35-ru-20261116/`. These single-dialogue observations
+do not show that changing the prompt makes its output reliable.
+
 ## Offline CPU development diagnostic
 
 With `ollama` on PATH and an existing local model cache, run:

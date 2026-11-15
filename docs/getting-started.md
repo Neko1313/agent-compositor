@@ -104,6 +104,8 @@ another session. Completion checks the current state even if the open view has
 not refreshed, and refreshes it when changes are pending. If a disabled
 recommended plugin is still active, apply changes to unload it before completing
 setup. Skip remains available if a plugin cannot load or unload.
+If a recommended tool is still pending after reload, the guide says so; check
+the reload result for errors or open Extensions to change the selection.
 Failures remain visible so you can retry or
 continue without optional tools. If a download succeeds but enabling fails,
 the guide reports the installation and the enable error; inspect the current

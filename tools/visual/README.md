@@ -521,6 +521,11 @@ installed, and setup can reopen. Set `VISUAL_ONBOARDING_OPENTUI=1` for OpenTUI.
 Set `VISUAL_SETUP_CANCEL_KEY=1` to exercise Ctrl+C in Ink instead of closing it.
 On OpenTUI the next action waits until the profile form has closed and the guide
 has regained focus, because a visible status behind the form is not sufficient.
+`VISUAL_OUTPUT=dist/setup-load-failure node tools/visual/setup-load-failure-check.mjs`
+corrupts a selected plugin manifest in the isolated fixture, checks that the
+guide reports the unresolved selection after reload, then restores the file and
+checks recovery without model requests. Set `VISUAL_ONBOARDING_OPENTUI=1` for
+OpenTUI. This is a controlled loader failure, not a marketplace availability test.
 
 `VISUAL_OUTPUT=dist/btw-proof node tools/visual/plugin-check.mjs btw` checks the
 actual side-conversation flow: opening while the main model is held, inline

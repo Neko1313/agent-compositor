@@ -195,6 +195,21 @@ it('requires applying a disabled plugin that is still loaded before completing s
  }finally{await f.close();}
 });
 
+it('distinguishes a pending selection after reload and clears the warning when it is resolved',async()=>{
+ const f=await fixture();try{
+  f.setConfigured(true);f.setEnabled(['web']);
+  await (f.guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('Still pending after reload'))).toBe(false);
+  await (f.guide.plugin.hooks['session.reload'] as any)({},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('Still pending after reload: web'))).toBe(true);
+  await f.press('finish');expect(f.notices.at(-1).message).toMatch(/Apply plugin changes/);
+  f.setEnabled([]);f.api.next=async()=>({value:{changed:'web'}});
+  await (f.guide.plugin.hooks['service.extension.control'] as any)({action:'disable'},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('Still pending after reload'))).toBe(false);
+  await f.press('finish');expect(JSON.parse(await readFile(join(f.storage.paths.home,'setup.json'),'utf8')).status).toBe('complete');
+ }finally{await f.close();}
+});
+
 it('tracks enabled recommendations across sessions and permits completion after they load or are disabled',async()=>{
  const f=await fixture();try{
   f.setConfigured(true);f.setEnabled(['project-checks','unrelated-plugin']);

@@ -1525,7 +1525,15 @@ export class AgentCore {
           }
           const repeated=queryProgress.observe(records.map(record=>this.queryObservations.get(record)));
           if(repeated>=(this.options.maxRepeatedQuerySteps??6)){failed='Repeated query results without new observations; progress saved. Change the query or report a concrete blocker before resuming.';break;}
-          if(repeated===3)this.messages.push({role:'user',origin:'harness',content:'Query recovery: these query results repeat observations already returned. Use the available evidence: open an exact discovered path, correct invalid read arguments, narrow or change the query, or perform the next authorized step. Do not repeat the same query without a concrete reason. If blocked, report the blocker. Polling tools remain available for genuinely running work.'});
+          if(repeated===3){
+            const glob=this.executionTools.find(tool=>tool.name==='glob'&&tool.loopGuard==='query');
+            const required=glob?.parameters.required,properties=glob?.parameters.properties;
+            const discovery=glob&&Array.isArray(required)&&required.length===1&&required[0]==='pattern'&&
+              properties&&typeof properties==='object'&&!Array.isArray(properties)&&
+              (properties as Record<string,{type?:unknown}>).pattern?.type==='string'
+              ? ' If a file path is unknown, consider a separate glob call with {"pattern":"**/*"}; normal permissions still apply.' : '';
+            this.messages.push({role:'user',origin:'harness',content:'Query recovery: these query results repeat observations already returned. Use the available evidence: open an exact discovered path, correct invalid read arguments, narrow or change the query, or perform the next authorized step.'+discovery+' Do not repeat the same query without a concrete reason. If blocked, report the blocker. Polling tools remain available for genuinely running work.'});
+          }
         }
         if (step === this.maxSteps - 1) {
           failed = `Step limit (${this.maxSteps}) reached; progress saved. Continue this session to resume.`;

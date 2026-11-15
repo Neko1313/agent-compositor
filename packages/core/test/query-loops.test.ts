@@ -35,6 +35,13 @@ it('still resets the observation window on other query failures',async()=>{
 it('lets a model recover by making a new observation after the reminder',async()=>{
  const f=await fixture([...Array.from({length:4},()=>query()),query({path:'different.mjs'}),{text:'Inspected a different file.'}]);await f.core.submit('Inspect');expect(f.core.failure).toBeUndefined();expect(f.provider.requests).toHaveLength(6);expect(f.provider.requests[4].messages.some(m=>m.content.includes('Query recovery:'))).toBe(true);
 });
+it('does not suggest a glob call whose declared schema needs other arguments',async()=>{
+ const observe:ToolSpec={name:'observe',description:'Observe',loopGuard:'query',parameters:{type:'object'},describe:()=>({tool:'observe'}),execute:async()=>({ok:true,data:'unchanged'})};
+ const glob:ToolSpec={name:'glob',description:'Custom glob',loopGuard:'query',parameters:{type:'object',properties:{pattern:{type:'string'},root:{type:'string'}},required:['pattern','root']},describe:()=>({tool:'glob'}),execute:async()=>({ok:true,data:[]})};
+ const f=await fixture([...Array.from({length:5},()=>query()),{text:'Done'}],{tools:[observe,glob]});
+ await f.core.submit('Inspect');const reminder=f.provider.requests.flatMap(request=>request.messages).find(message=>message.content.includes('Query recovery:'));
+ expect(reminder).toBeDefined();expect(reminder?.content).not.toContain('separate glob call');
+});
 it('allows changing query results and unchanged unannotated polling results',async()=>{
  for(const polling of [false,true]){
   let version=0;const f=await fixture([...Array.from({length:9},()=>query()),{text:'Observed'}],{},polling?{loopGuard:undefined}:{execute:async()=>({ok:true,data:{version:++version}})});

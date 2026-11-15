@@ -830,6 +830,9 @@ intercepted results and extension read failures are not treated as missing-file
 observations.
 After three repeated steps, the model receives one recovery reminder for that
 streak. Six repeated steps stop the turn with preserved progress and an error.
+When a compatible `glob` query is actually available, the reminder may suggest
+an explicit `{"pattern":"**/*"}` call for unknown paths. This is guidance only:
+it executes no discovery and grants no permission.
 The first novel observation does not count toward those six steps. A new result
 or query resets the repeated-step count; a non-query or other failed step, new turn or user
 steering resets the window too. Context replacement, including compaction, resets

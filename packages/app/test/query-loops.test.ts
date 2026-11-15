@@ -68,5 +68,18 @@ it('lets the model recover from the alternating loop by discovering a real file'
  const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[resolve('plugins/callix')]});apps.push(app);const core=app.createCore(async()=>false),results:any[]=[];
  core.subscribe(e=>{if(e.kind==='catalog'&&e.event==='tool.result')results.push(e.input);});await core.submit('Find the implementation');
  expect(core.failure).toBeUndefined();expect(provider.requests.some(request=>request.messages.some(message=>message.content.includes('Query recovery:')))).toBe(true);
+ expect(provider.requests.flatMap(request=>request.messages).filter(message=>message.content.includes('Query recovery:')).every(message=>!message.content.includes('separate glob call'))).toBe(true);
  expect(results.filter(result=>result.tool==='read').at(-1)).toMatchObject({ok:true,output:{content:expect.stringContaining('answer=42')}});
+});
+it('suggests a separate glob call only when the selected tool is available and preserves denial',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'app-query-glob-guidance-'));roots.push(cwd);
+ await writeFile(join(cwd,'actual.mjs'),'export const answer=42;\n');
+ await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['callix'],agent:{tools:['grep','read','glob'],builtinTools:['read'],controlTools:[],skills:false,projectContext:false,fileReferences:false},permissions:{rules:[{tool:'glob',decision:'deny'}]},compaction:{enabled:false}}));
+ const pair=[{toolCalls:[{name:'grep',args:{pattern:'not-present'}}]},{toolCalls:[{name:'read',args:{path:'invented.mjs'}}]}];
+ const provider=new ScriptedProvider([...pair,...pair,...pair,{toolCalls:[{name:'glob',args:{pattern:'**/*'}}]},{text:'Discovery was denied.'}]);
+ const app=await buildApp({cwd,env:{HOME:cwd},provider,pluginDirs:[resolve('plugins/callix')]});apps.push(app);const core=app.createCore(async()=>false),results:any[]=[];
+ core.subscribe(e=>{if(e.kind==='catalog'&&e.event==='tool.result')results.push(e.input);});await core.submit('Find the implementation');
+ const reminder=provider.requests.flatMap(request=>request.messages).find(message=>message.content.includes('Query recovery:'));
+ expect(reminder?.content).toContain('separate glob call with {"pattern":"**/*"}');expect(reminder?.content).toContain('normal permissions still apply');
+ const calls=results.filter(result=>result.tool==='glob');expect(calls).toHaveLength(1);expect(calls[0]).toMatchObject({ok:false,denied:true});
 });

@@ -810,12 +810,15 @@ needing structured results should use `output`, rather than parse model prose.
 
 ### Approaching the step limit
 
-In the default loop, once tools have been used, the host sends one reminder
-before a request with two model steps left (for limits of at least three steps).
+In the default loop, once tools have been used, the host sends a request-only
+reminder when one or two model steps remain (for limits of at least three steps).
 It asks the model to prioritize authorized work and verification and to report
 unfinished work honestly. It does not run a command, grant permission, reserve
 a verification step, or increase the limit. Provider request limits and token
 budgets can stop a turn earlier. Custom run strategies own their own behavior.
+The reminder is not saved in conversation history and cannot misstate the
+budget of a later turn. The host also discards the exact obsolete reminder saved
+by earlier versions when starting a new turn.
 
 ### Repeated query recovery
 

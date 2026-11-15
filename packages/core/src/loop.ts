@@ -63,6 +63,8 @@ interface UserToolOperation {
   children?:Set<Promise<unknown>>;
 }
 type HumanFormBinding={handler?:CoreHumanFormHandler;previous?:HumanFormBinding;active:boolean};
+// Older versions persisted this transient instruction in restored transcripts.
+const legacyStepBudgetHint='Step budget: at most 2 model steps remain in this turn. Prioritize the next authorized action and any necessary verification. Do not assume a check passed; if work remains, report concrete results and what is unfinished.';
 
 export interface CorePlugin {
   controllers?:UiControllers;
@@ -1322,6 +1324,10 @@ export class AgentCore {
     const behavior = (await this.emit("service.agent.instructions", {})) as {value?:string};
     this.baseInstructions = typeof behavior?.value === "string" ? behavior.value : "";
     this.turnToolRecords=[];
+    for(let i=this.messages.length-1;i>=0;i--){
+      const message=this.messages[i];
+      if(message.role==='user'&&message.origin==='harness'&&message.content===legacyStepBudgetHint)this.messages.splice(i,1);
+    }
     this.messages.push({
       role: "user",
       content: promptText,
@@ -1411,7 +1417,7 @@ export class AgentCore {
     let metadata: Record<string, unknown> | undefined;
     let failed: string | undefined;
 
-    let recoveryAttempted=false, outputRecoveryAttempted=false, finishChecks=0, stepBudgetWarned=false;
+    let recoveryAttempted=false, outputRecoveryAttempted=false, finishChecks=0;
     const queryProgress=new QueryProgress();
     const checkProgress=new CheckProgress();
     let queryContext=this.messages;
@@ -1432,16 +1438,16 @@ export class AgentCore {
       if(this.messages!==queryContext){queryProgress.reset();checkProgress.reset();queryContext=this.messages;}
       if (this.abort.signal.aborted) break;
 
-      if(!stepBudgetWarned && this.maxSteps>=3 && this.maxSteps-step===2 && this.turnToolRecords.length>0){
-        this.messages.push({role:'user',origin:'harness',content:'Step budget: at most 2 model steps remain in this turn. Prioritize the next authorized action and any necessary verification. Do not assume a check passed; if work remains, report concrete results and what is unfinished.'});
-        stepBudgetWarned=true;
-      }
       await this.emit("turn.step", { turnId });
       const batch: ChatToolCall[] = [];
       let finish: { reason: string; error?: string } | undefined;
 
       try {
-        for await (const ev of this.streamModel(this.request())) {
+        const request=this.request();
+        const remainingSteps=this.maxSteps-step;
+        if(this.maxSteps>=3 && remainingSteps<=2 && this.turnToolRecords.length>0)
+          request.messages.push({role:'user',origin:'harness',content:`Step budget: at most ${remainingSteps} model ${remainingSteps===1?'step remains':'steps remain'} in this turn. Prioritize the next authorized action and any necessary verification. Do not assume a check passed; if work remains, report concrete results and what is unfinished.`});
+        for await (const ev of this.streamModel(request)) {
           if (this.abort.signal.aborted) break;
           if (ev.type === "text_delta") {
             const rewritten = await this.emit("assistant.text", {

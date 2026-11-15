@@ -379,7 +379,7 @@ export async function marketplaces(
       name: "marketplace-manager",
       version: "1.0.0",
       trust: "trusted",
-      hookTimeouts:{'ui.press':300000,'prompt.submit':300000},
+      hookTimeouts:{'ui.press':300000,'prompt.submit':300000,'service.extension.control':300000},
     },
     hooks: {
       "prompt.submit": async (e: any, $: any) => {
@@ -389,6 +389,7 @@ export async function marketplaces(
           );
         const scope = words.includes("--project") ? "project" : "user";
         if (cmd !== "/marketplace") return;
+        $.state.delete('installReceipt');
         const result = await $.agent.tool("marketplace_control", {
           action,
           ...(action === "add" ? { source, ref, scope } : { name: source }),
@@ -401,9 +402,20 @@ export async function marketplaces(
         );
         return { drop: "marketplace: handled" };
       },
-      'ui.change':async(e:any,$:any)=>{if(e.site==='plugin-marketplace-manager-marketplaces'&&e.id==='search'){query=String(e.value);selectedIndex=0;await browse($);}},
+      'ui.change':async(e:any,$:any)=>{if(e.site==='plugin-marketplace-manager-marketplaces'&&e.id==='search'){$.state.delete('installReceipt');query=String(e.value);selectedIndex=0;await browse($);}},
+      'service.extension.control':async(e:any,$:any)=>{
+        const receipt=$.state.get('installReceipt');
+        const result=await $.next();
+        if(receipt&&receipt===$.state.get('installReceipt')&&['enable','disable','remove','update','rollback'].includes(e.action)&&
+          String(e.name??'').split('@')[0]===receipt&&result&&typeof result==='object'&&'value'in result&&!$.signal.aborted){
+          try{await $.ui.view('marketplaces','Marketplaces',extensionView(e.action,{ok:true,data:result.value}),{site:'sidebar',size:.5,focus:false});}
+          catch{/* A refresh must not change the completed extension operation. */}
+        }
+        return result;
+      },
       'ui.press':async(e:any,$:any)=>{
         if(e.site!=='plugin-marketplace-manager-marketplaces')return;
+        if(!e.key.startsWith('manage:')&&e.key!=='updates')$.state.delete('installReceipt');
         if(['up','down'].includes(e.key)){
           selectedIndex=(selectedIndex+(e.key==='up'?-1:1)+browseRows.length)%Math.max(1,browseRows.length);await browse($);return;
         }
@@ -443,6 +455,7 @@ export async function marketplaces(
           await $.ui.view('marketplaces','Marketplaces',pendingManagementView('install',name),{site:'sidebar',size:.5,focus:true});
           const result=await managementResult($,'service.extension.control',{action:'install',name,scope:form.values.scope});
           await $.ui.view('marketplaces','Marketplaces',extensionView('install',result),{site:'sidebar',size:.5,focus:true});
+          if(result.ok)$.state.set('installReceipt',name.split('@')[0]);
         }
       },
     },

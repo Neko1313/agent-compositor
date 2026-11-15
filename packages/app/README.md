@@ -548,6 +548,9 @@ provides **Enable installed plugin** and **Apply plugin changes**. The manager
 also provides update checks, update/rollback/disable/remove actions, and links
 back to installed plugins and catalogs. Catalog registration and refresh are
 explicit actions. The management form defaults to the installation's scope.
+An open installation result follows subsequent management actions for that
+plugin through the interface without taking focus. Activation still requires
+applying changes to the running session.
 
 These TUI controls and `/extensions`, `/marketplace`, `/settings`, `/models` and
 `/providers` run independently of the model's prompt queue. They do not submit a

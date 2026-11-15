@@ -170,7 +170,10 @@ try{
   assert.equal(await field('Manage local-flow-probe','Action'),'enable');
   await formButton('Manage local-flow-probe','Apply');await wait('Enabled local-flow-probe');
   const enabled=await json(launch.managers.extensionState);assert.ok(enabled.enabled.includes(plugin));assert.ok(!enabled.disabled.includes(plugin));
-  await unzoom();await click('Apply plugin changes');await waitMain('Plugin reload queued until current operations finish');
+  await unzoom();
+  await observe(()=>paneText('Marketplaces'),text=>text.includes('Enabled local-flow-probe')&&!text.includes('Inactive until you explicitly enable'),
+    'Marketplace receipt must reflect the successful activation');
+  await click('Apply plugin changes');await waitMain('Plugin reload queued until current operations finish');
   assert.equal(await exists(launch.managers.receipt),false,'Queued reload must wait for the unresolved Main question');await noUnexpectedModelRequests(1);
   await unzoom();await main();await pendingMainDraft();await click('Edit answer',{pane:'Main'});await wait('[x] Production');await click('Draft');
   await capture('02-enabled-reload-pending');

@@ -1903,6 +1903,14 @@ it('uses actual manager navigation, local inactive installation, cross-manager f
   f.answer(manage, 'apply', {action: 'enable', scope: 'project'});
   await expect.poll(() => f.form()).toBeUndefined();
   await expect.poll(() => f.find(extensionId)?.snapshot().view?.lines[0]?.text).toContain('Enabled local-flow-probe');
+  await expect.poll(() => f.find(marketId)?.snapshot().view?.lines[0]?.text).toContain('Enabled local-flow-probe');
+  expect(f.find(marketId)?.snapshot().view?.lines.some(line => line.text.includes('Inactive until you explicitly enable'))).toBe(false);
+  f.layout.act({type:'open',id:marketId});f.layout.act({type:'close'});
+  await f.host.core.host.emit('service.extension.control',{action:'disable',name:'local-flow-probe',scope:'project'});
+  expect(f.layout.snapshot().locations[marketId]).toBeUndefined();
+  await expect.poll(()=>f.find(marketId)?.snapshot().view?.lines[0]?.text).toContain('Disabled local-flow-probe');
+  await f.host.core.host.emit('service.extension.control',{action:'enable',name:'local-flow-probe',scope:'project'});
+  expect(f.layout.snapshot().locations[marketId]).toBeUndefined();
   const enabled = JSON.parse(await readFile(stateFile, 'utf8')); expect(enabled.enabled).toContain('local-flow-probe');
   await press(extensionId, 'navigate:placement');
   const placement = await f.waitForm('Arrange plugin windows');

@@ -131,7 +131,9 @@ try{
   async function field(title,label){const lines=(await paneText(title)).split('\n'),index=lines.findIndex(line=>line.includes(label));
     assert.ok(index>=0,'Visible field required: '+label);return lines[index+1].replace(/[│]/g,'').trim();}
   async function select(title,label,value){for(let index=0;index<12;index++){
-    if(await field(title,label)===value)return;const before=await page.evaluate(()=>visual.frames);await key('ArrowRight');await page.waitForFunction(before=>visual.frames>before,before);
+    const before=await field(title,label);if(before===value)return;
+    await key('ArrowRight');
+    await observe(()=>field(title,label),current=>current!==before,'Selection must advance: '+label);
   }throw Error('Selection did not reach '+label+'='+value);}
   async function noUnexpectedModelRequests(count){assert.equal((await completions()).length,count,'UI actions must not create or answer model requests');}
   async function noListenerWarnings(){
@@ -184,6 +186,7 @@ try{
   const title='Arrange plugin windows';await select(title,'Plugin window','Todos · todos');await tab();await select(title,'Placement','sidebar');
   await tab();await select(title,'Workspace','Workspace 2');await tab();await replace('0.25');await tab();await select(title,'Neighbor','Main');
   await tab();if((await field(title,'Focus the placed window')).includes('Enabled'))await key('Space');
+  assert.equal(await field(title,'Plugin window'),'Todos · todos','The requested plugin must remain selected before Apply');
   await formButton(title,'Apply');
   await observe(layout,value=>location(value,todo)===2,'Apply must relocate Todos to workspace 2');
   assert.equal(await exists(launch.managers.placement),false,'Apply must not persist a project placement rule');

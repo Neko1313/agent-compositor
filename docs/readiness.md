@@ -7,6 +7,18 @@ required evidence; it is not a declaration that 1.0 is ready.
 
 ## Current development checkpoint — 2026-11-15
 
+Build-only [run `43749137231` for `8c789e6`](https://github.com/Neko1313/agent-compositor/actions/runs/43749137231)
+failed its Linux x64 installed OpenTUI plugin placement check. The retained form
+shows Network proxy selected and moved to workspace 2 while the test expected
+Todos. The input trace contains two rapid right-arrow presses; the exact frames
+between them were not retained. The scenario previously accepted any terminal
+frame as confirmation of a selection key, which could allow another key before
+the selected field changed. It now waits for that field's value to change and
+checks the chosen plugin immediately before Apply. The revised source PTY
+scenario passes; this addresses a possible timing race, but does not establish
+the cause or make the failed installed-archive run pass. A new candidate remains
+necessary. Failure evidence is under `dist/candidate-8c789e6-linux-failure/`.
+
 A local CPU-only Qwen3 1.7B run started from clean `8c789e6` did not solve the known
 `multi-file-bug` case within 12 model requests. It searched for task phrases,
 repeatedly attempted a nonexistent file despite navigation hints, then listed

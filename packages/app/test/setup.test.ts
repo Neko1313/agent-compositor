@@ -40,6 +40,17 @@ it('keeps installed pins, enables only selected plugins and waits for reload bef
  }finally{await f.close();}
 });
 
+it('offers independent resources and side conversations without enabling them by default',async()=>{
+ const f=await fixture();try{
+  f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true,resources:true,btw:false}});
+  await f.press('tools');const fields=f.forms[1].fields;
+  expect(fields.find((field:any)=>field.id==='resources')).toMatchObject({value:false,hint:expect.stringContaining('without calling a model')});
+  expect(fields.find((field:any)=>field.id==='btw')).toMatchObject({value:false,hint:expect.stringContaining('agent-hub')});
+  expect(f.operations).toEqual([{action:'list'},{action:'enable',name:'project-checks',scope:'project'},{action:'install',name:'resources@agent-compositor',scope:'project'},{action:'enable',name:'resources',scope:'project'}]);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text.includes('Apply pending tools: project-checks, resources'))).toBe(true);
+ }finally{await f.close();}
+});
+
 it('lets setup finish when a selected plugin is disabled elsewhere before reload',async()=>{
  const f=await fixture();try{
   f.setConfigured(true);f.answers.push({action:'next',values:{work:'coding'}},{action:'apply',values:{'project-checks':true}});

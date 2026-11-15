@@ -34,7 +34,10 @@ try{
  await page.keyboard.press('Tab');await page.keyboard.press('Tab');await click('Save profile');await wait('Model selected: compatible');
  if(native)await page.waitForFunction(()=>{const text=visual.text();return !text.includes('· Form')&&text.includes('Get started · focused')&&visual.terminal.modes?.synchronizedOutputMode!==true;});
  assert.equal((await transport()).requests,0);report.checks.push('setup.profile-saved','setup.key-masked');
- await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');await click(native?'Install and enable':'Install and enable selected');await wait('Apply pending tools: project-checks');await shot('02-selected-tools');
+ await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');await shot('01a-recommendations');
+ if(!native){for(let i=0;i<6;i++)await page.keyboard.press('Tab');await page.keyboard.press('Enter');}
+ else await click('Install and enable');
+ await wait('Apply pending tools: project-checks');await shot('02-selected-tools');
  const identity=JSON.parse(await readFile(join(output,'onboarding-identity.json'),'utf8'));
  const selection=JSON.parse(await readFile(join(identity.state,'extensions-state.json'),'utf8'));
  assert.ok(selection.installed['project-checks'],'The chosen plugin must actually be installed');
@@ -44,9 +47,10 @@ try{
  await wait('longer enabled');if(native)await wait('Extensions · focused');await shot('02a-disabled-elsewhere');await click('Start chatting');await page.waitForFunction(()=>!visual.text().includes('Get started'));report.checks.push('setup.disabled-elsewhere');
  // Reopen the guide and select the plugin again for the ordinary install flow.
  await focusInput();await page.keyboard.type('/setup');await mainText('/setup');await page.keyboard.press('Enter');await wait('Get started');
- await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');await click(native?'Install and enable':'Install and enable selected');await wait('Apply pending tools: project-checks');
+ await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');await wait('Choose optional tools');for(let i=0;i<4;i++)await page.keyboard.press('Tab');await wait('Resource monitor');await page.keyboard.press('Space');await page.keyboard.press('Tab');await wait('Side conversation');await page.keyboard.press('Space');await shot('01b-more-recommendations');if(native)await page.keyboard.press('Alt+Enter');else{await page.keyboard.press('Tab');await page.keyboard.press('Enter');}await wait('Apply pending tools:');
+ const additions=JSON.parse(await readFile(join(identity.state,'extensions-state.json'),'utf8'));assert.ok(additions.installed.resources);assert.ok(additions.installed.btw);report.checks.push('setup.additional-recommendations');
  await focusInput();await page.keyboard.type('UNSENT_SETUP_DRAFT');await wait('UNSENT_SETUP_DRAFT');
- await click('Apply plugin changes');await wait('Tools: 1 suggested plugins active');assert.equal((await transport()).requests,0);report.checks.push('setup.install-enable-reload');
+ await click('Apply plugin changes');await wait('Tools: 3 suggested plugins active');assert.equal((await transport()).requests,0);report.checks.push('setup.install-enable-reload');
  const credentials=await readFile(join(identity.home,'credentials.json'),'utf8');assert.ok(credentials.includes('PRIVATE_FIRST_RUN_KEY'));assert.equal((await stat(join(identity.home,'credentials.json'))).mode&0o077,0);assert.ok(!(await readFile(join(identity.state,'providers.json'),'utf8')).includes('PRIVATE_FIRST_RUN_KEY'));report.checks.push('setup.private-credential-storage');
  const resize=async(cols,rows)=>{const before=await page.evaluate(()=>visual.frames);await page.evaluate(({cols,rows})=>visual.terminal.resize(cols,rows),{cols,rows});await page.waitForFunction(before=>visual.frames>before,before);await wait('Start chatting');};
  await resize(60,24);await shot('03-setup-narrow');await resize(100,30);await wait('Connect a model, choose tools, then start a task.');

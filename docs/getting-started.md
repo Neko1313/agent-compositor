@@ -69,8 +69,11 @@ granting more scope.
 ## Enable useful extensions
 
 In the setup guide, **Choose recommended tools** asks what work you plan to do
-and lets you select optional project checks, test reports, change review and web
-research. Coding initially suggests project checks; research suggests web access.
+and lets you select optional project checks, test reports, change review, web
+research, a resource monitor and side conversations. Coding initially suggests
+project checks; research suggests web access. The resource monitor and side
+conversation are unchecked until you select them. The monitor does not call a
+model; side conversations require agent-hub and use the configured model.
 Only checked additions are installed if needed and enabled for the project.
 Downloads may be needed, and existing installations, versions and active plugins
 are retained. The guide does not change explicit plugin restrictions or tool

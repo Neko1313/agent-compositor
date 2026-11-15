@@ -9,6 +9,8 @@ const suggestions=[
  {name:'test-reports',label:'Test reports',reason:'Read test failures and inspect individual diagnostics.'},
  {name:'checkpoint-history',label:'Change review',reason:'Inspect agent changes and restore earlier checkpoints.'},
  {name:'web',label:'Web research',reason:'Search and fetch public information.',research:true},
+ {name:'resources',label:'Resource monitor',reason:'View CPU and memory without calling a model.'},
+ {name:'btw',label:'Side conversation',reason:'Chat alongside the main task; needs agent-hub and model usage.'},
 ];
 type ModelStatus={configured:boolean;profile:string;model:string};
 type Dependencies={

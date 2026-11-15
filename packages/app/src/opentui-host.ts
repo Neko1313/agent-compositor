@@ -432,8 +432,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     surface.active = false;
     publicRendering.remove(surface.source.id);
     const controller=privateWindows.get(surface);privateWindows.delete(surface);controller?.close();
-    changes.delete(surface);afterSubmission.delete(surface);
-    const recovery=inputRecovery.get(surface);inputRecovery.delete(surface);
+    changes.delete(surface);const later=afterSubmission.get(surface);afterSubmission.delete(surface);
+    const recovery=inputRecovery.get(surface)??(later?{value:later.value,restore:'recover:'+randomUUID(),discard:'discard:'+randomUUID()}:undefined);inputRecovery.delete(surface);
     if(recovery&&active){recovery.pending=false;parkedInputRecovery.set(surface.source.id,{owner:surface.owner,core,recovery});}
     // A handler may remove its own view before resuming a chat or opening a form.
     // Its already-admitted operation keeps its independent lifetime.
@@ -548,7 +548,11 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         if(submitting.get(surface)!==submission)return;
         submitting.delete(surface);const later=afterSubmission.get(surface);afterSubmission.delete(surface);
         if(!later||!active||!surface.active||surfaceMap.get(surface.source.id)!==surface)return;
-        const view=surface.state.view,input=view?.input;if(!view||!input||input.submitAction!==later.action)return;
+        const view=surface.state.view,input=view?.input;
+        if(!view||!input||input.submitAction!==later.action){
+          inputRecovery.set(surface,{value:later.value,restore:'recover:'+randomUUID(),discard:'discard:'+randomUUID(),rawView:view});
+          publish(surface,{...surface.state,view});notice('Later input is retained; restore or discard it in the window');return;
+        }
         if(input.id!==later.field){
           if(input.value!==''){
             inputRecovery.set(surface,{value:later.value,restore:'recover:'+randomUUID(),discard:'discard:'+randomUUID(),rawView:view});

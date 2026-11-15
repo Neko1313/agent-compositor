@@ -229,6 +229,18 @@ describe("plugin action navigation", () => {
       expect(renders.get('plugin-replace-submit-main')).toContain('first second');expect(value).toBe('first second');
     }finally{release();ui.close();}
   });
+  it.each(['field','surface','action'])('retains later input when the submitted %s changes',async removed=>{
+    const {ui,text,key,renders}=setup();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='';
+    ui.core.host.registerPlugin({name:'missing-input',version:'1.0.0',trust:'trusted'},{
+      'ui.change':event=>{if(event.site==='plugin-missing-input-main')value=event.value;},
+      'ui.press':async(event,$)=>{if(event.site==='plugin-missing-input-main'&&event.key==='send'){started();await gate;if(removed==='surface')await $.ui.remove('main');else if(removed==='action')await $.ui.view('main','Waiting',{input:{id:'first',value:'SERVER',submitAction:'other'},lines:[{text:'Other',action:'other'}]});else await $.ui.view('main','Waiting',{lines:[{text:'Waiting'}]});}},
+    });
+    const view=(id:string)=>({input:{id,value:'',submitAction:'send'},lines:[{text:'Send',action:'send'}]});
+    try{await ui.core.host.emit('service.ui.view',{plugin:'missing-input',id:'main',title:'Submit',view:view('first'),placement:{site:'sidebar',size:.75,focus:true}});
+      text('first');key('enter');await entered;text(' later');release();await ui.settled();expect(value).toBe('first');if(removed==='field')expect(renders.get('plugin-missing-input-main')).toContain('Waiting for an input to restore');
+      await ui.core.host.emit('service.ui.view',{plugin:'missing-input',id:'main',title:'Return',view:view('next'),placement:{site:'sidebar',size:.75,focus:true}});key('r',['ctrl']);await ui.settled();expect(value).toBe('first later');
+    }finally{release();ui.close();}
+  });
   it('does not overwrite a nonempty replacement field with later queued edits',async()=>{
     const {ui,text,key,renders}=setup();let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});let value='',failRecovery=true;const renderEvents:string[]=[];
     ui.core.host.registerPlugin({name:'render-spy',version:'1.0.0',trust:'trusted'},{'ui.render':event=>{renderEvents.push(JSON.stringify(event));return {tree:{lines:[{text:'RENDER_OVERRIDE'}]}};}});

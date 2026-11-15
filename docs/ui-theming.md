@@ -293,6 +293,10 @@ field with an empty field, text typed while it was pending is retained for revie
 it can include text that was still visible from the submitted value. OpenTUI
 also queues the latest later edit until submission finishes. If a producer replaces
 the field with a nonempty value, neither renderer overwrites it automatically.
+If the field or its view disappears during submission, the later input is also
+retained; when the same plugin reopens the view, the user can restore it into a
+new field. While a view has no input, it offers discard and waits for a field
+before offering restore.
 The window offers **Restore queued input** and **Discard queued input**; in Ink,
 Ctrl+R and Ctrl+D provide keyboard access. Restore explicitly replaces the
 current field and sends the retained value as `ui.change`, not as a submission.

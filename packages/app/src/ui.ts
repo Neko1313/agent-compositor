@@ -1323,14 +1323,14 @@ export class AppUI {
       this.offset=Math.max(0,Math.min(maximum,Math.min(maximum,this.offset)+(data.key==='pageup'?-1:1)*room));
       this.draw();return;
     }
+    const focusedRecovery=this.viewRecovery.get(this.windows.focused);
+    if(data.kind==='key'&&data.modifiers?.includes('ctrl')&&focusedRecovery&&focusedRecovery.core===this.core&&this.pluginWindows.get(this.windows.focused)?.plugin===focusedRecovery.owner&&(data.key==='r'||data.key==='d')){
+      this.track(this.press(this.windows.focused,data.key==='r'?focusedRecovery.restore:focusedRecovery.discard));return;
+    }
     const editable = this.panes.get(this.windows.focused)?.view?.input;
     if (this.windows.focused !== "input" && editable) {
       const site = this.windows.focused;
       const field = this.viewInputs.get(site) ?? { id: editable.id, value: editable.value };
-      const recovery=this.viewRecovery.get(site);
-      if(data.kind==='key'&&data.modifiers?.includes('ctrl')&&recovery&&recovery.core===this.core&&this.pluginWindows.get(site)?.plugin===recovery.owner&&(data.key==='r'||data.key==='d')){
-        this.track(this.press(site,data.key==='r'?recovery.restore:recovery.discard));return;
-      }
       const clear = data.kind === "key" && data.key === "u" && data.modifiers?.includes("ctrl");
       if (clear || data.kind === "text" || (data.kind === "key" && ["backspace", "delete"].includes(data.key))) {
         field.value = clear ? "" : data.kind === "text"
@@ -1343,10 +1343,15 @@ export class AppUI {
         const change=Promise.all([prior?.catch(()=>{}),submission?.catch(()=>{})]).then(async()=>{
           if(this.closed||this.core!==core)throw Error('Plugin input expired before it was applied');
           let target=this.viewInputs.get(site);
-          if(target!==field){
+          if(target!==field||(submission&&(this.pluginWindows.get(site)?.plugin!==owner||this.panes.get(site)?.view?.input?.submitAction!==submitAction))){
             const current=this.panes.get(site)?.view?.input,known=this.reboundViewInputs.get(field);
-            if(!submission||!target||!current||!owner||this.pluginWindows.get(site)?.plugin!==owner||current.submitAction!==submitAction)
-              throw Error('Plugin input expired before it was applied');
+            if(!submission||!owner)throw Error('Plugin input expired before it was applied');
+            if(!target||!current||this.pluginWindows.get(site)?.plugin!==owner||current.submitAction!==submitAction){
+              const previous=this.viewRecovery.get(site);
+              if(previous&&previous.owner===owner&&previous.core===core)previous.value=value;
+              else if(!previous)this.viewRecovery.set(site,{value,restore:'recover:'+randomUUID(),discard:'discard:'+randomUUID(),owner,core});
+              this.viewCache.delete(site);this.draw();return;
+            }
             if(known?known!==target:current.value!==''||target.value!==''){
               const previous=this.viewRecovery.get(site);
               if(previous)previous.value=value;

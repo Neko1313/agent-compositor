@@ -22,8 +22,9 @@ export async function smokeApprovals(binary,output){
    if(body.messages[0]?.content.startsWith('You assess one proposed tool action')){
     current.reviews++;
     const payload=JSON.parse(body.messages.find(message=>message.role==='user').content);
-    assert.equal(payload.context.task,current.task);assert.equal(payload.tool,'write');
-    assert.equal(payload.input.path,join(current.cwd,'result.txt'));assert.equal(payload.input.content,'APPROVED_WRITE\n');
+    assert.equal(payload.context.task,current.task);assert.equal(payload.tool,current.tool);
+    if(current.tool==='write'){assert.equal(payload.input.path,join(current.cwd,'result.txt'));assert.equal(payload.input.content,'APPROVED_WRITE\n');}
+    else assert.equal(payload.input.command,'npm test');
     res.end(frame({content:JSON.stringify({approved:current.approved,risk:current.approved?'medium':'high',reason:current.approved?'Bounded write requested by the user':'Controlled reviewer refusal'})})+'data: [DONE]\n\n');return;
    }
    current.mainCalls++;
@@ -32,15 +33,16 @@ export async function smokeApprovals(binary,output){
    if(last?.role==='tool'){
     current.toolResult=last.content;
     res.end(frame({content:'APPROVAL_PROBE_COMPLETE'})+'data: [DONE]\n\n');
-   }else res.end(frame({tool_calls:[{index:0,id:'approval-probe-write',type:'function',function:{name:'write',arguments:JSON.stringify({path:'result.txt',content:'APPROVED_WRITE\n'})}}]},'tool_calls')+'data: [DONE]\n\n');
+   }else res.end(frame({tool_calls:[{index:0,id:'approval-probe-action',type:'function',function:{name:current.tool,arguments:JSON.stringify(current.tool==='write'?{path:'result.txt',content:'APPROVED_WRITE\n'}:{command:'npm test'})}}]},'tool_calls')+'data: [DONE]\n\n');
   }catch(error){errors.push(String(error));res.destroy(error);}});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));
-  for(const [name,approved,rule] of [['allow',true,'ask'],['refuse',false,'ask'],['host-deny',true,'deny']]){
+  for(const [name,approved,rule,tool] of [['allow',true,'ask','write'],['refuse',false,'ask','write'],['host-deny',true,'deny','write'],['ci-allow',true,'ask','exec'],['ci-refuse',false,'ask','exec']]){
    const cwd=join(root,name),home=join(root,name+'-home');await mkdir(cwd);await mkdir(home);
-   const task='Write result.txt with exactly APPROVED_WRITE followed by a newline. Preserve user-draft.txt.';
-   current={name,approved,task,cwd,requests:0,reviews:0,mainCalls:0};cases.push(current);
+   const task=tool==='write'?'Write result.txt with exactly APPROVED_WRITE followed by a newline. Preserve user-draft.txt.':'Run npm test in this project and preserve user-draft.txt.';
+   current={name,approved,task,cwd,tool,requests:0,reviews:0,mainCalls:0};cases.push(current);
    await writeFile(join(cwd,'result.txt'),'ORIGINAL\n');await writeFile(join(cwd,'user-draft.txt'),'USER_DRAFT\n');
-   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['auto-approve'],agent:{tools:['write'],builtinTools:['write'],controlTools:[],skills:false,projectContext:false,fileReferences:false,verifyCompletion:false},compaction:{enabled:false},permissions:{rules:[{tool:'write',decision:rule}]}}));
+   await writeFile(join(cwd,'package.json'),JSON.stringify({scripts:{test:'node check.cjs'}}));await writeFile(join(cwd,'check.cjs'),"require('node:fs').writeFileSync('ci-ran.txt','CI_CHECK_OK\\n');\n");
+   await writeFile(join(cwd,'agent-compositor.json'),JSON.stringify({enabledPlugins:['auto-approve'],agent:{tools:[tool],builtinTools:[tool],controlTools:[],skills:false,projectContext:false,fileReferences:false,verifyCompletion:false},compaction:{enabled:false},permissions:{rules:[{tool,decision:rule}]}}));
    const env={HOME:home,USERPROFILE:home,AGENT_HOME:join(home,'.agent-compositor'),AGENT_STORAGE_MODE:'project',XDG_CONFIG_HOME:join(home,'.config'),TMPDIR:root,TMP:root,TEMP:root,AGENT_BASE_URL:`http://127.0.0.1:${server.address().port}/v1`,AGENT_MODEL:'approval-probe',AGENT_API_KEY:''};
    for(const key of ['PATH','LANG','LC_ALL','SYSTEMROOT'])if(process.env[key])env[key]=process.env[key];
    const execution=promisify(execFile)(resolve(binary),['--plain'],{cwd,env,timeout:30000,maxBuffer:2_000_000});
@@ -50,9 +52,10 @@ export async function smokeApprovals(binary,output){
    assert.match(result.stdout,/APPROVAL_PROBE_COMPLETE/);assert.doesNotMatch(result.stdout,/\[permission\]/,'No manual question for concrete allow/refusal/host deny');
    assert.equal(current.mainCalls,2);assert.equal(current.reviews,rule==='deny'?0:1);
    assert.equal(await readFile(join(cwd,'result.txt'),'utf8'),name==='allow'?'APPROVED_WRITE\n':'ORIGINAL\n');
+   if(tool==='exec'){const output=await readFile(join(cwd,'ci-ran.txt'),'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;});assert.equal(output,approved?'CI_CHECK_OK\n':null);}
    assert.equal(await readFile(join(cwd,'user-draft.txt'),'utf8'),'USER_DRAFT\n');
-   if(name!=='allow')assert.match(current.toolResult,/denied/i);
-   if(name==='refuse')assert.match(current.toolResult,/denied by automatic review/);
+   if(!approved||rule==='deny')assert.match(current.toolResult,/denied/i);
+   if(!approved)assert.match(current.toolResult,/denied by automatic review/);
    current.ok=true;
   }
   const report={ok:errors.length===0&&cases.every(item=>item.ok),cases,errors,paidRequests:0};

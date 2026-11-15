@@ -306,7 +306,9 @@ plain input.
 The installed bundled auto reviewer is exercised through `/auto on` and three
 controlled write proposals: task-context medium-risk approval executes the write,
 structured refusal stops it without a manual question, and an explicit host deny
-prevents both review and execution. Each case preserves an unrelated draft;
+prevents both review and execution. Two additional cases propose a real local
+`npm test` command: a structured approval runs the fixture check, while a
+structured refusal leaves its execution marker absent. Each case preserves an unrelated draft;
 review requests must contain the exact original task. This uses the actual
 packaged plugin and active-provider fallback with local structured responses,
 not a substitute permission-review plugin. The report is

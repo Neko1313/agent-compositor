@@ -101,9 +101,9 @@ without taking focus and no longer waits for that plugin to load.
 When the guide is opened or refreshed, it also detects recommended plugins
 enabled outside the guide that are not loaded yet, including selections made in
 another session. Completion checks the current state even if the open view has
-not refreshed, and refreshes it when changes are pending. Apply changes or
-disable the plugin before completing setup; Skip remains available if a plugin
-cannot load.
+not refreshed, and refreshes it when changes are pending. If a disabled
+recommended plugin is still active, apply changes to unload it before completing
+setup. Skip remains available if a plugin cannot load or unload.
 Failures remain visible so you can retry or
 continue without optional tools. If a download succeeds but enabling fails,
 the guide reports the installation and the enable error; inspect the current

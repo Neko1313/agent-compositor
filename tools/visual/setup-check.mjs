@@ -70,7 +70,22 @@ try{
  await focusInput();await page.keyboard.type('UNSENT_SETUP_DRAFT');await wait('UNSENT_SETUP_DRAFT');
  await click('Apply plugin changes ]');await wait('Tools: 4 suggested plugins active');
  await click('View tool status');await wait('Project checks: active');await shot('02c-active-status');await click('Hide tool status');
+ await page.waitForFunction(()=>!visual.text().includes('Project checks: active'));
  assert.equal((await transport()).requests,0);report.checks.push('setup.install-enable-reload','setup.active-tool-status');
+ // A disabled plugin remains loaded until reload. Setup must not finish while it is still active.
+ const beforeWide=await page.evaluate(()=>visual.frames);await page.evaluate(()=>visual.terminal.resize(150,30));await page.waitForFunction(before=>visual.frames>before,beforeWide);
+ await focusInput();for(const _ of 'UNSENT_SETUP_DRAFT')await page.keyboard.press('Backspace');
+ await page.keyboard.type('/extensions disable btw');await mainText('/extensions disable btw');await page.keyboard.press('Enter');
+ await wait('Disabled btw');await wait('Apply pending tools: btw');await click('View tool status');await wait('Side conversation: active until reload');await shot('02d-disabled-active');await click('Hide tool status');
+ await page.waitForFunction(()=>!visual.text().includes('Side conversation: active until reload'));
+ const savedSetup=await readFile(join(identity.home,'setup.json'),'utf8');
+ const beforeBlockedFinish=await page.evaluate(()=>visual.frames);await click('Start chatting');await page.waitForFunction(before=>visual.frames>before,beforeBlockedFinish);
+ await wait('Apply pending tools: btw');assert.equal(await readFile(join(identity.home,'setup.json'),'utf8'),savedSetup);
+ await click('Apply plugin changes ]');await wait('Tools: 3 suggested plugins active');
+ await focusInput();await page.keyboard.type('/extensions enable btw');await mainText('/extensions enable btw');await page.keyboard.press('Enter');await wait('Enabled btw');
+ await wait('Apply pending tools: btw');await click('Apply plugin changes ]');await wait('Tools: 4 suggested plugins active');
+ const beforeNormal=await page.evaluate(()=>visual.frames);await page.evaluate(()=>visual.terminal.resize(100,30));await page.waitForFunction(before=>visual.frames>before,beforeNormal);
+ await focusInput();await page.keyboard.type('UNSENT_SETUP_DRAFT');await wait('UNSENT_SETUP_DRAFT');report.checks.push('setup.disabled-loaded-requires-reload');
  const credentials=await readFile(join(identity.home,'credentials.json'),'utf8');assert.ok(credentials.includes('PRIVATE_FIRST_RUN_KEY'));assert.equal((await stat(join(identity.home,'credentials.json'))).mode&0o077,0);assert.ok(!(await readFile(join(identity.state,'providers.json'),'utf8')).includes('PRIVATE_FIRST_RUN_KEY'));report.checks.push('setup.private-credential-storage');
  const resize=async(cols,rows)=>{const before=await page.evaluate(()=>visual.frames);await page.evaluate(({cols,rows})=>visual.terminal.resize(cols,rows),{cols,rows});await page.waitForFunction(before=>visual.frames>before,before);await wait('Start chatting');};
  await resize(60,24);await shot('03-setup-narrow');await resize(100,30);await wait('Connect a model, choose tools, then start a task.');

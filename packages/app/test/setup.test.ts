@@ -179,6 +179,22 @@ it('lets setup finish when a selected plugin is disabled elsewhere before reload
  }finally{await f.close();}
 });
 
+it('requires applying a disabled plugin that is still loaded before completing setup',async()=>{
+ const f=await fixture();try{
+  f.setConfigured(true);f.setEnabled(['resources']);f.setLoaded(['resources']);
+  await (f.guide.plugin.hooks['prompt.submit'] as any)({text:'/setup'},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.action==='navigate:reload')).toBe(false);
+  f.api.next=async()=>{f.setEnabled([]);return{value:{changed:'resources',enabled:false}};};
+  await (f.guide.plugin.hooks['service.extension.control'] as any)({action:'disable'},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.text==='Apply pending tools: resources')).toBe(true);
+  await f.press('finish');expect(f.notices.at(-1).message).toMatch(/Apply plugin changes/);
+  await expect(readFile(join(f.storage.paths.home,'setup.json'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
+  f.setLoaded([]);await (f.guide.plugin.hooks['session.reload'] as any)({},f.api);
+  expect(f.views.at(-1).lines.some((line:any)=>line.action==='navigate:reload')).toBe(false);
+  await f.press('finish');expect(JSON.parse(await readFile(join(f.storage.paths.home,'setup.json'),'utf8')).status).toBe('complete');
+ }finally{await f.close();}
+});
+
 it('tracks enabled recommendations across sessions and permits completion after they load or are disabled',async()=>{
  const f=await fixture();try{
   f.setConfigured(true);f.setEnabled(['project-checks','unrelated-plugin']);

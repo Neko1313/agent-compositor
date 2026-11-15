@@ -39,7 +39,7 @@ export function setupGuide(storage:ProjectStorage,deps:Dependencies){
   if(record.version!==1||(record.status!=='complete'&&record.status!=='skipped'))return{invalid:true};
   return{status:record.status};
  };
- const pending=()=>{const enabled=deps.enabled(),loaded=deps.loaded();return suggestions.map(item=>item.name).filter(name=>enabled.includes(name)&&!loaded.includes(name));};
+ const pending=()=>{const enabled=deps.enabled(),loaded=deps.loaded();return suggestions.map(item=>item.name).filter(name=>enabled.includes(name)!==loaded.includes(name));};
  const show=async($:HooksApi,focus=true)=>{
   const current=guide($);current.visible=true;const revision=++current.revision,[model,saved]=await Promise.all([deps.model(),state()]);
   if(!current.visible||current.revision!==revision||sessions.get($.session.id)!==current||$.signal.aborted)return;

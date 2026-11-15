@@ -1,5 +1,38 @@
 # Project memory
 
+## Physical tmux graphics probe — 2026-11-15
+
+The real Kitty 0.50.0 terminal and isolated official tmux 3.8 (downloaded
+archive SHA256 `147849ff18b62a8aa3d5d8f75dd07c3f9fdfad529f932236afdec838fc1d15e1`)
+ran under a private rootful Xwayland display. With `allow-passthrough on` and
+`AGENT_GRAPHICS=kitty`, the actual older f46c355 Linux CLI displayed `Ready ·
+images unavailable`. Its executable SHA256 is
+`fe47f049a402bacd859c30a79a98ec52fa14e976586407ceada8d882f496989f`;
+this is not a current-head or four-platform test. An initial diagnostic attempt
+failed its private DISPLAY precondition and cleaned up; the corrected run is in
+`dist/tmux-research-20261115/native/`.
+
+A separate synthetic 32×32 raw Kitty protocol probe, not the application,
+was sent using tmux DCS wrapping. The `on` capture contains 5,460 red pixels;
+the `off` capture contains zero. In the `on` capture the image overlaps the
+following text: naive passthrough has no demonstrated pane clipping, redraw or
+cleanup. The private display and tmux server were closed in each run. Captures
+and commands are retained under `dist/tmux-research-20261115/probe-on/` and
+`probe-off/`. This establishes neither working application passthrough nor
+screen, SIXEL, animation, nested tmux, remote sessions, image cleanup or safe
+resize. Supporting those remains open; do not infer that changing the protocol
+selection alone is sufficient.
+
+A separate Kitty Unicode-placeholder probe produced a virtual 2×2 image through
+the same real tmux/Kitty pair, then cleared its cells and redrew them elsewhere.
+Independent screen-pixel observations found red at `[0,31,17,48]` before and
+`[81,131,98,148]` after, with no red remaining at the first position. Evidence
+is in `dist/tmux-research-20261115/probe-placeholder-move-v2/`; the earlier
+move attempt captured text before Kitty had painted the initial image and is
+not evidence of the before state. This validates one potential primitive, not
+its integration with OpenTUI, animation, clipping, resize or other terminals.
+See the [Kitty Unicode placeholders specification](https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders).
+
 ## Media candidate timing regression and causal repair — 2026-11-15
 
 This goal turn makes concrete progress: source bf5e61b2ac83b2af4186cd313673182fa113e131

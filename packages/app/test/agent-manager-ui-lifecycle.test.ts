@@ -78,7 +78,8 @@ it('archives an ordinary managed form through a fresh UI action after an unrelat
   await host.submit('/agents');const overview='plugin-agent-hub-agents';expect(surface(overview).snapshot().view?.table?.rows.some(row=>row.id===id)).toBe(true);
   await action('plugin-agent-hub-agent-'+id,'history:'+id);
   expect(surface('plugin-agent-hub-history-'+id)).toBeDefined();
-  const oldMain=host.core;await oldMain.host.emit('service.session.control',{action:'resume',id:oldMain.sessionId});expect(host.core).not.toBe(oldMain);
+  const oldMain=host.core;const resume=await oldMain.host.emit('service.session.control',{action:'resume',id:oldMain.sessionId});
+  expect(resume.faults).toEqual([]);expect(resume.value).toEqual({value:true});expect(host.core).not.toBe(oldMain);
   await press('send');expect((await receipts()).filter(row=>row.kind==='fault'),JSON.stringify(await receipts())).toEqual([]);
   await expect.poll(()=>host.surfaces.snapshot().filter(source=>source.id.startsWith('agent-request-')).length,{message:JSON.stringify(await receipts())}).toBe(1);
   await press('archive');const rows=await receipts();

@@ -213,7 +213,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   const editorHeight = height >= 20 ? 4 : 2;
   const busy = state.running || controllerBlocksInput(state.controller) || Boolean(state.approval) || state.interaction?.kind === 'question';
   const canSend = true;
-  const inputHint = state.controller ? 'Alt+I answer · Ctrl+J newline' : state.interaction ? 'Alt+I answer or draft · Ctrl+J newline' : state.approval ? 'PgUp/PgDn details · Ctrl+J newline' :
+  const inputHint = state.controller ? 'Alt+I answer · Enter queue · Ctrl+J newline' : state.interaction ? 'Alt+I answer or draft · Enter queue · Ctrl+J newline' : state.approval ? 'PgUp/PgDn details · Enter queue · Ctrl+J newline' :
     busy ? `Enter queue${selected.steer?' · Tab steer':''} · Ctrl+J newline` : 'Enter send · Ctrl+J newline';
   const fullHint = state.controller ? `${inputHint} · Ctrl+C cancel request`
     : state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;

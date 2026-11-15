@@ -202,7 +202,9 @@ OpenTUI editors, questions and plugin views. From source use
 session resume and plugin management use the same services as the default Ink
 frontend. Settings forms run in separate windows while Main remains active or
 waits for a human answer. In Main, Enter queues a follow-up while the agent runs;
-Tab sends steering when the selected session supports it. This is distinct from `npm run opentui:preview`, which
+Tab sends steering when the selected session supports it. During a pending
+question, switch to Draft to queue a follow-up; answer the question separately.
+This is distinct from `npm run opentui:preview`, which
 uses isolated deterministic demonstration sessions.
 
 The application host and native frontend exchange versioned JSONL messages,

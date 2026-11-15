@@ -26,6 +26,11 @@ modern emoji as one cell and can leave stale glyphs after valid cursor updates.
 The raw-ANSI regression checks both profiles against the same writes. This does
 not establish support for every extended emoji or grapheme-cluster sequence.
 
+`node tools/visual/opentui-question-queue-check.mjs` checks the actual OpenTUI
+question flow with a loopback provider. It queues a follow-up while a selected
+answer is pending, verifies no model request is sent early, and checks the answer
+and subsequent queued turn. It does not exercise a paid model or native terminal.
+
 `node tools/visual/opentui-recovery-check.mjs` runs the actual OpenTUI CLI
 against an isolated loopback provider, verifies that unapplied steering survives
 restart and retries only after a user command. Set `VISUAL_OPENTUI_QUEUE=1` to

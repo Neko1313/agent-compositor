@@ -1411,7 +1411,7 @@ export class AgentCore {
     let metadata: Record<string, unknown> | undefined;
     let failed: string | undefined;
 
-    let recoveryAttempted=false, outputRecoveryAttempted=false, finishChecks=0;
+    let recoveryAttempted=false, outputRecoveryAttempted=false, finishChecks=0, stepBudgetWarned=false;
     const queryProgress=new QueryProgress();
     const checkProgress=new CheckProgress();
     let queryContext=this.messages;
@@ -1432,6 +1432,10 @@ export class AgentCore {
       if(this.messages!==queryContext){queryProgress.reset();checkProgress.reset();queryContext=this.messages;}
       if (this.abort.signal.aborted) break;
 
+      if(!stepBudgetWarned && this.maxSteps>=3 && this.maxSteps-step===2 && this.turnToolRecords.length>0){
+        this.messages.push({role:'user',origin:'harness',content:'Step budget: at most 2 model steps remain in this turn. Prioritize the next authorized action and any necessary verification. Do not assume a check passed; if work remains, report concrete results and what is unfinished.'});
+        stepBudgetWarned=true;
+      }
       await this.emit("turn.step", { turnId });
       const batch: ChatToolCall[] = [];
       let finish: { reason: string; error?: string } | undefined;

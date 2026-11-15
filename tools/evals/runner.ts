@@ -37,6 +37,7 @@ export async function runCase(
     agentHarness?: boolean;
     instructionsPreset?: "general"|"coding";
     fileReferences?: boolean;
+    maxSteps?: number;
   }
 ) {
   const useCallix=!!(test.expect.grader||test.navigationMode||options.tools?.some(name=>['glob','grep','code_query'].includes(name)));
@@ -121,7 +122,7 @@ export async function runCase(
       },
       provider,
       systemPrompt: [system,test.system].filter(Boolean).join("\n\n")||undefined,
-      maxSteps: test.expect.grader ? 24 : 8,
+      maxSteps: options.maxSteps ?? (test.expect.grader ? 24 : 8),
       maxTokensPerTurn: test.expect.grader ? 80000 : 12000,
       agentHub: false,
       pluginDirs: [

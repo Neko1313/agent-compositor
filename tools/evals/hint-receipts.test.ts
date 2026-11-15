@@ -5,9 +5,9 @@ import {OpenAICompatProvider} from '../../packages/provider/src/openai-compat.js
 
 it('records only host-origin hints present at their exact serialized positions',()=>{
  const hint='Query recovery: consider a separate glob call with {"pattern":"**/*"}';
- const messages:ChatMessage[]=[{role:'user',content:hint},{role:'user',origin:'harness',content:hint},{role:'user',origin:'harness',content:'Verification recovery: inspect output'}];
+ const messages:ChatMessage[]=[{role:'user',content:hint},{role:'user',origin:'harness',content:hint},{role:'user',origin:'harness',content:'Verification recovery: inspect output'},{role:'user',origin:'harness',content:'Step budget: two steps'}];
  const candidates=hintCandidates(messages);
- expect(deliveredHintKinds(candidates,{messages:[{role:'user',content:hint},{role:'user',content:hint},{role:'user',content:'Verification recovery: inspect output'}]})).toEqual(['query-recovery','glob-example','verification-recovery']);
+ expect(deliveredHintKinds(candidates,{messages:[{role:'user',content:hint},{role:'user',content:hint},{role:'user',content:'Verification recovery: inspect output'},{role:'user',content:'Step budget: two steps'}]})).toEqual(['query-recovery','glob-example','verification-recovery','step-budget']);
  expect(deliveredHintKinds(candidates,{messages:[{role:'user',content:hint},{role:'user',content:'different'}]})).toEqual([]);
  expect(deliveredHintKinds(hintCandidates([messages[0]]),{messages:[{role:'user',content:hint}]})).toEqual([]);
  expect(JSON.stringify(deliveredHintKinds(candidates,{messages:[{role:'user',content:hint},{role:'user',content:hint}]}))).not.toContain(hint);

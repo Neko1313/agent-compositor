@@ -1,6 +1,6 @@
 import type {ChatMessage} from '../../packages/core/src/provider.js';
 
-type HintKind='query-recovery'|'glob-example'|'verification-recovery';
+type HintKind='query-recovery'|'glob-example'|'verification-recovery'|'step-budget';
 type Candidate={index:number;content:string;kinds:HintKind[]};
 
 /** Keep only host-origin hints in memory; never expose their contents in receipts. */
@@ -14,6 +14,7 @@ export function hintCandidates(messages:readonly ChatMessage[]):Candidate[]{
    if(message.content.includes('separate glob call with {"pattern":"**/*"}'))kinds.push('glob-example');
   }
   if(message.content.startsWith('Verification recovery:'))kinds.push('verification-recovery');
+  if(message.content.startsWith('Step budget:'))kinds.push('step-budget');
   if(kinds.length)candidates.push({index,content:message.content,kinds});
  });
  return candidates;

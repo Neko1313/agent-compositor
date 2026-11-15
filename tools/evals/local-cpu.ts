@@ -8,6 +8,7 @@ import {OpenAICompatProvider} from '../../packages/provider/src/openai-compat.js
 import {runCase,type EvalCase} from './runner.js';
 import {verifyLocalCache,localModelServer,localCompletionFetch,type ModelPin} from './local-model.js';
 import {hintCandidates,deliveredHintKinds} from './hint-receipts.js';
+const maxRequestsPerCase=12;
 const {values}=parseArgs({options:{
  help:{type:'boolean',short:'h'},output:{type:'string'},cache:{type:'string'},repeat:{type:'string'},
  case:{type:'string'},composition:{type:'string'},preset:{type:'string'},'project-reference':{type:'boolean'},
@@ -28,7 +29,7 @@ const projectReference=values['project-reference']??false;
 const composition:{tools:string[];agentHarness:boolean;instructionsPreset:'coding'|'general';fileReferences?:boolean}={tools:['read','write','edit','exec',...(roster==='navigation'?['glob','grep']:[])],agentHarness:true,instructionsPreset:preset,...(projectReference?{fileReferences:true}:{})};
 const promptFor=(test:EvalCase)=>test.prompt+(projectReference?'\nProject directory: @.':'')+'\n/no_think';
 const sourceInputs=Object.fromEntries(await Promise.all(['local-cpu.ts','local-model.ts','local-qwen.json','runner.ts','agent-cases.json','hint-receipts.ts'].map(async name=>[name,createHash('sha256').update(await readFile(new URL(name,import.meta.url))).digest('hex')])));
-const configuration={roster,projectReference,promptSha256:createHash('sha256').update(promptFor(selected[0])).digest('hex'),sourceInputs,sourceDirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),sourceRevision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),model:pin.model,localOnly:true,paidRequests:0,contextWindow:16384,maxOutputTokens:1536,maxRequestsPerCase:12,threads:2,seed:17,repeat,composition,suiteSha256:createHash('sha256').update(suite).digest('hex'),case:selected[0].id,caseSha256:createHash('sha256').update(JSON.stringify(selected[0])).digest('hex'),scope:'Known development diagnostic, not an unseen benchmark or general model-quality claim'};
+const configuration={roster,projectReference,promptSha256:createHash('sha256').update(promptFor(selected[0])).digest('hex'),sourceInputs,sourceDirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),sourceRevision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),model:pin.model,localOnly:true,paidRequests:0,contextWindow:16384,maxOutputTokens:1536,maxRequestsPerCase,maxStepsPerCase:maxRequestsPerCase,threads:2,seed:17,repeat,composition,suiteSha256:createHash('sha256').update(suite).digest('hex'),case:selected[0].id,caseSha256:createHash('sha256').update(JSON.stringify(selected[0])).digest('hex'),scope:'Known development diagnostic, not an unseen benchmark or general model-quality claim'};
 await writeFile(join(output,'configuration.json'),JSON.stringify(configuration,null,2)+'\n');
 const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(Error('Local CPU evaluation deadline')),20*60_000);
 const abort=()=>controller.abort(Error('Operator stopped local CPU evaluation'));process.once('SIGINT',abort);process.once('SIGTERM',abort);
@@ -37,8 +38,8 @@ const results:any[]=[];
 try{
  const preflight=[];
 for(const test of selected){
- const absent=await runCase({...test,prompt:promptFor(test),script:[{text:'No changes made.'}]},{model:'scripted',...composition});
- const correct=await runCase({...test,prompt:promptFor(test)},{model:'scripted',...composition});
+ const absent=await runCase({...test,prompt:promptFor(test),script:[{text:'No changes made.'}]},{model:'scripted',maxSteps:maxRequestsPerCase,...composition});
+ const correct=await runCase({...test,prompt:promptFor(test)},{model:'scripted',maxSteps:maxRequestsPerCase,...composition});
  preflight.push({case:test.id,absentRejected:!absent.ok,correctAccepted:correct.ok,absent,correct});
  if(absent.ok||!correct.ok){await writeFile(join(output,'preflight.json'),JSON.stringify(preflight,null,2)+'\n');throw Error('Independent project oracle preflight failed');}
 }
@@ -67,13 +68,13 @@ const verified=await verifyLocalCache(cache,pin,controller.signal);await writeFi
    }),
   });
   const provider={name:'owned-local-cpu',async *complete(request:any){
-   if(request.model!==server!.model)throw Error('Nonlocal model name');if(admitted>=12)throw Error('Local request ceiling reached');
+   if(request.model!==server!.model)throw Error('Nonlocal model name');if(admitted>=maxRequestsPerCase)throw Error('Local request ceiling reached');
    const input=request.messages.reduce((sum:number,message:any)=>sum+estimateMessageTokens(message),0)+estimateTokens(JSON.stringify(request.tools));if(input+1536>16384)throw Error('Local context ceiling reached before transport');
    admitted++;pendingHints=hintCandidates(request.messages);
    try{yield*transport.complete({...request,maxOutputTokens:1536,signal:AbortSignal.any([request.signal,controller.signal])});}
    finally{pendingHints=[];}
   }};
-  const result={...(await runCase({...test,prompt:promptFor(test)},{model:server.model,provider,baseUrl:server.base+'/v1',timeoutMs:300000,...composition})),repetition,admitted,transportRequests};results.push(result);
+  const result={...(await runCase({...test,prompt:promptFor(test)},{model:server.model,provider,baseUrl:server.base+'/v1',timeoutMs:300000,maxSteps:maxRequestsPerCase,...composition})),repetition,admitted,transportRequests};results.push(result);
   await writeFile(join(output,`${test.id}-${repetition}.json`),JSON.stringify(result,null,2)+'\n');
   await writeFile(join(output,'cpu-runtime.json'),JSON.stringify(await server.cpu(),null,2)+'\n');
   console.log(JSON.stringify({case:test.id,repetition,ok:result.ok,admitted,error:result.error}));

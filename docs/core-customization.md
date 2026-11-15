@@ -808,6 +808,15 @@ anchor. The exact bounded view is journaled in optional `tool.result.modelText`
 external records. Older records retain their existing reconstruction. Consumers
 needing structured results should use `output`, rather than parse model prose.
 
+### Approaching the step limit
+
+In the default loop, once tools have been used, the host sends one reminder
+before a request with two model steps left (for limits of at least three steps).
+It asks the model to prioritize authorized work and verification and to report
+unfinished work honestly. It does not run a command, grant permission, reserve
+a verification step, or increase the limit. Provider request limits and token
+budgets can stop a turn earlier. Custom run strategies own their own behavior.
+
 ### Repeated query recovery
 
 The default loop tracks tools explicitly declaring `loopGuard: "query"` on their

@@ -809,10 +809,14 @@ attached. Both preflight and inference use the resulting prompt.
 On each actual local HTTP request the report records the tool names, body digest
 and top-level required fields of the advertised editor. These describe the
 request before the server renders its chat template.
-For host-generated query, glob-example and failed-check recovery guidance, it
+For host-generated query, glob-example, failed-check recovery and step-budget guidance, it
 also records fixed labels when the exact host message is present at its expected
 position in the serialized request. The receipt contains no message text. It
 proves inclusion in the request, not that the model followed the guidance.
+The current local diagnostic sets both the agent step limit and independent HTTP
+request ceiling to 12. Earlier reports used a 24-step agent limit with the same
+12-request ceiling; those conditions are not equivalent, and provider retries
+or other requests can still make request counts differ from step counts.
 Reports record the reference flag, `fileReferences` composition option and the
 submitted prompt SHA-256 separately from the unchanged source case hash. This is a
 different context condition from the unassisted diagnostic; do not present it as

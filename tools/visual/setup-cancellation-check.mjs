@@ -17,7 +17,17 @@ try{
  const readLog=async()=>readFile(join(output,'setup-cancel-requests.jsonl'),'utf8').then(text=>text.trim().split('\n').filter(Boolean).map(JSON.parse));
  const observe=async(predicate,description)=>{const end=Date.now()+20000;let value;while(Date.now()<end){value=await readLog();if(predicate(value))return value;await delay(30);}throw Error(description+': '+JSON.stringify(value));};
  await wait('Get started');await click('Choose recommended tools');await wait('Choose your work');if(native){await wait('Choose your work · Form');await page.keyboard.press('Alt+Enter');}else await click('Continue');
- await wait('Choose optional tools');await click('Test reports');await click(native?'Install and enable':'Install and enable selected');
+ await wait('Choose optional tools');await click('Test reports');
+ if(native)await click('Install and enable');
+ else{
+  // The action can be below the Ink form viewport. Navigate backwards from
+  // the selected test-reports field, observing each focus change before Enter.
+  await page.waitForFunction(()=>{const lines=visual.text().split('\n'),row=lines.findIndex(line=>line.includes('Test reports · test-reports'));return row>=0&&lines.slice(row+1,row+3).some(line=>line.includes('› [x] Enabled'));});
+  const match=/\b(\d+)\/(\d+) ·/.exec(await page.evaluate(()=>visual.text()));assert.ok(match,'Missing form focus counter');
+  let current=Number(match[1]),total=Number(match[2]);
+  while(current!==total-1){const next=current===1?total:current-1;await page.keyboard.press('Shift+Tab');await wait(`${next}/${total} ·`);current=next;}
+  await wait('› [ Install and enable selected ]');await page.keyboard.press('Enter');
+ }
  await observe(rows=>rows.some(row=>row.name==='project-checks'),'First selected archive was not requested');await wait('Get started');await click('Get started');await wait('[x]');await wait('Get started · Working');
  await page.screenshot({path:join(output,'01-install-pending.png')});report.screenshots.push('01-install-pending.png');
  const keyboard=native||process.env.VISUAL_SETUP_CANCEL_KEY==='1';

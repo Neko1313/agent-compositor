@@ -1,5 +1,21 @@
 # Project memory
 
+## Setup cancellation and candidate verification — 2026-11-16
+
+Build-only run 43766867589 for c119f4e passed all four native jobs; its four
+installed-runtime /btw reports each contain seven passing checks, including
+draft restoration. This predates the resource chart changes and cannot certify
+the current head. The reports are retained under dist/candidate-c119-*/.
+
+The source setup-cancellation PTY scenario passed on OpenTUI. On Ink its test
+initially waited for an action below the form viewport, before starting the
+download. A first keyboard-navigation attempt also read focus before the
+clicked field settled. The scenario now observes the selected field and each
+focus change, then reaches the off-screen action by keyboard. Both renderers
+pass the held local archive cancellation flow, with no later install or model
+request. This does not establish how a non-cooperative external operation
+behaves after cancellation, nor installed-archive or physical-terminal behavior.
+
 ## Resource sampling failure isolation — 2026-11-16
 
 Process counter failures previously stopped the shared timer, interrupting

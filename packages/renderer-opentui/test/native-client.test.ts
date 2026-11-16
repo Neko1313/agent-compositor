@@ -47,6 +47,18 @@ describe('native presentation client',()=>{
     t.client.close();
   });
 
+  it('exposes draft changes only when the host offers the method',async()=>{
+    const state=initial();state.sessions[0].methods!.push('draftChange');
+    state.sessions[0].snapshot.draft={revision:3,text:'private',status:'review'};
+    const t=transport({state,deferred:true}),main=t.client.sessions()[0];
+    expect(main.snapshot().draft).toEqual({revision:3,text:'private',status:'review'});
+    const result=main.draftChange!('edited',3);
+    expect(t.inputs.at(-1)?.operation).toEqual({kind:'draft-change',text:'edited',revision:3});
+    t.receipt(t.inputs.at(-1)!.id,{status:'rejected'});expect(await result).toBe(false);
+    const next=structuredClone(state);next.sessions[0].methods=next.sessions[0].methods!.filter(method=>method!=='draftChange');
+    t.publish(next);expect(main.draftChange).toBeUndefined();t.client.close();
+  });
+
   it('retains synchronous submit admission and navigation consumed semantics',()=>{
     const t=transport({consume:input=>input.operation.kind==='navigation-handle'&&input.operation.input.kind==='key'&&input.operation.input.key==='F2'});
     expect(t.client.sessions()[0].submit('draft 窗')).toBe(true);

@@ -13,6 +13,8 @@ export const NATIVE_STEER='native-steer-v1';
 export const NATIVE_PENDING_WORK='native-pending-work-v1';
 /** Optional state for a session switch that has not finished starting. */
 export const NATIVE_SESSION_RESTORING='native-session-restoring-v1';
+/** Optional private Main draft exchange; legacy peers do not receive its fields. */
+export const NATIVE_MAIN_DRAFT='native-main-draft-v1';
 
 const uint=z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const id=z.string().min(1).max(256);
@@ -51,11 +53,12 @@ const message=z.union([
 /** Transcript size remains the existing host contract; no history is silently dropped. */
 export const nativeConversationSnapshotSchema=z.object({messages:z.array(message),running:z.boolean(),restoring:z.boolean().optional(),pending:z.boolean().optional(),error:z.string().optional(),notice:z.string().optional(),
   approval:approval.optional(),interaction:nativeInteractionSchema.optional(),
+  draft:z.object({revision:uint,text:z.string().max(64000),status:z.enum(['draft','review','conflict'])}).strict().optional(),
   controller:nativeControllerSchema.extend({kind:z.enum(['approval','question','form'])}).optional(),
   editor:nativeEditorSchema.optional(),
 }).strict();
 
-export const nativeSessionMethods=['submit','steer','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction',
+export const nativeSessionMethods=['submit','steer','draftChange','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction',
   'controllerInput','controllerViewport','cancelController','editorInput','editorViewport'] as const;
 export const nativeSurfaceMethods=['press','change','answerApproval','answerInteraction','cancelInteraction','answerForm','cancelForm',
   'controllerInput','controllerViewport','cancelController'] as const;
@@ -122,6 +125,7 @@ export const nativeMeasurementSchema=z.object({columns:cells,rows:cells,visible:
 const answer=z.json();
 export const nativeOperationSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('submit'),text:z.string()}).strict(),z.object({kind:z.literal('steer'),text:z.string()}).strict(),z.object({kind:z.literal('interrupt')}).strict(),
+  z.object({kind:z.literal('draft-change'),text:z.string().max(64000),revision:uint}).strict(),
   z.object({kind:z.literal('approval'),id,allow:z.boolean()}).strict(),
   z.object({kind:z.literal('interaction'),id,value:answer}).strict(),z.object({kind:z.literal('cancel-interaction'),id}).strict(),
   z.object({kind:z.literal('controller-input'),id,input:nativeControllerInputSchema,revision:uint}).strict(),

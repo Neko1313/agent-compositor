@@ -1617,6 +1617,11 @@ these component tests. Version files from earlier writers are retained rather
 than deleted; conflict resolution and clearing do not yet guarantee erasure of
 older private text. A safe retention and cleanup policy is required before the
 component is used by the editor.
+The native presentation protocol has an optional, negotiated draft snapshot and
+revision-checked change operation. Legacy peers do not receive the new fields;
+focused tests cover negotiation, stale changes and hidden windows. No host
+session provides this operation yet, and rapid-edit synchronization and the
+visible recovery workflow remain to be implemented and tested.
 
 The [check/report cooperation test](../packages/app/test/check-report-cooperation.test.ts)
 runs actual Vitest through `project_check`, reads its generated JSON through

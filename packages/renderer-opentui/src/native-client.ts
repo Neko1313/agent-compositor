@@ -1,4 +1,4 @@
-import {answerHello,hello,parseSemVer,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,nativeProtocolElements,nativeStateMessage,nativeInputMessage,nativeReceiptMessage,nativeMediaMessage,
+import {answerHello,hello,parseSemVer,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,NATIVE_MAIN_DRAFT,nativeProtocolElements,nativeStateMessage,nativeInputMessage,nativeReceiptMessage,nativeMediaMessage,
   type NativeState,type NativeSession,type NativeSurface,type NativeOperation,type NativeReceiptMessage,type WireMessage} from '@agent-compositor/protocol';
 import type {ConversationSession,ConversationSnapshot} from './session.js';
 import type {ConversationWindow,ConversationWindowRegistry} from './conversation-windows.js';
@@ -51,7 +51,7 @@ type Pending={target:string;resolve:(receipt:NativeReceiptMessage|undefined)=>vo
 /** Data-only local ports. Receipts acknowledge admission, never model completion. */
 export function createNativePresentationClient(send:(message:WireMessage)=>void):NativePresentationClient {
   const localHello=hello('renderer',{surfaces:['terminal'],sites:['conversation','tools','help','status','plugin:*'],
-    elements:['Text','Box','Layout','Pointer',...nativeProtocolElements,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING],encodings:['jsonl']});
+    elements:['Text','Box','Layout','Pointer',...nativeProtocolElements,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,NATIVE_MAIN_DRAFT],encodings:['jsonl']});
   let closed=false,sentHello=false,peerHello=false,acknowledged=false,negotiated=false,allowEpoch=false,epoch='',stateRevision=-1,mediaRevision=-1,nextId=0;
   let initialized=false,resolveReady!:()=>void,rejectReady!:(reason:Error)=>void;
   const ready=new Promise<void>((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
@@ -155,6 +155,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     const interaction=(id:string)=>!entry.dto.snapshot.controller&&entry.dto.snapshot.interaction?.id===id;
     const optional={
       steer:(text:string)=>isSession(entry)?accepted(entry.dto.port,{kind:'steer',text}):false,
+      draftChange:(text:string,revision:number)=>isSession(entry)?accepted(entry.dto.port,{kind:'draft-change',text,revision}):false,
       interrupt:()=>{if(isSession(entry))fire(entry.dto.port,{kind:'interrupt'});},
       answerApproval:(id:string,allow:boolean)=>{if(isSession(entry)&&!entry.dto.snapshot.controller&&entry.dto.snapshot.approval?.id===id)fire(entry.dto.port,{kind:'approval',id,allow});},
       answerInteraction:(id:string,value:unknown)=>{if(isSession(entry)&&interaction(id))fire(entry.dto.port,{kind:'interaction',id,value:value as never});},

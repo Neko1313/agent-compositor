@@ -20,6 +20,7 @@ export interface ConversationSnapshot {
   pending?: boolean;
   error?: string;
   notice?: string;
+  draft?: {revision:number;text:string;status:'draft'|'review'|'conflict'};
   approval?: ConversationApproval;
   interaction?: ConversationInteraction;
   controller?: ConversationController;
@@ -42,6 +43,7 @@ export interface ConversationSession {
   subscribe(callback: () => void): () => void;
   submit(text: string): void|boolean|Promise<boolean>;
   steer?(text: string): void|boolean|Promise<boolean>;
+  draftChange?(text:string,revision:number):boolean|Promise<boolean>;
   isImmediateCommand?(text: string): boolean;
   interrupt?(): void;
   answerApproval?(id: string, allow: boolean): void;

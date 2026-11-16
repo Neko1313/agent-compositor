@@ -1,4 +1,4 @@
-import {afterEach,expect,it} from 'vitest';
+import {afterEach,expect,it,vi} from 'vitest';
 import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -12,7 +12,7 @@ import {createOpenTuiWireHost} from '../src/opentui-wire.js';
 
 const cleanup:(()=>unknown|Promise<unknown>)[]=[];
 afterEach(async()=>{for(const close of cleanup.splice(0).reverse())await close();});
-async function fixture(provider=new ScriptedProvider([]),controllers?:Partial<Record<keyof UiControllers,string>>){
+async function fixture(provider=new ScriptedProvider([]),controllers?:Partial<Record<keyof UiControllers,string>>,decorate?:(host:ReturnType<typeof createOpenTuiHost>)=>ReturnType<typeof createOpenTuiHost>){
   const cwd=await mkdtemp(join(tmpdir(),'opentui-wire-'));cleanup.push(()=>rm(cwd,{recursive:true,force:true}));
   const app=await buildApp({cwd,env:{HOME:cwd},provider,agentHub:false,fixedConfig:{enabledPlugins:['session-manager'],
     ...(controllers?{ui:{controllers}}:{}),
@@ -21,7 +21,7 @@ async function fixture(provider=new ScriptedProvider([]),controllers?:Partial<Re
   const layout=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'}],initial:['session']});layout.resize(160,50);cleanup.push(()=>layout.disconnect());
   const host=createOpenTuiHost(app,layout);cleanup.push(()=>host.close());await host.start();
   const messages:WireMessage[]=[];
-  const broker=createOpenTuiWireHost({host,layout,onCtrlC:()=>host.core.getState()==='running'?'handled':'exit'},message=>messages.push(decodeLine(encodeMessage(message))));cleanup.push(()=>broker.close());
+  const broker=createOpenTuiWireHost({host:decorate?.(host)??host,layout,onCtrlC:()=>host.core.getState()==='running'?'handled':'exit'},message=>messages.push(decodeLine(encodeMessage(message))));cleanup.push(()=>broker.close());
   const receive=(message:WireMessage)=>broker.receive(decodeLine(encodeMessage(message)));
   const negotiate=(native=true)=>receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:native?[...nativeProtocolElements]:['Text'],encodings:['jsonl']}));
   const state=()=>messages.slice().reverse().find((message):message is NativeStateMessage=>message.type==='native-state')!;
@@ -247,6 +247,27 @@ it('negotiates native steering without exposing the new method to legacy peers',
   expect(legacy.input(oldSession.port,{kind:'steer',text:'FORGED'}).receipt).toMatchObject({status:'rejected'});
   const modern=await fixture();modern.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-steer-v1'],encodings:['jsonl']}));
   expect(modern.state().state.sessions[0].methods).toContain('steer');
+});
+
+it.each([false,true])('negotiates private draft changes with capability %s',async supported=>{
+  const change=vi.fn(()=>true);
+  const f=await fixture(undefined,undefined,host=>{
+    const registry=host.conversationWindows,windows=registry.snapshot();
+    const session=windows[0].session;
+    const decorated={...session,snapshot:()=>({...session.snapshot(),draft:{revision:7,text:'private draft',status:'draft' as const}}),draftChange:change};
+    return {...host,conversationWindows:{...registry,snapshot:()=>windows.map(window=>({...window,session:decorated}))}};
+  });
+  f.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,...(supported?['native-main-draft-v1']:[])],encodings:['jsonl']}));
+  const main=f.state().state.sessions[0];
+  expect(main.methods?.includes('draftChange')).toBe(supported);
+  if(supported)expect(main.snapshot.draft).toEqual({revision:7,text:'private draft',status:'draft'});
+  else expect(main.snapshot).not.toHaveProperty('draft');
+  expect(f.input(main.port,{kind:'draft-change',text:'stale',revision:6}).receipt).toMatchObject({status:'rejected'});
+  expect(f.input(main.port,{kind:'draft-change',text:'edited',revision:7}).receipt).toMatchObject({status:supported?'accepted':'rejected'});
+  expect(change).toHaveBeenCalledTimes(supported?1:0);
+  f.layout.act({type:'workspace',id:9});
+  expect(f.input(main.port,{kind:'draft-change',text:'hidden',revision:7}).receipt).toMatchObject({status:'rejected'});
+  expect(f.provider.requests).toEqual([]);
 });
 
 it('negotiates queued-work state without changing legacy native snapshots',async()=>{

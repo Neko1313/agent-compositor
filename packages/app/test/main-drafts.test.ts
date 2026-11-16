@@ -246,3 +246,29 @@ it.each(['before','after'] as const)('recovers the correct version when a writer
   if(point==='before')expect(await readFile(join(root,'main-drafts-v3',temporary[0]),'utf8')).toContain('after edit');
  }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}}
 },15000);
+
+it.skipIf(process.platform!=='linux')('removes only temporary drafts owned by a dead process in the same PID domain',async()=>{
+ const {root}=await fixture(),directory=join(root,'main-drafts-v3'),entry=pathToFileURL(resolve('packages/app/src/main-drafts.ts')).href;
+ const script=`import fs from 'node:fs/promises'; import {syncBuiltinESMExports} from 'node:module';
+ fs.rename=async ()=>{console.log('WRITTEN'); await new Promise(()=>{});}; syncBuiltinESMExports();
+ const {MainDraftStore}=await import(${JSON.stringify(entry)}); await MainDraftStore.open(${JSON.stringify(root)}).save('session',{text:'private in flight'});`;
+ const child=spawn(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:process.cwd(),stdio:['ignore','pipe','pipe']});
+ let stderr='';child.stderr.on('data',chunk=>{stderr+=String(chunk);});
+ const exited=new Promise<{code:number|null;signal:NodeJS.Signals|null}>((done,fail)=>{child.once('error',fail);child.once('exit',(code,signal)=>done({code,signal}));});
+ try{
+  await new Promise<void>((done,fail)=>{let output='';const timer=setTimeout(()=>fail(Error('Writer did not reach rename')),10000);
+   child.stdout.on('data',chunk=>{output+=String(chunk);if(output.includes('WRITTEN')){clearTimeout(timer);done();}});
+   void exited.then(result=>{clearTimeout(timer);fail(Error(`Writer exited early: ${JSON.stringify(result)} ${stderr}`));});});
+  const temporary=(await readdir(directory)).find(name=>name.endsWith('.tmp'))!;expect(temporary).toBeTruthy();
+  // Old and foreign-domain files cannot be attributed safely and remain intact.
+  const legacy=temporary.replace(/\.\d+\.[0-9a-f-]+\.\d+\./,'.unknown.');
+  const foreign=temporary.replace(/(\.json\.\d+\.)[0-9a-f-]+\./,'$100000000-0000-0000-0000-000000000000.');
+  expect(legacy).not.toBe(temporary);expect(foreign).not.toBe(temporary);
+  await writeFile(join(directory,legacy),'legacy');await writeFile(join(directory,foreign),'foreign');
+  const cleaner=MainDraftStore.open(root);await cleaner.compact('session');
+  expect(await readFile(join(directory,temporary),'utf8')).toContain('private in flight');
+  expect(child.kill('SIGKILL')).toBe(true);expect((await exited).signal).toBe('SIGKILL');
+  await cleaner.compact('session');const remaining=await readdir(directory);
+  expect(remaining).not.toContain(temporary);expect(remaining).toContain(legacy);expect(remaining).toContain(foreign);
+ }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}}
+},15000);

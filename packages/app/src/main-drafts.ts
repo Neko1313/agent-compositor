@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {mkdir,readFile,readdir,rename,rm,stat,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,readdir,readlink,rename,rm,stat,writeFile} from 'node:fs/promises';
 import {dirname,join} from 'node:path';
 
 /** Editor data; an input ID is a correlation key, never permission to retry. */
@@ -12,6 +12,17 @@ type Event={type?:unknown;recoveryId?:unknown;text?:unknown};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const head=(record:RecordV2)=>`${record.owner}:${record.revision}`;
 const headPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:[1-9][0-9]{0,14}$/;
+
+/** Only identify processes where the PID namespace and boot can be compared. */
+async function localProcessDomain():Promise<{boot:string;namespace:string}|undefined>{
+  if(process.platform!=='linux')return;
+  try{
+    const [boot,link]=await Promise.all([readFile('/proc/sys/kernel/random/boot_id','utf8'),readlink('/proc/self/ns/pid')]);
+    const bootId=boot.trim(),namespace=/^pid:\[([0-9]+)\]$/.exec(link)?.[1];
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(bootId)||!namespace)return;
+    return {boot:bootId,namespace};
+  }catch{return;}
+}
 
 /** Each instance writes immutable versions per session. Divergent writers are never overwritten. */
 export class MainDraftStore {
@@ -90,7 +101,9 @@ export class MainDraftStore {
     if(state.parents.size>256||state.revision>=999999999999999)throw Error('Main draft history exceeds its limit');
     const record:RecordV2={version:2,owner:this.owner,revision:state.revision+1,parents:[...state.parents],text:draft.text,...(draft.intentId?{intentId:draft.intentId}:{})};
     await mkdir(this.directory,{recursive:true,mode:0o700});
-    const file=this.file(sessionId,this.owner,record.revision),temporary=`${file}.${randomUUID()}.tmp`;
+    const file=this.file(sessionId,this.owner,record.revision),domain=await localProcessDomain();
+    const identity=domain?`${process.pid}.${domain.boot}.${domain.namespace}`:'unknown';
+    const temporary=`${file}.${identity}.${randomUUID()}.tmp`;
     try{await writeFile(temporary,JSON.stringify(record),{mode:0o600,flag:'wx'});await rename(temporary,file);state.revision=record.revision;}
     finally{await rm(temporary,{force:true});}
   }
@@ -120,6 +133,20 @@ export class MainDraftStore {
         await rm(this.file(sessionId,record.owner,record.revision),{force:true});
       const visible=new Set(leaves.map(head));
       for(const record of records)if(!visible.has(head(record)))await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+      const domain=await localProcessDomain();
+      if(domain){
+        const prefix=this.prefix(sessionId)+'.';
+        const names=await readdir(this.directory).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
+        for(const name of names){
+          if(!name.startsWith(prefix))continue;
+          const match=/^([0-9a-f-]+)\.([1-9][0-9]{0,14})\.json\.([1-9][0-9]{0,9})\.([0-9a-f-]+)\.([0-9]+)\.([0-9a-f-]+)\.tmp$/.exec(name.slice(prefix.length));
+          if(!match||!uuid.test(match[1])||!uuid.test(match[6])||match[4]!==domain.boot||match[5]!==domain.namespace)continue;
+          const pid=Number(match[3]);if(!Number.isSafeInteger(pid)||pid<=0||pid>2147483647)continue;
+          // ESRCH is the only proof accepted. EPERM and every uncertain or
+          // different process domain leave the private file untouched.
+          try{process.kill(pid,0);}catch(error:any){if(error?.code==='ESRCH')await rm(join(this.directory,name),{force:true});}
+        }
+      }
     });
     this.pending=operation;await operation;
   }

@@ -1618,12 +1618,15 @@ files. Explicit compaction removes versions superseded in a validated snapshot,
 while preserving conflict leaves; tests cover concurrent writers, clearing and
 malformed files, a separate compactor process while a writer saves, and process
 death immediately after either of two deletions. Separate process-death tests
-cover the atomic publication boundary before and after rename. A process killed
-before rename can leave a private temporary file; safe cleanup of those files is
-still unresolved. This is
-logical file deletion, not secure erasure from storage,
+cover the atomic publication boundary before and after rename. On Linux, explicit
+compaction can remove temporary files from a confirmed dead process in the same
+boot and PID namespace. A test pauses a live writer, then kills it, and verifies
+that only its attributable file is removed. Legacy, foreign-domain and
+unidentifiable temporary files remain; other platforms do not perform this
+cleanup. This is logical file deletion, not secure erasure from storage,
 backups or filesystem snapshots. The old experimental v2 format is retained
-and blocks use for the affected session until a migration is implemented. Broader interruption and filesystem coverage, retention policy and migration
+and blocks use for the affected session until a migration is implemented.
+Broader interruption and filesystem coverage, retention policy and migration
 still need completion before the component is used by the editor.
 The native presentation protocol has an optional, negotiated draft snapshot and
 revision-checked change operation. Legacy peers do not receive the new fields;

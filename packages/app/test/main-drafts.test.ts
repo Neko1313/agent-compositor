@@ -16,8 +16,8 @@ it('keeps private drafts separate by session and serializes saving and clearing'
  expect(await store.load('session-b',[])).toEqual({kind:'draft',text:'other'});
  const reopened=MainDraftStore.open(root);expect(await reopened.load('session-a',[])).toEqual({kind:'draft',text:'private draft'});
  expect(await reopened.load('session-b',[])).toEqual({kind:'draft',text:'other'});
- const files=await readdir(join(root,'main-drafts-v2'));expect(files).toHaveLength(2);
- if(process.platform!=='win32')for(const file of files)expect((await stat(join(root,'main-drafts-v2',file))).mode&0o777).toBe(0o600);
+ const files=await readdir(join(root,'main-drafts-v3'));expect(files).toHaveLength(2);
+ if(process.platform!=='win32')for(const file of files)expect((await stat(join(root,'main-drafts-v3',file))).mode&0o777).toBe(0o600);
  const clear=store.clear('session-a'),newer=store.save('session-a',{text:'new draft'});await Promise.all([clear,newer]);
  expect(await store.load('session-a',[])).toEqual({kind:'draft',text:'new draft'});
 });
@@ -31,7 +31,7 @@ it('distinguishes an unstarted input from an input correlated with an actual jou
 });
 it('reports malformed data without modifying it',async()=>{
  const {root,store}=await fixture();await store.save('session',{text:'before'});
- const file=join(root,'main-drafts-v2',(await readdir(join(root,'main-drafts-v2')))[0]);await writeFile(file,'{broken');
+ const file=join(root,'main-drafts-v3',(await readdir(join(root,'main-drafts-v3')))[0]);await writeFile(file,'{broken');
  await expect(store.load('session',[])).rejects.toThrow();expect(await readFile(file,'utf8')).toBe('{broken');
  await expect(store.save('session',{text:'replacement'})).rejects.toThrow();
  await expect(store.clear('session')).rejects.toThrow();expect(await readFile(file,'utf8')).toBe('{broken');
@@ -97,7 +97,7 @@ it('serializes an overlapping load and edit within one instance',async()=>{
 it('rejects a cyclic history without hiding or rewriting its files',async()=>{
  const {root}=await fixture(),a=MainDraftStore.open(root),b=MainDraftStore.open(root);
  await Promise.all([a.save('session',{text:'first'}),b.save('session',{text:'second'})]);
- const directory=join(root,'main-drafts-v2'),files=(await readdir(directory)).map(name=>join(directory,name));
+ const directory=join(root,'main-drafts-v3'),files=(await readdir(directory)).map(name=>join(directory,name));
  const records=await Promise.all(files.map(async file=>JSON.parse(await readFile(file,'utf8'))));
  records[0].parents=[`${records[1].owner}:${records[1].revision}`];records[1].parents=[`${records[0].owner}:${records[0].revision}`];
  await Promise.all(files.map((file,index)=>writeFile(file,JSON.stringify(records[index]))));
@@ -131,4 +131,69 @@ it('recovers a saved draft after the writer process is killed',async()=>{
   await store.save('session',{text:'continued after restart'});
   expect(await MainDraftStore.open(root).load('session',[])).toEqual({kind:'draft',text:'continued after restart'});
  }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}}
+},15000);
+
+it('compacts superseded private versions without deleting an active writer’s later edit',async()=>{
+ const {root}=await fixture(),a=MainDraftStore.open(root),b=MainDraftStore.open(root),directory=join(root,'main-drafts-v3');
+ await a.save('session',{text:'old private text'});await a.save('session',{text:'base'});
+ expect(await b.load('session',[])).toEqual({kind:'draft',text:'base'});await b.save('session',{text:'edited in B'});
+ await b.compact('session');
+ const files=await readdir(directory);expect(files).toHaveLength(1);
+ expect(await readFile(join(directory,files[0]),'utf8')).not.toContain('old private text');
+ await a.save('session',{text:'later edit in A'});
+ const result=await MainDraftStore.open(root).load('session',[]);if(result?.kind!=='conflict')throw Error('Expected conflict');
+ expect(result.variants.map(value=>value.text).sort()).toEqual(['edited in B','later edit in A']);
+ await b.compact('session');expect((await readdir(directory))).toHaveLength(2);
+});
+
+it('keeps the clearing version while removing earlier private text',async()=>{
+ const {root,store}=await fixture(),directory=join(root,'main-drafts-v3');
+ await store.save('session',{text:'removed private text'});await store.clear('session');await store.compact('session');
+ const files=await readdir(directory);expect(files).toHaveLength(1);
+ expect(await readFile(join(directory,files[0]),'utf8')).not.toContain('removed private text');
+ expect(await MainDraftStore.open(root).load('session',[])).toBeUndefined();
+});
+
+it('refuses compaction if any saved version is malformed',async()=>{
+ const {root,store}=await fixture(),directory=join(root,'main-drafts-v3');
+ await store.save('session',{text:'older'});await store.save('session',{text:'newer'});
+ const files=(await readdir(directory)).sort();await writeFile(join(directory,files[0]),'{broken');
+ await expect(store.compact('session')).rejects.toThrow();expect(await readdir(directory)).toHaveLength(2);
+});
+
+it('does not hide or change legacy saved drafts',async()=>{
+ const {root}=await fixture(),current=MainDraftStore.open(root);
+ await current.save('session',{text:'legacy content'});
+ const {rename}=await import('node:fs/promises');await rename(join(root,'main-drafts-v3'),join(root,'main-drafts-v2'));
+ const store=MainDraftStore.open(root);
+ await expect(store.load('session',[])).rejects.toThrow('require migration');
+ await expect(store.save('session',{text:'replacement'})).rejects.toThrow('require migration');
+ expect((await readdir(join(root,'main-drafts-v2')))).toHaveLength(1);
+});
+
+it('retains both concurrent writers through repeated compaction',async()=>{
+ const {root}=await fixture(),a=MainDraftStore.open(root),b=MainDraftStore.open(root),cleaner=MainDraftStore.open(root);
+ await Promise.all([a.save('session',{text:'A0'}),b.save('session',{text:'B0'})]);
+ await Promise.all([
+  (async()=>{for(let i=1;i<=30;i++)await a.save('session',{text:'A'+i});})(),
+  (async()=>{for(let i=1;i<=30;i++)await b.save('session',{text:'B'+i});})(),
+  (async()=>{for(let i=0;i<30;i++)await cleaner.compact('session');})(),
+ ]);
+ await cleaner.compact('session');const recovered=await MainDraftStore.open(root).load('session',[]);
+ if(recovered?.kind!=='conflict')throw Error('Expected both concurrent drafts');
+ expect(recovered.variants.map(value=>value.text).sort()).toEqual(['A30','B30']);
+});
+
+it('preserves a live process writer while another process compacts',async()=>{
+ const {root}=await fixture(),writer=MainDraftStore.open(root),other=MainDraftStore.open(root);
+ await writer.save('session',{text:'base'});await other.load('session',[]);await other.save('session',{text:'other'});
+ const entry=pathToFileURL(resolve('packages/app/src/main-drafts.ts')).href;
+ const script=`import {MainDraftStore} from ${JSON.stringify(entry)}; const store=MainDraftStore.open(${JSON.stringify(root)}); for(let i=0;i<40;i++) await store.compact('session');`;
+ const child=spawn(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:process.cwd(),stdio:['ignore','ignore','pipe']});
+ let stderr='';child.stderr.on('data',chunk=>{stderr+=String(chunk);});
+ const exit=new Promise<void>((done,fail)=>{child.once('error',fail);child.once('exit',(code,signal)=>code===0?done():fail(Error(`Compactor failed ${code}/${signal}: ${stderr}`)));});
+ await Promise.all([(async()=>{for(let i=1;i<=40;i++)await writer.save('session',{text:'writer '+i});})(),exit]);
+ const recovery=await MainDraftStore.open(root).load('session',[]);
+ if(recovery?.kind!=='conflict')throw Error('Expected concurrent versions');
+ expect(recovery.variants.map(value=>value.text).sort()).toEqual(['other','writer 40']);
 },15000);

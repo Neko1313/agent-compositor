@@ -1613,10 +1613,14 @@ changing during review. A separate test kills a local writer after its save and
 reads and edits the draft from a new process context. These checks do not
 establish network-filesystem or arbitrary crash durability. The component is not connected to the Main editor
 or either terminal renderer. No user-facing draft restoration is claimed from
-these component tests. Version files from earlier writers are retained rather
-than deleted; conflict resolution and clearing do not yet guarantee erasure of
-older private text. A safe retention and cleanup policy is required before the
-component is used by the editor.
+these component tests. The replacement storage format writes immutable version
+files. Explicit compaction removes versions superseded in a validated snapshot,
+while preserving conflict leaves; tests cover concurrent writers, clearing and
+malformed files, and a separate compactor process while a writer saves. This is
+logical file deletion, not secure erasure from storage,
+backups or filesystem snapshots. The old experimental v2 format is retained
+and blocks use for the affected session until a migration is implemented. Crash-during-compaction coverage, retention policy and migration still need
+completion before the component is used by the editor.
 The native presentation protocol has an optional, negotiated draft snapshot and
 revision-checked change operation. Legacy peers do not receive the new fields;
 focused tests cover negotiation, stale changes and hidden windows. No host

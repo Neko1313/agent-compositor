@@ -1,6 +1,6 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,readFile,readdir,rename,rm,stat,writeFile} from 'node:fs/promises';
-import {join} from 'node:path';
+import {dirname,join} from 'node:path';
 
 /** Editor data; an input ID is a correlation key, never permission to retry. */
 export type MainDraft={text:string;intentId?:string};
@@ -13,33 +13,46 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
 const head=(record:RecordV2)=>`${record.owner}:${record.revision}`;
 const headPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:[1-9][0-9]{0,14}$/;
 
-/** Each instance owns one file per session. Divergent writers are never overwritten. */
+/** Each instance writes immutable versions per session. Divergent writers are never overwritten. */
 export class MainDraftStore {
   private pending:Promise<void>=Promise.resolve();
   private readonly owner=randomUUID();
   private readonly states=new Map<string,SessionState>();
   private constructor(private readonly directory:string){}
-  static open(stateDirectory:string){return new MainDraftStore(join(stateDirectory,'main-drafts-v2'));}
+  static open(stateDirectory:string){return new MainDraftStore(join(stateDirectory,'main-drafts-v3'));}
   private prefix(sessionId:string){return createHash('sha256').update(sessionId).digest('hex');}
-  private file(sessionId:string){return join(this.directory,`${this.prefix(sessionId)}.${this.owner}.json`);}
+  private file(sessionId:string,owner:string,revision:number){return join(this.directory,`${this.prefix(sessionId)}.${owner}.${revision}.json`);}
   private state(id:string){let value=this.states.get(id);if(!value){value={revision:0,parents:new Set(),conflict:false};this.states.set(id,value);}return value;}
-  private async records(sessionId:string):Promise<RecordV2[]>{
+  private async records(sessionId:string,allVersions=false):Promise<RecordV2[]>{
     const prefix=this.prefix(sessionId)+'.';
-    const names=await readdir(this.directory).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
-    const files=names.filter(name=>name.startsWith(prefix)&&name.endsWith('.json'));
-    if(files.length>256)throw Error('Too many saved Main draft writers');
-    return Promise.all(files.map(async name=>{
-      const owner=name.slice(prefix.length,-5),file=join(this.directory,name);
-      if(!uuid.test(owner)||(await stat(file)).size>420000)throw Error('Invalid saved Main draft file');
-      const value:unknown=JSON.parse(await readFile(file,'utf8'));
-      if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid saved Main draft');
-      const r=value as Record<string,unknown>;
-      if(r.version!==2||r.owner!==owner||!Number.isSafeInteger(r.revision)||Number(r.revision)<1||Number(r.revision)>999999999999999||
-        !Array.isArray(r.parents)||r.parents.length>256||r.parents.some(parent=>typeof parent!=='string'||!headPattern.test(parent))||
-        typeof r.text!=='string'||r.text.length>64000||(r.intentId!==undefined&&(typeof r.intentId!=='string'||!uuid.test(r.intentId))))
-        throw Error('Invalid saved Main draft');
-      return r as RecordV2;
-    }));
+    const legacy=await readdir(join(dirname(this.directory),'main-drafts-v2')).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
+    if(legacy.some(name=>name.startsWith(prefix)&&name.endsWith('.json')))throw Error('Legacy Main drafts require migration before use');
+    // Cleanup by another process can remove an immutable version between listing
+    // and reading it. Retry the entire snapshot rather than hiding missing data.
+    for(let attempt=0;attempt<8;attempt++){
+      const names=await readdir(this.directory).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
+      const files=names.filter(name=>name.startsWith(prefix)&&name.endsWith('.json'));
+      if(files.length>4096)throw Error('Too many saved Main draft versions');
+      try{
+        const all=await Promise.all(files.map(async name=>{
+          const suffix=name.slice(prefix.length,-5),match=/^([0-9a-f-]+)\.([1-9][0-9]{0,14})$/.exec(suffix),file=join(this.directory,name);
+          if(!match||!uuid.test(match[1])||(await stat(file)).size>420000)throw Error('Invalid saved Main draft file');
+          const value:unknown=JSON.parse(await readFile(file,'utf8'));
+          if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid saved Main draft');
+          const r=value as Record<string,unknown>;
+          if(r.version!==2||r.owner!==match[1]||r.revision!==Number(match[2])||!Number.isSafeInteger(r.revision)||Number(r.revision)>999999999999999||
+            !Array.isArray(r.parents)||r.parents.length>256||r.parents.some(parent=>typeof parent!=='string'||!headPattern.test(parent))||
+            typeof r.text!=='string'||r.text.length>64000||(r.intentId!==undefined&&(typeof r.intentId!=='string'||!uuid.test(r.intentId))))
+            throw Error('Invalid saved Main draft');
+          return r as RecordV2;
+        }));
+        const latest=new Map<string,RecordV2>();
+        for(const record of all){const prior=latest.get(record.owner);if(!prior||prior.revision<record.revision)latest.set(record.owner,record);}
+        if(latest.size>256)throw Error('Too many saved Main draft writers');
+        return allVersions?all:[...latest.values()];
+      }catch(error:any){if(error?.code!=='ENOENT'||attempt===7)throw error;}
+    }
+    throw Error('Could not read saved Main drafts');
   }
   private leaves(records:RecordV2[]){
     const byId=new Map(records.map(record=>[head(record),record])),visiting=new Set<string>(),visited=new Set<string>();
@@ -77,7 +90,7 @@ export class MainDraftStore {
     if(state.parents.size>256||state.revision>=999999999999999)throw Error('Main draft history exceeds its limit');
     const record:RecordV2={version:2,owner:this.owner,revision:state.revision+1,parents:[...state.parents],text:draft.text,...(draft.intentId?{intentId:draft.intentId}:{})};
     await mkdir(this.directory,{recursive:true,mode:0o700});
-    const file=this.file(sessionId),temporary=`${file}.${randomUUID()}.tmp`;
+    const file=this.file(sessionId,this.owner,record.revision),temporary=`${file}.${randomUUID()}.tmp`;
     try{await writeFile(temporary,JSON.stringify(record),{mode:0o600,flag:'wx'});await rename(temporary,file);state.revision=record.revision;}
     finally{await rm(temporary,{force:true});}
   }
@@ -95,6 +108,21 @@ export class MainDraftStore {
     this.pending=operation;await operation;
   }
   async clear(sessionId:string):Promise<void>{await this.save(sessionId,{text:''});}
+  /** Remove only immutable versions already superseded in a validated snapshot. */
+  async compact(sessionId:string):Promise<void>{
+    const operation=this.pending.catch(()=>{}).then(async()=>{
+      const all=await this.records(sessionId,true),latest=new Map<string,RecordV2>();
+      for(const record of all){const prior=latest.get(record.owner);if(!prior||prior.revision<record.revision)latest.set(record.owner,record);}
+      const records=[...latest.values()],leaves=this.leaves(records);
+      // First remove older versions of every owner. If a superseded latest
+      // version is removed first, an older one could reappear as a live draft.
+      for(const record of all)if(record.revision<latest.get(record.owner)!.revision)
+        await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+      const visible=new Set(leaves.map(head));
+      for(const record of records)if(!visible.has(head(record)))await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+    });
+    this.pending=operation;await operation;
+  }
   /** A conflict is resolved only against the exact versions the user reviewed. */
   async resolve(sessionId:string,reviewed:readonly string[],draft:MainDraft):Promise<void>{
     this.validate(draft);

@@ -20,7 +20,8 @@ export interface ConversationSnapshot {
   pending?: boolean;
   error?: string;
   notice?: string;
-  draft?: {revision:number;text:string;status:'draft'|'review'|'conflict'};
+  draft?: {revision:number;text:string;status:'draft'|'review'|'conflict'|'loading'|'error';
+    variants?:readonly {id:string;kind:'draft'|'review'|'journal';text:string}[]};
   approval?: ConversationApproval;
   interaction?: ConversationInteraction;
   controller?: ConversationController;
@@ -44,6 +45,9 @@ export interface ConversationSession {
   submit(text: string): void|boolean|Promise<boolean>;
   steer?(text: string): void|boolean|Promise<boolean>;
   draftChange?(text:string,revision:number):boolean|Promise<boolean>;
+  draftReview?(revision:number):boolean|Promise<boolean>;
+  draftResolve?(ids:readonly string[],text:string,revision:number):boolean|Promise<boolean>;
+  draftRefresh?(revision:number):boolean|Promise<boolean>;
   isImmediateCommand?(text: string): boolean;
   interrupt?(): void;
   answerApproval?(id: string, allow: boolean): void;

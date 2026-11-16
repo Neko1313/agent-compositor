@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {answerHello,hello,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,NATIVE_MAIN_DRAFT,nativeStateSchema,parseSemVer,type HelloAckMessage,type HelloMessage,type WireMessage} from '@agent-compositor/protocol';
+import {answerHello,hello,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,NATIVE_MAIN_DRAFT,NATIVE_MAIN_DRAFT_REVIEW,nativeStateSchema,parseSemVer,type HelloAckMessage,type HelloMessage,type WireMessage} from '@agent-compositor/protocol';
 import type {ControllerInput,ControllerView,ConversationSession,PublicRenderSlotSource,UiSurfaceSource,WindowLayoutSource} from '@agent-compositor/renderer-opentui';
 import type {createOpenTuiHost} from './opentui-host.js';
 import type {UiTextView} from '@agent-compositor/events';
@@ -9,8 +9,8 @@ type NativeReceipt=Extract<WireMessage,{type:'native-receipt'}>;
 type NativeState=Extract<WireMessage,{type:'native-state'}>;
 type Host=ReturnType<typeof createOpenTuiHost>;
 type Port={kind:'session';source:ConversationSession}|{kind:'surface';source:UiSurfaceSource}|{kind:'public';source:PublicRenderSlotSource};
-const elements=['Text','Box','Layout','Pointer','native-presentation-v1','native-input-v1',COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,NATIVE_MAIN_DRAFT];
-const sessionMethods=['submit','steer','draftChange','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction','controllerInput','controllerViewport','cancelController','editorInput','editorViewport'] as const;
+const elements=['Text','Box','Layout','Pointer','native-presentation-v1','native-input-v1',COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,NATIVE_MAIN_DRAFT,NATIVE_MAIN_DRAFT_REVIEW];
+const sessionMethods=['submit','steer','draftChange','draftReview','draftResolve','draftRefresh','isImmediateCommand','interrupt','answerApproval','answerInteraction','cancelInteraction','controllerInput','controllerViewport','cancelController','editorInput','editorViewport'] as const;
 const surfaceMethods=['press','change','answerApproval','answerInteraction','cancelInteraction','answerForm','cancelForm','controllerInput','controllerViewport','cancelController'] as const;
 function hasAction(view:UiTextView|undefined,action:string){
   return Boolean(view&&(view.lines.some(line=>line.action===action)||view.tabs?.some(tab=>!tab.disabled&&tab.action===action)
@@ -30,7 +30,7 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
   const tokens=new WeakMap<object,string>(),subscriptions=new Map<object,()=>void>(),globalSubscriptions:(()=>void)[]=[];
   const receipts=new Map<number,{input:string;receipt:NativeReceipt}>();
   const pendingReceipts=new Map<number,string>();
-  let serial=0,revision=0,mediaRevision=0,highestInput=-1,active=true,negotiated=false,mediaStatus=false,steering=false,pendingWork=false,sessionRestoring=false,mainDraft=false,publishing=false,dirty=false;
+  let serial=0,revision=0,mediaRevision=0,highestInput=-1,active=true,negotiated=false,mediaStatus=false,steering=false,pendingWork=false,sessionRestoring=false,mainDraft=false,draftReview=false,publishing=false,dirty=false;
   let receivedAck:HelloAckMessage|undefined,negotiatedVersion:string|undefined;
   let ports=new Map<string,Port>(),lastState='',offMedia:(()=>void)|undefined;
   function transmit(message:WireMessage){
@@ -52,8 +52,11 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
       const sessions=windows.map(window=>{
         const source=window.session,port=token(source);watch(source);nextPorts.set(port,{kind:'session',source});
         return {port,id:source.id,conversationId:source.conversationId,generation:source.generation,paneId:source.paneId,
-          label:source.label,current:source.isCurrent?.()!==false,snapshot:(()=>{const {pending,restoring,draft,...base}=source.snapshot();return {...base,...(pendingWork&&pending!==undefined?{pending}:{}),...(sessionRestoring&&restoring!==undefined?{restoring}:{}),...(mainDraft&&draft!==undefined?{draft}:{})};})(),
-          methods:sessionMethods.filter(method=>(method!=='steer'||steering)&&(method!=='draftChange'||mainDraft)&&typeof source[method]==='function')};
+          label:source.label,current:source.isCurrent?.()!==false,snapshot:(()=>{const {pending,restoring,draft,...base}=source.snapshot();
+            const compatible=draft&&draftReview?draft:draft&&draft.status!=='loading'&&draft.status!=='error'?{revision:draft.revision,text:draft.text,status:draft.status}:undefined;
+            return {...base,...(pendingWork&&pending!==undefined?{pending}:{}),...(sessionRestoring&&restoring!==undefined?{restoring}:{}),...(mainDraft&&compatible?{draft:compatible}:{})};})(),
+          methods:sessionMethods.filter(method=>(method!=='steer'||steering)&&(method!=='draftChange'||mainDraft)
+            &&(!['draftReview','draftResolve','draftRefresh'].includes(method)||draftReview)&&typeof source[method]==='function')};
       });
       const surfaces=options.host.surfaces.snapshot().map(source=>{
         const port=token(source);watch(source);nextPorts.set(port,{kind:'surface',source});
@@ -138,6 +141,11 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
         const result=session.draftChange(op.text,op.revision);
         return result instanceof Promise?result.then(value=>({status:value?'accepted':'rejected'})):{status:result?'accepted':'rejected'};
       }
+      if(draftReview&&normal&&focused&&session.snapshot().draft?.revision===('revision'in op?op.revision:undefined)){
+        const result=op.kind==='draft-review'?session.draftReview?.(op.revision):op.kind==='draft-resolve'?session.draftResolve?.(op.ids,op.text,op.revision):
+          op.kind==='draft-refresh'?session.draftRefresh?.(op.revision):undefined;
+        if(result!==undefined)return result instanceof Promise?result.then(value=>({status:value?'accepted':'rejected'})):{status:result?'accepted':'rejected'};
+      }
       if(op.kind==='submit'||op.kind==='steer'){
         if(op.kind==='steer'&&!steering)return {status:'rejected'};
         const operation=op.kind==='steer'?session.steer:session.submit;if(!operation)return {status:'rejected'};
@@ -194,6 +202,7 @@ export function createOpenTuiWireHost(options:{host:Host;layout:WindowLayoutSour
       pendingWork=negotiated&&remote.capabilities.elements.includes(NATIVE_PENDING_WORK);
       sessionRestoring=negotiated&&remote.capabilities.elements.includes(NATIVE_SESSION_RESTORING);
       mainDraft=negotiated&&remote.capabilities.elements.includes(NATIVE_MAIN_DRAFT);
+      draftReview=mainDraft&&remote.capabilities.elements.includes(NATIVE_MAIN_DRAFT_REVIEW);
       negotiatedVersion=negotiated?ack.version:undefined;
       transmit(negotiated?ack:{type:'hello-ack',ok:false,reason:'Native presentation and input v1 are required'});
       if(!active)return;

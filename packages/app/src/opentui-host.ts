@@ -215,7 +215,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   const changed = () => {
     const saved=mainDraft?.snapshot();
     const draft=saved&&'text' in saved?{revision:saved.revision,text:saved.text,status:saved.status==='journal'?'review' as const:saved.status}:
-      saved?.status==='conflict'?{revision:saved.revision,text:'',status:'conflict' as const}:undefined;
+      saved?.status==='conflict'?{revision:saved.revision,text:'',status:'conflict' as const,variants:saved.variants}:
+      saved?{revision:saved.revision,text:'',status:saved.status}:undefined;
     sessionState = {...conversation.snapshot(), ...(draft&&!editor?{draft}:{}), ...(switching ? {restoring: true} : {}), ...(editor ? {editor: editor.snapshot()} : {}), ...(localNotice ? {notice: localNotice} : {})};
     if (mainBinding?.owner === core) mainBinding.state = sessionState;
     publicRendering.refresh();
@@ -334,6 +335,28 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
             if(!inputActive()||!draft||editor||state?.status!=='draft'||state.revision!==revision)return false;
             draftTracking=true;return draft.change(text,revision);
           };
+        },
+        get draftReview() {
+          if(editor)return undefined;
+          return (revision:number)=>{const draft=mainDraft,state=draft?.snapshot();
+            if(!inputActive()||!draft||editor||!state||state.revision!==revision||!['review','journal'].includes(state.status))return false;
+            draftTracking=true;return draft.review(revision);};
+        },
+        get draftResolve() {
+          if(editor)return undefined;
+          return (ids:readonly string[],text:string,revision:number)=>{const draft=mainDraft,state=draft?.snapshot();
+            if(!inputActive()||!draft||editor||state?.status!=='conflict'||state.revision!==revision)return false;
+            draftTracking=true;return draft.resolve(ids,text,revision);};
+        },
+        get draftRefresh() {
+          if(editor)return undefined;
+          return async (revision:number)=>{const draft=mainDraft,state=draft?.snapshot();
+            if(!inputActive()||!draft||editor||!state||state.revision!==revision||!['conflict','error'].includes(state.status))return false;
+            try{const events=(await app.store.load(binding.owner.sessionId,app.storage.paths.project)).events;
+              if(!inputActive()||mainDraft!==draft||draft.snapshot().revision!==revision)return false;
+              if(state.status==='conflict')return draft.refreshConflict(events);
+              await draft.load(events);return draft.snapshot().status!=='error';
+            }catch{return false;}};
         },
         isImmediateCommand: (text: string) => current() && immediate(text),
         interrupt() {if (inputActive()) binding.owner.interrupt();},

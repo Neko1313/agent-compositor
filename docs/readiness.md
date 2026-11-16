@@ -1653,11 +1653,13 @@ Host and wire tests cover a resumed session, stale ports, a prompt and a command
 The renderer does not yet consume the draft or opt into change tracking; fast
 typing, review/conflict controls, selected editors and the visible restart flow
 still require implementation and end-to-end verification.
-The native presentation protocol has an optional, negotiated draft snapshot and
-revision-checked change operation. Legacy peers do not receive the new fields;
-focused tests cover negotiation, stale changes and hidden windows. The host
-now provides this operation for its built-in editor; rapid-edit synchronization
-and the visible recovery workflow remain to be implemented and tested.
+The native presentation protocol negotiates draft exchange and a separate
+optional review capability. The latter carries conflict variants and explicit
+review, resolution and refresh actions; older peers receive only the fields they
+understand. Host, client and wire tests cover stale versions, hidden windows,
+conflict refresh and explicit review without a model call. The host provides
+these operations for its built-in editor; rapid-edit synchronization and the
+visible recovery workflow remain to be implemented and tested.
 
 The [check/report cooperation test](../packages/app/test/check-report-cooperation.test.ts)
 runs actual Vitest through `project_check`, reads its generated JSON through

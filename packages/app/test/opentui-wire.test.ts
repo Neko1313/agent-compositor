@@ -309,3 +309,54 @@ it('does not advertise built-in draft operations to a selected editor',async()=>
  const main=f.state().state.sessions[0];expect(main.snapshot.editor).toBeDefined();
  expect(main.snapshot).not.toHaveProperty('draft');expect(main.methods).not.toContain('draftChange');
 });
+
+it.each([false,true])('negotiates private draft conflict review capability %s',async supported=>{
+ const {MainDraftStore}=await import('../src/main-drafts.js');const f=await fixture(),owner=f.host.core;
+ const a=MainDraftStore.open(f.app.storage.paths.state),b=MainDraftStore.open(f.app.storage.paths.state);
+ await Promise.all([a.save(owner.sessionId,{text:'one private'}),b.save(owner.sessionId,{text:'two private'})]);
+ f.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-main-draft-v1',...(supported?['native-main-draft-review-v1']:[])],encodings:['jsonl']}));
+ await owner.host.emit('service.session.control',{action:'resume',id:owner.sessionId});
+ const state=f.state().state.sessions[0],draft=state.snapshot.draft!;expect(draft.status).toBe('conflict');
+ expect(state.methods?.includes('draftResolve')).toBe(supported);
+ if(!supported){expect(draft).not.toHaveProperty('variants');
+  expect(f.input(state.port,{kind:'draft-resolve',ids:[],text:'forged',revision:draft.revision}).receipt).toMatchObject({status:'rejected'});
+ }else{
+  expect(draft.variants?.map(value=>value.text).sort()).toEqual(['one private','two private']);
+  const ids=draft.variants!.map(value=>value.id);
+  expect(f.input(state.port,{kind:'draft-resolve',ids,text:'chosen',revision:draft.revision+1}).receipt).toMatchObject({status:'rejected'});
+  f.layout.act({type:'workspace',id:9});
+  expect(f.input(state.port,{kind:'draft-resolve',ids,text:'chosen',revision:draft.revision}).receipt).toMatchObject({status:'rejected'});
+  f.layout.act({type:'workspace',id:1});f.layout.act({type:'open',id:'session'});
+  const chosen=f.input(state.port,{kind:'draft-resolve',ids,text:'chosen',revision:draft.revision});
+  await expect.poll(()=>f.messages.find(value=>value.type==='native-receipt'&&value.id===chosen.message.id)).toMatchObject({status:'accepted'});
+  expect(f.state().state.sessions[0].snapshot.draft).toMatchObject({status:'draft',text:'chosen'});
+ }
+ expect(f.provider.requests).toEqual([]);
+});
+
+it('requires an explicit review before an ambiguous draft becomes editable',async()=>{
+ const {MainDraftStore}=await import('../src/main-drafts.js');const f=await fixture(),owner=f.host.core;
+ await MainDraftStore.open(f.app.storage.paths.state).save(owner.sessionId,{text:'maybe sent',intentId:'a1234567-1234-4123-8123-123456789abc'});
+ f.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-main-draft-v1','native-main-draft-review-v1'],encodings:['jsonl']}));
+ await owner.host.emit('service.session.control',{action:'resume',id:owner.sessionId});
+ const state=f.state().state.sessions[0],draft=state.snapshot.draft!;expect(draft).toMatchObject({status:'review',text:'maybe sent'});
+ expect(f.input(state.port,{kind:'draft-change',text:'silent edit',revision:draft.revision}).receipt).toMatchObject({status:'rejected'});
+ const review=f.input(state.port,{kind:'draft-review',revision:draft.revision});
+ await expect.poll(()=>f.messages.find(value=>value.type==='native-receipt'&&value.id===review.message.id)).toMatchObject({status:'accepted'});
+ expect(f.state().state.sessions[0].snapshot.draft).toMatchObject({status:'draft',text:'maybe sent'});expect(f.provider.requests).toEqual([]);
+});
+
+it('refreshes a stale conflict through the native host without sending text',async()=>{
+ const {MainDraftStore}=await import('../src/main-drafts.js');const f=await fixture(),owner=f.host.core;
+ const a=MainDraftStore.open(f.app.storage.paths.state),b=MainDraftStore.open(f.app.storage.paths.state);
+ await Promise.all([a.save(owner.sessionId,{text:'old A'}),b.save(owner.sessionId,{text:'B'})]);
+ f.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-main-draft-v1','native-main-draft-review-v1'],encodings:['jsonl']}));
+ await owner.host.emit('service.session.control',{action:'resume',id:owner.sessionId});
+ const initial=f.state().state.sessions[0],draft=initial.snapshot.draft!,ids=draft.variants!.map(value=>value.id);
+ await a.save(owner.sessionId,{text:'new A'});
+ const stale=f.input(initial.port,{kind:'draft-resolve',ids,text:'chosen',revision:draft.revision});
+ await expect.poll(()=>f.messages.find(value=>value.type==='native-receipt'&&value.id===stale.message.id)).toMatchObject({status:'rejected'});
+ const refresh=f.input(initial.port,{kind:'draft-refresh',revision:draft.revision});
+ await expect.poll(()=>f.messages.find(value=>value.type==='native-receipt'&&value.id===refresh.message.id)).toMatchObject({status:'accepted'});
+ expect(f.state().state.sessions[0].snapshot.draft?.variants?.map(value=>value.text).sort()).toEqual(['B','new A']);expect(f.provider.requests).toEqual([]);
+});

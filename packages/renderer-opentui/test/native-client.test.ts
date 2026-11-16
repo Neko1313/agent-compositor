@@ -59,6 +59,20 @@ describe('native presentation client',()=>{
     t.publish(next);expect(main.draftChange).toBeUndefined();t.client.close();
   });
 
+  it('exposes negotiated review actions and preserves their exact versions',async()=>{
+    const state=initial();state.sessions[0].methods!.push('draftReview','draftResolve','draftRefresh');
+    state.sessions[0].snapshot.draft={revision:4,text:'',status:'conflict',variants:[{id:'writer:1',kind:'draft',text:'private'}]};
+    const t=transport({state,deferred:true}),main=t.client.sessions()[0];
+    expect(main.snapshot().draft?.variants).toEqual([{id:'writer:1',kind:'draft',text:'private'}]);
+    const choice=main.draftResolve!(['writer:1'],'selected',4);
+    expect(t.inputs.at(-1)?.operation).toEqual({kind:'draft-resolve',ids:['writer:1'],text:'selected',revision:4});
+    t.receipt(t.inputs.at(-1)!.id);expect(await choice).toBe(true);
+    const review=main.draftReview!(5);expect(t.inputs.at(-1)?.operation).toEqual({kind:'draft-review',revision:5});
+    t.receipt(t.inputs.at(-1)!.id,{status:'rejected'});expect(await review).toBe(false);
+    const refresh=main.draftRefresh!(6);expect(t.inputs.at(-1)?.operation).toEqual({kind:'draft-refresh',revision:6});
+    t.receipt(t.inputs.at(-1)!.id);expect(await refresh).toBe(true);t.client.close();
+  });
+
   it('retains synchronous submit admission and navigation consumed semantics',()=>{
     const t=transport({consume:input=>input.operation.kind==='navigation-handle'&&input.operation.input.kind==='key'&&input.operation.input.key==='F2'});
     expect(t.client.sessions()[0].submit('draft 窗')).toBe(true);

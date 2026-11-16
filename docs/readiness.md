@@ -1599,9 +1599,11 @@ session, including a crash between journal admission and editor acknowledgement.
 The [identical-input regression](../packages/core/test/followup-interruption.test.ts)
 queues two identical messages, retries one by its recovery ID and checks that
 the other remains available after journal replay. Matching by text alone would
-conflate them. The current editor admission receipt does not expose a durable
-identity before admission; this test establishes a constraint, not draft
-persistence or a solution to that crash boundary.
+conflate them. Core can now reserve a single-use input identity before starting
+admission, and controlled tests correlate it with new, queued and steering intent
+records, including a late write after interruption. The Main editor and its
+storage do not use that capability yet. These tests establish a prerequisite,
+not draft persistence or a complete solution to that crash boundary.
 
 The [check/report cooperation test](../packages/app/test/check-report-cooperation.test.ts)
 runs actual Vitest through `project_check`, reads its generated JSON through

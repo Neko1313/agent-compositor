@@ -1184,11 +1184,21 @@ export class AgentCore {
   }
   /** Admit user input without waiting for a prompt hook, command or model turn. */
   dispatchInput(text:string,intent:'submit'|'steer'='submit'):{admitted:Promise<CoreInputAdmission>;completion:Promise<void>}{
+    return this.dispatchPreparedInput(text,intent);
+  }
+  /** Reserve an identity before admission so a host can durably correlate a draft. */
+  prepareInput(text:string,intent:'submit'|'steer'='submit'):{id:string;start:()=>{admitted:Promise<CoreInputAdmission>;completion:Promise<void>}}{
+    const id=randomUUID(),cancellation=this.promptCancellation;let started=false;
+    return{id,start:()=>{if(started)throw Error('Prepared input has already started');started=true;
+      if(cancellation!==this.promptCancellation)throw Error('Prepared input expired');
+      return this.dispatchPreparedInput(text,intent,id);}};
+  }
+  private dispatchPreparedInput(text:string,intent:'submit'|'steer',preparedId?:string):{admitted:Promise<CoreInputAdmission>;completion:Promise<void>}{
     let settled=false,resolve!:(admission:CoreInputAdmission)=>void;
     const admitted=new Promise<CoreInputAdmission>(done=>{resolve=done;});
     const settle=(admission:CoreInputAdmission)=>{if(!settled){settled=true;resolve(admission);}};
     const completion=this.closed?Promise.reject<void>(Error('Session is closed'))
-      :intent==='steer'?this.steerInput(text,settle):this.submitInput(text,'user',settle);
+      :intent==='steer'?this.steerInput(text,settle,preparedId):this.submitInput(text,'user',settle,undefined,preparedId);
     // Observe failures even when a host needs only the admission receipt. The
     // original completion promise retains its rejection for callers that await it.
     void completion.then(()=>settle(false),()=>settle(false));
@@ -1198,14 +1208,14 @@ export class AgentCore {
   async submit(text: string,source:"user"|"agent"="user"): Promise<void> {
     return this.submitInput(text,source);
   }
-  private async submitInput(text:string,source:"user"|"agent",admitted?:InputAdmitted,recoveredId?:string):Promise<void>{
+  private async submitInput(text:string,source:"user"|"agent",admitted?:InputAdmitted,recoveredId?:string,preparedId?:string):Promise<void>{
     const cancellation=this.promptCancellation;
     if(this.resettingBackground)await this.resetBackground;
     if(this.closed)throw Error('Session is closed');
     if(cancellation!==this.promptCancellation)return;
     if(source==='user'&&!recoveredId&&this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
     if(this.options.isWorkBlocked?.()){
-      const recoveryId=source==='user'?(recoveredId??randomUUID()):undefined;
+      const recoveryId=source==='user'?(recoveredId??preparedId??randomUUID()):undefined;
       await this.queuePrompt({text,source,recoveryId},admitted);
       if(cancellation===this.promptCancellation)this.broadcast({kind:'catalog',event:'ui.notification',input:{plugin:'extension-manager',message:'Message queued while plugins change. Apply /reload if the change requires it.',level:'info'}});
       return;
@@ -1216,14 +1226,14 @@ export class AgentCore {
       await this.activeTurn;
       if(this.closed)throw Error('Session is closed');
       if(cancellation!==this.promptCancellation)return;
-      return this.submitInput(text,source,admitted,recoveredId);
+      return this.submitInput(text,source,admitted,recoveredId,preparedId);
     }
     if (this.state === "running"||this.draining) {
-      const recoveryId=source==='user'?(recoveredId??randomUUID()):undefined;
+      const recoveryId=source==='user'?(recoveredId??preparedId??randomUUID()):undefined;
       await this.queuePrompt({text,source,recoveryId},admitted);
       return;
     }
-    await this.runTurn(text,source,undefined,admitted,recoveredId);
+    await this.runTurn(text,source,undefined,admitted,recoveredId,preparedId);
     await this.drainQueue();
   }
 
@@ -1231,14 +1241,14 @@ export class AgentCore {
   async steer(text: string): Promise<void> {
     return this.steerInput(text);
   }
-  private async steerInput(text:string,admitted?:InputAdmitted):Promise<void>{
+  private async steerInput(text:string,admitted?:InputAdmitted,preparedId?:string):Promise<void>{
     if(this.immediateCommand(text)){await this.invokeCommandInput(text,undefined,admitted);return;}
-    if(this.options.isWorkBlocked?.()){await this.submitInput(text,'user',admitted);return;}
+    if(this.options.isWorkBlocked?.()){await this.submitInput(text,'user',admitted,undefined,preparedId);return;}
     if (this.state !== "running") {
-      await this.submitInput(text,'user',admitted);
+      await this.submitInput(text,'user',admitted,undefined,preparedId);
       return;
     }
-    const turnId=this.currentTurnId??'',recoveryId=randomUUID(),cancellation=this.promptCancellation;
+    const turnId=this.currentTurnId??'',recoveryId=preparedId??randomUUID(),cancellation=this.promptCancellation;
     const recoveryOrder=this.rememberRecoveryOrder(recoveryId);
     try{
       if(!await this.waitForQueuedWrite(this.persist('prompt.steer.intent',{text,recoveryId,recoveryOrder,turnId})))return;
@@ -1318,10 +1328,10 @@ export class AgentCore {
 
   // ---- the turn engine -----------------------------------------------------
 
-  private runTurn(text: string,source:"user"|"agent"="user",origin?:"harness",admitted?:InputAdmitted,recoveryId?:string): Promise<void> {
+  private runTurn(text: string,source:"user"|"agent"="user",origin?:"harness",admitted?:InputAdmitted,recoveryId?:string,preparedId?:string): Promise<void> {
     const run=(async()=>{
       this.inputSource=source;
-      try {await this.runTurnUnchecked(text,source,origin,admitted,recoveryId);}
+      try {await this.runTurnUnchecked(text,source,origin,admitted,recoveryId,preparedId);}
       catch(error){
         this.lastTurnError=String(error);
         if(this.journalFailure){for(const entry of this.promptQueue)entry.cancel();this.promptQueue=[];this.steerQueue=[];}
@@ -1333,7 +1343,7 @@ export class AgentCore {
     this.activeTurn=run;
     return run.finally(()=>{if(this.activeTurn===run)this.activeTurn=undefined;});
   }
-  private async runTurnUnchecked(text: string,source:"user"|"agent",origin?:"harness",admitted?:InputAdmitted,recoveryId?:string): Promise<void> {
+  private async runTurnUnchecked(text: string,source:"user"|"agent",origin?:"harness",admitted?:InputAdmitted,recoveryId?:string,preparedId?:string): Promise<void> {
     if(this.journalFailure)throw this.journalFailure;
     const turnId = randomUUID();
     this.currentTurnId = turnId;
@@ -1346,7 +1356,7 @@ export class AgentCore {
     this.abort = new AbortController();
     this.terminalObservation(this.abort.signal);
     if(source==='user'&&!recoveryId){
-      recoveryId=randomUUID();
+      recoveryId=preparedId??randomUUID();
       const recoveryOrder=this.rememberRecoveryOrder(recoveryId);
       const signal=this.abort.signal;
       let wake!:()=>void;const interrupted=new Promise<false>(resolve=>{wake=()=>resolve(false);signal.addEventListener('abort',wake,{once:true});});

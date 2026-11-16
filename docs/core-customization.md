@@ -104,6 +104,17 @@ rejections are internally observed so a host can read only `admitted`; awaiting
 `completion` still exposes its original rejection. Normal turn failures continue
 to use the existing failure events and `core.failure` behavior.
 
+For a host that must correlate its own durable input state before submission,
+`core.prepareInput(text, intent)` reserves a fresh ID and returns a single-use
+`start()` function with the same admission and completion promises. Preparation
+does not write a journal or start work. The ID is used in the recovery intent for
+ordinary user input, queued input and steering. An interrupt or clear before
+`start()` expires it. An immediate command has no recovery intent, and a rejected
+admission does not prove that an interrupted journal write failed to finish. A
+host must inspect the journal and treat ambiguous outcomes as requiring review;
+the reserved ID alone is neither a durability receipt nor permission to retry.
+This API does not itself persist editor drafts.
+
 `service.permission.review` runs only after ordinary policy requires approval.
 A valid `{deny:reason}` or `{value:{decision:"deny",reason}}` refuses the exact
 call without a human dialog. Legacy `{value:{decision:"allow",risk:"low",reason}}`

@@ -20,6 +20,59 @@ function fixture(options: Partial<AgentCoreOptions> = {}) {
   cores.push(core);return {core, provider, journal};
 }
 
+it('reserves a single-use identity before starting a new user input',async()=>{
+ const hold=gate(),f=fixture({plugins:[{manifest:{name:'holder',version:'1.0.0',trust:'trusted'},hooks:{'prompt.submit':async()=>{await hold.wait();return {drop:'Handled'};}}}]});
+ const prepared=f.core.prepareInput('Prepared text');expect(prepared.id).toMatch(/^[0-9a-f-]{36}$/);
+ expect(f.journal).toEqual([]);expect(f.provider.requests).toHaveLength(0);
+ const input=prepared.start();expect(()=>prepared.start()).toThrow('already started');
+ expect(await input.admitted).toBe('submitted');await hold.entered;
+ expect(f.journal.find(event=>event.type==='prompt.input.intent')).toMatchObject({text:'Prepared text',recoveryId:prepared.id});
+ hold.release();await input.completion;
+ expect(f.journal.find(event=>event.type==='prompt.dropped')).toMatchObject({recoveryId:prepared.id});
+});
+
+it.each(['submit','steer'] as const)('preserves a reserved identity for busy %s input',async intent=>{
+ const provider=new ScriptedProvider([{text:'Working',hold:true}]),f=fixture({provider});
+ const main=f.core.dispatchInput('Start');expect(await main.admitted).toBe('submitted');await expect.poll(()=>provider.requests.length).toBe(1);
+ const prepared=f.core.prepareInput('Same text',intent),input=prepared.start();
+ expect(await input.admitted).toBe(intent==='submit'?'queued':'steered');await input.completion;
+ const type=intent==='submit'?'prompt.queue.intent':'prompt.steer.intent';
+ expect(f.journal.find(event=>event.type===type&&event.text==='Same text')).toMatchObject({recoveryId:prepared.id});
+ f.core.interrupt();provider.release();await main.completion;
+ expect(f.core.getRecoveredInputs()).toContainEqual({id:prepared.id,text:'Same text'});
+});
+
+it('expires a prepared input after interruption before it starts',()=>{
+ const f=fixture(),prepared=f.core.prepareInput('Never started');f.core.interrupt();
+ expect(()=>prepared.start()).toThrow('Prepared input expired');expect(f.provider.requests).toHaveLength(0);expect(f.journal).toEqual([]);
+});
+
+it('assigns distinct identities to identical prepared inputs and never reuses either',async()=>{
+ const f=fixture({isWorkBlocked:()=>true}),first=f.core.prepareInput('Identical'),second=f.core.prepareInput('Identical');
+ expect(first.id).not.toBe(second.id);
+ for(const prepared of [first,second]){const input=prepared.start();expect(await input.admitted).toBe('queued');await input.completion;}
+ expect(f.journal.filter(event=>event.type==='prompt.queue.intent').map(event=>event.recoveryId)).toEqual([first.id,second.id]);
+ f.core.interrupt();expect(f.core.getRecoveredInputs()).toEqual([{id:first.id,text:'Identical'},{id:second.id,text:'Identical'}]);
+});
+
+it('keeps the reserved identity when an interrupted intent reaches the journal late',async()=>{
+ const write=gate(),journal:SessionEvent[]=[],f=fixture({sessions:{create:async()=>{},append:async(_id,events)=>{
+  if(events.some(event=>event.type==='prompt.input.intent'))await write.wait();journal.push(...events);
+ }}});
+ const prepared=f.core.prepareInput('Ambiguous after interruption'),input=prepared.start();await write.entered;f.core.interrupt();
+ expect(await input.admitted).toBe(false);await input.completion;write.release();
+ await expect.poll(()=>journal.some(event=>event.type==='prompt.input.intent')).toBe(true);
+ const resumed=AgentCore.resume({cwd:process.cwd(),provider:new ScriptedProvider([])},structuredClone(journal));cores.push(resumed);
+ expect(resumed.getRecoveredInputs()).toContainEqual({id:prepared.id,text:'Ambiguous after interruption'});
+ expect(f.provider.requests).toHaveLength(0);
+});
+
+it('does not invent a recovery journal record for a prepared immediate command',async()=>{
+ const f=fixture({userCommands:()=>[{name:'/local',plugin:'controls'}],plugins:[{manifest:{name:'controls',version:'1.0.0',trust:'trusted'},hooks:{'command.invoke':()=>{}}}]});
+ const prepared=f.core.prepareInput('/local'),input=prepared.start();expect(await input.admitted).toBe('command');await input.completion;
+ expect(f.journal.some(event=>event.recoveryId===prepared.id)).toBe(false);expect(f.provider.requests).toHaveLength(0);
+});
+
 it('admits before a pending prompt hook consumes the input without a model turn or committed submit event', async () => {
   const hold = gate(), events: string[] = [];
   const f = fixture({plugins: [{manifest: {name: 'local-ui', version: '1.0.0', trust: 'trusted'}, hooks: {

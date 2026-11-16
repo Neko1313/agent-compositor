@@ -1604,6 +1604,12 @@ admission, and controlled tests correlate it with new, queued and steering inten
 records, including a late write after interruption. The Main editor and its
 storage do not use that capability yet. These tests establish a prerequisite,
 not draft persistence or a complete solution to that crash boundary.
+An unconnected private storage component now has focused tests for per-session
+files, bounded input, malformed-file preservation and correlating a prepared ID
+with the exact journal intent and text. It does not yet handle simultaneous
+application instances writing the same session, and it is not connected to the
+Main editor or either terminal renderer. No user-facing draft restoration is
+claimed from these component tests.
 
 The [check/report cooperation test](../packages/app/test/check-report-cooperation.test.ts)
 runs actual Vitest through `project_check`, reads its generated JSON through

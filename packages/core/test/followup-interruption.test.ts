@@ -72,6 +72,17 @@ it('preserves distinct cancelled messages and a discard across journal replay',a
  await core.discardRecoveredInput(entries[0].id);expect(core.getRecoveredInputs().map(entry=>entry.text)).toEqual(['Second queued']);
  expect(recoverQueuedInputs(journal).map(entry=>entry.text)).toEqual(['Second queued']);
 });
+it('keeps identical accepted inputs distinct when only one is explicitly retried',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'queue-recovery-duplicates-'));roots.push(cwd);let blocked=true;
+ const journal:any[]=[],provider=new ScriptedProvider([{text:'One retry completed'}]);
+ const core=new AgentCore({cwd,provider,isWorkBlocked:()=>blocked,sessions:{create:async()=>{},append:async(_id,events)=>{journal.push(...events);}}});cores.push(core);
+ for(let index=0;index<2;index++){const input=core.dispatchInput('Same exact message');expect(await input.admitted).toBe('queued');await input.completion;}
+ core.interrupt();const before=core.getRecoveredInputs();expect(before.map(entry=>entry.text)).toEqual(['Same exact message','Same exact message']);
+ expect(before[0].id).not.toBe(before[1].id);expect(provider.requests).toHaveLength(0);
+ blocked=false;expect(await core.retryRecoveredInput(before[0].id)).toBe('submitted');
+ expect(provider.requests).toHaveLength(1);expect(core.getRecoveredInputs()).toEqual([before[1]]);
+ expect(recoverQueuedInputs(structuredClone(journal))).toEqual([before[1]]);
+});
 it.each([true,false])('keeps interrupted steering and queue order across resume (steering first: %s)',async steeringFirst=>{
  const cwd=await mkdtemp(join(tmpdir(),'queue-steer-order-'));roots.push(cwd);const journal:any[]=[];
  const provider=new ScriptedProvider([{text:'Working',hold:true}]);

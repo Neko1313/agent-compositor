@@ -1593,6 +1593,16 @@ Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
 contradictory or non-reproducible evidence leaves the gate open.
 
+Main's ordinary unsent draft is still memory-only. Before persisting it, the
+host must distinguish a draft from an identical input already admitted to the
+session, including a crash between journal admission and editor acknowledgement.
+The [identical-input regression](../packages/core/test/followup-interruption.test.ts)
+queues two identical messages, retries one by its recovery ID and checks that
+the other remains available after journal replay. Matching by text alone would
+conflate them. The current editor admission receipt does not expose a durable
+identity before admission; this test establishes a constraint, not draft
+persistence or a solution to that crash boundary.
+
 The [check/report cooperation test](../packages/app/test/check-report-cooperation.test.ts)
 runs actual Vitest through `project_check`, reads its generated JSON through
 `test_report`, repairs the controlled fixture and repeats both tools. It checks

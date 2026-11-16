@@ -2358,3 +2358,42 @@ it('offers recovered queued input for explicit review and retry after resuming a
   expect(f.requests[0].body.messages.at(-1).content).toBe('RECOVER_OPEN_TUI');
   expect(f.host.core.getRecoveredInputs()).toEqual([]);
 });
+
+it('retains a tracked Main draft across a resumed host without sending it',async()=>{
+ const f=await fixture(),sessionId=f.host.core.sessionId,source=f.host.session;
+ await expect.poll(()=>source.snapshot().draft?.status).toBe('draft');
+ const revision=source.snapshot().draft!.revision;
+ expect(await source.draftChange!('private host draft',revision)).toBe(true);
+ expect(await source.draftChange!('stale',revision)).toBe(false);
+ expect(f.requests).toHaveLength(0);await f.host.close();
+ const app=await buildApp({cwd:f.cwd,env:f.env,agentHub:false,resumeSessionId:sessionId});cleanup.push(()=>app.close());
+ const layout=await connectWindowLayout(app,{panes:[{id:'session',label:'Main'}],initial:['session']});layout.resize(140,40);cleanup.push(()=>layout.disconnect());
+ const host=createOpenTuiHost(app,layout);cleanup.push(()=>host.close());await host.start();
+ expect(host.session.snapshot().draft).toMatchObject({status:'draft',text:'private host draft'});expect(f.requests).toHaveLength(0);
+ expect(JSON.stringify((await app.store.load(sessionId,f.cwd)).events)).not.toContain('private host draft');
+});
+
+it('clears a tracked Main draft after one admitted prompt or host command',async()=>{
+ const f=await fixture(),source=f.host.session;
+ await expect.poll(()=>source.snapshot().draft?.status).toBe('draft');
+ expect(await source.draftChange!('/windows',source.snapshot().draft!.revision)).toBe(true);
+ expect(await source.submit('/windows')).toBe(true);
+ await expect.poll(()=>source.snapshot().draft?.text).toBe('');expect(f.requests).toHaveLength(0);
+ f.host.navigation.handle({kind:'key',key:'escape'});
+ expect(await source.draftChange!('tracked prompt',source.snapshot().draft!.revision)).toBe(true);
+ expect(await source.submit('tracked prompt')).toBe(true);
+ await expect.poll(()=>f.requests.length).toBe(1);
+ await expect.poll(()=>source.snapshot().draft?.text).toBe('');
+ const user=f.requests[0].body.messages.filter((message:any)=>message.role==='user').at(-1);
+ expect(user.content).toBe('tracked prompt');
+});
+
+it('rebinds tracked drafts to a resumed Core and revokes the previous input port',async()=>{
+ const f=await fixture(),old=f.host.session,owner=f.host.core;
+ await expect.poll(()=>old.snapshot().draft?.status).toBe('draft');
+ expect(await old.draftChange!('switch draft',old.snapshot().draft!.revision)).toBe(true);
+ await owner.host.emit('service.session.control',{action:'resume',id:owner.sessionId});
+ const fresh=f.host.session;expect(fresh).not.toBe(old);expect(old.isCurrent!()).toBe(false);
+ expect(await old.draftChange!('stale write',old.snapshot().draft!.revision)).toBe(false);
+ expect(fresh.snapshot().draft).toMatchObject({status:'draft',text:'switch draft'});expect(f.requests).toHaveLength(0);
+});

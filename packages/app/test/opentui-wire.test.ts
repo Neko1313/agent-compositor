@@ -294,3 +294,18 @@ it.each([false,true])('negotiates session restoration state with capability %s',
   release();await switching;
   expect(f.state().state.sessions[0].snapshot).not.toHaveProperty('restoring');
 });
+
+it('carries actual host-owned draft edits only over a negotiated native port',async()=>{
+ const f=await fixture();f.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-main-draft-v1'],encodings:['jsonl']}));
+ const before=f.state().state.sessions[0];expect(before.snapshot.draft?.status).toBe('draft');expect(before.methods).toContain('draftChange');
+ const operation=f.input(before.port,{kind:'draft-change',text:'wire private',revision:before.snapshot.draft!.revision});
+ await expect.poll(()=>f.messages.find(value=>value.type==='native-receipt'&&value.id===operation.message.id)).toMatchObject({status:'accepted'});
+ expect(f.state().state.sessions[0].snapshot.draft).toMatchObject({text:'wire private',status:'draft'});expect(f.provider.requests).toEqual([]);
+});
+
+it('does not advertise built-in draft operations to a selected editor',async()=>{
+ const f=await fixture(undefined,{editor:'not-installed'});
+ f.receive(hello('renderer',{surfaces:['terminal'],sites:[],elements:[...nativeProtocolElements,'native-main-draft-v1'],encodings:['jsonl']}));
+ const main=f.state().state.sessions[0];expect(main.snapshot.editor).toBeDefined();
+ expect(main.snapshot).not.toHaveProperty('draft');expect(main.methods).not.toContain('draftChange');
+});

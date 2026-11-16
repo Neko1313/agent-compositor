@@ -107,3 +107,12 @@ it('can retry loading after a transient storage failure',async()=>{
  expect(session.snapshot().status).toBe('error');await session.load([]);
  expect(session.snapshot()).toMatchObject({status:'draft',text:''});
 });
+
+it('retains an ambiguous host command if cleanup fails after its effect',async()=>{
+ const f=await fixture();await f.session.change('/example',f.session.snapshot().revision);let calls=0;
+ f.store.clear=async()=>{throw Error('cleanup denied');};
+ expect(await f.session.command('/example',f.session.snapshot().revision,async()=>{calls++;return 'command';})).toBe('command');
+ expect(f.session.snapshot()).toMatchObject({status:'review',text:'/example'});
+ expect(await f.session.command('/example',f.session.snapshot().revision,async()=>{calls++;return 'command';})).toBe(false);
+ expect(calls).toBe(1);expect(await MainDraftStore.open(f.root).load(f.core.sessionId,[])).toEqual({kind:'review',text:'/example'});
+});

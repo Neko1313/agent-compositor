@@ -1646,14 +1646,18 @@ A session-scoped coordinator now saves a prepared input identity before calling
 Core admission, blocks stale revisions and retains ambiguous input for explicit
 review if admission or clearing fails. Focused tests cover queued admission,
 clearing failure, session replacement and conflict refresh without calling a
-model. The coordinator is not yet connected to the host or a renderer; its
-interactions with fast typing, immediate commands and process restart still need
-end-to-end verification.
+model. OpenTUI's host now binds the coordinator to each Core generation and
+accepts negotiated, revision-checked changes for the built-in editor. Once a
+client opts in, normal prompts and host commands are armed before dispatch.
+Host and wire tests cover a resumed session, stale ports, a prompt and a command.
+The renderer does not yet consume the draft or opt into change tracking; fast
+typing, review/conflict controls, selected editors and the visible restart flow
+still require implementation and end-to-end verification.
 The native presentation protocol has an optional, negotiated draft snapshot and
 revision-checked change operation. Legacy peers do not receive the new fields;
-focused tests cover negotiation, stale changes and hidden windows. No host
-session provides this operation yet, and rapid-edit synchronization and the
-visible recovery workflow remain to be implemented and tested.
+focused tests cover negotiation, stale changes and hidden windows. The host
+now provides this operation for its built-in editor; rapid-edit synchronization
+and the visible recovery workflow remain to be implemented and tested.
 
 The [check/report cooperation test](../packages/app/test/check-report-cooperation.test.ts)
 runs actual Vitest through `project_check`, reads its generated JSON through

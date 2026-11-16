@@ -1,3 +1,5 @@
+import {MainDraftSession} from './main-draft-session.js';
+import {MainDraftStore} from './main-drafts.js';
 import {UI_ACTION_COMPLETED} from './ui-operation-lifetime.js';
 import {recoveryCommand,recoverySummary} from './recovered-inputs.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
@@ -181,6 +183,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
   let offHistory: (() => void) | undefined;
   let editor: ReturnType<typeof createOpenTuiEditor> | undefined, offEditor: (() => void) | undefined;
   let editorDraft: UiEditorState = {text: '', cursor: 0};
+  const draftStore=MainDraftStore.open(app.storage.paths.state);
+  let mainDraft:MainDraftSession|undefined,draftTracking=false;
   const pending = new Set<Promise<unknown>>();
   const publicRenderDispatch = new AbortController();
   const publicRendering = createOpenTuiPublicRender({
@@ -209,7 +213,10 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     },
   });
   const changed = () => {
-    sessionState = {...conversation.snapshot(), ...(switching ? {restoring: true} : {}), ...(editor ? {editor: editor.snapshot()} : {}), ...(localNotice ? {notice: localNotice} : {})};
+    const saved=mainDraft?.snapshot();
+    const draft=saved&&'text' in saved?{revision:saved.revision,text:saved.text,status:saved.status==='journal'?'review' as const:saved.status}:
+      saved?.status==='conflict'?{revision:saved.revision,text:'',status:'conflict' as const}:undefined;
+    sessionState = {...conversation.snapshot(), ...(draft&&!editor?{draft}:{}), ...(switching ? {restoring: true} : {}), ...(editor ? {editor: editor.snapshot()} : {}), ...(localNotice ? {notice: localNotice} : {})};
     if (mainBinding?.owner === core) mainBinding.state = sessionState;
     publicRendering.refresh();
     for (const fn of sessionListeners) fn();
@@ -319,6 +326,14 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         steer(text:string) {
           if(!inputActive()||switching||!text.trim())return false;
           return sendEditor(binding.owner,{type:'steer',text},layout.windowIntentRevision).then(result=>result!==false);
+        },
+        get draftChange() {
+          if(editor)return undefined;
+          return (text:string,revision:number)=>{
+            const draft=mainDraft,state=draft?.snapshot();
+            if(!inputActive()||!draft||editor||state?.status!=='draft'||state.revision!==revision)return false;
+            draftTracking=true;return draft.change(text,revision);
+          };
         },
         isImmediateCommand: (text: string) => current() && immediate(text),
         interrupt() {if (inputActive()) binding.owner.interrupt();},
@@ -1179,7 +1194,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     channels = nextChannels;
     nextChannels.core = next;
     const nextInbox = nextChannels.inbox;
-    core = next; inbox = nextInbox;
+    core = next; inbox = nextInbox;draftTracking=false;
+    mainDraft=MainDraftSession.open(draftStore,next,()=>active&&core===next&&!nextChannels.generation.signal.aborted,changed);
     publicRendering.reset();
     appearanceContributions.clear();publishAppearance();
     inbox.bind(next,{forms:false});
@@ -1228,6 +1244,11 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
           await replacement.close();replacement=undefined;
           return {deny:'Session switch cancelled or current work changed'};
         }
+        const resumedEvents=(await app.store.load(replacement.sessionId,app.storage.paths.project)).events;
+        if(!active||core!==next||nextChannels.generation.signal.aborted||callerSignal?.aborted||current&&!live(current)
+          ||!next.controlsReady||[...operations.values()].some(op=>op!==current)){
+          replacementChannels.generation.abort();replacementChannels.inbox.close();await replacement.close();replacement=undefined;return {deny:'Session switch cancelled'};
+        }
         unbind();
         for (const surface of [...surfaceMap.values()]) {
           if(agentRequests.get(surface.source.id)?.independent)continue;
@@ -1237,7 +1258,10 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
         }
         composerViews.clear(); visibility.clear(); mediaChanged();
         bind(replacement, replacementChannels);
+        await mainDraft?.load(resumedEvents);
+        if(!active||core!==replacement||replacementChannels.generation.signal.aborted){await next.close();return {deny:'Session switch cancelled'};}
         await next.close();
+        if(!active||core!==replacement||replacementChannels.generation.signal.aborted)return {deny:'Session switch cancelled'};
         await context.exit(() => replacement!.start());
         if (windowIntent === layout.windowIntentRevision) selectMain(mainTarget(true), true);
         changed();
@@ -1256,6 +1280,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     },{settleOnCancel:true,preserveResultOnCancel:true});
   }
   function unbind() {
+    mainDraft?.close();mainDraft=undefined;draftTracking=false;
     for(const request of [...agentRequests.values()])if(!active||!request.independent)request.close();
     publicRendering.reset();
     offHistory?.();offHistory=undefined;
@@ -1402,7 +1427,7 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     const name = text.trim().split(/\s+/)[0];
     return ['/chat', '/reload', '/windows', '/placement'].includes(name) || route(text) !== undefined;
   }
-  async function sendEditor(owner: AgentCore, intent: Extract<UiEditorIntent, {type: 'submit' | 'steer'}>, windowIntent: number) {
+  async function sendEditorRaw(owner: AgentCore, intent: Extract<UiEditorIntent, {type: 'submit' | 'steer'}>, windowIntent: number) {
     if (!active || owner !== core || switching || reloading || reloadPromise) return false as const;
     const text = intent.text, name = text.trim().split(/\s+/)[0];
     if (reloadFailed && name !== '/reload') return false as const;
@@ -1427,6 +1452,17 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
     const receipt = owner.dispatchInput(text, intent.type);
     track(receipt.completion.finally(() => reloadIfReady()));
     return receipt.admitted;
+  }
+  async function sendEditor(owner:AgentCore,intent:Extract<UiEditorIntent,{type:'submit'|'steer'}>,windowIntent:number){
+    const draft=mainDraft;
+    if(!draftTracking||!draft||editor)return sendEditorRaw(owner,intent,windowIntent);
+    const state=draft.snapshot();
+    if(owner!==core||state.status!=='draft'||state.text!==intent.text)return false as const;
+    if(immediate(intent.text)||intent.text.trim().split(/\s+/)[0]==='/recover')
+      return draft.command(intent.text,state.revision,()=>sendEditorRaw(owner,intent,windowIntent));
+    const result=await draft.submit(intent.text,intent.type,state.revision);
+    if(result.completion)track(result.completion.finally(()=>reloadIfReady()));
+    return result.admission;
   }
   function bindEditor(owner: AgentCore) {
     offEditor?.();
@@ -1535,7 +1571,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       }
       return cancelled;
     },
-    async start() {if (!active || started) return; started = true;try {await core.start();} finally {publicRendering.invalidate();}},
+    async start() {if (!active || started) return; started = true;const owner=core,draft=mainDraft;
+      try {await owner.start();if(active&&core===owner)await draft?.load(app.resumedEvents);} finally {publicRendering.invalidate();}},
     async close() {
       if (!active) return;
       active = false;
@@ -1549,6 +1586,8 @@ export function createOpenTuiHost(app: BuiltApp, layout: OpenTuiWindowLayout, op
       await reloadPromise;
       core.interrupt();
       await core.close();
+      // A renderer may disconnect while its last private write is still in flight.
+      await draftStore.flush().catch(()=>{});
       await Promise.allSettled([...pending]);
       for (const surface of [...surfaceMap.values()]) remove(surface);
       for (const surface of auxiliary.values()) surface.listeners.clear();auxiliary.clear();

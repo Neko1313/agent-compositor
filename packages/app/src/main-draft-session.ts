@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import type {AgentCore,CoreInputAdmission} from '@agent-compositor/core';
 import {MainDraftStore,type MainDraftRecovery,type MainDraftVariant} from './main-drafts.js';
 
@@ -61,6 +62,21 @@ export class MainDraftSession {
     this.busy=true;
     try{await this.store.resolve(this.core.sessionId,ids,{text});if(!this.live())return false;this.publish({status:'draft',text});return true;}
     catch{return false;}finally{this.busy=false;}
+  }
+  /** Host commands have no Core journal identity; a crash leaves them for review. */
+  async command(text:string,revision:number,invoke:()=>Promise<CoreInputAdmission>):Promise<CoreInputAdmission>{
+    if(!this.live()||this.busy||this.state.status!=='draft'||this.state.revision!==revision||this.state.text!==text||!text.trim())return false;
+    this.busy=true;
+    try{
+      await this.store.save(this.core.sessionId,{text,intentId:randomUUID()});
+      if(!this.live())return false;
+      this.publish({status:'review',text});
+      const result=await invoke();
+      if(!result||!this.live())return result;
+      try{await this.store.clear(this.core.sessionId);if(this.live())this.publish({status:'draft',text:''});}
+      catch{/* The command was accepted. Never dispatch it twice on cleanup failure. */}
+      return result;
+    }catch{return false;}finally{this.busy=false;}
   }
   async submit(text:string,intent:'submit'|'steer',revision:number):Promise<{admission:CoreInputAdmission;completion?:Promise<void>}>{
     if(!this.live()||this.busy||this.state.status!=='draft'||this.state.revision!==revision||this.state.text!==text||!text.trim())return{admission:false};

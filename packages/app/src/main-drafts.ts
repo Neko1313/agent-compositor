@@ -1,54 +1,111 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {mkdir,readFile,rename,rm,stat,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,readdir,rename,rm,stat,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 
-/** Local editor data. A pending ID is a correlation key, never an instruction to retry. */
+/** Editor data; an input ID is a correlation key, never permission to retry. */
 export type MainDraft={text:string;intentId?:string};
-export type MainDraftRecovery={kind:'draft'|'review'|'journal';text:string};
-const identity=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+export type MainDraftVariant={id:string;kind:'draft'|'review'|'journal';text:string};
+export type MainDraftRecovery=Omit<MainDraftVariant,'id'>|{kind:'conflict';variants:MainDraftVariant[]};
+type RecordV2={version:2;owner:string;revision:number;parents:string[];text:string;intentId?:string};
+type SessionState={revision:number;parents:Set<string>;conflict:boolean};
+type Event={type?:unknown;recoveryId?:unknown;text?:unknown};
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const head=(record:RecordV2)=>`${record.owner}:${record.revision}`;
+const headPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:[1-9][0-9]{0,14}$/;
 
+/** Each instance owns one file per session. Divergent writers are never overwritten. */
 export class MainDraftStore {
   private pending:Promise<void>=Promise.resolve();
-  private readonly blocked=new Set<string>();
-  private readonly inspected=new Set<string>();
+  private readonly owner=randomUUID();
+  private readonly states=new Map<string,SessionState>();
   private constructor(private readonly directory:string){}
-  static open(stateDirectory:string){return new MainDraftStore(join(stateDirectory,'main-drafts'));}
-  private file(sessionId:string){return join(this.directory,createHash('sha256').update(sessionId).digest('hex')+'.json');}
-  async load(sessionId:string,events:readonly {type?:unknown;recoveryId?:unknown;text?:unknown}[]):Promise<MainDraftRecovery|undefined>{
-    await this.pending.catch(()=>{});
-    return this.read(sessionId,events);
-  }
-  private async read(sessionId:string,events:readonly {type?:unknown;recoveryId?:unknown;text?:unknown}[]):Promise<MainDraftRecovery|undefined>{
-    const file=this.file(sessionId);let raw:string;
-    try{
-      if((await stat(file)).size>400000)throw Error('Saved Main draft exceeds the size limit');raw=await readFile(file,'utf8');
-      const value:unknown=JSON.parse(raw);
+  static open(stateDirectory:string){return new MainDraftStore(join(stateDirectory,'main-drafts-v2'));}
+  private prefix(sessionId:string){return createHash('sha256').update(sessionId).digest('hex');}
+  private file(sessionId:string){return join(this.directory,`${this.prefix(sessionId)}.${this.owner}.json`);}
+  private state(id:string){let value=this.states.get(id);if(!value){value={revision:0,parents:new Set(),conflict:false};this.states.set(id,value);}return value;}
+  private async records(sessionId:string):Promise<RecordV2[]>{
+    const prefix=this.prefix(sessionId)+'.';
+    const names=await readdir(this.directory).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
+    const files=names.filter(name=>name.startsWith(prefix)&&name.endsWith('.json'));
+    if(files.length>256)throw Error('Too many saved Main draft writers');
+    return Promise.all(files.map(async name=>{
+      const owner=name.slice(prefix.length,-5),file=join(this.directory,name);
+      if(!uuid.test(owner)||(await stat(file)).size>420000)throw Error('Invalid saved Main draft file');
+      const value:unknown=JSON.parse(await readFile(file,'utf8'));
       if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid saved Main draft');
-      const record=value as Record<string,unknown>;
-      if(record.version!==1||typeof record.text!=='string'||record.text.length>64000||
-        (record.intentId!==undefined&&(typeof record.intentId!=='string'||!identity.test(record.intentId))))throw Error('Invalid saved Main draft');
-      this.blocked.delete(sessionId);this.inspected.add(sessionId);
-      if(!record.text)return;
-      const intentId=record.intentId as string|undefined;
-      return{kind:!intentId?'draft':events.some(event=>event.recoveryId===intentId&&event.text===record.text&&['prompt.input.intent','prompt.queue.intent','prompt.steer.intent'].includes(String(event.type)))?'journal':'review',text:record.text};
-    }catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT'){this.blocked.delete(sessionId);this.inspected.add(sessionId);return;}this.blocked.add(sessionId);this.inspected.add(sessionId);throw error;}
+      const r=value as Record<string,unknown>;
+      if(r.version!==2||r.owner!==owner||!Number.isSafeInteger(r.revision)||Number(r.revision)<1||Number(r.revision)>999999999999999||
+        !Array.isArray(r.parents)||r.parents.length>256||r.parents.some(parent=>typeof parent!=='string'||!headPattern.test(parent))||
+        typeof r.text!=='string'||r.text.length>64000||(r.intentId!==undefined&&(typeof r.intentId!=='string'||!uuid.test(r.intentId))))
+        throw Error('Invalid saved Main draft');
+      return r as RecordV2;
+    }));
+  }
+  private leaves(records:RecordV2[]){
+    const byId=new Map(records.map(record=>[head(record),record])),visiting=new Set<string>(),visited=new Set<string>();
+    const visit=(id:string)=>{if(visiting.has(id))throw Error('Cyclic Main draft history');if(visited.has(id))return;
+      visiting.add(id);for(const parent of byId.get(id)?.parents??[])if(byId.has(parent))visit(parent);visiting.delete(id);visited.add(id);};
+    for(const id of byId.keys())visit(id);
+    const superseded=new Set(records.flatMap(record=>record.parents));return records.filter(record=>!superseded.has(head(record)));
+  }
+  private classify(record:RecordV2,evidence:ReadonlySet<string>):MainDraftVariant{
+    const kind=!record.intentId?'draft':evidence.has(JSON.stringify([record.intentId,record.text]))?'journal':'review';
+    return{id:head(record),kind,text:record.text};
+  }
+  async load(sessionId:string,events:readonly Event[]):Promise<MainDraftRecovery|undefined>{
+    const evidence=new Set(events.flatMap(event=>typeof event.recoveryId==='string'&&typeof event.text==='string'&&
+      ['prompt.input.intent','prompt.queue.intent','prompt.steer.intent'].includes(String(event.type))?[JSON.stringify([event.recoveryId,event.text])]:[]));
+    const operation=this.pending.catch(()=>{}).then(async():Promise<MainDraftRecovery|undefined>=>{
+      const records=await this.records(sessionId),leaves=this.leaves(records),state=this.state(sessionId);
+      const own=records.find(record=>record.owner===this.owner);if(own){state.revision=own.revision;for(const parent of own.parents)state.parents.add(parent);}
+      const variants=leaves.filter(record=>record.text).map(record=>this.classify(record,evidence));
+      state.conflict=variants.length>1;
+      if(state.conflict)return{kind:'conflict',variants};
+      // A successful load establishes exactly which version the next edit extends.
+      for(const record of leaves)if(record.owner!==this.owner)state.parents.add(head(record));
+      if(!variants.length)return;
+      const {kind,text}=variants[0];return{kind,text};
+    });
+    this.pending=operation.then(()=>{},()=>{});return operation;
+  }
+  private validate(draft:MainDraft){
+    if(!draft||typeof draft.text!=='string')throw Error('Invalid Main draft');
+    if(draft.text.length>64000)throw Error('Main draft exceeds 64000 characters');
+    if(draft.intentId!==undefined&&(typeof draft.intentId!=='string'||!uuid.test(draft.intentId)))throw Error('Invalid input identity');
+  }
+  private async write(sessionId:string,state:SessionState,draft:MainDraft){
+    if(state.parents.size>256||state.revision>=999999999999999)throw Error('Main draft history exceeds its limit');
+    const record:RecordV2={version:2,owner:this.owner,revision:state.revision+1,parents:[...state.parents],text:draft.text,...(draft.intentId?{intentId:draft.intentId}:{})};
+    await mkdir(this.directory,{recursive:true,mode:0o700});
+    const file=this.file(sessionId),temporary=`${file}.${randomUUID()}.tmp`;
+    try{await writeFile(temporary,JSON.stringify(record),{mode:0o600,flag:'wx'});await rename(temporary,file);state.revision=record.revision;}
+    finally{await rm(temporary,{force:true});}
   }
   async save(sessionId:string,draft:MainDraft):Promise<void>{
-    if(draft.text.length>64000)throw Error('Main draft exceeds 64000 characters');
-    if(draft.intentId!==undefined&&!identity.test(draft.intentId))throw Error('Invalid input identity');
-    const file=this.file(sessionId),value=JSON.stringify({version:1,...draft});
+    this.validate(draft);
+    const snapshot:MainDraft={text:draft.text,...(draft.intentId?{intentId:draft.intentId}:{})};
     const operation=this.pending.catch(()=>{}).then(async()=>{
-      if(!this.inspected.has(sessionId))await this.read(sessionId,[]);
-      if(this.blocked.has(sessionId))throw Error('Cannot overwrite an unreadable Main draft');
-      await mkdir(this.directory,{recursive:true,mode:0o700});
-      const temporary=`${file}.${randomUUID()}.tmp`;
-      try{await writeFile(temporary,value,{mode:0o600,flag:'wx'});await rename(temporary,file);}
-      finally{await rm(temporary,{force:true});}
+      const state=this.state(sessionId);if(state.conflict)throw Error('Resolve conflicting Main drafts before saving');
+      // Read every record even without a prior load: corrupted foreign files must
+      // never be masked by a new writer. Unseen records are not superseded.
+      const records=await this.records(sessionId);this.leaves(records);
+      if(!records.some(record=>record.owner===this.owner)&&records.length>=256)throw Error('Too many saved Main draft writers');
+      await this.write(sessionId,state,snapshot);
     });
     this.pending=operation;await operation;
   }
-  async clear(sessionId:string):Promise<void>{
-    const operation=this.pending.catch(()=>{}).then(async()=>{if(!this.inspected.has(sessionId))await this.read(sessionId,[]);if(this.blocked.has(sessionId))throw Error('Cannot remove an unreadable Main draft');await rm(this.file(sessionId),{force:true});});
+  async clear(sessionId:string):Promise<void>{await this.save(sessionId,{text:''});}
+  /** A conflict is resolved only against the exact versions the user reviewed. */
+  async resolve(sessionId:string,reviewed:readonly string[],draft:MainDraft):Promise<void>{
+    this.validate(draft);
+    const snapshot:MainDraft={text:draft.text,...(draft.intentId?{intentId:draft.intentId}:{})},reviewedIds=[...reviewed].sort();
+    const operation=this.pending.catch(()=>{}).then(async()=>{
+      const records=await this.records(sessionId),leaves=this.leaves(records),actual=leaves.filter(record=>record.text).map(head).sort();
+      if(JSON.stringify(reviewedIds)!==JSON.stringify(actual)||actual.length<2)throw Error('Main draft conflict changed; review again');
+      if(!records.some(record=>record.owner===this.owner)&&records.length>=256)throw Error('Too many saved Main draft writers');
+      const state=this.state(sessionId),parents=new Set(state.parents);for(const record of leaves)if(record.owner!==this.owner)parents.add(head(record));
+      const candidate={...state,parents};await this.write(sessionId,candidate,snapshot);state.parents=parents;state.revision=candidate.revision;state.conflict=false;
+    });
     this.pending=operation;await operation;
   }
   async flush(){await this.pending;}

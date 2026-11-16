@@ -718,6 +718,12 @@ draft without a model request. Reports and screenshots are in
 `dist/daily-flow-integrated-retry-20261116/` and
 `dist/daily-flow-integrated-native-20261116/`. This loopback PTY check does not
 establish a physical-terminal experience or certify other platforms.
+An extended run on source and the same relocated archive additionally refreshed
+the isolated catalog, detected version 1.1.0, queued the update while Main was
+busy, verified version 1.0.0 remained installed until settlement, and confirmed
+that version 1.1.0 remained enabled and loaded after restart. Reports are in
+`dist/daily-update-source-verify-20261116/` and
+`dist/daily-update-native-final-20261116/`.
 
 The 1.0 objective explicitly includes developing missing plugins needed for
 everyday project work and improving the terminal interface until complete

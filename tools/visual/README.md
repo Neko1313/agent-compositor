@@ -126,7 +126,9 @@ their isolated preview fixtures and test different integration boundaries.
 offline local catalog and the normal configured loopback provider. While Main
 waits for an answer, terminal actions browse the canonical manager panels,
 register the catalog, install a package inactive, explicitly enable it and queue
-reload. The plugin's own storage receipt and pane establish when it actually
+reload. A controlled local catalog update is discovered and queued while Main
+is busy; installed bytes stay at the old version until the operation finishes,
+then the new version and enabled state survive restart. The plugin's own storage receipt and pane establish when it actually
 loads. The scenario also keeps a deliberately closed plugin window closed across
 reload, exercises private placement Apply/Save rule/Cancel and restores the saved
 rule after a real CLI restart. It checks that a failed deferred removal is reported

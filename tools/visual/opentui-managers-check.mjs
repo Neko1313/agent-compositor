@@ -187,6 +187,23 @@ try{
     'Marketplace receipt must reflect the successful activation');
   assert.match(await paneText('Marketplaces'),/Search: flow-probe/);
   assert.match(await paneText('Marketplaces'),/local-flow-probe  v1\.0\.0/);
+  // Publish a newer version only in the isolated local catalog, then exercise
+  // the same refresh and management actions available to a user.
+  const sourceManifest=join(launch.managers.source,'plugin.json'),sourceHooks=join(launch.managers.source,'hooks.js');
+  const manifest=await json(sourceManifest);manifest.version='1.1.0';await writeFile(sourceManifest,JSON.stringify(manifest));
+  await writeFile(sourceHooks,(await readFile(sourceHooks,'utf8')).replace("version:'1.0.0'","version:'1.1.0'"));
+  const catalogFile=join(launch.managers.catalogRoot,'.claude-plugin/marketplace.json'),catalog=await json(catalogFile);
+  catalog.plugins.find(value=>value.name===plugin).version='1.1.0';await writeFile(catalogFile,JSON.stringify(catalog));
+  await click('All marketplaces');await wait('Plugin marketplaces');await click('Refresh local-flow');await wait('Refreshed local-flow');
+  await focusTab('Extensions');await click('Check for updates',{pane:'Extensions'});await wait('update available');
+  assert.match((await paneText('Extensions')).replace(/[│\s]/g,''),/1\.0\.0→1\.1\.0·updateavailable/);
+  await click('local-flow-probe · project · 1.0.0',{pane:'Extensions'});await wait('Manage local-flow-probe · Form');await zoom();
+  await select('Manage local-flow-probe','Action','update');await formButton('Manage local-flow-probe','Apply');
+  await wait('update local-flow-probe queued');
+  assert.equal((await json(launch.managers.manifest)).version,'1.0.0');assert.equal(await exists(launch.managers.receipt),false);
+  await noUnexpectedModelRequests(1);await capture('01b-update-queued');
+  report.checks.push('An updated local catalog exposes the new version, and a user-queued update keeps installed files unchanged while Main is busy');
+  await unzoom();
   await click('Apply plugin changes');await waitMain('Plugin reload queued until current operations finish');
   assert.equal(await exists(launch.managers.receipt),false,'Queued reload must wait for the unresolved Main question');await noUnexpectedModelRequests(1);
   await unzoom();await main();await pendingMainDraft();await click('Edit answer',{pane:'Main'});await wait('[x] Production');await click('Draft');
@@ -215,7 +232,8 @@ try{
   report.checks.push('Private placement Apply changes only this run, Save writes and applies the canonical per-plugin rule, and Cancel discards a later edit while Main draft and chosen answer remain intact');
 
   await key('Alt+Enter');await waitMain('APP_ANSWER_RECEIVED: Production; model=app-start');
-  const loaded=await observe(()=>json(launch.managers.receipt),value=>value.version==='1.0.0','Queued reload must finish after Main answer');
+  const loaded=await observe(()=>json(launch.managers.receipt),value=>value.version==='1.1.0','Queued update and reload must finish after Main answer');
+  assert.equal((await json(launch.managers.manifest)).version,'1.1.0');
   await wait('LOCAL_FLOW_PROBE_LOADED');await wait('Reloaded ');await main();await wait(draft);
   await waitMain('Only managed extensions in this scope can be removed');
   assert.equal((await completions()).length,2);assert.equal(location(await layout(),todo),3);
@@ -243,7 +261,8 @@ try{
   const restored=await observe(layout,value=>value.windows.workspace===3&&location(value,todo)===3,'Saved rule must restore Todos on workspace 3');
   assert.ok(restored.registered.includes('plugin-network-proxy-network'));assert.equal(location(restored,'plugin-network-proxy-network'),undefined);
   assert.deepEqual(parseJsonc(await readFile(launch.managers.placement,'utf8')).ui.rules,savedRule.ui.rules);
-  const nextLoaded=await json(launch.managers.receipt);assert.equal(nextLoaded.sessionId,loaded.sessionId);
+  const nextLoaded=await json(launch.managers.receipt);assert.equal(nextLoaded.sessionId,loaded.sessionId);assert.equal(nextLoaded.version,'1.1.0');
+  const afterRestart=await json(launch.managers.extensionState);assert.equal(afterRestart.installed[plugin].version,'1.1.0');assert.ok(afterRestart.enabled.includes(plugin));
   await capture('05-restored-placement-workspace-three');
   await main();await wait('APP_RESTORED: Production retained');await wait(restartDraft);await noUnexpectedModelRequests(3);
   await capture('05b-restored-main-draft');await key('End');await key('Control+u');await type('APP_RESTORED');await key('Enter');await wait('Main · Ready');

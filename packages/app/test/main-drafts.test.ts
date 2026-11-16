@@ -197,3 +197,52 @@ it('preserves a live process writer while another process compacts',async()=>{
  if(recovery?.kind!=='conflict')throw Error('Expected concurrent versions');
  expect(recovery.variants.map(value=>value.text).sort()).toEqual(['other','writer 40']);
 },15000);
+
+it.each([1,2])('keeps recovery and future edits after compactor dies at deletion %i',async stopAfter=>{
+ const {root}=await fixture(),a=MainDraftStore.open(root),b=MainDraftStore.open(root);
+ await a.save('session',{text:'older private'});await a.save('session',{text:'base'});
+ await b.load('session',[]);await b.save('session',{text:'current'});
+ const entry=pathToFileURL(resolve('packages/app/src/main-drafts.ts')).href;
+ // Intercept only removal in the child, after the actual unlink, to kill at a
+ // reproducible intermediate point without changing production code.
+ const script=`import fs from 'node:fs/promises'; import {syncBuiltinESMExports} from 'node:module';
+ const remove=fs.rm; let count=0; fs.rm=async (...args)=>{await remove(...args); if(++count===${stopAfter}){console.log('DELETED'); await new Promise(()=>{});}};
+ syncBuiltinESMExports(); const {MainDraftStore}=await import(${JSON.stringify(entry)});
+ await MainDraftStore.open(${JSON.stringify(root)}).compact('session');`;
+ const child=spawn(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:process.cwd(),stdio:['ignore','pipe','pipe']});
+ let stderr='';child.stderr.on('data',chunk=>{stderr+=String(chunk);});
+ const exited=new Promise<{code:number|null;signal:NodeJS.Signals|null}>((done,fail)=>{child.once('error',fail);child.once('exit',(code,signal)=>done({code,signal}));});
+ try{
+  await new Promise<void>((done,fail)=>{let output='';const timer=setTimeout(()=>fail(Error('Compactor did not reach deletion')),10000);
+   child.stdout.on('data',chunk=>{output+=String(chunk);if(output.includes('DELETED')){clearTimeout(timer);done();}});
+   void exited.then(result=>{clearTimeout(timer);fail(Error(`Compactor exited early: ${JSON.stringify(result)} ${stderr}`));});});
+  expect(child.kill('SIGKILL')).toBe(true);expect((await exited).signal).toBe('SIGKILL');
+  expect(await MainDraftStore.open(root).load('session',[])).toEqual({kind:'draft',text:'current'});
+  await a.save('session',{text:'later from active writer'});
+  const recovery=await MainDraftStore.open(root).load('session',[]);
+  if(recovery?.kind!=='conflict')throw Error('Expected concurrent versions');
+  expect(recovery.variants.map(value=>value.text).sort()).toEqual(['current','later from active writer']);
+ }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}}
+},15000);
+
+it.each(['before','after'] as const)('recovers the correct version when a writer dies %s atomic publication',async point=>{
+ const {root}=await fixture(),initial=MainDraftStore.open(root);await initial.save('session',{text:'before edit'});
+ const entry=pathToFileURL(resolve('packages/app/src/main-drafts.ts')).href;
+ const script=`import fs from 'node:fs/promises'; import {syncBuiltinESMExports} from 'node:module';
+ const move=fs.rename; fs.rename=async (...args)=>{if(${JSON.stringify(point)}==='after')await move(...args); console.log('BOUNDARY'); await new Promise(()=>{});};
+ syncBuiltinESMExports(); const {MainDraftStore}=await import(${JSON.stringify(entry)});
+ const store=MainDraftStore.open(${JSON.stringify(root)}); await store.load('session',[]); await store.save('session',{text:'after edit'});`;
+ const child=spawn(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:process.cwd(),stdio:['ignore','pipe','pipe']});
+ let stderr='';child.stderr.on('data',chunk=>{stderr+=String(chunk);});
+ const exited=new Promise<{code:number|null;signal:NodeJS.Signals|null}>((done,fail)=>{child.once('error',fail);child.once('exit',(code,signal)=>done({code,signal}));});
+ try{
+  await new Promise<void>((done,fail)=>{let output='';const timer=setTimeout(()=>fail(Error('Writer did not reach publication boundary')),10000);
+   child.stdout.on('data',chunk=>{output+=String(chunk);if(output.includes('BOUNDARY')){clearTimeout(timer);done();}});
+   void exited.then(result=>{clearTimeout(timer);fail(Error(`Writer exited early: ${JSON.stringify(result)} ${stderr}`));});});
+  expect(child.kill('SIGKILL')).toBe(true);expect((await exited).signal).toBe('SIGKILL');
+  expect(await MainDraftStore.open(root).load('session',[])).toEqual({kind:'draft',text:point==='before'?'before edit':'after edit'});
+  const temporary=(await readdir(join(root,'main-drafts-v3'))).filter(name=>name.endsWith('.tmp'));
+  expect(temporary).toHaveLength(point==='before'?1:0);
+  if(point==='before')expect(await readFile(join(root,'main-drafts-v3',temporary[0]),'utf8')).toContain('after edit');
+ }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}}
+},15000);

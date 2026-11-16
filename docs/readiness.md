@@ -1616,11 +1616,15 @@ or either terminal renderer. No user-facing draft restoration is claimed from
 these component tests. The replacement storage format writes immutable version
 files. Explicit compaction removes versions superseded in a validated snapshot,
 while preserving conflict leaves; tests cover concurrent writers, clearing and
-malformed files, and a separate compactor process while a writer saves. This is
+malformed files, a separate compactor process while a writer saves, and process
+death immediately after either of two deletions. Separate process-death tests
+cover the atomic publication boundary before and after rename. A process killed
+before rename can leave a private temporary file; safe cleanup of those files is
+still unresolved. This is
 logical file deletion, not secure erasure from storage,
 backups or filesystem snapshots. The old experimental v2 format is retained
-and blocks use for the affected session until a migration is implemented. Crash-during-compaction coverage, retention policy and migration still need
-completion before the component is used by the editor.
+and blocks use for the affected session until a migration is implemented. Broader interruption and filesystem coverage, retention policy and migration
+still need completion before the component is used by the editor.
 The native presentation protocol has an optional, negotiated draft snapshot and
 revision-checked change operation. Legacy peers do not receive the new fields;
 focused tests cover negotiation, stale changes and hidden windows. No host

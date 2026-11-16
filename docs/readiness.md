@@ -709,6 +709,16 @@ tmux passthrough, or packaged-archive behavior.
 
 ## Plugin development and interface usability
 
+On 2026-11-16 the combined OpenTUI manager scenario passed on source and on a
+locally relocated Linux x64 archive. While Main waited for a question, it
+searched the local marketplace, installed and enabled a plugin, saved a window
+placement and completed the answer. It then closed and reopened Main using
+Finder, restarted the CLI and recovered both the conversation and an unsent
+draft without a model request. Reports and screenshots are in
+`dist/daily-flow-integrated-retry-20261116/` and
+`dist/daily-flow-integrated-native-20261116/`. This loopback PTY check does not
+establish a physical-terminal experience or certify other platforms.
+
 The 1.0 objective explicitly includes developing missing plugins needed for
 everyday project work and improving the terminal interface until complete
 user workflows are convenient. This is implementation scope, not only an

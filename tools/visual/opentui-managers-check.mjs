@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {copyFile,mkdir,readFile,rm,stat,writeFile} from 'node:fs/promises';
+import {copyFile,mkdir,readFile,readdir,rm,stat,writeFile} from 'node:fs/promises';
 import {dirname,join,resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {parse as parseJsonc} from 'jsonc-parser';
@@ -119,7 +119,7 @@ try{
   async function main(){await key('Alt+0');await wait('─ Main · focused');}
   async function command(value){await main();await replace(value);await key('Enter');}
   async function focusTab(label){await click(label,{top:true});}
-  const {pick:findWindow}=createOpenTuiFinder({page,key,wait,absent});
+  const finder=createOpenTuiFinder({page,key,wait,absent});const {pick:findWindow}=finder;
   async function setZoom(enabled){
     await key('Alt+w');await page.waitForFunction(()=>/WINDOW MODE · (Zoomed|Tiled)/.test(visual.text()));
     if((await screen()).includes('WINDOW MODE · Zoomed')!==enabled)await key('f');
@@ -225,7 +225,18 @@ try{
   assert.equal((await completions()).length,3);
   report.checks.push('Answering Main applies valid plugin changes, reports a failed deferred removal and preserves the chosen answer, draft and deliberately closed proxy pane');
 
-  await unzoom();await main();const beforeRestart=await layout();await writeFile(join(output,'before-restart-layout.json'),JSON.stringify(beforeRestart,null,2));
+  await unzoom();await main();const restartDraft='MANAGER_RESTART_DRAFT_82';await type(restartDraft);
+  const draftDirectory=join(launch.state,'main-drafts-v3');
+  await observe(async()=>Promise.all((await readdir(draftDirectory)).filter(name=>name.endsWith('.json')).map(name=>json(join(draftDirectory,name)))),
+    values=>values.some(value=>value.text===restartDraft),'Main draft must be saved before closing its window');
+  await key('Alt+w');await wait('WINDOW MODE');await key('q');await key('Escape');await absent('WINDOW MODE');
+  await observe(layout,value=>location(value,'session')===undefined,'Closing Main must hide its window');
+  await finder.normal();await key('F2');await wait(finder.marker);const mainChoice=await finder.query('Main');
+  if(!mainChoice.selected)await key('ArrowDown');await finder.state('Main',undefined,true);await key('Enter');await absent(finder.marker);
+  await wait('─ Main · focused');await wait(restartDraft);await noUnexpectedModelRequests(3);
+  await capture('04b-reopened-main-with-draft');
+  report.checks.push('After managing plugins, Finder reopens a deliberately closed Main with its saved draft and no model request');
+  const beforeRestart=await layout();await writeFile(join(output,'before-restart-layout.json'),JSON.stringify(beforeRestart,null,2));
   const generation=await page.evaluate(()=>visual.generation);await page.click('#restart');
   await page.waitForFunction(generation=>visual.generation>generation&&visual.frames>0&&visual.text().includes('Main'),generation);
   await wait('LOCAL_FLOW_PROBE_LOADED');await findWindow('Todos');await wait('0/3 complete');
@@ -234,12 +245,13 @@ try{
   assert.deepEqual(parseJsonc(await readFile(launch.managers.placement,'utf8')).ui.rules,savedRule.ui.rules);
   const nextLoaded=await json(launch.managers.receipt);assert.equal(nextLoaded.sessionId,loaded.sessionId);
   await capture('05-restored-placement-workspace-three');
-  await main();await wait('APP_RESTORED: Production retained');await type('APP_RESTORED');await key('Enter');await wait('Main · Ready');
+  await main();await wait('APP_RESTORED: Production retained');await wait(restartDraft);await noUnexpectedModelRequests(3);
+  await capture('05b-restored-main-draft');await key('End');await key('Control+u');await type('APP_RESTORED');await key('Enter');await wait('Main · Ready');
   await observe(completions,rows=>rows.length===4,'Resumed Main must use the actual configured provider');
   await capture('06-restored-main-conversation');
   await writeFile(join(output,'restored-layout.json'),JSON.stringify(restored,null,2));await writeFile(join(output,'installed-state.json'),JSON.stringify(await json(launch.managers.extensionState),null,2));
   report.loadedReceipt=nextLoaded;report.savedRule=rule;
-  report.checks.push('Actual CLI restart resumes the same session, loads the explicitly enabled package and restores its saved placement rule; Todos opens on workspace 3 and Main retains the previous answer');
+  report.checks.push('Actual CLI restart resumes the same session and unsent Main draft, loads the explicitly enabled package and restores its saved placement rule; Todos opens on workspace 3 and Main retains the previous answer');
   await noListenerWarnings();
   await command('/extensions remove local-flow-probe --project');await wait('Removed local-flow-probe');
   const requestsBeforeCancel=(await completions()).length;

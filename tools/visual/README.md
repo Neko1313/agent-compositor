@@ -132,6 +132,9 @@ reload, exercises private placement Apply/Save rule/Cancel and restores the save
 rule after a real CLI restart. It checks that a failed deferred removal is reported
 without preventing valid changes. It also checks that Ctrl+C cancels a prompt waiting
 for plugin changes without closing the app or executing the prompt after reload.
+After plugin management, the scenario closes Main, reopens the same window with
+Finder, and checks that its saved draft and conversation survive a CLI restart
+without an implicit model request.
 `/windows` must remain private host navigation without a
 model request. No fixture permission rules or live model services are used.
 Artifacts default to `dist/visual-opentui-managers/`; inspect the PNGs and report.

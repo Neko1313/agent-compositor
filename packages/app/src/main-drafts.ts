@@ -69,6 +69,11 @@ export class MainDraftStore {
     }
     throw Error('Could not read saved Main drafts');
   }
+  private latest(all:StoredRecord[]){
+    const latest=new Map<string,StoredRecord>();
+    for(const record of all){const prior=latest.get(record.owner);if(!prior||prior.revision<record.revision)latest.set(record.owner,record);}
+    return [...latest.values()];
+  }
   private leaves(records:RecordV2[]){
     const byId=new Map(records.map(record=>[head(record),record])),visiting=new Set<string>(),visited=new Set<string>();
     const visit=(id:string)=>{if(visiting.has(id))throw Error('Cyclic Main draft history');if(visited.has(id))return;
@@ -119,32 +124,37 @@ export class MainDraftStore {
       const state=this.state(sessionId);if(state.conflict)throw Error('Resolve conflicting Main drafts before saving');
       // Read every record even without a prior load: corrupted foreign files must
       // never be masked by a new writer. Unseen records are not superseded.
-      const records=await this.records(sessionId);this.leaves(records);
+      const all=await this.records(sessionId,true),records=this.latest(all);this.leaves(records);
       if(!records.some(record=>record.owner===this.owner)&&records.length>=256)throw Error('Too many saved Main draft writers');
+      // Bound ordinary typing without erasing any unresolved version. Cleanup
+      // runs before publication so an error cannot masquerade as a failed save.
+      if(all.length>=64)await this.compactVersions(sessionId,all);
       await this.write(sessionId,state,snapshot);
     });
     this.pending=operation;await operation;
   }
   async clear(sessionId:string):Promise<void>{await this.save(sessionId,{text:''});}
+  private async compactVersions(sessionId:string,all:StoredRecord[]){
+    const latest=new Map(this.latest(all).map(record=>[record.owner,record]));
+    const records=[...latest.values()],leaves=this.leaves(records);
+    // A pre-migration chain may suppress a retained legacy version only
+    // through an intermediate record. Removing that bridge would resurrect
+    // the legacy draft. Wait for a new leaf that records the legacy head.
+    const legacyHeads=new Set(records.filter(record=>record.legacy).map(head));
+    const bridged=records.some(record=>!record.legacy&&record.parents.some(parent=>legacyHeads.has(parent)
+      &&!leaves.some(leaf=>leaf.parents.includes(parent))));
+    if(!bridged){
+      // Remove older versions first so they cannot reappear as live drafts.
+      for(const record of all)if(!record.legacy&&record.revision<latest.get(record.owner)!.revision)
+        await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+      const visible=new Set(leaves.map(head));
+      for(const record of records)if(!record.legacy&&!visible.has(head(record)))await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+    }
+  }
   /** Remove only immutable versions already superseded in a validated snapshot. */
   async compact(sessionId:string):Promise<void>{
     const operation=this.pending.catch(()=>{}).then(async()=>{
-      const all=await this.records(sessionId,true),latest=new Map<string,StoredRecord>();
-      for(const record of all){const prior=latest.get(record.owner);if(!prior||prior.revision<record.revision)latest.set(record.owner,record);}
-      const records=[...latest.values()],leaves=this.leaves(records);
-      // A pre-migration chain may suppress a retained legacy version only
-      // through an intermediate record. Removing that bridge would resurrect
-      // the legacy draft. Wait for a new leaf that records the legacy head.
-      const legacyHeads=new Set(records.filter(record=>record.legacy).map(head));
-      const bridged=records.some(record=>!record.legacy&&record.parents.some(parent=>legacyHeads.has(parent)
-        &&!leaves.some(leaf=>leaf.parents.includes(parent))));
-      if(!bridged){
-        // Remove older versions first so they cannot reappear as live drafts.
-        for(const record of all)if(!record.legacy&&record.revision<latest.get(record.owner)!.revision)
-          await rm(this.file(sessionId,record.owner,record.revision),{force:true});
-        const visible=new Set(leaves.map(head));
-        for(const record of records)if(!record.legacy&&!visible.has(head(record)))await rm(this.file(sessionId,record.owner,record.revision),{force:true});
-      }
+      await this.compactVersions(sessionId,await this.records(sessionId,true));
       const domain=await localProcessDomain();
       if(domain){
         const prefix=this.prefix(sessionId)+'.';

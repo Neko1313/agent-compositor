@@ -1621,9 +1621,11 @@ reads and edits the draft from a new process context. These checks do not
 establish network-filesystem or arbitrary crash durability. The component is not connected to the Main editor
 or either terminal renderer. No user-facing draft restoration is claimed from
 these component tests. The replacement storage format writes immutable version
-files. Explicit compaction removes versions superseded in a validated snapshot,
+files. Saving automatically compacts after 64 versions; explicit compaction is
+also available. Both remove only versions superseded in a validated snapshot,
 while preserving conflict leaves; tests cover concurrent writers, clearing and
-malformed files, a separate compactor process while a writer saves, and process
+malformed files, 150 edits with automatic compaction, a separate compactor
+process while a writer saves, and process
 death immediately after either of two deletions. Separate process-death tests
 cover the atomic publication boundary before and after rename. On Linux, explicit
 compaction can remove temporary files from a confirmed dead process in the same

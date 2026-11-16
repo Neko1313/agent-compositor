@@ -323,3 +323,26 @@ it('does not resurrect a retained legacy ancestor when older records lack direct
  expect(await MainDraftStore.open(root).load('session',[])).toEqual({kind:'draft',text:'continued'});
  expect(await readdir(v3)).toHaveLength(1);
 });
+
+it('automatically bounds ordinary draft versions while preserving concurrent edits',async()=>{
+ const {root}=await fixture(),writer=MainDraftStore.open(root),other=MainDraftStore.open(root),directory=join(root,'main-drafts-v3');
+ await writer.save('session',{text:'initial private'});await other.load('session',[]);await other.save('session',{text:'other writer'});
+ for(let i=0;i<150;i++)await writer.save('session',{text:`typed ${i}`});
+ const files=await readdir(directory);expect(files.filter(file=>file.endsWith('.json')).length).toBeLessThanOrEqual(64);
+ const result=await MainDraftStore.open(root).load('session',[]);if(result?.kind!=='conflict')throw Error('Expected concurrent drafts');
+ expect(result.variants.map(value=>value.text).sort()).toEqual(['other writer','typed 149']);
+ expect((await Promise.all(files.map(file=>readFile(join(directory,file),'utf8')))).join('')).not.toContain('initial private');
+});
+
+it('does not publish a new draft when automatic cleanup fails',async()=>{
+ const {root,store}=await fixture();for(let i=0;i<64;i++)await store.save('session',{text:`previous ${i}`});
+ const entry=pathToFileURL(resolve('packages/app/src/main-drafts.ts')).href;
+ const script=`import fs from 'node:fs/promises'; import {syncBuiltinESMExports} from 'node:module';
+ const remove=fs.rm;fs.rm=async (path,...args)=>{if(String(path).endsWith('.json'))throw Object.assign(Error('cleanup denied'),{code:'EACCES'});return remove(path,...args);};
+ syncBuiltinESMExports();const {MainDraftStore}=await import(${JSON.stringify(entry)});const store=MainDraftStore.open(${JSON.stringify(root)});
+ await store.load('session',[]);try{await store.save('session',{text:'must not publish'});process.exitCode=1;}catch(error){if(error.message!=='cleanup denied')throw error;}`;
+ const child=spawn(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:process.cwd(),stdio:['ignore','ignore','pipe']});
+ let stderr='';child.stderr.on('data',chunk=>{stderr+=String(chunk);});
+ await new Promise<void>((done,fail)=>{child.once('error',fail);child.once('exit',(code,signal)=>code===0?done():fail(Error(`Cleanup test failed ${code}/${signal}: ${stderr}`)));});
+ expect(await MainDraftStore.open(root).load('session',[])).toEqual({kind:'draft',text:'previous 63'});
+});

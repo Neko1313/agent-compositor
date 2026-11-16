@@ -1,5 +1,24 @@
 # Project memory
 
+## OpenAI connection probe and pricing stop — 2026-11-16
+
+The user explicitly requested continuing tests on OpenAI and disputed treating
+the conservative evaluation ceiling as actual account expenditure. A live
+saved-profile probe through the existing proxy returned OPENAI_PROFILE_READY,
+but terminal validation rejected response.tool_usage. The profile now has a
+persistent unconfirmed-response-pricing halt. This is a connection observation,
+not a passing usage settlement or plugin-authoring result. The probe did not
+retain the raw terminal payload, so the tool_usage shape and any additional
+charge are unknown; do not weaken validation based on this error alone.
+The sanitized report is dist/openai-live-probe-20261116.json. The ledger after
+the probe reports a $49.898643 committed upper bound, three pending requests
+and 426 reported requests. Its partial Standard estimate remains $3.615988
+for 260 requests, with 166 reported requests unavailable for that estimate.
+These figures are not the account balance or an invoice. No reservation was
+forgiven and the $50 authorization was not increased. Further live requests
+require resolving the pricing halt from verified evidence; the prepared plugin
+authoring task has not run.
+
 ## Legacy recovery upgrade probe — 2026-11-16
 
 An isolated Linux x64 PTY ran two locally built development archives in the

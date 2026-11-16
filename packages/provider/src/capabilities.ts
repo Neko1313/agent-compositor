@@ -23,17 +23,20 @@ export async function discoverCapabilities(profile: ProviderProfile, signal: Abo
             throw Error('Metadata unavailable');
         }
         const reader = response.body?.getReader();
-        let text = '';
+        let text = '', bytes = 0;
+        const decoder = new TextDecoder();
         if (reader) {
             try {
                 while (true) {
                     const v = await reader.read();
                     if (v.done)
                         break;
-                    text += new TextDecoder().decode(v.value);
-                    if (text.length > 1000000)
+                    bytes += v.value.byteLength;
+                    if (bytes > 1000000)
                         throw Error('Metadata too large');
+                    text += decoder.decode(v.value, {stream: true});
                 }
+                text += decoder.decode();
             }
             finally {
                 await reader.cancel().catch(() => { });
@@ -52,7 +55,7 @@ export async function discoverCapabilities(profile: ProviderProfile, signal: Abo
             if (configured && positive(Number(configured)))
                 window = Number(configured);
             // A currently loaded model can have a lower configured runtime window.
-            const running = await request(new URL('/api/ps', base)).catch(() => null);
+            const running = await request(new URL('/api/ps', base)).catch(() => {signal.throwIfAborted();return null;});
             const current = running?.models?.find((m: any) => m.name === profile.model || m.model === profile.model)?.context_length;
             if (positive(current))
                 window = current;

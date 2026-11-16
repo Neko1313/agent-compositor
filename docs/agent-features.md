@@ -476,7 +476,8 @@ endpoint, model, metadata settings, transport and credential/header state.
 Changing those settings causes a fresh lookup; API keys and custom headers are
 represented by a digest in cache keys. A lookup that overlaps a configuration
 change retries against the current settings, up to three attempts. The cache
-retains at most 128 entries.
+retains at most 128 entries. Metadata responses are limited to 1,000,000 bytes
+while reading and decode UTF-8 across network chunks.
 A private/global `model-catalog.json` can supply exact model entries:
 
 ```json

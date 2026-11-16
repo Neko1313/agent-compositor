@@ -161,14 +161,30 @@ it('refuses compaction if any saved version is malformed',async()=>{
  await expect(store.compact('session')).rejects.toThrow();expect(await readdir(directory)).toHaveLength(2);
 });
 
-it('does not hide or change legacy saved drafts',async()=>{
- const {root}=await fixture(),current=MainDraftStore.open(root);
- await current.save('session',{text:'legacy content'});
- const {rename}=await import('node:fs/promises');await rename(join(root,'main-drafts-v3'),join(root,'main-drafts-v2'));
- const store=MainDraftStore.open(root);
- await expect(store.load('session',[])).rejects.toThrow('require migration');
- await expect(store.save('session',{text:'replacement'})).rejects.toThrow('require migration');
- expect((await readdir(join(root,'main-drafts-v2')))).toHaveLength(1);
+it('reads legacy drafts, retains them through compaction, and detects a later legacy edit',async()=>{
+ const {root}=await fixture(),original=MainDraftStore.open(root);
+ await original.save('session',{text:'legacy content'});
+ const {mkdir,rename}=await import('node:fs/promises'),v3=join(root,'main-drafts-v3'),v2=join(root,'main-drafts-v2');
+ await mkdir(v2);const name=(await readdir(v3))[0],legacy=join(v2,name.replace(/\.1\.json$/,'.json'));
+ await rename(join(v3,name),legacy);const originalRecord=JSON.parse(await readFile(legacy,'utf8'));
+ const a=MainDraftStore.open(root);expect(await a.load('session',[])).toEqual({kind:'draft',text:'legacy content'});
+ await a.save('session',{text:'first edit'});
+ const b=MainDraftStore.open(root);expect(await b.load('session',[])).toEqual({kind:'draft',text:'first edit'});
+ await b.save('session',{text:'second edit'});await b.compact('session');
+ expect(await readFile(legacy,'utf8')).toBe(JSON.stringify(originalRecord));
+ expect(await MainDraftStore.open(root).load('session',[])).toEqual({kind:'draft',text:'second edit'});
+ await writeFile(legacy,JSON.stringify({...originalRecord,revision:2,text:'later legacy edit'}));
+ const result=await MainDraftStore.open(root).load('session',[]);if(result?.kind!=='conflict')throw Error('Expected legacy conflict');
+ expect(result.variants.map(value=>value.text).sort()).toEqual(['later legacy edit','second edit']);
+});
+
+it('does not mask a malformed legacy draft',async()=>{
+ const {root}=await fixture(),original=MainDraftStore.open(root);await original.save('session',{text:'legacy'});
+ const {mkdir,rename}=await import('node:fs/promises'),v3=join(root,'main-drafts-v3'),v2=join(root,'main-drafts-v2');
+ await mkdir(v2);const name=(await readdir(v3))[0],legacy=join(v2,name.replace(/\.1\.json$/,'.json'));
+ await rename(join(v3,name),legacy);await writeFile(legacy,'{broken');
+ const store=MainDraftStore.open(root);await expect(store.load('session',[])).rejects.toThrow();
+ await expect(store.save('session',{text:'replacement'})).rejects.toThrow();expect(await readFile(legacy,'utf8')).toBe('{broken');
 });
 
 it('retains both concurrent writers through repeated compaction',async()=>{
@@ -270,5 +286,23 @@ it.skipIf(process.platform!=='linux')('removes only temporary drafts owned by a 
   expect(child.kill('SIGKILL')).toBe(true);expect((await exited).signal).toBe('SIGKILL');
   await cleaner.compact('session');const remaining=await readdir(directory);
   expect(remaining).not.toContain(temporary);expect(remaining).toContain(legacy);expect(remaining).toContain(foreign);
+ }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}}
+},15000);
+
+it('preserves a legacy writer that changes its draft after a new process compacts',async()=>{
+ const {root}=await fixture(),seed=MainDraftStore.open(root);await seed.save('session',{text:'legacy initial'});
+ const {mkdir,rename}=await import('node:fs/promises'),v3=join(root,'main-drafts-v3'),v2=join(root,'main-drafts-v2');
+ await mkdir(v2);const name=(await readdir(v3))[0],legacy=join(v2,name.replace(/\.1\.json$/,'.json'));await rename(join(v3,name),legacy);
+ const script=`import {readFile,writeFile,rename} from 'node:fs/promises'; const file=${JSON.stringify(legacy)},record=JSON.parse(await readFile(file,'utf8'));
+ console.log('READY'); process.stdin.once('data',async()=>{await writeFile(file+'.tmp',JSON.stringify({...record,revision:2,text:'legacy later'}));await rename(file+'.tmp',file);console.log('SAVED');});`;
+ const child=spawn(process.execPath,['--input-type=module','-e',script],{cwd:process.cwd(),stdio:['pipe','pipe','pipe']});
+ let output='',stderr='';child.stdout.on('data',chunk=>{output+=String(chunk);});child.stderr.on('data',chunk=>{stderr+=String(chunk);});
+ const exited=new Promise<void>((done,fail)=>{child.once('error',fail);child.once('exit',(code,signal)=>code===0?done():fail(Error(`Legacy writer failed ${code}/${signal}: ${stderr}`)));});
+ try{
+  await expect.poll(()=>output).toContain('READY');
+  const writer=MainDraftStore.open(root);expect(await writer.load('session',[])).toEqual({kind:'draft',text:'legacy initial'});
+  await writer.save('session',{text:'modern'});await writer.compact('session');child.stdin.end('continue\n');await exited;
+  const result=await MainDraftStore.open(root).load('session',[]);if(result?.kind!=='conflict')throw Error('Expected legacy conflict');
+  expect(result.variants.map(value=>value.text).sort()).toEqual(['legacy later','modern']);
  }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}}
 },15000);

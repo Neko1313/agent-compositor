@@ -7,6 +7,7 @@ export type MainDraft={text:string;intentId?:string};
 export type MainDraftVariant={id:string;kind:'draft'|'review'|'journal';text:string};
 export type MainDraftRecovery=Omit<MainDraftVariant,'id'>|{kind:'conflict';variants:MainDraftVariant[]};
 type RecordV2={version:2;owner:string;revision:number;parents:string[];text:string;intentId?:string};
+type StoredRecord=RecordV2 & {legacy?:true};
 type SessionState={revision:number;parents:Set<string>;conflict:boolean};
 type Event={type?:unknown;recoveryId?:unknown;text?:unknown};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -34,30 +35,33 @@ export class MainDraftStore {
   private prefix(sessionId:string){return createHash('sha256').update(sessionId).digest('hex');}
   private file(sessionId:string,owner:string,revision:number){return join(this.directory,`${this.prefix(sessionId)}.${owner}.${revision}.json`);}
   private state(id:string){let value=this.states.get(id);if(!value){value={revision:0,parents:new Set(),conflict:false};this.states.set(id,value);}return value;}
-  private async records(sessionId:string,allVersions=false):Promise<RecordV2[]>{
+  private async records(sessionId:string,allVersions=false):Promise<StoredRecord[]>{
     const prefix=this.prefix(sessionId)+'.';
-    const legacy=await readdir(join(dirname(this.directory),'main-drafts-v2')).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
-    if(legacy.some(name=>name.startsWith(prefix)&&name.endsWith('.json')))throw Error('Legacy Main drafts require migration before use');
+    const legacyDirectory=join(dirname(this.directory),'main-drafts-v2');
     // Cleanup by another process can remove an immutable version between listing
     // and reading it. Retry the entire snapshot rather than hiding missing data.
     for(let attempt=0;attempt<8;attempt++){
-      const names=await readdir(this.directory).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
-      const files=names.filter(name=>name.startsWith(prefix)&&name.endsWith('.json'));
+      const [names,legacyNames]=await Promise.all([this.directory,legacyDirectory].map(directory=>readdir(directory).catch(error=>{if(error.code==='ENOENT')return [];throw error;})));
+      const files=names.filter(name=>name.startsWith(prefix)&&name.endsWith('.json')).map(name=>({name,legacy:false}));
+      files.push(...legacyNames.filter(name=>name.startsWith(prefix)&&name.endsWith('.json')).map(name=>({name,legacy:true})));
       if(files.length>4096)throw Error('Too many saved Main draft versions');
       try{
-        const all=await Promise.all(files.map(async name=>{
-          const suffix=name.slice(prefix.length,-5),match=/^([0-9a-f-]+)\.([1-9][0-9]{0,14})$/.exec(suffix),file=join(this.directory,name);
+        const all=await Promise.all(files.map(async ({name,legacy})=>{
+          const suffix=name.slice(prefix.length,-5),match=(legacy?/^([0-9a-f-]+)$/:/^([0-9a-f-]+)\.([1-9][0-9]{0,14})$/).exec(suffix),file=join(legacy?legacyDirectory:this.directory,name);
           if(!match||!uuid.test(match[1])||(await stat(file)).size>420000)throw Error('Invalid saved Main draft file');
           const value:unknown=JSON.parse(await readFile(file,'utf8'));
           if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid saved Main draft');
           const r=value as Record<string,unknown>;
-          if(r.version!==2||r.owner!==match[1]||r.revision!==Number(match[2])||!Number.isSafeInteger(r.revision)||Number(r.revision)>999999999999999||
+          if(r.version!==2||r.owner!==match[1]||(!legacy&&r.revision!==Number(match[2]))||!Number.isSafeInteger(r.revision)||Number(r.revision)<1||Number(r.revision)>999999999999999||
             !Array.isArray(r.parents)||r.parents.length>256||r.parents.some(parent=>typeof parent!=='string'||!headPattern.test(parent))||
             typeof r.text!=='string'||r.text.length>64000||(r.intentId!==undefined&&(typeof r.intentId!=='string'||!uuid.test(r.intentId))))
             throw Error('Invalid saved Main draft');
-          return r as RecordV2;
+          return {version:2,owner:r.owner as string,revision:r.revision as number,parents:r.parents as string[],text:r.text as string,
+            ...(typeof r.intentId==='string'?{intentId:r.intentId}:{}),...(legacy?{legacy:true as const}:{})} satisfies StoredRecord;
         }));
-        const latest=new Map<string,RecordV2>();
+        const oldOwners=new Set(all.filter(record=>record.legacy).map(record=>record.owner));
+        if(all.some(record=>!record.legacy&&oldOwners.has(record.owner)))throw Error('Main draft writer identity overlaps legacy storage');
+        const latest=new Map<string,StoredRecord>();
         for(const record of all){const prior=latest.get(record.owner);if(!prior||prior.revision<record.revision)latest.set(record.owner,record);}
         if(latest.size>256)throw Error('Too many saved Main draft writers');
         return allVersions?all:[...latest.values()];
@@ -85,8 +89,9 @@ export class MainDraftStore {
       const variants=leaves.filter(record=>record.text).map(record=>this.classify(record,evidence));
       state.conflict=variants.length>1;
       if(state.conflict)return{kind:'conflict',variants};
-      // A successful load establishes exactly which version the next edit extends.
-      for(const record of leaves)if(record.owner!==this.owner)state.parents.add(head(record));
+      // Legacy files cannot be removed safely. Carry their observed heads
+      // through every generation so compaction cannot resurrect an ancestor.
+      for(const record of records)if((record.legacy||leaves.includes(record))&&record.owner!==this.owner)state.parents.add(head(record));
       if(!variants.length)return;
       const {kind,text}=variants[0];return{kind,text};
     });
@@ -124,15 +129,15 @@ export class MainDraftStore {
   /** Remove only immutable versions already superseded in a validated snapshot. */
   async compact(sessionId:string):Promise<void>{
     const operation=this.pending.catch(()=>{}).then(async()=>{
-      const all=await this.records(sessionId,true),latest=new Map<string,RecordV2>();
+      const all=await this.records(sessionId,true),latest=new Map<string,StoredRecord>();
       for(const record of all){const prior=latest.get(record.owner);if(!prior||prior.revision<record.revision)latest.set(record.owner,record);}
       const records=[...latest.values()],leaves=this.leaves(records);
       // First remove older versions of every owner. If a superseded latest
       // version is removed first, an older one could reappear as a live draft.
-      for(const record of all)if(record.revision<latest.get(record.owner)!.revision)
+      for(const record of all)if(!record.legacy&&record.revision<latest.get(record.owner)!.revision)
         await rm(this.file(sessionId,record.owner,record.revision),{force:true});
       const visible=new Set(leaves.map(head));
-      for(const record of records)if(!visible.has(head(record)))await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+      for(const record of records)if(!record.legacy&&!visible.has(head(record)))await rm(this.file(sessionId,record.owner,record.revision),{force:true});
       const domain=await localProcessDomain();
       if(domain){
         const prefix=this.prefix(sessionId)+'.';
@@ -158,7 +163,8 @@ export class MainDraftStore {
       const records=await this.records(sessionId),leaves=this.leaves(records),actual=leaves.filter(record=>record.text).map(head).sort();
       if(JSON.stringify(reviewedIds)!==JSON.stringify(actual)||actual.length<2)throw Error('Main draft conflict changed; review again');
       if(!records.some(record=>record.owner===this.owner)&&records.length>=256)throw Error('Too many saved Main draft writers');
-      const state=this.state(sessionId),parents=new Set(state.parents);for(const record of leaves)if(record.owner!==this.owner)parents.add(head(record));
+      // Resolution also carries observed legacy heads across future compaction.
+      const state=this.state(sessionId),parents=new Set(state.parents);for(const record of records)if((record.legacy||leaves.includes(record))&&record.owner!==this.owner)parents.add(head(record));
       const candidate={...state,parents};await this.write(sessionId,candidate,snapshot);state.parents=parents;state.revision=candidate.revision;state.conflict=false;
     });
     this.pending=operation;await operation;

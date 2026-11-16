@@ -1606,7 +1606,7 @@ storage do not use that capability yet. These tests establish a prerequisite,
 not draft persistence or a complete solution to that crash boundary.
 An unconnected private storage component has focused tests for per-session
 files, bounded input, malformed-file preservation and correlating a prepared ID
-with the exact journal intent and text. Each instance writes its own file;
+with the exact journal intent and text. Each instance owns its versions;
 divergent versions are returned for explicit review, and resolution requires the
 exact versions reviewed. Tests cover two separate local processes and a version
 changing during review. A separate test kills a local writer after its save and
@@ -1624,10 +1624,12 @@ boot and PID namespace. A test pauses a live writer, then kills it, and verifies
 that only its attributable file is removed. Legacy, foreign-domain and
 unidentifiable temporary files remain; other platforms do not perform this
 cleanup. This is logical file deletion, not secure erasure from storage,
-backups or filesystem snapshots. The old experimental v2 format is retained
-and blocks use for the affected session until a migration is implemented.
-Broader interruption and filesystem coverage, retention policy and migration
-still need completion before the component is used by the editor.
+backups or filesystem snapshots. The old experimental v2 files remain readable and are never deleted by v3
+compaction. A continued legacy writer produces a conflict when its version
+changes; tests cover that case, multi-generation compaction and malformed legacy
+data. Old files can retain private text and still need a retirement policy.
+Broader interruption and filesystem coverage and retention policy still need
+completion before the component is used by the editor.
 The native presentation protocol has an optional, negotiated draft snapshot and
 revision-checked change operation. Legacy peers do not receive the new fields;
 focused tests cover negotiation, stale changes and hidden windows. No host

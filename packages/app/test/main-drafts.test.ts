@@ -306,3 +306,20 @@ it('preserves a legacy writer that changes its draft after a new process compact
   expect(result.variants.map(value=>value.text).sort()).toEqual(['legacy later','modern']);
  }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited.catch(()=>{});}}
 },15000);
+
+it('does not resurrect a retained legacy ancestor when older records lack direct ancestry',async()=>{
+ const {root}=await fixture(),seed=MainDraftStore.open(root);await seed.save('session',{text:'legacy'});
+ const {mkdir,rename}=await import('node:fs/promises'),v3=join(root,'main-drafts-v3'),v2=join(root,'main-drafts-v2');
+ await mkdir(v2);const name=(await readdir(v3))[0];await rename(join(v3,name),join(v2,name.replace(/\.1\.json$/,'.json')));
+ const bridge=MainDraftStore.open(root);await bridge.load('session',[]);await bridge.save('session',{text:'bridge'});
+ const bridgeFile=join(v3,(await readdir(v3))[0]),bridgeRecord=JSON.parse(await readFile(bridgeFile,'utf8'));
+ const newer=MainDraftStore.open(root);await newer.load('session',[]);await newer.save('session',{text:'current'});
+ const leafFile=join(v3,(await readdir(v3)).find(value=>join(v3,value)!==bridgeFile)!);
+ const leaf=JSON.parse(await readFile(leafFile,'utf8'));leaf.parents=[`${bridgeRecord.owner}:${bridgeRecord.revision}`];await writeFile(leafFile,JSON.stringify(leaf));
+ const reader=MainDraftStore.open(root);expect(await reader.load('session',[])).toEqual({kind:'draft',text:'current'});
+ await reader.compact('session');expect(await MainDraftStore.open(root).load('session',[])).toEqual({kind:'draft',text:'current'});
+ // A subsequent edit records the legacy head directly and permits compaction.
+ await reader.save('session',{text:'continued'});await reader.compact('session');
+ expect(await MainDraftStore.open(root).load('session',[])).toEqual({kind:'draft',text:'continued'});
+ expect(await readdir(v3)).toHaveLength(1);
+});

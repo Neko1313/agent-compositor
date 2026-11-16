@@ -1589,6 +1589,13 @@ file. See the current [write contract](core-customization.md#whole-file-writes).
 | Trust and resource control | Permission, scope, secret handling and source-injection scenarios preserve boundaries. Model calls, retries, workers and shell processes have enforceable budgets and cleanup | Existing guards and tests provide evidence for specific boundaries. Permission rules are not an OS sandbox. Threat-model review and broader adversarial sessions remain open. |
 | Release quality | All required tests, documentation, plugin certification, four-platform native builds and installed-archive smoke pass for the exact candidate. No known critical workflow failure remains | [v0.8.0](https://github.com/Neko1313/agent-compositor/releases/tag/v0.8.0), revision 4b5b297, passes candidate and tagged four-platform build/install checks, all 32 tagged runtime reports and checksum verification of all six public assets. Public Linux 0.7.4→0.8.0 upgrade preserves settings, prior binary and session context. Setup, independent conversation tabs and workflow PTY evidence matches public shipping files. Broader 1.0 gates remain open. |
 
+At source revision `a243d9c`, the actual PTY conversation-copy scenario passed
+both native and selected-editor compositions (eight checks total). It covered
+reopening closed windows, shared input and cursor, pending private requests,
+reload and session history after restart. The reports and captures are in
+`dist/goal-opentui-copies-current/`. This does not establish persistence of an
+unsent Main draft across process restart or certify a native release archive.
+
 Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
 contradictory or non-reproducible evidence leaves the gate open.
@@ -1627,7 +1634,10 @@ cleanup. This is logical file deletion, not secure erasure from storage,
 backups or filesystem snapshots. The old experimental v2 files remain readable and are never deleted by v3
 compaction. A continued legacy writer produces a conflict when its version
 changes; tests cover that case, multi-generation compaction and malformed legacy
-data. Old files can retain private text and still need a retirement policy.
+data. Compaction also preserves an intermediate record when it is the only
+link suppressing a retained legacy ancestor; a focused regression checks that a
+later edit permits compaction without resurrecting the old text. Old files can
+retain private text and still need a retirement policy.
 Broader interruption and filesystem coverage and retention policy still need
 completion before the component is used by the editor.
 The native presentation protocol has an optional, negotiated draft snapshot and

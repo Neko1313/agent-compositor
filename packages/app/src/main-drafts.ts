@@ -132,12 +132,19 @@ export class MainDraftStore {
       const all=await this.records(sessionId,true),latest=new Map<string,StoredRecord>();
       for(const record of all){const prior=latest.get(record.owner);if(!prior||prior.revision<record.revision)latest.set(record.owner,record);}
       const records=[...latest.values()],leaves=this.leaves(records);
-      // First remove older versions of every owner. If a superseded latest
-      // version is removed first, an older one could reappear as a live draft.
-      for(const record of all)if(!record.legacy&&record.revision<latest.get(record.owner)!.revision)
-        await rm(this.file(sessionId,record.owner,record.revision),{force:true});
-      const visible=new Set(leaves.map(head));
-      for(const record of records)if(!record.legacy&&!visible.has(head(record)))await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+      // A pre-migration chain may suppress a retained legacy version only
+      // through an intermediate record. Removing that bridge would resurrect
+      // the legacy draft. Wait for a new leaf that records the legacy head.
+      const legacyHeads=new Set(records.filter(record=>record.legacy).map(head));
+      const bridged=records.some(record=>!record.legacy&&record.parents.some(parent=>legacyHeads.has(parent)
+        &&!leaves.some(leaf=>leaf.parents.includes(parent))));
+      if(!bridged){
+        // Remove older versions first so they cannot reappear as live drafts.
+        for(const record of all)if(!record.legacy&&record.revision<latest.get(record.owner)!.revision)
+          await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+        const visible=new Set(leaves.map(head));
+        for(const record of records)if(!record.legacy&&!visible.has(head(record)))await rm(this.file(sessionId,record.owner,record.revision),{force:true});
+      }
       const domain=await localProcessDomain();
       if(domain){
         const prefix=this.prefix(sessionId)+'.';

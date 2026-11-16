@@ -26,6 +26,9 @@ export interface NativePresentationClient {
   onCtrlC(): 'exit'|'handled'|Promise<'exit'|'handled'>;
   pending():boolean;
   settled():Promise<void>;
+  settledDrafts(since?:number):Promise<'saved'|'unsaved'|'changed'>;
+  activity():number;
+  subscribeActivity(listener:()=>void):()=>void;
   generation():string;
 }
 
@@ -46,18 +49,20 @@ const initialNavigation:WindowNavigationSnapshot={revision:0,mode:'normal',query
 type Frame={id:string;revision:number;inputRevision:number};
 type Ticket={local:number;status:'pending'|'accepted'|'rejected';host?:number};
 type Track={issued:number;completed:number;raw:number;tickets:Ticket[]};
-type Pending={target:string;resolve:(receipt:NativeReceiptMessage|undefined)=>void};
+type Pending={target:string;blocking:boolean;resolve:(receipt:NativeReceiptMessage|undefined)=>void};
 
 /** Data-only local ports. Receipts acknowledge admission, never model completion. */
 export function createNativePresentationClient(send:(message:WireMessage)=>void):NativePresentationClient {
   const localHello=hello('renderer',{surfaces:['terminal'],sites:['conversation','tools','help','status','plugin:*'],
     elements:['Text','Box','Layout','Pointer',...nativeProtocolElements,COMPOSER_MEDIA_STATUS,NATIVE_STEER,NATIVE_PENDING_WORK,NATIVE_SESSION_RESTORING,NATIVE_MAIN_DRAFT,NATIVE_MAIN_DRAFT_REVIEW],encodings:['jsonl']});
   let closed=false,sentHello=false,peerHello=false,acknowledged=false,negotiated=false,allowEpoch=false,epoch='',stateRevision=-1,mediaRevision=-1,nextId=0;
+  let inputActivity=0;
   let initialized=false,resolveReady!:()=>void,rejectReady!:(reason:Error)=>void;
   const ready=new Promise<void>((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
   void ready.catch(()=>{});
   const retired=new Set<string>(),pending=new Map<number,Pending>(),waiters=new Set<()=>void>(),tracks=new Map<string,Track>();
   const surfaceChanges=new Set<object>(),surfaceSerial=new WeakMap<object,number>();
+  const draftWork=new Set<Promise<void>>(),draftVersions=new Map<string,number>(),draftFailures=new Set<string>(),activityListeners=new Set<()=>void>();
   const layout=store(initialLayout),navigation=store(initialNavigation),appearance=store<AppearanceSnapshot>({revision:0,appearance:{}});
   const windows=store<readonly ConversationWindow[]>([]),surfaceList=store<readonly UiSurfaceSource[]>([]);
   let canonical:readonly ConversationSession[]=[],commands:readonly string[]=[];
@@ -75,23 +80,27 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
   let dimensions={width:8,height:4},mediaFrame:MediaFrame|undefined,mediaEnabled=false,mediaActive=false,mediaExpanded=false,mediaStatus=false;
   let mediaPresentation:Extract<WireMessage,{type:'native-media'}>['presentation'];
 
-  function idle(){if(!pending.size&&!surfaceChanges.size){for(const done of waiters)done();waiters.clear();}}
+  function blocking(){return [...pending.values()].some(value=>value.blocking);}
+  function idle(){if(!blocking()&&!surfaceChanges.size){for(const done of waiters)done();waiters.clear();}}
   function settle(id:number,receipt?:NativeReceiptMessage){const entry=pending.get(id);if(!entry)return;
     pending.delete(id);entry.resolve(receipt);idle();}
   function revoke(target?:string){for(const [id,entry] of [...pending])if(target===undefined||entry.target===target)settle(id);}
-  function request(target:string,operation:NativeOperation,revision?:number):NativeReceiptMessage|undefined|Promise<NativeReceiptMessage|undefined>{
+  function request(target:string,operation:NativeOperation,revision?:number,blocksInput=true):NativeReceiptMessage|undefined|Promise<NativeReceiptMessage|undefined>{
     if(closed||!initialized)return;
     const id=++nextId,parsed=nativeInputMessage.safeParse({type:'native-input',epoch,id,target,operation,...revision===undefined?{}:{revision}});
     if(!parsed.success)return;
+    const navigationCtrlC=operation.kind==='navigation-handle'&&operation.input.kind==='key'&&operation.input.key.toLowerCase()==='c'
+      &&operation.input.modifiers?.some(value=>value==='ctrl'||value==='control')&&!operation.input.modifiers?.some(value=>value==='alt'||value==='meta');
+    if(!navigationCtrlC&&!['draft-change','ctrl-c','layout-resize','controller-viewport','editor-viewport','public-measure','media-active'].includes(operation.kind)){inputActivity++;for(const listener of activityListeners)listener();}
     let received=false,result:NativeReceiptMessage|undefined,resolve!:Pending['resolve'];
     const promise=new Promise<NativeReceiptMessage|undefined>(done=>{resolve=receipt=>{received=true;result=receipt;done(receipt);};});
-    pending.set(id,{target,resolve});
+    pending.set(id,{target,resolve,blocking:blocksInput});
     try{send(parsed.data);}catch{settle(id);}
     // A synchronous transport can deliver its receipt inside send().
     return received?result:promise;
   }
-  function accepted(target:string,operation:NativeOperation,revision?:number):boolean|Promise<boolean>{
-    const result=request(target,operation,revision);
+  function accepted(target:string,operation:NativeOperation,revision?:number,blocksInput=true):boolean|Promise<boolean>{
+    const result=request(target,operation,revision,blocksInput);
     return result instanceof Promise?result.then(value=>value?.status==='accepted'):result?.status==='accepted';
   }
   function fire(target:string,operation:NativeOperation,revision?:number){void accepted(target,operation,revision);}
@@ -155,7 +164,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     const interaction=(id:string)=>!entry.dto.snapshot.controller&&entry.dto.snapshot.interaction?.id===id;
     const optional={
       steer:(text:string)=>isSession(entry)?accepted(entry.dto.port,{kind:'steer',text}):false,
-      draftChange:(text:string,revision:number)=>isSession(entry)?accepted(entry.dto.port,{kind:'draft-change',text,revision}):false,
+      draftChange:(text:string,revision:number)=>isSession(entry)?accepted(entry.dto.port,{kind:'draft-change',text,revision},undefined,false):false,
       draftReview:(revision:number)=>isSession(entry)?accepted(entry.dto.port,{kind:'draft-review',revision}):false,
       draftResolve:(ids:readonly string[],text:string,revision:number)=>isSession(entry)?accepted(entry.dto.port,{kind:'draft-resolve',ids:[...ids],text,revision}):false,
       draftRefresh:(revision:number)=>isSession(entry)?accepted(entry.dto.port,{kind:'draft-refresh',revision}):false,
@@ -174,6 +183,15 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     entry.source={get id(){return entry.dto.id;},get conversationId(){return entry.dto.conversationId;},get generation(){return entry.dto.generation;},
       get paneId(){return entry.dto.paneId;},get label(){return entry.dto.label;},isCurrent:()=>isSession(entry),snapshot:entry.value.snapshot,subscribe:entry.value.subscribe,
       submit:text=>isSession(entry)?accepted(entry.dto.port,{kind:'submit',text}):false,
+      trackDraftWork(work,blocksInput=true){
+        const token={},key=JSON.stringify([epoch,entry.dto.conversationId??entry.dto.id,entry.dto.id]);
+        if(blocksInput)surfaceChanges.add(token);
+        const sequence=(draftVersions.get(key)??0)+(blocksInput?0:1);if(!blocksInput)draftVersions.set(key,sequence);
+        let tracked!:Promise<void>;
+        tracked=work.then(value=>{if((draftVersions.get(key)??0)===sequence){if(value)draftFailures.delete(key);else if(!blocksInput)draftFailures.add(key);}},
+          ()=>{if(!blocksInput&&draftVersions.get(key)===sequence)draftFailures.add(key);}).finally(()=>{surfaceChanges.delete(token);draftWork.delete(tracked);idle();});
+        draftWork.add(tracked);
+      },
       isImmediateCommand:text=>isSession(entry)&&commands.includes(text.trim().split(/\s+/,1)[0]),
     };
     for(const name of Object.keys(optional) as (keyof typeof optional)[])Object.defineProperty(entry.source,name,{enumerable:true,get:()=>has(name)?optional[name]:undefined});
@@ -350,7 +368,7 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     },
     close(){if(closed)return;
       if(mediaEnabled)fire('@media',mediaOperation(false,false,false));
-      closed=true;revoke();surfaceChanges.clear();idle();tracks.clear();mediaFrame=undefined;mediaPresentation=undefined;dimensions={width:8,height:4};notifyMedia();mediaListeners.clear();
+      closed=true;revoke();surfaceChanges.clear();idle();tracks.clear();activityListeners.clear();mediaFrame=undefined;mediaPresentation=undefined;dimensions={width:8,height:4};notifyMedia();mediaListeners.clear();
       rejectReady(new Error('Native presentation closed before initial state'));},
     sessions:()=>canonical,conversationWindows:windows,surfaces:surfaceList,
     windowLayout:{snapshot:layout.snapshot,subscribe:layout.subscribe,resize:(width,height)=>fire('@layout',{kind:'layout-resize',width,height}),act:action=>fire('@layout',{kind:'layout-action',action})},
@@ -369,7 +387,9 @@ export function createNativePresentationClient(send:(message:WireMessage)=>void)
     onCtrlC(){if(closed)return 'exit';const result=request('@host',{kind:'ctrl-c'});
       const outcome=(value:NativeReceiptMessage|undefined)=>value?.status==='accepted'&&value.ctrlC==='exit'?'exit' as const:'handled' as const;
       return result instanceof Promise?result.then(outcome):outcome(result);},
-    pending:()=>pending.size>0||surfaceChanges.size>0,settled:()=>pending.size||surfaceChanges.size?new Promise<void>(resolve=>waiters.add(resolve)):Promise.resolve(),
+    pending:()=>blocking()||surfaceChanges.size>0,settled:()=>blocking()||surfaceChanges.size?new Promise<void>(resolve=>waiters.add(resolve)):Promise.resolve(),
+    async settledDrafts(since=inputActivity){while(draftWork.size)await Promise.all([...draftWork]);return inputActivity!==since?'changed':draftFailures.size?'unsaved':'saved';},
+    activity:()=>inputActivity,subscribeActivity(listener){activityListeners.add(listener);return()=>{activityListeners.delete(listener);};},
     generation:()=>JSON.stringify([epoch,...canonical.map(value=>[value.conversationId??value.id,value.id,value.generation??value.id])]),
   };
   return client;

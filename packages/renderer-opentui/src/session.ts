@@ -44,6 +44,8 @@ export interface ConversationSession {
   subscribe(callback: () => void): () => void;
   submit(text: string): void|boolean|Promise<boolean>;
   steer?(text: string): void|boolean|Promise<boolean>;
+  /** Renderer-local input barrier; never serialized to the host. */
+  trackDraftWork?(work:Promise<boolean>,blocking?:boolean):void;
   draftChange?(text:string,revision:number):boolean|Promise<boolean>;
   draftReview?(revision:number):boolean|Promise<boolean>;
   draftResolve?(ids:readonly string[],text:string,revision:number):boolean|Promise<boolean>;

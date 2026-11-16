@@ -418,4 +418,92 @@ describe.skipIf(Number(process.versions.node.split('.')[0])<26)('native producti
     await f.test.mockInput.pasteBracketedText('NEW_😀窗');await f.until(()=>f.client.navigation.snapshot().query==='NEW_😀窗');
     expect(f.editor().plainText).not.toContain('OLD_😀窗');expect(f.provider.requests).toHaveLength(1);
   });
+  it.each(['local','saved'] as const)('requires an explicit %s choice when a carried input differs from the resumed session draft',async choice=>{
+    const f=await fixture(),{MainDraftStore}=await import('../../app/src/main-drafts.js');
+    const cwd=f.app.storage.paths.project,old=f.host.core,fork=await f.app.store.fork(old.sessionId,{},cwd);
+    await MainDraftStore.open(f.app.storage.paths.state).save(fork.id,{text:'SAVED_TARGET'});
+    await f.test.mockInput.pasteBracketedText('LOCAL_UNSENT');await f.until(()=>f.editor().plainText==='LOCAL_UNSENT'&&!f.client.pending());
+    await old.host.emit('service.session.control',{action:'resume',id:fork.id});
+    await f.until(()=>f.test.captureCharFrame().includes('Preview: local'));
+    expect(f.editor().plainText).toBe('LOCAL_UNSENT');expect(f.provider.requests).toHaveLength(0);
+    f.packet('\x05');await f.until(()=>f.editor().plainText==='SAVED_TARGET');
+    f.packet(choice==='local'?'\x0c':'\x12');const expected=choice==='local'?'LOCAL_UNSENT':'SAVED_TARGET';
+    await f.until(()=>f.editor().plainText===expected&&!f.test.captureCharFrame().includes('Preview: local'));
+    await f.until(()=>f.host.session.snapshot().draft?.text===expected);expect(f.provider.requests).toHaveLength(0);
+  },12000);
+
+  it('keeps window navigation usable while a draft save receipt is delayed',async()=>{
+    const f=await fixture();f.holdWhen(input=>input?.operation.kind==='draft-change');
+    await f.test.mockInput.pasteBracketedText('BACKGROUND_DRAFT');await f.until(()=>f.held.length>0&&f.editor().plainText==='BACKGROUND_DRAFT');
+    expect(f.client.pending()).toBe(false);f.packet('\x1bw');
+    await f.until(()=>f.client.navigation.snapshot().mode==='arrange');
+    expect(f.provider.requests).toHaveLength(0);expect(f.held.length).toBeGreaterThan(0);f.release();
+  },12000);
+
+  it('saves later typing after returning from navigation during a delayed draft receipt',async()=>{
+    const f=await fixture();f.holdWhen(input=>input?.operation.kind==='draft-change');
+    await f.test.mockInput.pasteBracketedText('PREFIX');await f.until(()=>f.held.length>0&&f.editor().plainText==='PREFIX');
+    await f.test.mockInput.pasteBracketedText('_LATER');await f.until(()=>f.editor().plainText==='PREFIX_LATER');
+    f.packet('\x1bw');await f.until(()=>f.client.navigation.snapshot().mode==='arrange');f.release();
+    await f.until(()=>f.test.captureCharFrame().includes('Draft not saved'));
+    f.packet('\x1b');await f.until(()=>f.client.navigation.snapshot().mode==='normal');
+    await f.until(()=>f.host.session.snapshot().draft?.text==='PREFIX_LATER');expect(f.provider.requests).toHaveLength(0);
+  },12000);
+
+  it('waits for queued draft edits before a normal Ctrl+C exit',async()=>{
+    const f=await fixture(),{MainDraftStore}=await import('../../app/src/main-drafts.js');
+    f.holdWhen(input=>input?.operation.kind==='draft-change');
+    await f.test.mockInput.pasteBracketedText('BEFORE');await f.until(()=>f.held.length>0&&f.editor().plainText==='BEFORE');
+    await f.test.mockInput.pasteBracketedText('_EXIT');await f.until(()=>f.editor().plainText==='BEFORE_EXIT');
+    f.packet('\x03');await f.test.flush({maxPasses:30});expect(f.exited()).toBe(false);
+    f.release();await f.until(()=>f.exited());
+    expect(await MainDraftStore.open(f.app.storage.paths.state).load(f.host.core.sessionId,[])).toEqual({kind:'draft',text:'BEFORE_EXIT'});
+    expect(f.provider.requests).toHaveLength(0);
+  },12000);
+
+  it('lets the user cancel or explicitly force an exit while draft saving waits',async()=>{
+    const f=await fixture();f.holdWhen(input=>input?.operation.kind==='draft-change');
+    await f.test.mockInput.pasteBracketedText('KEEP_WAITING');await f.until(()=>f.held.length>0);
+    f.packet('\x03');await f.until(()=>f.test.captureCharFrame().includes('Ctrl+C again exits without waiting'));
+    f.packet('\x1b[D');await f.until(()=>!f.test.captureCharFrame().includes('Ctrl+C again exits without waiting'));
+    f.release();await f.until(()=>!f.client.pending());expect(f.exited()).toBe(false);
+    f.holdWhen(input=>input?.operation.kind==='draft-change');await f.test.mockInput.pasteBracketedText('X');await f.until(()=>f.held.length>0);
+    f.packet('\x03');await f.until(()=>f.test.captureCharFrame().includes('Ctrl+C again exits without waiting'));
+    f.packet('\x03');await f.until(()=>f.exited());f.release();expect(f.provider.requests).toHaveLength(0);
+  },12000);
+
+  it('cancels a pending graceful exit when the user clicks elsewhere',async()=>{
+    const f=await fixture();f.holdWhen(input=>input?.operation.kind==='draft-change');
+    await f.test.mockInput.pasteBracketedText('KEEP_ON_CLICK');await f.until(()=>f.held.length>0);
+    f.packet('\x03');await f.until(()=>f.test.captureCharFrame().includes('Ctrl+C again exits without waiting'));
+    await f.test.mockMouse.click(5,5);await f.until(()=>!f.test.captureCharFrame().includes('Ctrl+C again exits without waiting'));
+    f.release();await f.until(()=>!f.client.pending());expect(f.exited()).toBe(false);
+  },12000);
+
+  it('cancels a pending graceful exit when the user pastes more input',async()=>{
+    const f=await fixture();f.holdWhen(input=>input?.operation.kind==='draft-change');
+    await f.test.mockInput.pasteBracketedText('KEEP_ON_PASTE');await f.until(()=>f.held.length>0);
+    f.packet('\x03');await f.until(()=>f.test.captureCharFrame().includes('Ctrl+C again exits without waiting'));
+    await f.test.mockInput.pasteBracketedText('_MORE');await f.until(()=>!f.test.captureCharFrame().includes('Ctrl+C again exits without waiting'));
+    f.release();await f.until(()=>f.editor().plainText==='KEEP_ON_PASTE_MORE');expect(f.exited()).toBe(false);
+  },12000);
+
+  it('does not exit if new input arrives before the Ctrl+C decision',async()=>{
+    const f=await fixture();f.holdWhen(input=>input?.operation.kind==='ctrl-c');
+    f.packet('\x03');await f.until(()=>f.held.length>0);
+    await f.test.mockInput.pasteBracketedText('AFTER_EXIT_REQUEST');f.release();
+    await f.until(()=>f.editor().plainText==='AFTER_EXIT_REQUEST'&&!f.client.pending());
+    expect(f.exited()).toBe(false);expect(f.provider.requests).toHaveLength(0);
+  },12000);
+
+  it('keeps the application open after an unacknowledged draft save until the user retries',async()=>{
+    const f=await fixture();f.holdWhen(input=>input?.operation.kind==='draft-change');
+    await f.test.mockInput.pasteBracketedText('UNACKNOWLEDGED');await f.until(()=>f.held.length>0);
+    const receipt=f.held.shift()!;f.holdWhen(()=>false);f.client.receive({...receipt,status:'rejected'});
+    await f.until(()=>f.test.captureCharFrame().includes('Draft not saved'));
+    f.packet('\x03');await f.until(()=>f.test.captureCharFrame().includes('Draft not saved · Ctrl+C again exits without saving'));
+    expect(f.exited()).toBe(false);f.packet('X');await f.until(()=>f.editor().plainText==='UNACKNOWLEDGEDX');
+    await f.until(()=>f.host.session.snapshot().draft?.text==='UNACKNOWLEDGEDX');f.packet('\x03');await f.until(()=>f.exited());
+  },12000);
+
 });

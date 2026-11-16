@@ -73,6 +73,29 @@ describe('native presentation client',()=>{
     t.receipt(t.inputs.at(-1)!.id);expect(await refresh).toBe(true);t.client.close();
   });
 
+  it('keeps native input queued until local draft work settles',async()=>{
+    const t=transport();let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+    t.client.sessions()[0].trackDraftWork!(gate);expect(t.client.pending()).toBe(true);
+    let settled=false;void t.client.settled().then(()=>{settled=true;});await tick();expect(settled).toBe(false);
+    release();await t.client.settled();expect(t.client.pending()).toBe(false);expect(settled).toBe(true);t.client.close();
+  });
+
+  it('tracks background draft failure for safe exit without blocking navigation',async()=>{
+    const t=transport();let release!:(value:boolean)=>void;const gate=new Promise<boolean>(resolve=>{release=resolve;});
+    t.client.sessions()[0].trackDraftWork!(gate,false);expect(t.client.pending()).toBe(false);
+    let finished=false;const exiting=t.client.settledDrafts().then(value=>{finished=true;return value;});await tick();expect(finished).toBe(false);
+    release(false);expect(await exiting).toBe('unsaved');
+    t.client.sessions()[0].trackDraftWork!(Promise.resolve(true));expect(await t.client.settledDrafts()).toBe('saved');
+    t.client.sessions()[0].trackDraftWork!(Promise.resolve(false),false);expect(await t.client.settledDrafts()).toBe('unsaved');
+    t.client.sessions()[0].trackDraftWork!(Promise.resolve(true),false);expect(await t.client.settledDrafts()).toBe('saved');t.client.close();
+  });
+
+  it('cancels an exit decision when new user activity occurs while saving',async()=>{
+    const t=transport();let release!:(value:boolean)=>void;const gate=new Promise<boolean>(resolve=>{release=resolve;});
+    t.client.sessions()[0].trackDraftWork!(gate,false);const before=t.client.activity(),waiting=t.client.settledDrafts(before);
+    t.client.navigation.handle({kind:'key',key:'F2'});release(true);expect(await waiting).toBe('changed');t.client.close();
+  });
+
   it('retains synchronous submit admission and navigation consumed semantics',()=>{
     const t=transport({consume:input=>input.operation.kind==='navigation-handle'&&input.operation.input.kind==='key'&&input.operation.input.key==='F2'});
     expect(t.client.sessions()[0].submit('draft 窗')).toBe(true);

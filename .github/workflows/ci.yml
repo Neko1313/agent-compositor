@@ -51,6 +51,14 @@ jobs:
         if: matrix.node == '26'
         timeout-minutes: 7
         run: npm run visual:opentui-app
+      - name: Check OpenTUI Main draft recovery
+        if: matrix.node == '26'
+        timeout-minutes: 7
+        shell: bash
+        run: |
+          for scenario in normal review review_mouse conflict conflict_many conflict_mouse kill rapid quit; do
+            VISUAL_DRAFT_SCENARIO="$scenario" VISUAL_OUTPUT="dist/visual-opentui-main-draft/$scenario" npm run visual:opentui-main-draft
+          done
       - name: Check Ink terminal background selection
         if: matrix.node == '26'
         timeout-minutes: 3
@@ -198,6 +206,7 @@ jobs:
             dist/visual-ink-background/*/screen.png
             dist/visual-ink-background/*/failure.png
             dist/visual-opentui-app/
+            dist/visual-opentui-main-draft/
             dist/visual-opentui-recovery/
             dist/visual-opentui-recovery-current/
             dist/visual-ink-recovery-current/

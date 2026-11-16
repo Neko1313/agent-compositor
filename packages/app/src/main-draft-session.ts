@@ -72,7 +72,13 @@ export class MainDraftSession {
       if(!this.live())return false;
       this.publish({status:'review',text});
       const result=await invoke();
-      if(!result||!this.live())return result;
+      if(!this.live())return result;
+      if(!result){
+        // A negative host admission explicitly means no command was dispatched.
+        try{await this.store.save(this.core.sessionId,{text});if(this.live())this.publish({status:'draft',text});}
+        catch{/* Keep the ambiguous marker if restoring the draft fails. */}
+        return false;
+      }
       try{await this.store.clear(this.core.sessionId);if(this.live())this.publish({status:'draft',text:''});}
       catch{/* The command was accepted. Never dispatch it twice on cleanup failure. */}
       return result;

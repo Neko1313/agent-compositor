@@ -116,3 +116,10 @@ it('retains an ambiguous host command if cleanup fails after its effect',async()
  expect(await f.session.command('/example',f.session.snapshot().revision,async()=>{calls++;return 'command';})).toBe(false);
  expect(calls).toBe(1);expect(await MainDraftStore.open(f.root).load(f.core.sessionId,[])).toEqual({kind:'review',text:'/example'});
 });
+
+it('keeps an explicitly rejected host command editable',async()=>{
+ const f=await fixture();await f.session.change('/invalid arguments',f.session.snapshot().revision);
+ expect(await f.session.command('/invalid arguments',f.session.snapshot().revision,async()=>false)).toBe(false);
+ expect(f.session.snapshot()).toMatchObject({status:'draft',text:'/invalid arguments'});
+ expect(await MainDraftStore.open(f.root).load(f.core.sessionId,[])).toEqual({kind:'draft',text:'/invalid arguments'});
+});

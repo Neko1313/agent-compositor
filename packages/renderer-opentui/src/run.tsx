@@ -10,7 +10,7 @@ import {isWindowGestureCancelKey,type WindowLayoutSource} from './layout.js';
 import type {UiSurfaceRegistry,UiSurfaceSource} from './surface.js';
 import type {WindowNavigationInput,WindowNavigationSource} from './navigation.js';
 import {useKeyboard} from '@opentui/react';
-import {useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {createEditorInputOwnership} from './editor-ownership.js';
 import type {ConversationWindowRegistry} from './conversation-windows.js';
 import {AppearanceProvider,type AppearanceSource} from './appearance.js';
@@ -38,7 +38,7 @@ export interface OpenTuiOptions {
   environment?: Readonly<Record<string,string>>;
   onCtrlC?(): 'exit'|'handled'|Promise<'exit'|'handled'>;
   /** Only protocol admission is awaited, never an agent or controller task. */
-  inputAdmission?:{pending():boolean;settled():Promise<void>;generation():string};
+  inputAdmission?:{pending():boolean;settled():Promise<void>;settledDrafts?(since?:number):Promise<'saved'|'unsaved'|'changed'>;activity?():number;subscribeActivity?(listener:()=>void):()=>void;generation():string};
   signal?:AbortSignal;
 }
 
@@ -73,7 +73,7 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   type MouseResult='target-unavailable'|{selected:string;owner:UiSurfaceSource|ConversationSession;editor:TextareaRenderable}|void;
   type QueuedInput={generation:string;epoch:number}&({kind:'key';key:KeyEvent}|{kind:'paste';event:PasteEvent}|{kind:'mouse';run():MouseResult});
   const queued:QueuedInput[]=[];
-  const retained:QueuedInput[]=[];let inputEpoch=0,awaitingTarget=false,showInputNotice:(notice:string|undefined)=>void=()=>{};
+  const retained:QueuedInput[]=[];let inputEpoch=0,awaitingTarget=false,showInputNotice:(notice:string|undefined)=>void=()=>{},cancelDraftExit=()=>{},localActivity=0;
   const generation=()=>options.inputAdmission?.generation()??'';
   const settled=()=>options.inputAdmission?.settled()??Promise.resolve();
   function recoveryAllowed(id:string,owner?:UiSurfaceSource|ConversationSession):boolean{
@@ -165,8 +165,10 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
     queued.push({kind:'mouse',run,generation:generation(),epoch:inputEpoch});
     if(!draining){draining=true;void drain();}return true;
   }
-  const captureKey=(key:KeyEvent)=>capture({kind:'key',key,generation:generation(),epoch:inputEpoch},key);
+  const captureKey=(key:KeyEvent)=>{if(!replaying&&!key.defaultPrevented&&!(key.ctrl&&!key.meta&&key.name==='c')){localActivity++;cancelDraftExit();}
+    capture({kind:'key',key,generation:generation(),epoch:inputEpoch},key);};
   const capturePaste=(event:PasteEvent)=>{
+    if(!replaying&&!event.defaultPrevented){localActivity++;cancelDraftExit();}
     // Preserve the original bytes/caret edit while a preceding window command
     // crosses the transport. Only admission, not model completion, serializes it.
     capture({kind:'paste',event,generation:generation(),epoch:inputEpoch},event);
@@ -174,19 +176,34 @@ export async function runConversationPrototype(sessions: ConversationSession[], 
   if(options.navigation||options.inputAdmission){renderer.keyInput.prependListener('keypress',captureKey);renderer.keyInput.prependListener('paste',capturePaste);}
   function Desktop(){
     const [inputNotice,setInputNotice]=useState<string>();showInputNotice=setInputNotice;
+    const exitAttempt=useRef(0),waitingToExit=useRef(false);
+    cancelDraftExit=()=>{if(waitingToExit.current){waitingToExit.current=false;exitAttempt.current++;setInputNotice(undefined);}};
+    useEffect(()=>options.inputAdmission?.subscribeActivity?.(()=>cancelDraftExit()),[]);
     useKeyboard(key=>{
-      if(key.defaultPrevented||(!options.onCtrlC&&!runtime)||!key.ctrl||key.meta||key.name!=='c')return;
-      key.preventDefault();
-      if(!key.repeated){
-        const result=options.onCtrlC?.()??'exit';
-        if(typeof result==='string'){if(result==='exit')destroy();}
-        else void result.then(decision=>{if(decision==='exit')destroy();},error=>{inputFailure=error;destroy();});
-      }
+      const exitKey=key.ctrl&&!key.meta&&key.name==='c';
+      if(!exitKey)cancelDraftExit();
+      if(key.defaultPrevented||(!options.onCtrlC&&!runtime)||!exitKey)return;
+      key.preventDefault();if(key.repeated)return;
+      if(waitingToExit.current){waitingToExit.current=false;exitAttempt.current++;destroy();return;}
+      const activity=options.inputAdmission?.activity?.(),localAtRequest=localActivity;
+      const result=options.onCtrlC?.()??'exit';
+      const finish=async(decision:'exit'|'handled')=>{
+        if(decision!=='exit'||localActivity!==localAtRequest)return;
+        const attempt=++exitAttempt.current;waitingToExit.current=true;
+        setInputNotice('Saving draft · Ctrl+C again exits without waiting · any key cancels');
+        const result=await (options.inputAdmission?.settledDrafts?.(activity)??Promise.resolve('saved' as const));
+        if(attempt!==exitAttempt.current||localActivity!==localAtRequest)return;
+        if(result==='saved'){waitingToExit.current=false;destroy();}
+        else if(result==='changed'){waitingToExit.current=false;setInputNotice(undefined);}
+        else setInputNotice('Draft not saved · Ctrl+C again exits without saving · any key cancels');
+      };
+      if(typeof result==='string')void finish(result);
+      else void result.then(finish,error=>{inputFailure=error;destroy();});
     });
     return <TmuxComposerProvider runtime={runtime}><AppearanceProvider source={options.appearance}><ConversationView sessions={sessions} workflowTable={options.workflowTable}
       pluginManager={options.pluginManager} windowLayout={options.windowLayout} surfaces={options.surfaces} navigation={options.navigation}
       animations={options.animations??true} composerMedia={options.composerMedia} editorOwnership={editorOwnership}
-      conversationWindows={options.conversationWindows} publicRender={options.publicRender} scheduleMouse={scheduleMouse} inputNotice={inputNotice} /></AppearanceProvider></TmuxComposerProvider>;
+      conversationWindows={options.conversationWindows} publicRender={options.publicRender} scheduleMouse={scheduleMouse} inputNotice={inputNotice} onUserMouse={()=>{localActivity++;cancelDraftExit();}} /></AppearanceProvider></TmuxComposerProvider>;
   }
   try {
     renderer.keyInput.setMaxListeners(keyboardListenerLimit);

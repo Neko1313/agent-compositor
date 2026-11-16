@@ -1600,27 +1600,26 @@ Each gate needs links to source, commands, immutable revisions and retained run
 artifacts. A narrow passing check cannot close a broader gate. Missing,
 contradictory or non-reproducible evidence leaves the gate open.
 
-Main's ordinary unsent draft is still memory-only. Before persisting it, the
-host must distinguish a draft from an identical input already admitted to the
+The built-in OpenTUI Main editor now persists unsent text per session. Ink and
+selected plugin editors still keep their ordinary Main drafts in memory. Durable
+recovery must distinguish a draft from identical input already admitted to the
 session, including a crash between journal admission and editor acknowledgement.
 The [identical-input regression](../packages/core/test/followup-interruption.test.ts)
 queues two identical messages, retries one by its recovery ID and checks that
 the other remains available after journal replay. Matching by text alone would
 conflate them. Core can now reserve a single-use input identity before starting
 admission, and controlled tests correlate it with new, queued and steering intent
-records, including a late write after interruption. The Main editor and its
-storage do not use that capability yet. These tests establish a prerequisite,
-not draft persistence or a complete solution to that crash boundary.
-An unconnected private storage component has focused tests for per-session
+records, including a late write after interruption. The built-in OpenTUI editor
+uses that capability; the Core tests alone do not establish all crash boundaries.
+The private storage component has focused tests for per-session
 files, bounded input, malformed-file preservation and correlating a prepared ID
 with the exact journal intent and text. Each instance owns its versions;
 divergent versions are returned for explicit review, and resolution requires the
 exact versions reviewed. Tests cover two separate local processes and a version
 changing during review. A separate test kills a local writer after its save and
 reads and edits the draft from a new process context. These checks do not
-establish network-filesystem or arbitrary crash durability. The component is not connected to the Main editor
-or either terminal renderer. No user-facing draft restoration is claimed from
-these component tests. The replacement storage format writes immutable version
+establish network-filesystem or arbitrary crash durability. These component
+tests alone do not establish the visible recovery workflow. The replacement storage format writes immutable version
 files. Saving automatically compacts after 64 versions; explicit compaction is
 also available. Both remove only versions superseded in a validated snapshot,
 while preserving conflict leaves; tests cover concurrent writers, clearing and
@@ -1640,8 +1639,7 @@ data. Compaction also preserves an intermediate record when it is the only
 link suppressing a retained legacy ancestor; a focused regression checks that a
 later edit permits compaction without resurrecting the old text. Old files can
 retain private text and still need a retirement policy.
-Broader interruption and filesystem coverage and retention policy still need
-completion before the component is used by the editor.
+Broader interruption, filesystem and retention-policy coverage remain open.
 A session-scoped coordinator now saves a prepared input identity before calling
 Core admission, blocks stale revisions and retains ambiguous input for explicit
 review if admission or clearing fails. Focused tests cover queued admission,
@@ -1650,16 +1648,27 @@ model. OpenTUI's host now binds the coordinator to each Core generation and
 accepts negotiated, revision-checked changes for the built-in editor. Once a
 client opts in, normal prompts and host commands are armed before dispatch.
 Host and wire tests cover a resumed session, stale ports, a prompt and a command.
-The renderer does not yet consume the draft or opt into change tracking; fast
-typing, review/conflict controls, selected editors and the visible restart flow
-still require implementation and end-to-end verification.
+The built-in renderer now consumes draft state, serializes edits around Enter,
+and presents explicit review and conflict selection. The PTY scenario verifies
+normal restart, SIGKILL after a saved edit, ambiguous input, fast Enter with
+later typing and conflict selection with a loopback provider. These are scoped
+checks, not arbitrary crash or power-loss durability; selected editors and broader
+terminal coverage remain open.
 The native presentation protocol negotiates draft exchange and a separate
 optional review capability. The latter carries conflict variants and explicit
 review, resolution and refresh actions; older peers receive only the fields they
 understand. Host, client and wire tests cover stale versions, hidden windows,
-conflict refresh and explicit review without a model call. The host provides
-these operations for its built-in editor; rapid-edit synchronization and the
-visible recovery workflow remain to be implemented and tested.
+conflict refresh and explicit review without a model call. The built-in renderer
+uses these operations. Nine dedicated PTY scenarios passed against a locally
+built, relocated Linux x64 executable
+(SHA-256 `34ce8da1eace32fc9e16861e1abbc91e101d626748ad147d073e09d6ecde5ca2`):
+normal resume, review by keyboard and mouse, conflict selection, a second conflict
+page, conflict selection by mouse, SIGKILL after a saved edit, Enter followed by
+later input, and a normal Ctrl+C exit with a pending edit. The external renderer's
+SHA-256 is `cd7977d88bbf53d2e94891804856124c5f2af563887dc9586b9511a871ded196`.
+Reports are in `dist/goal-main-draft-ultimate-*`. They do not certify other
+platforms or a physical terminal. The scenarios are included in source CI and
+the four-platform installed-archive workflow for future runs.
 
 The [check/report cooperation test](../packages/app/test/check-report-cooperation.test.ts)
 runs actual Vitest through `project_check`, reads its generated JSON through

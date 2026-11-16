@@ -10,6 +10,7 @@ import { Interaction } from './interaction.js';
 import { isWindowGestureCancelKey, windowActionForKey, type WindowFrame, type WindowLayoutAction, type WindowLayoutSource } from './layout.js';
 import { Plugins, type PluginManagerSource } from './plugins.js';
 import type { ConversationSession } from './session.js';
+import {MainDraftQueue} from './main-draft-queue.js';
 import {ApprovalCard} from './approval-card.js';
 import { PluginTable, type PluginTableSource } from './table.js';
 import {SurfaceView} from './surface-view.js';
@@ -184,7 +185,54 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   const state = useSyncExternalStore(useSessionSubscription(selected), () => selected.snapshot());
   const publicState=usePublicRenderSnapshot(publicRender);
   const editor = useRef<TextareaRenderable>(null);
-  const pendingSend=useRef<ConversationSession|undefined>(undefined);
+  const pendingSend=useRef<ConversationSession|undefined>(undefined),pendingText=useRef<string|undefined>(undefined);
+  const admittedRetained=useRef<{session:string;text:string}|undefined>(undefined);
+  const selectedRef=useRef(selected);selectedRef.current=selected;
+  const queue=useRef<MainDraftQueue|undefined>(undefined),queueIdentity=useRef(''),hydrated=useRef(''),suppressDraft=useRef(false);
+  const parked=useRef(new Map<string,string>()),previousSession=useRef(''),carryDraft=useRef<string|undefined>(undefined);
+  const [draftError,setDraftError]=useState('');
+  const [draftPage,setDraftPage]=useState(0),[draftHydration,setDraftHydration]=useState(0);
+  const [draftChoice,setDraftChoice]=useState<string|undefined>();
+  const [localConflict,setLocalConflict]=useState<{session:string;local:string;saved:string}>(),[localPreview,setLocalPreview]=useState<'local'|'saved'>('local');
+  const localConflictRef=useRef<typeof localConflict>(undefined);
+  const draftIdentity=JSON.stringify([selected.id,selected.generation??selected.id,selected.conversationId??selected.id]);
+  const draft=state.draft;
+  const trackDraft=(work:Promise<boolean>|undefined,blocking=true)=>{if(work)selectedRef.current.trackDraftWork?.(work,blocking);return work;};
+  useLayoutEffect(()=>{
+    if(queueIdentity.current!==draftIdentity){
+      carryDraft.current=undefined;
+      if(previousSession.current&&editor.current?.plainText&&(!pendingSend.current||editor.current.plainText!==pendingText.current)
+        &&!(admittedRetained.current?.session===previousSession.current&&admittedRetained.current.text===editor.current.plainText)){
+        carryDraft.current=editor.current.plainText;parked.current.set(previousSession.current,editor.current.plainText);
+      }
+      admittedRetained.current=undefined;localConflictRef.current=undefined;setLocalConflict(undefined);setLocalPreview('local');
+      queue.current?.close();queue.current=undefined;queueIdentity.current=draftIdentity;hydrated.current='';previousSession.current=selected.id;
+      setDraftError('');setDraftPage(0);setDraftChoice(undefined);
+    }
+    if(!selected.draftChange||!draft||draft.status==='loading'||draft.status==='error'||state.editor||!editor.current)return;
+    if(hydrated.current===draftIdentity)return;
+    const value=parked.current.get(selected.id)??carryDraft.current??draft.text;
+    // Review/conflict state must never be silently replaced with a parked value.
+    const initial=draft.status==='draft'?value:draft.text;
+    const collision=draft.status==='draft'&&Boolean(draft.text)&&initial!==draft.text?{session:selected.id,local:initial,saved:draft.text}:undefined;
+    localConflictRef.current=collision;if(collision)setLocalConflict(collision);
+    if(editor.current.plainText!==initial){suppressDraft.current=true;try{editor.current.setText(initial);}finally{suppressDraft.current=false;}}
+    hydrated.current=draftIdentity;carryDraft.current=undefined;
+    queue.current?.close();queue.current=new MainDraftQueue(()=>selectedRef.current,reason=>{if(queueIdentity.current===draftIdentity)setDraftError(reason==='save'?'Draft not saved · retry before sending':'Not sent · draft retained');});
+    if(draft.status==='draft'&&initial!==draft.text){
+      if(!draft.text)void trackDraft(queue.current.edit(initial),false);
+    }
+    parked.current.delete(selected.id);
+  },[draftIdentity,selected,draft?.status,state.editor,draftHydration]);
+  const wasDraftFocused=useRef(false);
+  useLayoutEffect(()=>{
+    const returned=focused&&!wasDraftFocused.current;wasDraftFocused.current=focused;
+    if(returned&&draftError.startsWith('Draft not saved')&&draft?.status==='draft'&&!localConflictRef.current&&queue.current&&editor.current){
+      const identity=draftIdentity;
+      void trackDraft(queue.current.edit(editor.current.plainText),false)!.then(ok=>{if(ok&&queueIdentity.current===identity)setDraftError('');});
+    }
+  },[focused,draftError,draft?.status,draftIdentity]);
+  useLayoutEffect(()=>()=>{queue.current?.close();},[]);
   const history = useRef<ScrollBoxRenderable>(null);
   const [inputMode, setInputMode] = useState<{id: string; epoch:string|number; editing: boolean}>();
   const [editorWidth,setEditorWidth]=useState(Math.max(1,width-2));
@@ -212,8 +260,8 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   const wide = width >= 60;
   const editorHeight = height >= 20 ? 4 : 2;
   const busy = state.running || Boolean(state.pending) || controllerBlocksInput(state.controller) || Boolean(state.approval) || state.interaction?.kind === 'question';
-  const canSend = true;
-  const inputHint = state.controller ? 'Alt+I answer · Enter queue · Ctrl+J newline' : state.interaction ? 'Alt+I answer or draft · Enter queue · Ctrl+J newline' : state.approval ? 'PgUp/PgDn details · Enter queue · Ctrl+J newline' :
+  const canSend = !(selected.draftChange&&draft?.status!=='draft')&&localConflict?.session!==selected.id;
+  const inputHint = !canSend?'Review the draft before sending':state.controller ? 'Alt+I answer · Enter queue · Ctrl+J newline' : state.interaction ? 'Alt+I answer or draft · Enter queue · Ctrl+J newline' : state.approval ? 'PgUp/PgDn details · Enter queue · Ctrl+J newline' :
     busy ? `Enter queue${selected.steer?' · Tab steer':''} · Ctrl+J newline` : 'Enter send · Ctrl+J newline';
   const fullHint = state.controller ? `${inputHint} · Ctrl+C cancel request`
     : state.pending ? `${inputHint} · Ctrl+C stop` : state.approval ? `${inputHint} · Ctrl+C quit` : `${inputHint} · PgUp/PgDn history · Ctrl+C quit`;
@@ -231,8 +279,57 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
     if(state.editor?.scroll){publicScroll.input();history.current?.scrollBy(-state.editor.scroll.rows);}
   },[selected.id,state.editor?.id,state.editor?.scroll?.revision]);
 
+  function finishRecovery(action:boolean|Promise<boolean>|undefined,failure:string,saved=false){
+    const identity=draftIdentity;
+    void Promise.resolve(action).then(ok=>{if(queueIdentity.current!==identity)return;
+      if(ok){if(saved)void trackDraft(Promise.resolve(true),false);hydrated.current='';setDraftPage(0);setDraftChoice(undefined);setDraftHydration(value=>value+1);setDraftError('');}
+      else setDraftError(failure);});
+  }
+  function reviewDraft(){
+    const current=selected.snapshot().draft;if(!isActive()||!current)return;
+    finishRecovery(current.status==='review'?selected.draftReview?.(current.revision):selected.draftRefresh?.(current.revision),'Could not update draft · retry',current.status==='review');
+  }
+  function previewDraft(id:string){
+    const current=selected.snapshot().draft,variant=current?.variants?.find(value=>value.id===id);
+    if(!isActive()||current?.status!=='conflict'||!variant)return;
+    setDraftChoice(id);if(editor.current){suppressDraft.current=true;try{editor.current.setText(variant.text);}finally{suppressDraft.current=false;}}
+  }
+  function chooseDraft(){
+    const current=selected.snapshot().draft,variants=current?.variants,choice=variants?.find(value=>value.id===draftChoice);
+    if(!isActive()||current?.status!=='conflict'||!variants)return;
+    if(!choice){setDraftError('Select a draft to preview first');return;}
+    finishRecovery(selected.draftResolve?.(variants.map(value=>value.id),choice.text,current.revision),'Draft changed · Ctrl+R refresh',true);
+  }
+
   useKeyboard(key => {
     if (key.defaultPrevented || !isActive()) return;
+    const recovery=selected.snapshot().draft;
+    if(localConflict?.session===selected.id&&key.ctrl&&!key.meta&&(key.name==='l'||key.name==='r'||key.name==='e')){
+      key.preventDefault();if(key.repeated)return;
+      if(key.name==='e'){const next=localPreview==='local'?'saved':'local';setLocalPreview(next);
+        if(editor.current){suppressDraft.current=true;try{editor.current.setText(localConflict[next]);}finally{suppressDraft.current=false;}}return;}
+      if(key.name==='l'){if(editor.current){suppressDraft.current=true;try{editor.current.setText(localConflict.local);}finally{suppressDraft.current=false;}}void trackDraft(queue.current?.edit(localConflict.local),false);}
+      else if(editor.current){suppressDraft.current=true;try{editor.current.setText(localConflict.saved);}finally{suppressDraft.current=false;}void trackDraft(Promise.resolve(true),false);}
+      localConflictRef.current=undefined;setLocalConflict(undefined);return;
+    }
+    if(!editing&&!selected.snapshot().editor&&recovery&&(recovery.status==='review'||recovery.status==='conflict'||recovery.status==='error')){
+      if(key.ctrl&&!key.meta&&key.name==='r'){
+        key.preventDefault();if(key.repeated)return;
+        reviewDraft();return;
+      }
+      if(recovery.status==='conflict'&&key.ctrl&&!key.meta&&(key.name==='n'||key.name==='p')){
+        key.preventDefault();if(!key.repeated){setDraftChoice(undefined);setDraftPage(page=>Math.max(0,Math.min(Math.ceil((recovery.variants?.length??0)/9)-1,page+(key.name==='n'?1:-1))));}return;
+      }
+      const choice=draftPage*9+Number(key.name)-1;
+      if(recovery.status==='conflict'&&!key.ctrl&&!key.meta&&/^[1-9]$/.test(key.name)&&choice<(recovery.variants?.length??0)){
+        key.preventDefault();if(key.repeated)return;
+        previewDraft(recovery.variants![choice].id);return;
+      }
+      if(recovery.status==='conflict'&&!key.ctrl&&!key.meta&&['return','enter','kpenter'].includes(key.name)){
+        key.preventDefault();if(key.repeated)return;
+        chooseDraft();return;
+      }
+    }
     if (key.meta && !key.ctrl && key.name === 'i') {
       key.preventDefault();
       if (!key.repeated && (selected.snapshot().interaction||selected.snapshot().controller)) setEditing(!editing);
@@ -243,7 +340,7 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
       if (!key.repeated) flushSync(() => selected.interrupt?.());
       return;
     }
-    if (!editing && !selected.snapshot().editor && !state.approval && (key.name === 'pageup' || key.name === 'pagedown')) {
+    if (!editing && !selected.snapshot().editor && !state.approval && recovery?.status!=='conflict' && localConflict?.session!==selected.id && (key.name === 'pageup' || key.name === 'pagedown')) {
       key.preventDefault();
       publicScroll.input();
       history.current?.scrollBy(key.name === 'pageup' ? -1 : 1, 'viewport');
@@ -253,7 +350,8 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
   function messageInput() {
     const input = editor.current;
     const current = selected.snapshot();
-    if (!isActive() || editing || current.editor || !input || pendingSend.current===selected) return;
+    if (!isActive() || editing || current.editor || !input || pendingSend.current===selected
+      ||selected.draftChange&&current.draft?.status!=='draft'||localConflict?.session===selected.id) return;
     const text = input.plainText;
     if (!text.trim()) return;
     return {input, text};
@@ -262,18 +360,19 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
     const pending = messageInput();
     if (!pending) return;
     const {input, text} = pending;
-    pendingSend.current=selected;
+    pendingSend.current=selected;pendingText.current=text;
     let result:void|boolean|Promise<boolean>;
-    try{result=intent==='steer'?selected.steer?.(text)??false:selected.submit(text);}
-    catch{if(pendingSend.current===selected)pendingSend.current=undefined;return;}
+    try{result=queue.current?trackDraft(queue.current.submit(text,intent))!:intent==='steer'?selected.steer?.(text)??false:selected.submit(text);}
+    catch{if(pendingSend.current===selected){pendingSend.current=undefined;pendingText.current=undefined;}return;}
     const accepted=(value:void|boolean)=>{
       if(value===false)return;
+      setDraftError('');
       // The wire admission queue holds later input until this receipt. Also
       // protect callers without that queue from clearing a newer native draft.
-      if(input.plainText===text&&selected.isCurrent?.()!==false){input.setText('');}
+      if(input.plainText===text){if(selected.isCurrent?.()!==false)input.setText('');else admittedRetained.current={session:selected.id,text};}
       if(isActive())input.focus();
     };
-    const finish=()=>{if(pendingSend.current===selected)pendingSend.current=undefined;};
+    const finish=()=>{if(pendingSend.current===selected){pendingSend.current=undefined;pendingText.current=undefined;}};
     if(result&&typeof result==='object')void result.then(value=>flushSync(()=>accepted(value)),()=>{}).finally(finish);
     else {accepted(result);finish();}
   }
@@ -287,6 +386,17 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
       </scrollbox>
 
       {!editing && state.notice && <text fg={color.muted} wrapMode="word">{state.notice}</text>}
+      {!editing && localConflict?.session===selected.id && <text fg={color.running} wrapMode="word">{`Preview: ${localPreview} · Ctrl+E switch · Ctrl+L keep local · Ctrl+R use saved`}</text>}
+      {!editing && draftError && <text fg={color.running} wrapMode="word">{draftError}</text>}
+      {!editing && draft?.status==='review' && <text fg={color.running} wrapMode="word" onMouseDown={event=>{if(isActive()){event.preventDefault();reviewDraft();}}}>This draft may already have been sent. Ctrl+R or click to review and edit; it will not be sent automatically.</text>}
+      {!editing && draft?.status==='conflict' && <box flexDirection="column" flexShrink={0}>
+        <text fg={color.running} wrapMode="word">Conflicting drafts · 1–9 preview · Enter choose · Ctrl+N/P page · Ctrl+R refresh</text>
+        {(draft.variants??[]).slice(draftPage*9,draftPage*9+9).map((variant,index)=><text key={variant.id} fg={color.text} truncate onMouseDown={event=>{if(isActive()){event.preventDefault();previewDraft(variant.id);}}}>{`${variant.id===draftChoice?'›':' '}${index+1}. ${variant.kind}: ${variant.text.replace(/\s+/g,' ').slice(0,120)}`}</text>)}
+        {draftChoice&&<text fg={color.accent} onMouseDown={event=>{if(isActive()){event.preventDefault();chooseDraft();}}}>[Choose previewed draft]</text>}
+      </box>}
+      {!editing && draft?.status==='error' && <text fg={color.running} onMouseDown={event=>{if(isActive()){event.preventDefault();reviewDraft();}}}>Could not load saved draft · Ctrl+R retry</text>}
+      {!editing && draft?.status==='loading' && <text fg={color.muted}>Loading saved draft…</text>}
+
       {state.controller&&<ControllerFrame key={requestEpoch+':'+state.controller.id} controller={state.controller} session={selected} main
         width={width} height={editing?Math.max(1,height-1):Math.max(1,Math.min(state.controller.preferredRows+Number(Boolean(state.controller.view.hint)),Math.floor(height/2)))}
         maxRows={editing?Math.max(1,height-1):Math.max(1,Math.floor(height/2))} focused={focused&&editing}
@@ -303,14 +413,21 @@ function Conversation({ selected, paneId, visible, scrollMemory, animations, com
         <textarea ref={editor} focused={focused && !editing && !state.editor}
             height={editorHeight} flexGrow={1} flexBasis={0} minWidth={1} wrapMode="word"
             textColor={textColor} focusedTextColor={textColor} cursorColor={textColor}
-            placeholder={`Message ${selected.label}…`} placeholderColor={color.muted}
+            placeholder={selected.draftChange&&draft?.status!=='draft'?(draft?.status==='conflict'?'Select a draft…':draft?.status==='review'?'Review the draft…':'Loading draft…'):`Message ${selected.label}…`} placeholderColor={color.muted}
+            onContentChange={() => {if(!suppressDraft.current&&queue.current&&editor.current&&selectedRef.current.snapshot().draft?.status==='draft'&&localConflictRef.current?.session!==selectedRef.current.id){setDraftError('');void trackDraft(queue.current.edit(editor.current.plainText),false);}}}
             onKeyDown={key => {
+              const saved=selected.snapshot().draft;
+              if(localConflict?.session===selected.id){const allowed=key.ctrl&&!key.meta&&['l','r','e','c','x'].includes(key.name)||key.meta&&!key.ctrl&&key.name==='i'||!key.ctrl&&!key.meta&&['up','down','left','right','pageup','pagedown','home','end'].includes(key.name);if(!allowed)key.preventDefault();return;}
+              if(selected.draftChange&&(saved?.status!=='draft'||!queue.current)){
+                const recoveryKey=key.ctrl&&!key.meta&&(['c','x','r'].includes(key.name)||saved?.status==='conflict'&&(key.name==='n'||key.name==='p'))||key.meta&&!key.ctrl&&key.name==='i'||saved?.status==='conflict'&&!key.ctrl&&!key.meta&&(/^[1-9]$/.test(key.name)||['return','enter','kpenter','up','down','left','right','pageup','pagedown','home','end'].includes(key.name));
+                if(!recoveryKey)key.preventDefault();return;
+              }
               if (!isActive() || editing || selected.snapshot().editor) {key.preventDefault();return;}
               if(key.name==='tab'&&!key.ctrl&&!key.meta&&!key.shift&&selected.steer&&messageInput()){
                 key.preventDefault();if(!key.repeated)send('steer');
               }
             }}
-            onPaste={event => { if (!isActive() || editing || selected.snapshot().editor) event.preventDefault(); }}
+            onPaste={event => { if (!isActive() || editing || selected.snapshot().editor || selected.draftChange&&(selected.snapshot().draft?.status!=='draft'||!queue.current)||localConflict?.session===selected.id) event.preventDefault(); }}
             keyBindings={editorKeys} onSubmit={()=>send()} />
         <Ghost media={composerMedia} enabled={!editing && !state.editor && focused} expanded={animations && wide && height >= 20} active={state.running} />
         {focused && <box height={1} paddingX={1} backgroundColor={canSend ? color.selectionBackground : color.panel}
@@ -389,7 +506,7 @@ function SurfaceTab({source,...tab}:Omit<TabProps,'label'>&{source:UiSurfaceSour
   return <Tab {...tab} label={state.title+(status?' · '+status:'')} />;
 }
 
-export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows,publicRender,scheduleMouse,inputNotice }: {
+export function ConversationView({ sessions, animations = true, composerMedia, workflowTable, pluginManager, windowLayout, surfaces=emptyRegistry,navigation,editorOwnership,conversationWindows,publicRender,scheduleMouse,inputNotice,onUserMouse }: {
   sessions: ConversationSession[];
   animations?: boolean;
   composerMedia?: ComposerMedia;
@@ -403,6 +520,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
   publicRender?:PublicRenderSlots;
   scheduleMouse?(run:()=>void|'target-unavailable'|{selected:string;owner:UiSurfaceSource|ConversationSession;editor:TextareaRenderable}):boolean;
   inputNotice?:string;
+  onUserMouse?():void;
 }) {
   const appearance=useAppearance(),{color,presentation}=appearance;
   const editorOwns=useSyncExternalStore(editorOwnership?.subscribe??(()=>()=>{}),editorOwnership?.snapshot??(()=>false));
@@ -551,6 +669,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
 
   const queuedPointer=useRef<{accepted:boolean}|undefined>(undefined);
   function pointer(phase: 'down' | 'move' | 'up', event: MouseEvent) {
+    if(phase==='down')onUserMouse?.();
     // A queued pointer event refers to the geometry the user actually saw.
     // Do not reinterpret its coordinates after a resize or window rearrangement.
     const geometry=()=>{
@@ -669,7 +788,7 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       :pane.surface?<SurfaceTab key={pane.id} source={pane.surface} {...props}/>
       :<Tab key={pane.id} label={pane.label} {...props}/>;
   });
-  return <box width="100%" height="100%" backgroundColor={color.background} flexDirection="column">
+  return <box width="100%" height="100%" backgroundColor={color.background} flexDirection="column" onMouseDown={()=>onUserMouse?.()}>
     {navigation&&workspaceBar}
     {inputNotice&&<box height={Math.min(3,Math.ceil(inputNotice.length/Math.max(1,width-2)))} paddingX={1} flexShrink={0}>
       <text fg={color.error} wrapMode="word">{inputNotice}</text>
@@ -733,9 +852,9 @@ export function ConversationView({ sessions, animations = true, composerMedia, w
       })}
       {!layout.frames.length&&<text fg={color.muted}>{navigation?'Empty workspace · F2 Windows opens or restores a window':'Empty workspace · open a pane above'}</text>}
       {navigation&&navigationState.mode==='finder'&&<box position="absolute" left={0} top={0} width={layout.width} height={layout.height} zIndex={100}
-        onMouseDown={event=>{event.preventDefault();event.stopPropagation();}}
+        onMouseDown={event=>{onUserMouse?.();event.preventDefault();event.stopPropagation();}}
         onMouseUp={event=>event.stopPropagation()} onMouseMove={event=>event.stopPropagation()} onMouseDrag={event=>event.stopPropagation()}>
-        <WindowFinder source={navigation} width={layout.width} height={layout.height}/>
+        <WindowFinder source={navigation} width={layout.width} height={layout.height} onUserMouse={onUserMouse}/>
       </box>}
     </box>
     {navigation?<>

@@ -115,6 +115,10 @@ closed identities, shared Main input/request/editor ownership, independent
 scroll, private forms and actual reload/resume/restart. No migration layout or
 journal is manufactured by the fixture. The source job and all four relocated
 native jobs require this gate and preserve its artifacts on failure.
+`npm run visual:opentui-main-draft` checks built-in Main draft recovery, explicit
+review and conflict selection, including keyboard and mouse, rapid submission,
+process termination and normal exit. Source CI and each relocated native job run
+all nine scenarios with a loopback provider and retain their reports.
 `npm run visual:opentui-appearance` adds native/selected compositions for actual
 bundled theme commands, all portable colors/chrome/presentation, contribution
 ordering/removal, exact title-control hits, live Main tool details, private

@@ -15,7 +15,7 @@ const editingKeys:KeyBinding[]=[
 ];
 
 /** A private launcher above resident panes; no editor or decision is unmounted. */
-export function WindowFinder({source,width,height}:{source:WindowNavigationSource;width:number;height:number}){
+export function WindowFinder({source,width,height,onUserMouse}:{source:WindowNavigationSource;width:number;height:number;onUserMouse?():void}){
   const {color,chrome,presentation}=useAppearance();
   const state=useSyncExternalStore(source.subscribe,source.snapshot);
   const input=useRef<InputRenderable>(null),list=useRef<ScrollBoxRenderable>(null);
@@ -35,7 +35,7 @@ export function WindowFinder({source,width,height}:{source:WindowNavigationSourc
     top={rectangle.y} width={boxWidth} height={boxHeight}
     flexDirection="column" border borderStyle={chrome.borderStyle} borderColor={color.accent} backgroundColor={color.panel}
     title=" Windows " titleColor={color.accent} paddingX={1}
-    onMouseDown={event=>event.stopPropagation()} onMouseUp={event=>event.stopPropagation()}
+    onMouseDown={event=>{onUserMouse?.();event.stopPropagation();}} onMouseUp={event=>event.stopPropagation()}
     onMouseMove={event=>event.stopPropagation()} onMouseDrag={event=>event.stopPropagation()}>
     <box height={1} flexShrink={0}><input ref={input} flexGrow={1} minWidth={1} focused={state.mode==='finder'} maxLength={512} keyBindings={editingKeys}
       placeholder="Search window or command…" textColor={color.text} focusedTextColor={color.text}
@@ -54,7 +54,7 @@ export function WindowFinder({source,width,height}:{source:WindowNavigationSourc
         const status=entry.workspace===undefined?entry.state==='available'?'Available':unavailable?'Unavailable':'Closed':'WS '+entry.workspace;
         return <box key={entry.id} id={'window-finder-entry-'+entry.id} flexDirection="row" height={1} flexShrink={0}
           backgroundColor={selected?color.selectionBackground:undefined} onMouseDown={event=>{
-            event.stopPropagation();
+            onUserMouse?.();event.stopPropagation();
             if(event.button===MouseButton.LEFT&&!unavailable&&source.snapshot().mode==='finder')
               flushSync(()=>source.choose(entry.id,state.revision));
           }}>

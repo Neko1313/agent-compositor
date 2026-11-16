@@ -96,6 +96,14 @@ The standard scenario also checks the semantic agent overview: expand by mouse
 and keyboard, click state tabs, switch with Left/Right, resize to stacked narrow fields and enter the
 selected agent's conversation. Screenshots include the expanded and narrow views.
 
+`npm run visual:opentui-main-draft` verifies a built-in Main draft across a real
+PTY restart with an isolated loopback provider, then checks that explicit Enter
+sends it once. Set `VISUAL_DRAFT_SCENARIO=review`, `review_mouse`, `conflict`, `conflict_many`, `conflict_mouse`,
+`rapid`, `quit`, or `kill` to exercise ambiguous input and conflict preview/selection. These
+checks do not establish power-loss durability or native terminal behavior.
+`VISUAL_EXECUTABLE` selects a relocated native archive executable; the report
+verifies and records its SHA-256.
+
 `npm run visual:opentui-app` runs the actual application entry point with
 `--renderer opentui`, isolated saved profiles and a bounded loopback HTTP model.
 It does not inject a `buildApp` provider. It verifies pending Main question/draft

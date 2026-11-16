@@ -245,7 +245,7 @@ it.each(['before','after'] as const)('recovers the correct version when a writer
  const {root}=await fixture(),initial=MainDraftStore.open(root);await initial.save('session',{text:'before edit'});
  const entry=pathToFileURL(resolve('packages/app/src/main-drafts.ts')).href;
  const script=`import fs from 'node:fs/promises'; import {syncBuiltinESMExports} from 'node:module';
- const move=fs.rename; fs.rename=async (...args)=>{if(${JSON.stringify(point)}==='after')await move(...args); console.log('BOUNDARY'); await new Promise(()=>{});};
+ const move=fs.rename; fs.rename=async (...args)=>{if(${JSON.stringify(point)}==='after')await move(...args); console.log('BOUNDARY'); await new Promise(()=>setInterval(()=>{},1000));};
  syncBuiltinESMExports(); const {MainDraftStore}=await import(${JSON.stringify(entry)});
  const store=MainDraftStore.open(${JSON.stringify(root)}); await store.load('session',[]); await store.save('session',{text:'after edit'});`;
  const child=spawn(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:process.cwd(),stdio:['ignore','pipe','pipe']});
@@ -266,7 +266,7 @@ it.each(['before','after'] as const)('recovers the correct version when a writer
 it.skipIf(process.platform!=='linux')('removes only temporary drafts owned by a dead process in the same PID domain',async()=>{
  const {root}=await fixture(),directory=join(root,'main-drafts-v3'),entry=pathToFileURL(resolve('packages/app/src/main-drafts.ts')).href;
  const script=`import fs from 'node:fs/promises'; import {syncBuiltinESMExports} from 'node:module';
- fs.rename=async ()=>{console.log('WRITTEN'); await new Promise(()=>{});}; syncBuiltinESMExports();
+ fs.rename=async ()=>{console.log('WRITTEN'); await new Promise(()=>setInterval(()=>{},1000));}; syncBuiltinESMExports();
  const {MainDraftStore}=await import(${JSON.stringify(entry)}); await MainDraftStore.open(${JSON.stringify(root)}).save('session',{text:'private in flight'});`;
  const child=spawn(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:process.cwd(),stdio:['ignore','pipe','pipe']});
  let stderr='';child.stderr.on('data',chunk=>{stderr+=String(chunk);});

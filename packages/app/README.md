@@ -260,8 +260,11 @@ undo and request/editor owner, with independent transcript scroll. The input
 follows the focused Main copy. Closing every copy keeps the agent/input alive;
 F2, Alt+0 and idempotent `/chat` recover an existing view. `/chat` accepts no
 arguments. Saved Ink session/Tools/Help views retain IDs and closed state during
-OpenTUI migration. Their metadata and layout persist; unsent drafts do not persist
-across process exit. `/btw` remains the independent-agent entry point.
+OpenTUI migration. Their metadata and layout persist. The built-in OpenTUI Main
+editor saves unsent plaintext per session and restores it on resume without sending;
+selected plugin editors and Ink do not yet have this restoration. See
+[draft recovery and privacy](../../docs/02-ui.md#experimental-opentui-application-frontend).
+`/btw` remains the independent-agent entry point.
 Manual approvals, questions and forms from UI tools have private request windows.
 Retained background requests stay independent of their launcher and Main; F2
 reopens a hidden request with its native field state. Ctrl+C in a request window
@@ -338,7 +341,7 @@ F2 binding while they own input; **Alt+w**, then **w**, and the toolbar remain
 host window controls outside a form. Alt+Tab is also accepted when delivered
 by the terminal, but desktop window managers commonly reserve that combination.
 Bracketed paste is marked separately: pasting a single `q` in window mode cannot
-close a window. Unsent drafts remain in memory and do not survive process exit.
+close a window. In Ink, unsent drafts remain in memory and do not survive process exit.
 
 `/chat` returns to an existing main conversation window on its workspace or
 restores it after closing. Repeated calls do not create duplicates. Alt+Enter

@@ -1642,6 +1642,13 @@ later edit permits compaction without resurrecting the old text. Old files can
 retain private text and still need a retirement policy.
 Broader interruption and filesystem coverage and retention policy still need
 completion before the component is used by the editor.
+A session-scoped coordinator now saves a prepared input identity before calling
+Core admission, blocks stale revisions and retains ambiguous input for explicit
+review if admission or clearing fails. Focused tests cover queued admission,
+clearing failure, session replacement and conflict refresh without calling a
+model. The coordinator is not yet connected to the host or a renderer; its
+interactions with fast typing, immediate commands and process restart still need
+end-to-end verification.
 The native presentation protocol has an optional, negotiated draft snapshot and
 revision-checked change operation. Legacy peers do not receive the new fields;
 focused tests cover negotiation, stale changes and hidden windows. No host

@@ -4,136 +4,136 @@
   "repository": "Neko1313/agent-compositor",
   "plugins": {
     "auto-approve": {
-      "version": "1.4.1",
-      "commit": "53b22e35f5705235b87165bac8198e36e6206de1"
+      "version": "1.5.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "background-jobs": {
-      "version": "0.1.0",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "0.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "btw": {
-      "version": "2.0.0",
-      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
+      "version": "2.1.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "callix": {
-      "version": "1.4.0",
-      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
+      "version": "2.0.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "checkpoint-history": {
-      "version": "1.3.0",
-      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
+      "version": "2.0.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "checkpoints": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "cost": {
-      "version": "1.3.0",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "1.4.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "doctor": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "export": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "guard-scope": {
-      "version": "1.1.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "guard-secrets": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "mascot": {
-      "version": "1.1.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "mcp": {
-      "version": "1.4.0",
-      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
+      "version": "2.0.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "memory": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "monty": {
-      "version": "1.1.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "network-proxy": {
-      "version": "1.2.0",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "1.3.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "notify-done": {
-      "version": "1.1.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "output-style": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "plan-mode": {
-      "version": "1.2.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.3.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "plugin-author": {
-      "version": "1.4.0",
-      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
+      "version": "2.0.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "session-ctl": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "slash-commands": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "todos": {
-      "version": "1.2.0",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "1.3.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "turn-log": {
-      "version": "1.1.2",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "ui-theme": {
-      "version": "1.1.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "web": {
-      "version": "1.2.1",
-      "commit": "fff3a717a0c636ce13bfcc545279663187e14689"
+      "version": "1.3.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "workflows": {
-      "version": "1.6.1",
-      "commit": "53b22e35f5705235b87165bac8198e36e6206de1"
+      "version": "1.7.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "git-review": {
-      "version": "0.1.0",
-      "commit": "66510ee83850843c65efae5389c5605cee523a93"
+      "version": "0.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "project-checks": {
-      "version": "0.1.1",
-      "commit": "335439374ed88a43ba0f03e4a8442ee5da6240b5"
+      "version": "0.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "ci-review": {
-      "version": "0.1.1",
-      "commit": "5ce76e5c6963be27b873498a37c267bd52c17561"
+      "version": "0.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "test-reports": {
-      "version": "0.1.1",
-      "commit": "edfb677b08a5e3fd82b32447b8c4cdd21960f785"
+      "version": "0.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     },
     "resources": {
-      "version": "0.1.0",
-      "commit": "a66fcc38dc868ff1ef0879fdb0ff8a2992188978"
+      "version": "0.2.0",
+      "commit": "bc9151d014e89f254e823a932e9acf033e5690d5"
     }
   },
   "catalog": {
-    "version": "1.0.11",
-    "digest": "e4c74d9e80755c19f8b96ff6005e66559f8878198cb2cfe82f2549afe6755036"
+    "version": "1.0.12",
+    "digest": "86b66b28610685697d1ed9ca1f384213776c17764feabed23f47771107c29a15"
   }
 }

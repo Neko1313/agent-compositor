@@ -1,6 +1,6 @@
 {
   "name": "ci-review",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Read-only GitHub Actions runs and logs with a concurrent CI review panel",
   "trust": "trusted",
   "compositor": {

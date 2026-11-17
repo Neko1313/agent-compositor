@@ -1,6 +1,6 @@
 {
   "name": "git-review",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Review Git status and staged or working diffs through a read-only tool and interactive panel.",
   "trust": "trusted",
   "compositor": {
@@ -11,7 +11,9 @@
     {
       "name": "/git-review",
       "description": "Review Git status and changes",
-      "ui": {"site": "main"}
+      "ui": {
+        "site": "main"
+      }
     }
   ],
   "main": "hooks.ts",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+
+<!-- plugin-release:auto:start -->
+- run configured application in OpenTUI windows ([d158c10](https://github.com/Neko1313/agent-compositor/commit/d158c10942245428e3e08667d76dd1c4c315a044))
+- honor cancellation across setup forms ([7ab9c48](https://github.com/Neko1313/agent-compositor/commit/7ab9c4859f93f42af7135a672c3833941a3e7d83))
+<!-- plugin-release:auto:end -->
+
 ## 1.2.0
 
 <!-- plugin-release:auto:start -->

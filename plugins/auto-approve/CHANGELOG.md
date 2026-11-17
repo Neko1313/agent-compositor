@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0
+
+<!-- plugin-release:auto:start -->
+- avoid repeated approval prompts for refused calls ([b58c249](https://github.com/Neko1313/agent-compositor/commit/b58c249d51a575b26b54539fcb8fe5bf951add47))
+- run configured application in OpenTUI windows ([d158c10](https://github.com/Neko1313/agent-compositor/commit/d158c10942245428e3e08667d76dd1c4c315a044))
+- require task context for legacy grants ([654a2ad](https://github.com/Neko1313/agent-compositor/commit/654a2ad44785dbdee2c0eb72c1669b642f18ab28))
+- serialize parallel review accounting ([876e2d1](https://github.com/Neko1313/agent-compositor/commit/876e2d1d87b5dd12a4f15e06473eadde032ae978))
+- respect workflow review requirements ([cfc7e3e](https://github.com/Neko1313/agent-compositor/commit/cfc7e3ecac1f714d34e9e6d35cbd054c3d62864f))
+- handle cancellation during reviewer startup ([182dc52](https://github.com/Neko1313/agent-compositor/commit/182dc528818cd2b9a46e062f667a28116026f80a))
+- cancel reviews when mode changes ([e7a416d](https://github.com/Neko1313/agent-compositor/commit/e7a416d8e64d3430d6d0aa501817527562bacab5))
+<!-- plugin-release:auto:end -->
+
 ## 1.4.1
 
 <!-- plugin-release:auto:start -->

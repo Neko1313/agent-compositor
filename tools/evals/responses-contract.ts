@@ -151,7 +151,21 @@ export function parseResponsesTerminal(value: unknown): ResponsesTerminal {
   if (response.status !== undefined && response.status !== kind) reject('terminal', 'response.status');
   if (response.id !== undefined) text(response.id, 'terminal', 'response.id', 512, true);
   if (response.error !== undefined && response.error !== null) reject('terminal', 'response.error');
-  if (response.tool_usage !== undefined && (!object(response.tool_usage) || Object.keys(response.tool_usage).length)) reject('pricing', 'response.tool_usage');
+  if (response.tool_usage !== undefined && response.tool_usage !== null) {
+    const zero = (value:unknown, fields:Record<string,unknown>) => {
+      const data=record(value,'pricing','response.tool_usage');keys(data,Object.keys(fields),'pricing','response.tool_usage');
+      for(const [key,item] of Object.entries(data)) {
+        if(fields[key]===0) {if(item!==0)reject('pricing','response.tool_usage');}
+        else zero(item,fields[key] as Record<string,unknown>);
+      }
+    };
+    zero(response.tool_usage,{
+      web_search:{num_requests:0},
+      image_gen:{input_tokens:0,output_tokens:0,total_tokens:0,cached_tokens:0,
+        input_tokens_details:{image_tokens:0,text_tokens:0},output_tokens_details:{image_tokens:0,text_tokens:0},
+        cached_tokens_details:{cached_image_tokens:0,cached_text_tokens:0}},
+    });
+  }
   if (response.output !== undefined) {
     if (!Array.isArray(response.output) || response.output.some(item => !object(item) || !['message', 'reasoning', 'function_call'].includes(item.type as string))) reject('pricing', 'response.output');
   }
@@ -163,9 +177,15 @@ export function parseResponsesTerminal(value: unknown): ResponsesTerminal {
   let cachedInputTokens = 0, cacheWriteInputTokens = 0;
   if (usage.input_tokens_details !== undefined) {
     const details = record(usage.input_tokens_details, 'usage', 'usage.input_tokens_details');
-    keys(details, ['cached_tokens', 'cache_write_tokens'], 'usage', 'usage.input_tokens_details');
+    keys(details, ['cached_tokens', 'cache_write_tokens', 'cache_write_tokens_details'], 'usage', 'usage.input_tokens_details');
     if (details.cached_tokens !== undefined) {integer(details.cached_tokens, 'usage', 'usage.cached_tokens');cachedInputTokens = details.cached_tokens;}
     if (details.cache_write_tokens !== undefined) {integer(details.cache_write_tokens, 'usage', 'usage.cache_write_tokens');cacheWriteInputTokens = details.cache_write_tokens;}
+    if(details.cache_write_tokens_details!==undefined){
+      const writes=record(details.cache_write_tokens_details,'usage','usage.cache_write_tokens_details');
+      keys(writes,['ttl_12h_tokens','ttl_30m_tokens'],'usage','usage.cache_write_tokens_details');
+      let sum=0;for(const count of Object.values(writes)){integer(count,'usage','usage.cache_write_tokens_details');sum+=count;}
+      if(details.cache_write_tokens===undefined||!Number.isSafeInteger(sum)||sum!==cacheWriteInputTokens)reject('usage','usage.cache_write_tokens_details');
+    }
     if (cachedInputTokens + cacheWriteInputTokens > usage.input_tokens) reject('usage', 'usage.input_tokens_details');
   }
   if (usage.output_tokens_details !== undefined) {

@@ -106,6 +106,15 @@ export class EvalBudget {
   });
  }
  async halt():Promise<void>{await this.change(data=>{data.halted='unconfirmed-response-pricing';});}
+ /** Operator-only increase after explicit authorization; never resets charges or pricing stops. */
+ async increaseLimit(newMaxUsd:number,ledgerSha256:string):Promise<void>{
+  const next=Math.round(newMaxUsd*1e6);
+  if(!Number.isFinite(newMaxUsd)||!Number.isSafeInteger(next)||next<=Math.round(this.maxUsd*1e6))throw Error('New authorization must increase the existing limit');
+  await this.change(data=>{
+   if(evaluationLedgerDigest(data)!==ledgerSha256)throw Error('Budget ledger changed since authorization review');
+   data.limitMicroUsd=next;
+  });
+ }
  /** Trusted operator action after independently auditing historical endpoint/usage provenance. */
  async reviewHistoricalCache(input:ReviewProvenance):Promise<void>{
   if(!provenance(input)||Object.keys(input).sort().join(',')!=='endpoint,evidenceSha256,ledgerSha256,sourceRevisions'||this.model!=='gpt-6.1-sol')throw Error('Historical cache review requires audited official global Sol provenance');

@@ -105,6 +105,19 @@ describe('pure Responses terminal settlement facts', () => {
   ])('keeps missing/malformed/inconsistent usage distinct from a pricing fault %#', usage => {
     error(() => parseResponsesTerminal({type: 'response.completed', response: {service_tier: 'default', usage}}), 'usage');
   });
+  it('accepts known zero hosted-tool counters and rejects unknown or charged counters', () => {
+    for(const tool_usage of [null,{}, {web_search:{num_requests:0},image_gen:{input_tokens:0,output_tokens:0,total_tokens:0}}])
+      expect(parseResponsesTerminal({type:'response.completed',response:{...terminal().response,tool_usage}}).kind).toBe('completed');
+    for(const tool_usage of [{web_search:{num_requests:1}},{web_search:{num_requests:-1}},{image_gen:{input_tokens_details:{image_tokens:1}}},{unknown:0},{image_gen:{unknown:0}},{web_search:null}])
+      error(()=>parseResponsesTerminal({type:'response.completed',response:{...terminal().response,tool_usage}}),'pricing');
+  });
+  it('validates cache write lifetime subtotals against the reported total',()=>{
+    const response=terminal().response;
+    const withDetails=(details:unknown)=>({type:'response.completed',response:{...response,usage:{...response.usage,input_tokens_details:details}}});
+    expect(parseResponsesTerminal(withDetails({cache_write_tokens:0,cache_write_tokens_details:{ttl_12h_tokens:0,ttl_30m_tokens:0}})).cacheWriteInputTokens).toBe(0);
+    for(const details of [{cache_write_tokens:0,cache_write_tokens_details:{ttl_12h_tokens:1}},{cache_write_tokens:0,cache_write_tokens_details:{unknown:0}},{cache_write_tokens:0,cache_write_tokens_details:{ttl_30m_tokens:-1}}])
+      error(()=>parseResponsesTerminal(withDetails(details)),'usage');
+  });
   it('rejects mismatched terminal status and unknown charged output categories', () => {
     error(() => parseResponsesTerminal({type: 'response.completed', response: {...terminal().response, status: 'incomplete'}}), 'terminal');
     error(() => parseResponsesTerminal({type: 'response.failed', response: terminal().response}), 'terminal');

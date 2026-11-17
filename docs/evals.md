@@ -134,6 +134,18 @@ profile, model, price policy and authorized total. Changing the total or an
 incompatible ledger fails closed; starting another output directory does not
 reset the allowance. Concurrent reservations cannot both spend the same balance.
 
+After explicit user authorization, an operator may call
+`EvalBudget.increaseLimit(newTotalUsd, auditedLedgerSha256)` on the instance bound
+to the old total. This increases only the existing total under its write lock;
+charges, pending reservations, cache reviews and pricing stops stay intact. Open
+a new instance with the authorized total afterwards. A stale digest is rejected.
+
+Responses settlement accepts the documented known hosted-tool counters only
+when all are zero; unknown fields or nonzero hosted-tool usage still fail closed.
+Optional cache-write lifetime counters must be nonnegative integers and sum to
+the reported cache-write token count. These details do not lower the existing
+conservative token rates.
+
 Before each HTTP attempt the guard reserves a conservative amount from UTF-8
 request bytes plus template allowance and the bounded output limit. A reported
 usage event settles that reservation once. Errors, interrupted streams and

@@ -8,6 +8,18 @@ const proof={endpoint:'https://api.openai.com/v1/responses',sourceRevisions:['a'
 beforeEach(async()=>{root=await mkdtemp(join(tmpdir(),'budget-cache-review-'));file=join(root,'ledger.json');});
 afterEach(async()=>{await rm(root,{recursive:true,force:true});});
 const ledger=async()=>JSON.parse(await readFile(file,'utf8'));
+it('increases only the authorized ceiling and preserves charges, review and pricing halt',async()=>{
+ const budget=new EvalBudget(file,'test','gpt-6.1-sol',50);
+ await budget.reserve(100,128,'standard');await budget.halt();const before=await ledger();
+ await expect(budget.increaseLimit(60,'stale')).rejects.toThrow('changed');
+ await expect(budget.increaseLimit(50,evaluationLedgerDigest(before))).rejects.toThrow('increase');
+ await budget.increaseLimit(60,evaluationLedgerDigest(before));
+ expect(await ledger()).toEqual({...before,limitMicroUsd:60000000});
+ const reopened=new EvalBudget(file,'test','gpt-6.1-sol',60,{existingOnly:true});
+ expect(await reopened.status()).toMatchObject({limitUsd:60,pendingRequests:1,halted:'unconfirmed-response-pricing'});
+ await expect(reopened.reserve(1,1,'standard')).rejects.toThrow('pricing requires review');
+ await expect(budget.status()).rejects.toThrow('mismatch');
+});
 const audit=async()=>({...proof,ledgerSha256:evaluationLedgerDigest(await ledger())});
 async function fixture(limit=5){
  const budget=new EvalBudget(file,'test','gpt-6.1-sol',limit),id=await budget.reserve(10000,1000);

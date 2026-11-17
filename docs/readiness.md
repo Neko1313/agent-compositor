@@ -1594,6 +1594,17 @@ file. See the current [write contract](core-customization.md#whole-file-writes).
 
 ## Acceptance gates
 
+On 2026-11-18, an installed Linux x64 Compositor authored the known initial
+Project checks task through the saved OpenAI `gpt-6.1-sol` profile. Ten model
+requests settled successfully after fixing Responses zero-hosted-tool counters
+and cache-write lifetime metadata validation. Protected project files survived
+and both required project commands passed, but independent loading rejected the
+candidate's nonexistent `ui.open` hook. An extra agent-selected test command was
+denied by the declared permissions. This is a failed authoring result, not a
+completed useful-plugin delivery. Report and candidate bytes are retained in
+`dist/development-openai-live-20261118/`. The user authorized a $60 total ceiling;
+the original ledger and pending reservations remain intact.
+
 | Gate | Required evidence | Current assessment |
 | --- | --- | --- |
 | Real development | Repeated end-to-end bug fixes, feature work, refactoring and plugin development on realistic repositories; independent behavior checks, preserved user changes and successful project verification | Live Compositor-authored fixes, a guided plugin review and a multi-file form refactor have independent artifact checks. The form episode also exposed a harness typing defect and reported it truthfully. Sustained self-hosted development and broader task coverage remain unverified. |

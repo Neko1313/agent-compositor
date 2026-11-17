@@ -1,5 +1,33 @@
 # Project memory
 
+## OpenAI reauthorization and actual plugin authoring — 2026-11-18
+
+The user explicitly raised the existing total OpenAI allowance from $50 to $60.
+The original ledger was increased under its write lock using an audited digest;
+all prior charges/cache review/pending entries survived. Receipt:
+dist/openai-budget-increase-20261118.json. Operator review of the official
+Responses schema and the tested zero-hosted-tool parser permitted a bounded raw
+diagnostic; the prior pricing halt was removed under lock with a private backup
+and review receipt in dist/openai-pricing-review-20261118.json. No old charge was
+refunded. The raw diagnostic confirmed zero image_gen/web_search counts and new
+cache-write lifetime details. It failed settlement on those new cache details;
+its reservation remains pending. The parser now checks known zero hosted-tool
+fields and validates cache lifetime subtotals. Unknown/nonzero tools still stop.
+
+An actual installed Linux x64 Compositor then authored Project checks on
+gpt-6.1-sol through the original saved profile/proxy: ten admitted, reported and
+settled requests, no gateway refusals, all protected fixtures preserved. The
+agent ran both required project commands successfully but also attempted an
+unauthorized candidate-test command. The independent grade failed: the plugin
+declares nonexistent ui.open and does not load through the normal loader.
+Do not claim autonomous useful-plugin delivery or replace the maintained plugin
+with this candidate. Original candidate/archive/report are retained at
+dist/development-openai-live-20261118/. End ledger: $60 total,
+$50.186052 committed conservative bound, 436 reported/four pending. Partial
+Standard estimate $3.824935 covers 270 requests (166 unavailable); the run adds
+$0.208947 to that estimate, not an account invoice. Full suite 2962 pass/six skip;
+types and docs pass before this memory update. Broad 1.0 gates stay open.
+
 ## OpenAI connection probe and pricing stop — 2026-11-16
 
 The user explicitly requested continuing tests on OpenAI and disputed treating
